@@ -11,7 +11,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "dotenv>=0.9.9",
     "langchain>=0.3.27",
+    "langchain-google-vertexai>=2.1.2",
     "langgraph>=0.6.7",
     "ruff>=0.13.2",
 ]
