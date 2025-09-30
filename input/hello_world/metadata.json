@@ -1,0 +1,29 @@
+{
+  "name": "hello_world",
+  "description": "Logs hello_world to the chef log",
+  "long_description": "# hello_world cookbook\n\nSimple cookbook that supports using Berkshelf and Vagrant.  Good for verifying\nyour development environment is setup correctly for \"[The Berkshelf Way](http://alluvium.com/blog/2013/05/03/the-application-cookbook-pattern-berkshelf-and-team-chef-workflow/)\" or for validating new vagrant\nboxes.\n\n## Requirements\n\nTo run locally, you need Vagrant 1.2.0 or greater installed with the Berkshelf plugin.  For installation information please see the \"VAGRANT WITH BERKSHELF\" section on [berkshelf.com](http://berkshelf.com/)\n\n## Usage\n\n    cd hello_world\n    vagrant up\n    vagrant ssh\n\n## Recipes\n\n`hello_world::default` - Logs \"Hello, World!\" to chef log. Yeah, stupid simple.\n\n## Development\n\nInstall the required development gems using:\n\n    bundle\n\nThen the available commands:\n\n    bundle exec thor list\n\n\n## Contributing\n\n1. Fork it\n2. Create your feature branch (`git checkout -b my-new-feature`)\n3. Commit your changes (`git commit -am 'Add some feature'`)\n4. Push to the branch (`git push origin my-new-feature`)\n5. Create new Pull Request\n\n## Author\n\nAuthor:: caryp (<cary@rightscale.com>)\n",
+  "maintainer": "RightScale",
+  "maintainer_email": "cary@rightscale.com",
+  "license": "Apache 2.0",
+  "platforms": {
+  },
+  "dependencies": {
+  },
+  "recommendations": {
+  },
+  "suggestions": {
+  },
+  "conflicting": {
+  },
+  "providing": {
+  },
+  "replacing": {
+  },
+  "attributes": {
+  },
+  "groupings": {
+  },
+  "recipes": {
+  },
+  "version": "0.0.3"
+}

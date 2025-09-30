@@ -4,6 +4,7 @@ import click
 import logging
 import os
 import sys
+from dotenv import load_dotenv
 
 from langchain.globals import set_debug
 from src.init import init_project
@@ -28,11 +29,11 @@ def cli(ctx):
 
 
 @cli.command()
-@click.argument("message")
-@click.option("--dir", default=".", help="Target repository directory to analyze")
-def init(message, dir):
+@click.argument("user_requirements")
+@click.option("--source-dir", default=".", help="Source directory to analyze")
+def init(user_requirements, source_dir):
     """Initialize project with interactive message"""
-    init_project(message, dir)
+    init_project(user_requirements=user_requirements, source_dir=source_dir)
 
 
 @cli.command()
@@ -56,5 +57,6 @@ def validate(component_name):
 
 
 if __name__ == "__main__":
+    load_dotenv()
     setup_logging()
     cli()
