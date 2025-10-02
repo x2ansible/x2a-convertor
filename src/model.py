@@ -1,8 +1,20 @@
 import os
 import logging
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import AIMessage
+from langgraph.graph import MessagesState
 
 logger = logging.getLogger(__name__)
+
+
+def get_last_ai_message(state: MessagesState):
+    messages = state.get("messages", [])
+
+    last_ai_message = next(
+        filter(lambda msg: isinstance(msg, AIMessage), reversed(messages)), None
+    )
+
+    return last_ai_message
 
 
 def get_model():
@@ -18,6 +30,7 @@ def get_model():
         return init_chat_model(
             model_name,
             base_url=os.getenv("OPENAI_API_BASE"),
+            model_provider="openai",
             api_key=os.getenv("OPENAI_API_KEY", "not-needed"),
             max_tokens=int(os.getenv("MAX_TOKENS", "8192")),
             temperature=float(os.getenv("TEMPERATURE", "0.1")),

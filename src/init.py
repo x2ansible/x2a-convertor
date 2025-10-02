@@ -10,9 +10,9 @@ from langgraph.prebuilt import create_react_agent
 
 from prompts.get_prompt import get_prompt
 from src.model import get_model
+from src.const import MIGRATION_PLAN_FILE
 
 logger = logging.getLogger(__name__)
-migration_plan_file = "migration-plan-generated.md"
 
 
 def create_migration_agent():
@@ -31,7 +31,7 @@ def create_migration_agent():
 
     # Get the migration planning system prompt
     system_prompt = get_prompt("migration_instructions").format(
-        migration_plan_file=migration_plan_file
+        migration_plan_file=MIGRATION_PLAN_FILE
     )
     logger.debug(f"System prompt: {system_prompt}")
 
@@ -58,7 +58,7 @@ def init_project(user_requirements, source_dir="."):
 
         # Prepare the user message for migration analysis
         user_message = get_prompt("migration_plan_request").format(
-            user_requirements=user_requirements, migration_plan_file=migration_plan_file
+            user_requirements=user_requirements, migration_plan_file=MIGRATION_PLAN_FILE
         )
         logger.debug(f"Initial user prompt: {user_message}")
 
@@ -82,14 +82,14 @@ def init_project(user_requirements, source_dir="."):
             user_requirements.pretty_print()
 
         # Check if the migration plan was actually created
-        if os.path.exists(migration_plan_file):
+        if os.path.exists(MIGRATION_PLAN_FILE):
             click.echo("✅ Migration plan generated successfully!")
             click.echo(
-                f"📄 Check '{migration_plan_file}' for the detailed migration analysis."
+                f"📄 Check '{MIGRATION_PLAN_FILE}' for the detailed migration analysis."
             )
         else:
             click.echo(
-                f"⚠️  Agent completed but '{migration_plan_file}' was not created."
+                f"⚠️  Agent completed but '{MIGRATION_PLAN_FILE}' was not created."
             )
         return result
 
