@@ -1,8 +1,30 @@
 import os
 import logging
+import requests
 from langchain.chat_models import init_chat_model
 
 logger = logging.getLogger(__name__)
+
+
+def list_models():
+    """List all models available at the OPENAI_API_BASE endpoint, if set"""
+    if os.getenv("OPENAI_API_BASE"):
+        api_base = os.getenv("OPENAI_API_BASE")
+        api_key = os.getenv("OPENAI_API_KEY", "not-needed")
+        models_url = api_base.rstrip("/") + "/models"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+        }
+        try:
+            response = requests.get(models_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            models = response.json().get("data", [])
+            model_ids = [m.get("identifier") for m in models if "identifier" in m]
+            logger.info(f"Available models at {api_base}: {model_ids}")
+        except Exception as e:
+            logger.warning(f"Could not list models from {models_url}: {e}")
+    else:
+        logger.warning("OPENAI_API_BASE is not set")
 
 
 def get_model():
@@ -19,6 +41,7 @@ def get_model():
             model_name,
             base_url=os.getenv("OPENAI_API_BASE"),
             api_key=os.getenv("OPENAI_API_KEY", "not-needed"),
+            model_provider=os.getenv("OPENAI_PROVIDER", "openai"),
             max_tokens=int(os.getenv("MAX_TOKENS", "8192")),
             temperature=float(os.getenv("TEMPERATURE", "0.1")),
         )

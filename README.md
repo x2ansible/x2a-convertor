@@ -20,21 +20,43 @@ Infrastructure migration tool with AI-powered analysis and planning.
 
 ## Usage
 
+Optionally, a `.env` file with following env variables can be created for development purposes.
+
+### Enable debug logging
 ```bash
-# Cloud LLM example
-export LLM_MODEL="claude-3-5-sonnet-20241022"
-
-# Local LLM example (Ollama)
-export LLM_MODEL="openai:qwen3:4b"
-export OPENAI_API_BASE="http://localhost:11434/v1"
-export OPENAI_API_KEY="not-needed"
-
-# Enable debug logging
 export LOG_LEVEL="DEBUG"
 export LANGCHAIN_DEBUG="true"
 ```
 
-Optionally, a `.env` file with these settings for development purposes can be created.
+### Local LLM example (Ollama)
+```bash
+# Local LLM example (Ollama)
+export LLM_MODEL="openai:qwen3:4b"
+#export LLM_MODEL="claude-3-5-sonnet-20241022"
+export OPENAI_API_BASE="http://localhost:11434/v1"
+export OPENAI_API_KEY="not-needed"
+```
+
+### Vertex AI running LLM in GCP
+```bash
+# to create ~/.config/gcloud/application_default_credentials.json:
+gcloud auth application-default login
+
+# to verify login:
+gcloud auth list
+
+# The value from https://console.cloud.google.com/home/dashboard
+export VERTEXAI_PROJECT="myproject"
+
+# to start the llama-stack service as a proxy to GCP
+# (we plan to add more services here later)
+podman-compose up
+
+# in case of issues with starting the llama-stack service, mind clean-up based on
+podman ps --all
+```
+
+More info: https://llama-stack.readthedocs.io/en/latest/providers/inference/remote_vertexai.html
 
 ## Run migration planning
 ```bash

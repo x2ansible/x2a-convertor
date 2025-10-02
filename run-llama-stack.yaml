@@ -1,0 +1,83 @@
+version: '3'
+image_name: ollama-llama-stack-config
+apis:
+  - agents
+  - inference
+  - safety
+  - telemetry
+  - tool_runtime
+  - vector_io
+logging:
+  level: DEBUG  # Set root logger to DEBUG
+  category_levels:
+    llama_stack: DEBUG  # Enable DEBUG for all llama_stack modules
+    llama_stack.providers.remote.inference.vllm: DEBUG
+    llama_stack.providers.inline.agents.meta_reference: DEBUG
+    llama_stack.providers.inline.agents.meta_reference.agent_instance: DEBUG
+    llama_stack.providers.inline.vector_io.faiss: DEBUG
+    llama_stack.providers.inline.telemetry.meta_reference: DEBUG
+    llama_stack.core: DEBUG
+    llama_stack.apis: DEBUG
+    uvicorn: DEBUG
+    uvicorn.access: INFO  # Keep HTTP requests at INFO to reduce noise
+    fastapi: DEBUG
+
+providers:
+  vector_io:
+    - config:
+        kvstore:
+          db_path: /tmp/faiss_store.db
+          type: sqlite
+      provider_id: faiss
+      provider_type: inline::faiss
+
+  agents:
+  - config:
+      persistence_store:
+        db_path: /tmp/agents_store.db
+        namespace: null
+        type: sqlite
+      responses_store:
+        db_path: /tmp/responses_store.db
+        type: sqlite
+    provider_id: meta-reference
+    provider_type: inline::meta-reference
+
+
+  inference:
+#    - provider_id: vllm-inference
+#      provider_type: remote::vllm
+#      config:
+#        url: ${env.VLLM_URL:=http://localhost:8000/v1}
+#        max_tokens: ${env.VLLM_MAX_TOKENS:=4096}
+#        api_token: ${env.VLLM_API_TOKEN:=fake}
+#        tls_verify: ${env.VLLM_TLS_VERIFY:=false}
+
+    - provider_id: google-vertex
+      provider_type: remote::vertexai
+      config:
+        project: ${env.VERTEXAI_PROJECT}
+        region: ${env.VERTEXAI_REGION:=us-east5}
+
+  tool_runtime:
+    - provider_id: model-context-protocol
+      provider_type: remote::model-context-protocol
+      config: {}
+      module: null
+
+  telemetry:
+    - config:
+        service_name: 'llama-stack'
+        sinks: console,sqlite
+        sqlite_db_path: /tmp/trace_store.db
+      provider_id: meta-reference
+      provider_type: inline::meta-reference
+
+metadata_store:
+  type: sqlite
+  db_path: /tmp/registry.db
+  namespace: null
+
+inference_store:
+  type: sqlite
+  db_path: /tmp/inference_store.db

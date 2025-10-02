@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from langchain.globals import set_debug
 from src.init import init_project
 from src.migrate import migrate_component
+from src.model import list_models
 from src.validate import validate_component
 from src.inputs.analyze import analyze_project
 
@@ -54,6 +55,12 @@ def migrate(component_name):
 def validate(component_name):
     """Validate migrated component against original configuration"""
     validate_component(component_name)
+
+
+@cli.command()
+def models():
+    """List all models available at the OPENAI_API_BASE endpoint, if set"""
+    list_models()
 
 
 if __name__ == "__main__":
