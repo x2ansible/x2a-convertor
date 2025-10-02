@@ -1,0 +1,38 @@
+secrets:
+  gcp-credentials:
+    file: ~/.config/gcloud/application_default_credentials.json
+    x-podman.relabel: Z
+
+services:
+  llama-stack:
+    image: docker.io/llamastack/distribution-starter:0.2.23
+    container_name: llama-stack
+    ports:
+      - "8321:8321"
+    volumes:
+      - ./run-llama-stack.yaml:/app-root/run.yaml:Z
+    entrypoint: ["python", "-m", "llama_stack.core.server.server"]
+    command: ["/app-root/run.yaml", "--port", "8321"]
+    environment:
+      - VERTEXAI_PROJECT=${VERTEXAI_PROJECT}
+      - GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcp-credentials
+      - LLAMA_STACK_LOG=DEBUG
+#      - VLLM_URL=${VLLM_URL}
+#      - VLLM_API_TOKEN=test
+#      - VLLM_MAX_TOKENS=4096
+#      - VLLM_TLS_VERIFY=false
+      - INFERENCE_MODEL=gemma3:27b-it-qat
+    secrets:
+      - gcp-credentials
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8321/v1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - x2aconvertornet
+
+networks:
+  x2aconvertornet:
+    driver: bridge
