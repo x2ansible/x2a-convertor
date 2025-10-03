@@ -37,9 +37,11 @@ def init(user_requirements, source_dir):
 
 
 @cli.command()
-def analyze():
+@click.argument("user_requirements")
+@click.option("--source-dir", default=".", help="Source directory to analyze")
+def analyze(user_requirements, source_dir):
     """Perform detailed analysis and create component migration plans"""
-    analyze_project()
+    analyze_project(user_requirements, source_dir)
 
 
 @cli.command()
