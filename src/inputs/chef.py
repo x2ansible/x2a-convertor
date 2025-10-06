@@ -9,6 +9,7 @@ from langgraph.prebuilt import create_react_agent
 
 from src.model import get_model, get_last_ai_message
 from prompts.get_prompt import get_prompt
+from src.inputs.tree_analysis import TreeSitterAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -164,12 +165,22 @@ class ChefSubagent:
     def _write_report(self, state: ChefState) -> ChefState:
         search_tool = FileSearchTool()
         all_files = search_tool.run({"dir_path": state["path"], "pattern": "*"})
+
+        # Generate tree-sitter analysis report
+        analyzer = TreeSitterAnalyzer()
+        try:
+            tree_sitter_report = analyzer.report_directory(state["path"])
+        except Exception as e:
+            logger.warning(f"Failed to generate tree-sitter report: {e}")
+            tree_sitter_report = "Tree-sitter analysis not available"
+
         # Prepare system and user messages for chef agent
         system_message = get_prompt("chef_analysis_system")
         user_prompt = get_prompt("chef_analysis_task").format(
             path=state["path"],
             user_message=state["user_message"],
             directory_listing=all_files,
+            tree_sitter_report=tree_sitter_report,
         )
 
         # Execute chef agent with both system and user messages

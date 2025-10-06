@@ -6,6 +6,9 @@
 {directory_listing}
 ```
 
+**Tree-sitter structural analysis:**
+{tree_sitter_report}
+
 **INSTRUCTIONS:**
 1. Use the `read_file` tool to examine all files like `metadata.rb`, `recipes/*.rb`, `attributes/*.rb`, templates, etc.
 2. Use the `file_search` tool to find specific patterns if needed  
