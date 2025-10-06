@@ -41,9 +41,12 @@ run-analyze:
 	  "Analyze the Hello world Chef cookbook"
 
 # third step
-run-analyze:
-	uv run app.py export \
+run-migrate:
+	rm -rf ./input/$(name)/ansible
+	uv run app.py migrate \
 	  --source-dir ./input/$(name) \
+	  --component $(component) \
 	  "Export the Hello world Chef cookbook to Ansible"
 
-.PHONY: check format ci-check install clean run-init build run-container clean-container
+.PHONY: check format ci-check install clean run-init run-analyze run-migrate build run-container clean-container
+

@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from langchain.globals import set_debug
 from src.init import init_project
-from src.migrate import migrate_component
+from src.exporters.migrate import migrate_component
 from src.validate import validate_component
 from src.inputs.analyze import analyze_project
 
@@ -45,10 +45,18 @@ def analyze(user_requirements, source_dir):
 
 
 @cli.command()
-@click.argument("component_name")
-def migrate(component_name):
-    """Migrate specific component to Ansible (e.g., 'postgres', 'nginx')"""
-    migrate_component(component_name)
+@click.argument("user_requirements")
+@click.option("--source-dir", default=".", help="Source directory to migrate")
+@click.option(
+    "--component",
+    default="default",
+    help='Component from the source directory to migrate, see output of the analyze command. If not provided: "default"',
+)
+def migrate(user_requirements, component, source_dir):
+    """Based on the migration plan produced within analysis, migrate the project"""
+    migrate_component(
+        user_requirements, component_name=component, source_dir=source_dir
+    )
 
 
 @cli.command()

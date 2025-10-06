@@ -2,7 +2,6 @@ import logging
 import json
 import os
 
-from enum import Enum
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
 from pathlib import Path
@@ -12,14 +11,9 @@ from prompts.get_prompt import get_prompt
 from src.const import MIGRATION_PLAN_FILE, COMPONENT_MIGRATION_PLAN_TEMPLATE
 from src.inputs.chef import ChefSubagent
 from src.model import get_model
+from src.utils.technology import Technology
 
 logger = logging.getLogger(__name__)
-
-
-class Technology(Enum):
-    CHEF = "Chef"
-    PUPPET = "Puppet"
-    SALT = "Salt"
 
 
 class MigrationState(TypedDict):
@@ -95,20 +89,28 @@ class MigrationAnalysisWorkflow:
         logger.debug(f"LLM select_component response: {llm_response.content}")
 
         try:
-          response_data = json.loads(llm_response.content.strip())
+            response_data = json.loads(llm_response.content.strip())
         except Exception as e:
-          logger.error(f"Error during parsing LLM-generated JSON with list of components: {str(e)}")
-          # TODO: if this is an issue among several attempts, we should retry the LLM call
-          raise
+            logger.error(
+                f"Error during parsing LLM-generated JSON with list of components: {str(e)}"
+            )
+            # TODO: if this is an issue among several attempts, we should retry the LLM call
+            raise
 
         if isinstance(response_data, dict) and "path" in response_data:
             raw_path = response_data["path"]
             raw_technology = response_data.get("technology", "Chef")
-        elif isinstance(response_data, list) and len(response_data) == 1 and "path" in response_data[0]:
+        elif (
+            isinstance(response_data, list)
+            and len(response_data) == 1
+            and "path" in response_data[0]
+        ):
             raw_path = response_data[0]["path"]
             raw_technology = response_data[0].get("technology", "Chef")
         else:
-            raise ValueError(f"Unexpected format for LLM response: {response_data}, expected a dictionary with a 'path' key")
+            raise ValueError(
+                f"Unexpected format for LLM response: {response_data}, expected a dictionary with a 'path' key"
+            )
 
         # Convert absolute paths to relative
         if raw_path.startswith("/"):
