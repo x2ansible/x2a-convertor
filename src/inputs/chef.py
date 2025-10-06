@@ -115,7 +115,7 @@ class ChefSubagent:
         files = self.list_files([state["path"]] + state["dependency_paths"])
         read_tool = ReadFileTool()
 
-        logger.info(f"Validating migration plan against {len(files)} files")
+        logger.info(f"--------------------------- Validating migration plan against {len(files)} files")
 
         for i, fp in enumerate(files):
             try:
@@ -210,6 +210,7 @@ class ChefSubagent:
         return state
 
     def _write_report(self, state: ChefState) -> ChefState:
+        logger.info(f"Writing Chef report for {str(state)}")
         search_tool = FileSearchTool()
         all_files = search_tool.run({"dir_path": state["path"], "pattern": "*"})
 
@@ -244,6 +245,7 @@ class ChefSubagent:
             raise Exception("Invalid response from Chef agent")
 
         state["specification"] = result.get("messages", ["No response"])[-1].content
+        logger.debug(f"------------ specification: {state['specification']}")
         return state
 
     def invoke(self, path: str, user_message: str) -> str:

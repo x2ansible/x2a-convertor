@@ -92,17 +92,30 @@ class MigrationAnalysisWorkflow:
         ]
 
         llm_response = self.model.invoke(messages)
-        logger.debug(f"LLM Response: {llm_response.content}")
+        logger.debug(f"LLM select_component response: {llm_response.content}")
 
-        response_data = json.loads(llm_response.content.strip())
-        raw_path = response_data.get("path", "")
+        try:
+          response_data = json.loads(llm_response.content.strip())
+        except Exception as e:
+          logger.error(f"Error during parsing LLM-generated JSON with list of components: {str(e)}")
+          # TODO: if this is an issue among several attempts, we should retry the LLM call
+          raise
+
+        if isinstance(response_data, dict) and "path" in response_data:
+            raw_path = response_data["path"]
+            raw_technology = response_data.get("technology", "Chef")
+        elif isinstance(response_data, list) and len(response_data) == 1 and "path" in response_data[0]:
+            raw_path = response_data[0]["path"]
+            raw_technology = response_data[0].get("technology", "Chef")
+        else:
+            raise ValueError(f"Unexpected format for LLM response: {response_data}, expected a dictionary with a 'path' key")
 
         # Convert absolute paths to relative
         if raw_path.startswith("/"):
             raw_path = f".{raw_path}"
 
         state["path"] = raw_path
-        state["technology"] = Technology(response_data.get("technology", "Chef"))
+        state["technology"] = Technology(raw_technology)
         logger.info(
             f"Selected path: '{state['path']}' technology: '{state['technology'].value}'"
         )
@@ -133,11 +146,13 @@ class MigrationAnalysisWorkflow:
         """Write the migration plan to a file"""
         migration_content = state.get("component_migration_plan")
         if not migration_content:
-            logger.error("Migration failed, no plan")
+            logger.error("Migration failed, no plan generated")
             return state
 
         path = state.get("path", "")
         component = path.split("/")[-1] if path else "unknown"
+        if not component:
+            component = "default"
         filename = COMPONENT_MIGRATION_PLAN_TEMPLATE.format(component=component)
 
         Path(filename).write_text(migration_content)
