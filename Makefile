@@ -20,4 +20,17 @@ run-init:
 	  --source-dir ./input/$(name) \
 	  "I want to migrate this Chef repository to Ansible"
 
-.PHONY: check format ci-check install clean run-init
+DOCKER ?= podman
+IMAGE_NAME ?= x2a-convertor
+IMAGE_TAG ?= latest
+
+build:
+	$(DOCKER) build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+
+run-container:
+	$(DOCKER) run --rm -it $(IMAGE_NAME):$(IMAGE_TAG)
+
+clean-container:
+	$(DOCKER) rmi $(IMAGE_NAME):$(IMAGE_TAG)
+
+.PHONY: check format ci-check install clean run-init build run-container clean-container
