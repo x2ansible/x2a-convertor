@@ -7,6 +7,7 @@ from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_community.tools.file_management.write import WriteFileTool
 from langgraph.prebuilt import create_react_agent
+from pathlib import Path
 
 from prompts.get_prompt import get_prompt
 from src.model import get_model
@@ -44,6 +45,19 @@ def create_migration_agent():
     return agent
 
 
+def list_with_depth(dir_path, max_depth=2):
+    path = Path(dir_path)
+    items = []
+    for item in path.rglob("*"):
+        relative = item.relative_to(path)
+        if any(part.startswith(".") for part in relative.parts):
+            continue
+        depth = len(relative.parts)
+        if depth <= max_depth:
+            items.append(str(relative))
+    return "\n".join(sorted(items))
+
+
 def init_project(user_requirements, source_dir="."):
     """Initialize project with migration planning"""
     logger.info("Analyzing repository for migration planning...")
@@ -55,13 +69,15 @@ def init_project(user_requirements, source_dir="."):
     try:
         # Create the migration planning agent
         agent = create_migration_agent()
+        files = list_with_depth(".", max_depth=3)
 
         # Prepare the user message for migration analysis
         user_message = get_prompt("migration_plan_request").format(
-            user_requirements=user_requirements, migration_plan_file=MIGRATION_PLAN_FILE
+            user_requirements=user_requirements,
+            migration_plan_file=MIGRATION_PLAN_FILE,
+            files=files,
         )
         logger.debug(f"Initial user prompt: {user_message}")
-
         # Execute the agent with higher recursion limit
         result = agent.invoke(
             {"messages": [{"role": "user", "content": user_message}]},
