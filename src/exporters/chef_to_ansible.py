@@ -8,9 +8,9 @@ from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
 from langgraph.prebuilt import create_react_agent
 
-from src.const import MAX_EXPORT_ATTEMPTS
 from src.model import get_model, get_last_ai_message
 from prompts.get_prompt import get_prompt
+from src.utils.config import MAX_EXPORT_ATTEMPTS
 
 logger = logging.getLogger(__name__)
 

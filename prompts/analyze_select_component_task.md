@@ -1,3 +1,5 @@
-Based on this request: '{user_message}', return only JSON with path and technology.
+Return a single JSON object only with path and source technology to migrate from.
+It is important, that the path is relative to the current working directory, not absolute.
 
-IMPORTANT: The path should be relative to the current working directory, not absolute.
+The user request:
+{user_message} 

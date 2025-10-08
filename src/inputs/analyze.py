@@ -113,6 +113,9 @@ class MigrationAnalysisWorkflow:
                 f"Unexpected format for LLM response, expected a dictionary with a 'path' key but got: {response_data}"
             )
 
+        # TODO: this does not work, the LLM returns the path randomly among several attempts, it's hard to get an existing directory
+        # We should derive the path from the source_dir instead
+
         # Convert absolute paths to relative
         if raw_path.startswith("/"):
             raw_path = f".{raw_path}"
