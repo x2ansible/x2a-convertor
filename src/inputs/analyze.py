@@ -11,6 +11,7 @@ from prompts.get_prompt import get_prompt
 from src.const import MIGRATION_PLAN_FILE, COMPONENT_MIGRATION_PLAN_TEMPLATE
 from src.inputs.chef import ChefSubagent
 from src.model import get_model
+from src.utils.config import ANALYZE_RECURSION_LIMIT
 from src.utils.technology import Technology
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ class MigrationAnalysisWorkflow:
             raw_technology = response_data[0].get("technology", "Chef")
         else:
             raise ValueError(
-                f"Unexpected format for LLM response: {response_data}, expected a dictionary with a 'path' key"
+                f"Unexpected format for LLM response, expected a dictionary with a 'path' key but got: {response_data}"
             )
 
         # Convert absolute paths to relative
@@ -151,6 +152,7 @@ class MigrationAnalysisWorkflow:
             logger.error("Migration failed, no plan generated")
             return state
 
+        # TODO: make it robust and aligned with plans, since following can still result in dummy component name "."
         path = state.get("path", "")
         component = path.split("/")[-1] if path else "unknown"
         if not component:
@@ -179,6 +181,8 @@ def analyze_project(user_requirements: str, source_dir: str = "."):
         component_plan_path="",
     )
 
-    result = workflow.graph.invoke(initial_state)
-    logger.info("Migration analysis completed successfully!")
+    result = workflow.graph.invoke(
+        initial_state, {"recursion_limit": ANALYZE_RECURSION_LIMIT}
+    )
+    logger.info("Chef to Ansible migration completed successfully!")
     return result

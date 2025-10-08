@@ -202,12 +202,5 @@ def migrate_component(user_requirements, component_name, source_dir):
     )
 
     result = workflow.invoke(initial_state)
-    logger.info("Migration analysis completed successfully!")
+    logger.info("Migration completed successfully!")
     return result
-
-    # Get migration-plan-generated.md
-    # Get migration-plan-module.md
-    # When in doubts, review the Chef cookbook in the source_dir as the source of truth and log this uncertainty.
-
-    # Based on the migration-plan.md, decide about exporter agent to use
-    # Use ansible exporter to generate the playbooks

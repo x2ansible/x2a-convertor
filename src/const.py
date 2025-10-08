@@ -8,6 +8,3 @@ MIGRATION_REPORT_FILE = "migration-report.md"
 
 # Component migration plan filename template
 COMPONENT_MIGRATION_PLAN_TEMPLATE = "migration-plan-{component}.md"
-
-# Maximum number of attempts to export the Ansible playbook
-MAX_EXPORT_ATTEMPTS = 5

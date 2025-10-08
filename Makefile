@@ -31,22 +31,22 @@ clean-container:
 # first step
 run-init:
 	uv run app.py init \
-	  --source-dir ./input/$(name) \
+	  --source-dir ./examples/$(name) \
 	  "I want to migrate this Chef repository to Ansible"
 
 # second step
 run-analyze:
 	uv run app.py analyze \
-	  --source-dir ./input/$(name) \
-	  "Analyze the Hello world Chef cookbook"
+	  --source-dir ./examples/$(name) \
+	  "Analyze the Chef cookbook"
 
 # third step
 run-migrate:
-	rm -rf ./input/$(name)/ansible
+	rm -rf ./examples/$(name)/ansible
 	uv run app.py migrate \
-	  --source-dir ./input/$(name) \
+	  --source-dir ./examples/$(name) \
 	  --component $(component) \
-	  "Export the Hello world Chef cookbook to Ansible"
+	  "Export the cookbook to Ansible"
 
 .PHONY: check format ci-check install clean run-init run-analyze run-migrate build run-container clean-container
 

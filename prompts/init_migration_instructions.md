@@ -2,7 +2,7 @@
 
 You are an expert in migrating infrastructure-as-code repositories to Ansible.
 Your task is to thoroughly analyze the provided repository and produce a comprehensive `{migration_plan_file}` that will guide and coordinate the migration process.
-The plan must detail all components, dependencies, security issues, and potential challenges.
+The plan must summarize in detail all components, dependencies, security issues, and potential challenges.
 
 ## Instructions
 

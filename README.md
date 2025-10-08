@@ -17,6 +17,9 @@ Infrastructure migration tool with AI-powered analysis and planning.
 | `TARGET_REPO_PATH`     | Path to repository to analyze                  | `/path/to/chef-repo`<br>`../my-puppet-repo`                                                              | No (default: current dir) |
 | `MAX_TOKENS`           | Maximum tokens for response                    | `8192`, `16384`, `32768`                                                                                 | No (default: 8192)        |
 | `TEMPERATURE`          | Model temperature (0-1)                        | `0.1`, `0.5`, `1.0`                                                                                      | No (default: 0.1)         |
+| `ANALYZE_RECURSION_LIMIT` | Maximum recursion limit for the analyze phase         | `100`, `200`                                                                                             | No (default: 100)         |
+| `MAX_EXPORT_ATTEMPTS`     | Maximum number of attempts to export the playbook     | `5`, `10`                                                                                                | No (default: 5)           |
+
 
 ## Usage
 

@@ -118,6 +118,8 @@ class ChefSubagent:
 
         logger.info(f"Validating migration plan against {len(files)} files")
 
+        # TODO: Rethink following.
+        # Maybe run this in parallel, there can be many files and it takes forever to finish on a more complex example
         for i, fp in enumerate(files):
             try:
                 # Read the file content
