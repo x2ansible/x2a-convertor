@@ -1,0 +1,65 @@
+---
+driver:
+  name: vagrant
+
+provisioner:
+  name: chef_infra
+  deprecations_as_errors: true
+  chef_license: accept
+  product_name: chef
+  product_version: <%= ENV['CHEF_VERSION'] || 'latest' %>
+  install_strategy: always
+  chef_log_level: <%= ENV['CHEF_LOG_LEVEL'] || 'auto' %>
+
+verifier:
+  name: inspec
+
+platforms:
+  - name: amazonlinux-2023
+  - name: almalinux-8
+  - name: almalinux-9
+  - name: rockylinux-8
+  - name: rockylinux-9
+  - name: centos-stream-9
+  - name: centos-stream-10
+  - name: debian-11
+  - name: debian-12
+  - name: fedora-latest
+  - name: ubuntu-22.04
+  - name: ubuntu-24.04
+
+suites:
+  - name: distro
+    run_list:
+      - recipe[test::distro]
+    verifier:
+      inspec_tests:
+        - test/integration/default_install
+  - name: distro-nginx-full
+    run_list:
+      - recipe[test::distro_nginx-full]
+    includes:
+      - ubuntu-22.04
+      - ubuntu-24.04
+    verifier:
+      inspec_tests:
+        - test/integration/default_install
+  - name: repo
+    run_list:
+      - recipe[test::repo]
+    verifier:
+      inspec_tests:
+        - test/integration/repo
+  - name: epel
+    run_list:
+      - recipe[test::epel]
+    includes:
+      - almalinux-8
+      - almalinux-9
+      - centos-stream-9
+      - centos-stream-10
+      - rockylinux-8
+      - rockylinux-9
+  - name: invalid-conf
+    run_list:
+      - recipe[test::invalid-conf]
