@@ -1,5 +1,5 @@
 import logging
-from typing import TypedDict
+from typing import TypedDict, List, Optional
 
 from langgraph.graph import StateGraph, END
 from langchain_community.tools.file_management.file_search import FileSearchTool
@@ -8,6 +8,7 @@ from langchain_community.tools.file_management.read import ReadFileTool
 from langgraph.prebuilt import create_react_agent
 
 from src.model import get_model, get_last_ai_message
+from src.inputs.chef_dependency_fetcher import ChefDependencyManager
 from prompts.get_prompt import get_prompt
 from src.inputs.tree_analysis import TreeSitterAnalyzer
 
@@ -18,6 +19,8 @@ class ChefState(TypedDict):
     path: str
     user_message: str
     specification: str
+    dependency_paths: List[str]
+    temp_export_path: Optional[str]
 
 
 class ChefSubagent:
@@ -25,6 +28,7 @@ class ChefSubagent:
         self.model = model or get_model()
         self.agent = self._create_agent()
         self._workflow = self._create_workflow()
+        self._dependency_fetcher: Optional[ChefDependencyManager] = None
         logger.debug(self._workflow.get_graph().draw_mermaid())
 
     def _create_agent(self):
@@ -47,25 +51,68 @@ class ChefSubagent:
 
     def _create_workflow(self):
         workflow = StateGraph(ChefState)
+        workflow.add_node("fetch_dependencies", self._prepare_dependencies)
         workflow.add_node("write_report", self._write_report)
         workflow.add_node("check_files", self._check_files)
         workflow.add_node("cleanup_specification", self._cleanup_specification)
+        workflow.add_node("cleanup_temp_files", self._cleanup_temp_files)
 
-        workflow.set_entry_point("write_report")
+        workflow.set_entry_point("fetch_dependencies")
+        workflow.add_edge("fetch_dependencies", "write_report")
         workflow.add_edge("write_report", "check_files")
         workflow.add_edge("check_files", "cleanup_specification")
-        workflow.add_edge("cleanup_specification", END)
+        workflow.add_edge("cleanup_specification", "cleanup_temp_files")
+        workflow.add_edge("cleanup_temp_files", END)
 
         return workflow.compile()
 
-    def list_files(self, path: str) -> [str]:
+    def list_files(self, paths: List[str]) -> List[str]:
+        """Search multiple paths for cookbook files"""
         search_tool = FileSearchTool()
-        files = search_tool.run({"dir_path": path, "pattern": "*"}).splitlines()
-        return [f"{path}/{x}" for x in files]
+        all_files = []
+
+        for path in paths:
+            try:
+                files = search_tool.run({"dir_path": path, "pattern": "*"}).splitlines()
+                all_files.extend([f"{path}/{x}" for x in files])
+            except Exception as e:
+                logger.warning(f"Error listing files in {path}: {e}")
+                continue
+
+        return all_files
+
+    def _prepare_dependencies(self, state: ChefState) -> ChefState:
+        """Fetch external dependencies using chef-cli"""
+        logger.info(f"Checking for external dependencies for {state['path']}")
+        self._dependency_fetcher = ChefDependencyManager(state["path"])
+
+        has_deps, deps = self._dependency_fetcher.has_dependencies()
+        if not has_deps:
+            logger.info("No external dependencies found, using local cookbooks only")
+            state["dependency_paths"] = [f"{state['path']}/cookbooks"]
+            state["temp_export_path"] = None
+            return state
+
+        logger.info("Found external dependencies, fetching with chef-cli...")
+        self._dependency_fetcher.fetch_dependencies()
+        dependency_paths = self._dependency_fetcher.get_dependencies_paths(deps)
+
+        if dependency_paths:
+            state["dependency_paths"] = dependency_paths
+            state["temp_export_path"] = self._dependency_fetcher.export_path
+
+        return state
+
+    def _cleanup_temp_files(self, state: ChefState) -> ChefState:
+        """Cleanup temporary dependency files"""
+        if self._dependency_fetcher:
+            self._dependency_fetcher.cleanup()
+
+        return state
 
     def _check_files(self, state: ChefState) -> ChefState:
         """Validate and improve migration plan by analyzing each file"""
-        files = self.list_files(state["path"])
+        files = self.list_files([state["path"]] + state["dependency_paths"])
         read_tool = ReadFileTool()
 
         logger.info(f"Validating migration plan against {len(files)} files")
@@ -207,6 +254,8 @@ class ChefSubagent:
             path=path,
             user_message=user_message,
             specification="",
+            dependency_paths=[],
+            temp_export_path=None,
         )
 
         result = self._workflow.invoke(initial_state)
