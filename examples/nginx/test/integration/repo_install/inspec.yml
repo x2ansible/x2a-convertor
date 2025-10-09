@@ -1,6 +1,0 @@
----
-name: repo_install
-title: Nginx Repository Installation Suite
-summary: Verify Nginx package installation from repository
-supports:
-  - os-family: linux

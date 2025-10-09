@@ -45,8 +45,10 @@ run-migrate:
 	rm -rf ./examples/$(name)/ansible
 	uv run app.py migrate \
 	  --source-dir ./examples/$(name) \
-	  --component $(component) \
-	  "Export the cookbook to Ansible"
+	  --module $(component) \
+	  --source-technology Chef --high-level-migration-plan migration-plan.md \
+	  --module-migration-plan migration-plan-nginx-default.md \
+	  "Convert the 'default' module"
 
 .PHONY: check format ci-check install clean run-init run-analyze run-migrate build run-container clean-container
 
