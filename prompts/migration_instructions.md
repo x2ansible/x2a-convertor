@@ -43,8 +43,30 @@ This repository contains [N] [technology type] that need individual migration pl
 
 ### MODULE INVENTORY
 [List each module with description and location]
-- **module-name**: Brief description and location path
-- **another-module**: Brief description and location path
+
+**GOOD EXAMPLES:**
+- **postgresql**:
+    - Description: PostgreSQL 14 database server with replication, backup automation, and performance tuning configurations
+    - Path: cookbooks/postgresql
+    - Technology: Chef
+    - Key Features: Streaming replication, WAL archiving, connection pooling via PgBouncer
+
+- **nginx-proxy**:
+    - Description: Nginx reverse proxy with SSL termination, rate limiting, and upstream health checks
+    - Path: cookbooks/nginx-proxy
+    - Technology: Chef
+    - Key Features: Let's Encrypt integration, custom error pages, request buffering
+
+- **application-backend**:
+    - Description: Java Spring Boot application server with JVM tuning, logging, and monitoring
+    - Path: cookbooks/application-backend
+    - Technology: Chef
+    - Key Features: New Relic APM, log4j configuration, systemd service management
+
+**BAD EXAMPLES (DO NOT DO THIS):**
+- **postgres**: Database cookbook (TOO VAGUE - no details about features, version, or purpose)
+- **web**: Web server module at cookbooks/web (UNCLEAR - what web server? what configuration?)
+- **app**: Application deployment (INSUFFICIENT - what app? what runtime? what dependencies?)
 
 ### Infrastructure Files
 [List supporting infrastructure files]
