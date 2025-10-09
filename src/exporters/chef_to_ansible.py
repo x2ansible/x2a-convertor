@@ -1,6 +1,7 @@
 import logging
 from typing import Literal, TypedDict
 
+from pathlib import Path
 from langchain_community.tools.file_management.write import WriteFileTool
 from langgraph.graph import StateGraph, START, END
 from langchain_community.tools.file_management.file_search import FileSearchTool
@@ -8,6 +9,7 @@ from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
 from langgraph.prebuilt import create_react_agent
 
+from src.const import EXPORT_REPORT_FILENAME_TEMPLATE
 from src.model import get_model, get_last_ai_message
 from prompts.get_prompt import get_prompt
 from src.utils.config import MAX_EXPORT_ATTEMPTS
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class ChefState(TypedDict):
     path: str
+    component: str
     user_message: str
     component_migration_plan: str
     high_level_migration_plan: str
@@ -24,6 +27,7 @@ class ChefState(TypedDict):
     validation_status: bool
     export_attempt_counter: int
     last_validation_result: str
+    last_output: str
 
 
 class ChefToAnsibleSubagent:
@@ -56,20 +60,18 @@ class ChefToAnsibleSubagent:
         workflow = StateGraph(ChefState)
         workflow.add_node("export", self._export)
         workflow.add_node("validate", self._validate)
-        # workflow.add_node("evaluate_validation", self._evaluate_validation)
         workflow.add_node("finalize", self._finalize)
 
         workflow.add_edge(START, "export")
         workflow.add_edge("export", "validate")
         workflow.add_conditional_edges("validate", self._evaluate_validation)
-        # workflow.add_conditional_edges("evaluate_validation", self._evaluate_validation)
         workflow.add_edge("finalize", END)
 
         return workflow.compile()
 
     def _export(self, state: ChefState):
         logger.info(
-            f"ChefToAnsibleSubagent is boiling Ansible, attempt {state['export_attempt_counter']}"
+            f"ChefToAnsibleSubagent is cooking Ansible, attempt {state['export_attempt_counter']}"
         )
 
         # This is a naive loop of several attempts
@@ -140,13 +142,19 @@ class ChefToAnsibleSubagent:
         return "export"
 
     def _finalize(self, state: ChefState):
-        # do clean-up and collect result, if needed
+        # write final report
+        filename = EXPORT_REPORT_FILENAME_TEMPLATE.format(component=state["component"])
+        Path(filename).write_text(state["last_output"])
+        logger.info(f"Migration plan written to {filename}")
+
+        # do clean-up, if needed
         logger.info("ChefToAnsibleSubagent final state")
         return state
 
     def invoke(
         self,
         path: str,
+        component: str,
         user_message: str,
         component_migration_plan: str,
         high_level_migration_plan: str,
@@ -157,6 +165,7 @@ class ChefToAnsibleSubagent:
 
         initial_state = ChefState(
             path=path,
+            component=component,
             user_message=user_message,
             component_migration_plan=component_migration_plan,
             high_level_migration_plan=high_level_migration_plan,
@@ -170,6 +179,8 @@ class ChefToAnsibleSubagent:
 
 
 # Notes to try
-# - Call the linter tool to validate the syntax. If not valid, fix the generated playbook and try again.
-# - use linter as a tool
+# - Either
+#   - call the linter tool to validate the syntax. If not valid, fix the generated playbook and try again.
+#   - or use linter as a tool
 # - tune the validate-export loop to fix the issues found in the generated playbook
+#

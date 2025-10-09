@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 class MigrationState(TypedDict):
     user_message: str
     path: str
+    component: str
     source_technology: Technology
     migration_plan_content: str
     component_migration_plan_content: str
@@ -145,6 +146,7 @@ class MigrationAgent:
         state["directory_listing"] = list_files(path=state["path"])
         return state
 
+    # TODO: once we get source technology and component on the command input, we can remove following
     def _choose_subagent(self, state: MigrationState) -> MigrationState:
         """Choose and execute the appropriate subagent based on technology"""
         technology = state.get("source_technology")
@@ -153,6 +155,7 @@ class MigrationAgent:
             chef_to_ansible_subagent = ChefToAnsibleSubagent(model=self.model)
             state["migration_report"] = chef_to_ansible_subagent.invoke(
                 path=state["path"],
+                component=state["component"],
                 user_message=state["user_message"],
                 component_migration_plan=state["component_migration_plan_content"],
                 high_level_migration_plan=state["component_migration_plan_content"],
