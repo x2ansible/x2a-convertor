@@ -20,7 +20,8 @@ You are provided with following tools. Decide about their use towards meeting th
 - Understand the module migration plan which is provided within the user prompt.
 - Think about steps necessary to write the Ansible playbook fully conforming the module migration plan.
 - If something is unclear or ambiguous, try to find the answer in the higher-level migration plan document provided within the user prompt or read the Chef sources by the read_file tool. State on the output that such step was needed and why.
-- Once you are sure about the scope, produce the content to {directory}, use write_file tool.
+- Once you are sure about the scope, produce the content to {directory}, use write_file tool for individual files.
+- All the exported ansible files must be stored directly under the "./ansible" directory.
 - Ask if anything is unclear.
 
 

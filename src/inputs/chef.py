@@ -11,7 +11,6 @@ from src.model import get_model, get_last_ai_message
 from src.inputs.chef_dependency_fetcher import ChefDependencyManager
 from prompts.get_prompt import get_prompt
 from src.inputs.tree_analysis import TreeSitterAnalyzer
-from src.utils.list_files import list_files
 
 logger = logging.getLogger(__name__)
 

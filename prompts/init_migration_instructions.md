@@ -35,7 +35,7 @@ Generate a `{migration_plan_file}` file with the following structure:
 
 [Executive summary of migration scope, complexity, and timeline estimate]
 
-## Module Migration Plan
+## Component Migration Plan
 
 This repository contains [technology type] that need individual migration planning:
 
@@ -91,9 +91,9 @@ This repository contains [technology type] that need individual migration planni
 
 ### Migration Order
 [Suggest order of migration based on dependencies]
-1. Priority 1 modules (low risk, high value)
-2. Priority 2 modules (moderate complexity)
-3. Priority 3 modules (high complexity, dependencies)
+1. Priority 1 component (low risk, high value)
+2. Priority 2 component (moderate complexity)
+3. Priority 3 component (high complexity, dependencies)
 
 ### Assumptions
 [List every assumption, ambiguity and unclarity about the sources in respect to the upcoming migration to Ansible]

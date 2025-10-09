@@ -10,4 +10,4 @@ MIGRATION_REPORT_FILE = "migration-report.md"
 COMPONENT_MIGRATION_PLAN_TEMPLATE = "migration-plan-{component}.md"
 
 # Export report plan filename template
-EXPORT_REPORT_FILENAME_TEMPLATE = "export-report-{component}.md"
+EXPORT_REPORT_FILENAME_TEMPLATE = "export-report-{module}.md"

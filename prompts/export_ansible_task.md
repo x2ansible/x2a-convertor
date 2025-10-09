@@ -23,12 +23,12 @@ Provide report of your task as requested in the system prompt.
 
 {previous_attempts}
 
-## Component migration plan
+## Module migration plan
 The sources have been analyzed with following findings:
 
->>>>>>> Start of component migration plan
-{component_migration_plan}
-<<<<<<<  End of component migration plan
+>>>>>>> Start of module migration plan
+{module_migration_plan}
+<<<<<<<  End of module migration plan
 
 ## High-level migration plan
 If unclear, try to find answer in following high-level migration plan

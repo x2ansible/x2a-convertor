@@ -1,7 +1,6 @@
 import logging
 from typing import Literal, TypedDict
 
-from pathlib import Path
 from langchain_community.tools.file_management.write import WriteFileTool
 from langgraph.graph import StateGraph, START, END
 from langchain_community.tools.file_management.file_search import FileSearchTool
@@ -9,19 +8,18 @@ from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
 from langgraph.prebuilt import create_react_agent
 
-from src.const import EXPORT_REPORT_FILENAME_TEMPLATE
 from src.model import get_model, get_last_ai_message
 from prompts.get_prompt import get_prompt
-from src.utils.config import MAX_EXPORT_ATTEMPTS
+from src.utils.config import ANALYZE_RECURSION_LIMIT, MAX_EXPORT_ATTEMPTS
 
 logger = logging.getLogger(__name__)
 
 
 class ChefState(TypedDict):
     path: str
-    component: str
+    module: str
     user_message: str
-    component_migration_plan: str
+    module_migration_plan: str
     high_level_migration_plan: str
     directory_listing: str
     validation_status: bool
@@ -94,7 +92,7 @@ class ChefToAnsibleSubagent:
         user_prompt = get_prompt("export_ansible_task").format(
             user_message=state["user_message"],
             path=state["path"],
-            component_migration_plan=state["component_migration_plan"],
+            module_migration_plan=state["module_migration_plan"],
             high_level_migration_plan=state["high_level_migration_plan"],
             directory_listing=state["directory_listing"],
             previous_attempts=export_ansible_previous_attempts_partial,
@@ -142,11 +140,6 @@ class ChefToAnsibleSubagent:
         return "export"
 
     def _finalize(self, state: ChefState):
-        # write final report
-        filename = EXPORT_REPORT_FILENAME_TEMPLATE.format(component=state["component"])
-        Path(filename).write_text(state["last_output"])
-        logger.info(f"Migration plan written to {filename}")
-
         # do clean-up, if needed
         logger.info("ChefToAnsibleSubagent final state")
         return state
@@ -154,27 +147,28 @@ class ChefToAnsibleSubagent:
     def invoke(
         self,
         path: str,
-        component: str,
+        module: str,
         user_message: str,
-        component_migration_plan: str,
+        module_migration_plan: str,
         high_level_migration_plan: str,
         directory_listing: str,
     ) -> str:
-        """Export Ansible playbook based on the component migration plan and Chef sources"""
+        """Export Ansible playbook based on the module migration plan and Chef sources"""
         logger.info("Using ChefToAnsible agent for migration")
 
         initial_state = ChefState(
             path=path,
-            component=component,
+            module=module,
             user_message=user_message,
-            component_migration_plan=component_migration_plan,
+            module_migration_plan=module_migration_plan,
             high_level_migration_plan=high_level_migration_plan,
             directory_listing=directory_listing,
             export_attempt_counter=1,
         )
 
-        result = self._workflow.invoke(initial_state)
-        logger.debug(f"ChefToAnsibleSubagent result: {str(result)}")
+        result = self._workflow.invoke(
+            initial_state, {"recursion_limit": ANALYZE_RECURSION_LIMIT}
+        )
         return result
 
 
