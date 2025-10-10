@@ -117,6 +117,8 @@ class ChefSubagent:
 
         logger.info(f"Validating migration plan against {len(files)} files")
 
+        # TODO: Rethink following.
+        # Maybe run this in parallel, there can be many files and it takes forever to finish on a more complex example
         for i, fp in enumerate(files):
             try:
                 # Read the file content
@@ -210,13 +212,15 @@ class ChefSubagent:
         return state
 
     def _write_report(self, state: ChefState) -> ChefState:
+        logger.info(f"Writing Chef report for {str(state)}")
         search_tool = FileSearchTool()
         all_files = search_tool.run({"dir_path": state["path"], "pattern": "*"})
 
         # Generate tree-sitter analysis report
         analyzer = TreeSitterAnalyzer()
         try:
-            tree_sitter_report = analyzer.report_directory(state["path"])
+            # The "MigrationAnalysisWorkflow" agent already switched to the root directory
+            tree_sitter_report = analyzer.report_directory("./")
         except Exception as e:
             logger.warning(f"Failed to generate tree-sitter report: {e}")
             tree_sitter_report = "Tree-sitter analysis not available"

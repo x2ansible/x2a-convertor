@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 
 from langchain.globals import set_debug
 from src.init import init_project
-from src.migrate import migrate_component
-from src.validate import validate_component
+from src.exporters.migrate import migrate_module
+from src.validate import validate_module
 from src.inputs.analyze import analyze_project
 
 
@@ -40,22 +40,48 @@ def init(user_requirements, source_dir):
 @click.argument("user_requirements")
 @click.option("--source-dir", default=".", help="Source directory to analyze")
 def analyze(user_requirements, source_dir):
-    """Perform detailed analysis and create component migration plans"""
+    """Perform detailed analysis and create module migration plans"""
     analyze_project(user_requirements, source_dir)
 
 
 @cli.command()
-@click.argument("component_name")
-def migrate(component_name):
-    """Migrate specific component to Ansible (e.g., 'postgres', 'nginx')"""
-    migrate_component(component_name)
+@click.argument("user_requirements")
+@click.option("--source-dir", default=".", help="Source directory to migrate")
+@click.option(
+    "--source-technology",
+    default="Chef",
+    help="Source technology to migrate from [Chef, Puppet, Salt]",
+)
+@click.option(
+    "--module-migration-plan",
+    help="Module migration plan file produced by the analyze command. Must be in the format: migration-plan-<module_name>.md. Path is relative to the --source-dir. Example: migration-plan-nginx.md",
+)
+@click.option(
+    "--high-level-migration-plan",
+    help="High level migration plan file produced by the init command. Path is relative to the --source-dir. Example: migration-plan.md",
+)
+def migrate(
+    user_requirements,
+    source_technology,
+    source_dir,
+    module_migration_plan,
+    high_level_migration_plan,
+):
+    """Based on the migration plan produced within analysis, migrate the project"""
+    migrate_module(
+        user_requirements,
+        source_technology,
+        module_migration_plan,
+        high_level_migration_plan,
+        source_dir=source_dir,
+    )
 
 
 @cli.command()
-@click.argument("component_name")
-def validate(component_name):
-    """Validate migrated component against original configuration"""
-    validate_component(component_name)
+@click.argument("module_name")
+def validate(module_name):
+    """Validate migrated module against original configuration"""
+    validate_module(module_name)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@
 {tree_sitter_report}
 
 **INSTRUCTIONS:**
-1. Use the `read_file` tool to examine all files like `metadata.rb`, `recipes/*.rb`, `attributes/*.rb`, templates, etc.
+1. Use the `read_file` tool to examine all files in the cookbook, including `metadata.rb`, `recipes/*.rb`, `attributes/*.rb`, templates, etc.
 2. Use the `file_search` tool to find specific patterns if needed  
 3. Use the `list_directory` tool if you need to explore subdirectories
 4. Analyze the complete cookbook workflow and dependencies

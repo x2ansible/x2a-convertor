@@ -31,7 +31,7 @@ def create_migration_agent():
     ]
 
     # Get the migration planning system prompt
-    system_prompt = get_prompt("migration_instructions").format(
+    system_prompt = get_prompt("init_migration_instructions").format(
         migration_plan_file=MIGRATION_PLAN_FILE
     )
     logger.debug(f"System prompt: {system_prompt}")
@@ -72,7 +72,7 @@ def init_project(user_requirements, source_dir="."):
         files = list_with_depth(".", max_depth=3)
 
         # Prepare the user message for migration analysis
-        user_message = get_prompt("migration_plan_request").format(
+        user_message = get_prompt("init_migration_plan_request").format(
             user_requirements=user_requirements,
             migration_plan_file=MIGRATION_PLAN_FILE,
             files=files,

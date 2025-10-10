@@ -1,3 +1,7 @@
+DOCKER ?= podman
+IMAGE_NAME ?= x2a-convertor
+IMAGE_TAG ?= latest
+
 check:
 	uv run ruff check . --fix
 
@@ -15,15 +19,6 @@ clean:
 	uv venv --clear
 	rm -rf ./tmp
 
-run-init:
-	uv run app.py init \
-	  --source-dir ./input/$(name) \
-	  "I want to migrate this Chef repository to Ansible"
-
-DOCKER ?= podman
-IMAGE_NAME ?= x2a-convertor
-IMAGE_TAG ?= latest
-
 build:
 	$(DOCKER) build -t $(IMAGE_NAME):$(IMAGE_TAG) .
 
@@ -33,4 +28,27 @@ run-container:
 clean-container:
 	$(DOCKER) rmi $(IMAGE_NAME):$(IMAGE_TAG)
 
-.PHONY: check format ci-check install clean run-init build run-container clean-container
+# first step
+run-init:
+	uv run app.py init \
+	  --source-dir ./examples/$(name) \
+	  "I want to migrate this Chef repository to Ansible"
+
+# second step
+run-analyze:
+	uv run app.py analyze \
+	  --source-dir ./examples/$(name) \
+	  "Analyze the Chef cookbook"
+
+# third step
+run-migrate:
+	rm -rf ./examples/$(name)/ansible
+	uv run app.py migrate \
+	  --source-dir ./examples/$(name) \
+	  --module $(component) \
+	  --source-technology Chef --high-level-migration-plan migration-plan.md \
+	  --module-migration-plan migration-plan-nginx-default.md \
+	  "Convert the 'default' module"
+
+.PHONY: check format ci-check install clean run-init run-analyze run-migrate build run-container clean-container
+
