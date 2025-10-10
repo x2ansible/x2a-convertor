@@ -80,6 +80,7 @@ class ChefToAnsibleSubagent:
         # Another viable approach is in wrapping the linter as a tool and let the LLM drive he process
 
         export_ansible_previous_attempts_partial = ""
+        # TODO: if we will implement fix-existing approach, we will retrigger the export (validation/linter not yet implemented)
         if state["export_attempt_counter"] > 1:
             export_ansible_previous_attempts_partial = get_prompt(
                 "export_ansible_previous_attempts_partial"

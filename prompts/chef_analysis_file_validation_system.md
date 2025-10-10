@@ -49,7 +49,7 @@ Respond with an UPDATED migration plan section that incorporates findings from t
 
 **Example of correct response format:**
 ```
-## Component Explanation
+## Module Explanation
 
 The cookbook performs operations in this order:
 

@@ -2,7 +2,7 @@
 
 You are an expert in migrating infrastructure-as-code repositories to Ansible.
 Your task is to thoroughly analyze the provided repository and produce a comprehensive `{migration_plan_file}` that will guide and coordinate the migration process.
-The plan must summarize in detail all components, dependencies, security issues, and potential challenges.
+The plan must summarize in detail all modules, dependencies, security issues, and potential challenges.
 
 ## Instructions
 
@@ -35,7 +35,7 @@ Generate a `{migration_plan_file}` file with the following structure:
 
 [Executive summary of migration scope, complexity, and timeline estimate]
 
-## Component Migration Plan
+## Module Migration Plan
 
 This repository contains [technology type] that need individual migration planning:
 
@@ -91,9 +91,9 @@ This repository contains [technology type] that need individual migration planni
 
 ### Migration Order
 [Suggest order of migration based on dependencies]
-1. Priority 1 component (low risk, high value)
-2. Priority 2 component (moderate complexity)
-3. Priority 3 component (high complexity, dependencies)
+1. Priority 1 module (low risk, high value)
+2. Priority 2 module (moderate complexity)
+3. Priority 3 module (high complexity, dependencies)
 
 ### Assumptions
 [List every assumption, ambiguity and unclarity about the sources in respect to the upcoming migration to Ansible]

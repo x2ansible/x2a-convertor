@@ -68,7 +68,7 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
 
 [List ALL instances found in attributes]
 
-## Component Explanation
+## Module Explanation
 
 The cookbook performs operations in this order:
 
@@ -160,7 +160,7 @@ The cookbook performs operations in this order:
 
 1. **install** (`recipes/install.rb`):
    - Builds and installs the Rust app (WRONG - what version? What dependencies? Build flags?)
-   - Iterations: For each component (WRONG - name the components explicitly!)
+   - Iterations: For each module (WRONG - name the modules explicitly!)
 
 **VALIDATION RULES:**
 - List EXACT package names and versions

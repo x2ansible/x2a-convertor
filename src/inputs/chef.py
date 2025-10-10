@@ -219,8 +219,7 @@ class ChefSubagent:
         # Generate tree-sitter analysis report
         analyzer = TreeSitterAnalyzer()
         try:
-            # The "MigrationAnalysisWorkflow" agent already switched to the root directory
-            tree_sitter_report = analyzer.report_directory("./")
+            tree_sitter_report = analyzer.report_directory(state["path"])
         except Exception as e:
             logger.warning(f"Failed to generate tree-sitter report: {e}")
             tree_sitter_report = "Tree-sitter analysis not available"

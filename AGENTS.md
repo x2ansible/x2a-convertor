@@ -42,19 +42,19 @@ uv run app.py init --source-dir ./input/hello_world "I want to migrate this Chef
 # Using Makefile shortcut
 make name=hello_world run-init
 
-# Analyze project (detailed component analysis)
+# Analyze project (detailed module analysis)
 uv run app.py analyze "migration requirements" --source-dir ./path/to/source
 
-# Migrate specific component
-uv run app.py migrate "component-name"
+# Migrate specific module
+uv run app.py migrate "module-name"
 
-# Validate migrated component
-uv run app.py validate "component-name"
+# Validate migrated module
+uv run app.py validate "module-name"
 ```
 
 ## Architecture Overview
 
-### Core Components
+### Core Modules
 - `app.py`: Main CLI entry point using Click framework
 - `src/init.py`: Project initialization and high-level analysis
 - `src/inputs/`: Technology-specific analyzers (Chef, Puppet, Salt)
@@ -83,8 +83,8 @@ uv run app.py validate "component-name"
 
 ### Workflow Pattern
 1. **Init**: High-level analysis for project planning (`MIGRATION-PLAN.md`)
-2. **Analyze**: Detailed component analysis with dependency mapping
-3. **Migrate**: Generate Ansible playbooks for specific components
+2. **Analyze**: Detailed module analysis with dependency mapping
+3. **Migrate**: Generate Ansible playbooks for specific modules
 4. **Validate**: Compare original vs generated configurations
 
 ### File Organization

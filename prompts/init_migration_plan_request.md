@@ -14,7 +14,7 @@ Focus on:
 2. Cataloging all modules/cookbooks/manifests and their purposes
 3. Mapping dependencies (Berksfile, Policyfile, metadata, etc.)
 4. Identifying configuration files, secrets, and security considerations
-5. Estimating migration complexity and timeline based on component count
+5. Estimating migration complexity and timeline based on module count
 6. Providing coordination guidance for teams
 
 Write the complete migration plan to `{migration_plan_file}` in the root directory.
