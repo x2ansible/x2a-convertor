@@ -24,14 +24,43 @@ You are provided with following tools. Decide about their use towards meeting th
 - All the exported ansible files must be stored directly under the "./ansible/{{module}}" directory.
 
 
-## Requirements
+## IMPORTANT: Requirements
 
 - State all assumptions your made.
 - State steps you used when thinking.
 - State all the risks where the generated ansible playbook does not ned to be semantically identical with the Chef cookbook.
 
-## Generated Ansible playbook requirements
+### Generated Ansible playbook requirements
 
 - The generated Ansible playbook must be syntactically valid.
 - The generated Ansible playbook semantics must conform all requirements stated by the module migration plan and Chef cookbook sources.
+
+### CRITICAL: Output Format Examples
+
+When writing Ansible YAML files, you MUST write them as proper multi-line YAML files.
+
+Key requirements on generated yaml files:
+- Use actual newlines, NOT the literal characters '\n'
+- Use proper 2-space indentation
+- Start with '---' document marker
+- Each task on its own line with proper YAML structure
+- Module parameters indented under the module name
 - 
+#### BAD YAML EXAMPLE (DO NOT DO THIS):
+```yaml
+# Ansible managed\n\n- name: Configure sites\n  template:\n    src: templates/site.conf.j2\n    dest: /etc/something/site.conf\n
+```
+
+#### GOOD YAML EXAMPLE (CORRECT FORMAT):
+```yaml
+---
+- name: Configure sites
+  template:
+    src: templates/site.conf.j2
+    dest: /etc/something/site.conf
+
+- name: Another task
+  template:
+    src: another_directory/site.conf.j2
+    dest: /etc/something_else/site.conf
+```
