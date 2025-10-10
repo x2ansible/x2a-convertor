@@ -6,8 +6,8 @@ MIGRATION_PLAN_FILE = "migration-plan.md"
 # Summary of the export phase
 MIGRATION_REPORT_FILE = "migration-report.md"
 
-# Component migration plan filename template
-COMPONENT_MIGRATION_PLAN_TEMPLATE = "migration-plan-{component}.md"
+# Module migration plan filename template
+MODULE_MIGRATION_PLAN_TEMPLATE = "migration-plan-{module}.md"
 
 # Export report plan filename template
-EXPORT_REPORT_FILENAME_TEMPLATE = "export-report-{module}.md"
+EXPORT_REPORT_FILENAME_TEMPLATE = "./ansible/{module}/export-report.md"

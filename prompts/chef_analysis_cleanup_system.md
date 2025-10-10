@@ -42,7 +42,7 @@ Your job is to clean, consolidate, and format this into a perfect migration plan
 
 [Continue for each instance]
 
-## Component Explanation
+## Module Explanation
 
 The cookbook performs operations in this order:
 

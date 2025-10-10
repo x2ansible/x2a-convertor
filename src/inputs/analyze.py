@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TypedDict
 
 from prompts.get_prompt import get_prompt
-from src.const import MIGRATION_PLAN_FILE, COMPONENT_MIGRATION_PLAN_TEMPLATE
+from src.const import MIGRATION_PLAN_FILE, MODULE_MIGRATION_PLAN_TEMPLATE
 from src.inputs.chef import ChefSubagent
 from src.model import get_model
 from src.utils.config import ANALYZE_RECURSION_LIMIT
@@ -22,8 +22,8 @@ class MigrationState(TypedDict):
     path: str
     technology: Technology
     migration_plan_content: str
-    component_migration_plan: str
-    component_plan_path: str
+    module_migration_plan: str
+    module_plan_path: str
 
 
 class MigrationAnalysisWorkflow:
@@ -37,13 +37,13 @@ class MigrationAnalysisWorkflow:
         workflow = StateGraph(MigrationState)
 
         workflow.add_node("read_migration_plan", self.read_migration_plan)
-        workflow.add_node("select_component", self.select_component)
+        workflow.add_node("select_module", self.select_module)
         workflow.add_node("choose_subagent", self.choose_subagent)
         workflow.add_node("write_migration_file", self.write_migration_file)
 
         workflow.set_entry_point("read_migration_plan")
-        workflow.add_edge("read_migration_plan", "select_component")
-        workflow.add_edge("select_component", "choose_subagent")
+        workflow.add_edge("read_migration_plan", "select_module")
+        workflow.add_edge("select_module", "choose_subagent")
         workflow.add_edge("choose_subagent", "write_migration_file")
         workflow.add_edge("write_migration_file", END)
 
@@ -64,19 +64,19 @@ class MigrationAnalysisWorkflow:
         logger.info(f"Read migration plan from {migration_plan_path}")
         return state
 
-    def select_component(self, state: MigrationState) -> MigrationState:
-        """Select component to migrate based on user input and LLM analysis"""
+    def select_module(self, state: MigrationState) -> MigrationState:
+        """Select module to migrate based on user input and LLM analysis"""
 
         # Get user requirements and migration plan content
         user_message = state.get("user_message")
         migration_plan_content = state.get("migration_plan_content", "")
 
         # Prepare system message with migration plan context
-        system_message = get_prompt("analyze_select_component_system").format(
+        system_message = get_prompt("analyze_select_module_system").format(
             migration_plan_content=migration_plan_content
         )
 
-        user_prompt = get_prompt("analyze_select_component_task").format(
+        user_prompt = get_prompt("analyze_select_module_task").format(
             user_message=user_message
         )
 
@@ -87,13 +87,13 @@ class MigrationAnalysisWorkflow:
         ]
 
         llm_response = self.model.invoke(messages)
-        logger.debug(f"LLM select_component response: {llm_response.content}")
+        logger.debug(f"LLM select_module response: {llm_response.content}")
 
         try:
             response_data = json.loads(llm_response.content.strip())
         except Exception as e:
             logger.error(
-                f"Error during parsing LLM-generated JSON with list of components: {str(e)}"
+                f"Error during parsing LLM-generated JSON with list of modules: {str(e)}"
             )
             # TODO: if this is an issue among several attempts, we should retry the LLM call
             raise
@@ -113,12 +113,13 @@ class MigrationAnalysisWorkflow:
                 f"Unexpected format for LLM response, expected a dictionary with a 'path' key but got: {response_data}"
             )
 
-        # TODO: this does not work, the LLM returns the path randomly among several attempts, it's hard to get an existing directory
-        # We should derive the path from the source_dir instead
-
         # Convert absolute paths to relative
         if raw_path.startswith("/"):
             raw_path = f".{raw_path}"
+
+        # remove trailing slash if present
+        if raw_path.endswith("/") and len(raw_path) > 1:
+            raw_path = raw_path.rstrip("/")
 
         state["path"] = raw_path
         state["technology"] = Technology(raw_technology)
@@ -133,38 +134,36 @@ class MigrationAnalysisWorkflow:
         technology = state.get("technology")
 
         if technology == Technology.CHEF:
-            state["component_migration_plan"] = self.chef_subagent.invoke(
+            state["module_migration_plan"] = self.chef_subagent.invoke(
                 state["path"], state["user_message"]
             )
         elif technology == Technology.PUPPET:
             logger.warning("Puppet agent not implemented yet")
-            state["component_migration_plan"] = "Puppet analysis not available"
+            state["module_migration_plan"] = "Puppet analysis not available"
         elif technology == Technology.SALT:
             logger.warning("Salt agent not implemented yet")
-            state["component_migration_plan"] = "Salt analysis not available"
+            state["module_migration_plan"] = "Salt analysis not available"
         else:
             logger.error("Technology not set correctly")
-            state["component_migration_plan"] = "Technology analysis failed"
+            state["module_migration_plan"] = "Technology analysis failed"
 
         return state
 
     def write_migration_file(self, state: MigrationState) -> MigrationState:
         """Write the migration plan to a file"""
-        migration_content = state.get("component_migration_plan")
+        migration_content = state.get("module_migration_plan")
         if not migration_content:
             logger.error("Migration failed, no plan generated")
             return state
 
-        # TODO: make it robust and aligned with plans, since following can still result in dummy component name "."
         path = state.get("path", "")
-        component = path.split("/")[-1] if path else "unknown"
-        if not component:
-            component = "default"
-        filename = COMPONENT_MIGRATION_PLAN_TEMPLATE.format(component=component)
+        module = path.split("/")[-1] if path else "unknown"
+
+        filename = MODULE_MIGRATION_PLAN_TEMPLATE.format(module=module)
 
         Path(filename).write_text(migration_content)
         logger.info(f"Migration plan written to {filename}")
-        state["component_plan_path"] = filename
+        state["module_plan_path"] = filename
 
         return state
 
@@ -180,12 +179,12 @@ def analyze_project(user_requirements: str, source_dir: str = "."):
         path="/",
         technology=None,
         migration_plan_content="",
-        component_migration_plan="",
-        component_plan_path="",
+        module_migration_plan="",
+        module_plan_path="",
     )
 
     result = workflow.graph.invoke(
         initial_state, {"recursion_limit": ANALYZE_RECURSION_LIMIT}
     )
-    logger.info("Chef to Ansible migration completed successfully!")
+    logger.info("Chef to Ansible migration analysis completed successfully!")
     return result
