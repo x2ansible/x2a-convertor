@@ -9,7 +9,7 @@ from typing import TypedDict
 from pathlib import Path
 
 from prompts.get_prompt import get_prompt
-from src.const import EXPORT_REPORT_FILENAME_TEMPLATE, MIGRATION_REPORT_FILE
+from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
 from src.exporters.chef_to_ansible import ChefToAnsibleSubagent
 from src.model import get_model
 from src.utils.list_files import list_files
@@ -27,7 +27,7 @@ class MigrationState(TypedDict):
     high_level_migration_plan_content: str
     module_migration_plan_content: str
     directory_listing: str
-    migration_report: str
+    migration_output: str
 
 
 class MigrationAgent:
@@ -41,12 +41,12 @@ class MigrationAgent:
 
         workflow.add_node("read_source_metadata", self._read_source_metadata)
         workflow.add_node("choose_subagent", self._choose_subagent)
-        workflow.add_node("write_migration_report", self._write_migration_report)
+        workflow.add_node("write_migration_output", self._write_migration_output)
 
         workflow.set_entry_point("read_source_metadata")
         workflow.add_edge("read_source_metadata", "choose_subagent")
-        workflow.add_edge("choose_subagent", "write_migration_report")
-        workflow.add_edge("write_migration_report", END)
+        workflow.add_edge("choose_subagent", "write_migration_output")
+        workflow.add_edge("write_migration_output", END)
 
         return workflow.compile()
 
@@ -120,7 +120,7 @@ class MigrationAgent:
                 high_level_migration_plan=state["module_migration_plan_content"],
                 directory_listing=state["directory_listing"],
             )
-            state["migration_report"] = result["last_output"]
+            state["migration_output"] = result["last_output"]
         elif technology == Technology.PUPPET:
             logger.warning("Puppet agent not implemented yet")
             state["module_migration_plan"] = "Export from Puppet not available"
@@ -133,15 +133,15 @@ class MigrationAgent:
 
         return state
 
-    def _write_migration_report(self, state: MigrationState) -> MigrationState:
+    def _write_migration_output(self, state: MigrationState) -> MigrationState:
         """Write the migration report"""
-        logger.info(f"Writing migration report to {MIGRATION_REPORT_FILE}")
-        report = state["migration_report"]
-        logger.debug(f"Migration report: {report}")
+        filename = EXPORT_OUTPUT_FILENAME_TEMPLATE.format(module=state["module"])
+        logger.info(f"Writing migration report to {filename}")
 
-        filename = EXPORT_REPORT_FILENAME_TEMPLATE.format(module=state["module"])
-        Path(filename).write_text(report)
-        logger.info(f"Migration plan written to {filename}")
+        file = Path(filename)
+        # should not be needed but sometimes an unexpected flow occurs
+        file.parent.mkdir(exist_ok=True, parents=True)
+        file.write_text(state["migration_output"])
 
         return state
 
@@ -192,7 +192,6 @@ def migrate_module(
     )
 
     technology = Technology(source_technology)
-    logger.info(f"Source technology: {technology}")
     logger.info(f"Source technology: {technology.value}")
 
     # Run the migration agent

@@ -1,25 +1,18 @@
-# Export Ansible playbook based on Chef cookbook
+# Export Ansible playbook based on the Chef cookbook
 Follow all requirements stated in the system prompt.
 
-Store the exported Ansible playbook under {path}/ansible directory.
+It is IMPORTANT that the generated the Ansible code is semantically as close as possible to the original Chef cookbooks.
+So if you are still unclear about the requested functionality, use tools to collect the knowledge from sources which root is at the "{path}" path.
 
 ## User request
-The user farther requests following:
+The user explicitly requests following:
 
 {user_message}
-
-## Sources
-It is important to generate the Ansible semantically as close as possible to the original Chef cookbooks. So if you are still unclear about the requested functionality, use tools to collect the knowledge from sources which root is at {path} path.
 
 ### Directory listing for {path} path:
 ```
 {directory_listing}
 ```
-
-## Output
-Using the tools, especially `write_file`, write the generated Ansible content to the disk.
-
-Provide report of your task as requested in the system prompt.
 
 {previous_attempts}
 

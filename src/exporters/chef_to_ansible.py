@@ -89,13 +89,15 @@ class ChefToAnsibleSubagent:
                 previous_issues=state["last_validation_result"],
             )
 
-        system_message = get_prompt("export_ansible_system")
+        system_message = get_prompt("export_ansible_system").format(
+            module=state["module"],
+        )
         user_prompt = get_prompt("export_ansible_task").format(
             user_message=state["user_message"],
+            directory_listing=state["directory_listing"],
             path=state["path"],
             module_migration_plan=state["module_migration_plan"],
             high_level_migration_plan=state["high_level_migration_plan"],
-            directory_listing=state["directory_listing"],
             previous_attempts=export_ansible_previous_attempts_partial,
         )
 
