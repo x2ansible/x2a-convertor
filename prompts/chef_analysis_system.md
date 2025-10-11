@@ -70,6 +70,8 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
 
 ## Module Explanation
 
+Module path: [directory path to the cookbook module]
+
 The cookbook performs operations in this order:
 
 **GOOD EXAMPLE - PostgreSQL:**
