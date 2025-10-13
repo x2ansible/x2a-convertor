@@ -2,6 +2,7 @@ import logging
 from typing import Literal, TypedDict
 
 from langchain_community.tools.file_management.write import WriteFileTool
+from langchain_community.tools.file_management.copy import CopyFileTool
 from langgraph.graph import StateGraph, START, END
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
@@ -46,6 +47,7 @@ class ChefToAnsibleSubagent:
             ListDirectoryTool(),
             ReadFileTool(),
             WriteFileTool(),
+            CopyFileTool(),
         ]
 
         agent = create_react_agent(
