@@ -11,7 +11,7 @@ from prompts.get_prompt import get_prompt
 from src.const import MIGRATION_PLAN_FILE, MODULE_MIGRATION_PLAN_TEMPLATE
 from src.inputs.chef import ChefSubagent
 from src.model import get_model
-from src.utils.config import ANALYZE_RECURSION_LIMIT
+from src.utils.config import RECURSION_LIMIT
 from src.utils.technology import Technology
 
 logger = logging.getLogger(__name__)
@@ -183,8 +183,6 @@ def analyze_project(user_requirements: str, source_dir: str = "."):
         module_plan_path="",
     )
 
-    result = workflow.graph.invoke(
-        initial_state, {"recursion_limit": ANALYZE_RECURSION_LIMIT}
-    )
+    result = workflow.graph.invoke(initial_state, {"recursion_limit": RECURSION_LIMIT})
     logger.info("Chef to Ansible migration analysis completed successfully!")
     return result

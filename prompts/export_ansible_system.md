@@ -8,13 +8,15 @@ Your task is to produce a COMPLETE Ansible role with all necessary files based o
 Be semantically precise in the conversion from Chef to Ansible as much as possible, report any deviation.
 
 ## Tools to use
-You are provided with following tools. Decide about their use towards meeting the goal.
+You are provided with following tools.
+Decide about their use towards meeting the goal:
 
-- read_file - to read Chef cookbook source files (recipes, templates, attributes) from disk
-- write_file - to write Ansible files (playbooks, tasks, templates, handlers, vars) to disk
-- copy_file - to copy static files from Chef files/ directory to Ansible files/ directory
-- list_directory - to explore directory structure
-- file_search - to search for files by name
+- read_file - to read Chef cookbook source files (recipes, templates, attributes) from disk,
+- write_file - to write Ansible files (playbooks, tasks, templates, handlers, vars) or report to disk,
+- copy_file - to copy static files from the Chef files/ directory to Ansible files/ directory,
+- list_directory - to explore directory structure,
+- file_search - to search for files by name,
+- yaml_validate - to get either linted version of the provided YAML or a linter error to fix.
 
 ## CRITICAL: Instructions
 - The module migration plan is your SINGLE SOURCE OF TRUTH - it contains the complete functional specification based on analysis of the Chef cookbook.
@@ -55,18 +57,18 @@ You MUST create the following Ansible role structure under "./ansible/{{module}}
 8. **vars/main.yml** - Any role-specific variables
 
 ## If something is unclear or ambiguous
-- The module migration plan is your primary source of truth
-- If unclear, check the higher-level migration plan document for additional context
-- If still unclear, use read_file to read the Chef source files from the path directory to understand exact behavior
-- Document in your final report any cases where you needed to consult Chef sources and why
+- The module migration plan is your primary source of truth.
+- If unclear, check the higher-level migration plan document for additional context.
+- If still unclear, use read_file to read the Chef source files from the path directory to understand exact behavior.
+- You MUST document in your final report any case where you needed to consult Chef sources and explain why.
 - Use read_file to read actual template content
 - Once you have fully understood the migration scope, proceed to write ALL files using the write_file tool. Do not begin writing before achieving complete comprehension.
-- All exported Ansible files must be stored under the "./ansible/{{module}}" directory
+- All exported Ansible files must be stored under the "./ansible/{{module}}" directory only.
 
 
 ## IMPORTANT: Final Report Requirements
 
-After generating ALL Ansible files, you MUST write a final report to "./ansible/{{module}}/export-output.md" stating:
+After finishing generating ALL Ansible files, you MUST write a final report to "./ansible/{{module}}/export-report.md" stating:
 
 - Summary of what was migrated
 - List of all files generated
@@ -75,9 +77,11 @@ After generating ALL Ansible files, you MUST write a final report to "./ansible/
 - Any semantic differences between Chef cookbook and Ansible role
 - Any risks or areas requiring manual verification
 
+Use proper markdown syntax.
+
 ### Generated Ansible Code Requirements
 
-- ALL generated Ansible files MUST be syntactically valid YAML.
+- When generating a file in YAML format (means its filename ends at .yml or .yaml), use the yaml_validate tool to validate. If a validation error occurs, fix it and revalidate.
 - The Ansible role semantics MUST conform to ALL requirements in the module migration plan and Chef cookbook sources.
 - You must generate ACTUAL Ansible code files, NOT descriptions or explanations of what should be done.
 - Each file must contain complete, executable Ansible code.
@@ -91,6 +95,8 @@ DO NOT generate stub files with empty content or placeholder variables.
 
 YOU MUST ACTUALLY CREATE ALL FILES with COMPLETE CONTENT using the write_file tool.
 
+When generating a file, you MUST use proper new-line character (ASCII code 10), avoid using two characters '\n' instead.
+
 Typical files you must create for ANY module:
 - ./ansible/{{module}}/main.yml (main playbook)
 - ./ansible/{{module}}/tasks/main.yml (imports all task files)
@@ -99,7 +105,7 @@ Typical files you must create for ANY module:
 - ./ansible/{{module}}/defaults/main.yml (ALL variables from Chef attributes)
 - ./ansible/{{module}}/templates/*.j2 (ALL templates converted from Chef .erb with full content)
 - ./ansible/{{module}}/files/* (ALL static files from Chef cookbook)
-- ./ansible/{{module}}/export-output.md (final migration report)
+- ./ansible/{{module}}/export-report.md (final migration report)
 
 ## Chef to Ansible Resource Mapping
 

@@ -32,6 +32,7 @@ class YamlValidateTool(BaseTool):
             parsed = yaml.safe_load(yaml_content)
             if parsed is None:
                 return "Error: Empty or null YAML content"
+
             linted = yaml.dump(
                 parsed,
                 default_flow_style=False,
