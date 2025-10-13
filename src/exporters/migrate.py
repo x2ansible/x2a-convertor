@@ -117,7 +117,7 @@ class MigrationAgent:
                 module=state["module"],
                 user_message=state["user_message"],
                 module_migration_plan=state["module_migration_plan_content"],
-                high_level_migration_plan=state["module_migration_plan_content"],
+                high_level_migration_plan=state["high_level_migration_plan_content"],
                 directory_listing=state["directory_listing"],
             )
             state["migration_output"] = result["last_output"]
