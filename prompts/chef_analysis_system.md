@@ -40,9 +40,10 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
 **CRITICAL RULES:**
 - Determine service type from packages installed (package 'postgresql' = database, package 'nginx' = web server)
 - List ALL configured instances explicitly by name
+- **MANDATORY: Include "## File Structure" section with the COMPLETE directory listing from the task prompt**
 - Pre-flight checks must match service type:
   - Web server: curl tests, port checks
-  - Database: connection tests, query checks  
+  - Database: connection tests, query checks
   - Cache: ping/info commands
   - Generic: systemctl status, log checks, socket/port verification
 
@@ -61,28 +62,39 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
   - Location/Path: [data dir / document root / socket path]
   - Port/Socket: [listening port or unix socket]
   - Key Config: [critical settings]
-  
+
 - **[instance-name-2]**: [purpose]
   - Location/Path: [...]
   - Port/Socket: [...]
 
 [List ALL instances found in attributes]
 
-## Module Explanation
+## File Structure
 
-Module path: [directory path to the cookbook module]
+**MANDATORY: You MUST include this section. Copy the directory listing from the task prompt VERBATIM.**
+
+The task prompt contains a "Directory listing" section - you MUST copy it here exactly as provided:
+```
+[Paste the ENTIRE directory listing from the task prompt here]
+[Do NOT summarize, do NOT omit files]
+[This includes cookbook files AND migration-dependencies/ files]
+```
+
+## Module Explanation
 
 The cookbook performs operations in this order:
 
+**IMPORTANT: Use FULL paths with the module path prefix (e.g., if module path is `cookbooks/myapp`, use `cookbooks/myapp/recipes/default.rb` not just `recipes/default.rb`)**
+
 **GOOD EXAMPLE - PostgreSQL:**
 
-1. **install** (`recipes/install.rb`):
+1. **install** (`cookbooks/postgresql/recipes/install.rb`):
    - Installs PostgreSQL 14 packages: postgresql-14, postgresql-client-14, postgresql-contrib-14
    - Creates postgres system user and group
    - Creates base directories: /var/lib/postgresql/14/main, /var/log/postgresql
    - Resources: package, user, group, directory (4 resources)
 
-2. **configure** (`recipes/configure.rb`):
+2. **configure** (`cookbooks/postgresql/recipes/configure.rb`):
    - Deploys postgresql.conf template to /etc/postgresql/14/main/postgresql.conf
    - Deploys pg_hba.conf template to /etc/postgresql/14/main/pg_hba.conf
    - Sets max_connections=200, shared_buffers=4GB, effective_cache_size=12GB
@@ -92,7 +104,7 @@ The cookbook performs operations in this order:
      - Creates corresponding user with CREATEDB privilege
      - Grants ALL privileges on database to user
 
-3. **replication** (`recipes/replication.rb`):
+3. **replication** (`cookbooks/postgresql/recipes/replication.rb`):
    - Configures streaming replication with 2 standby servers
    - Creates replication slot for each standby: slot_standby1, slot_standby2
    - Deploys recovery.conf template for standby initialization
