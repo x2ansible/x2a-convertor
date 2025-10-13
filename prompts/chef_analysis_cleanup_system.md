@@ -42,11 +42,22 @@ Your job is to clean, consolidate, and format this into a perfect migration plan
 
 [Continue for each instance]
 
+## File Structure
+
+**MANDATORY: Preserve this section from the original plan.**
+
+```
+[Keep the complete directory listing from the original migration plan]
+[Do NOT remove or summarize this section]
+```
+
 ## Module Explanation
 
 The cookbook performs operations in this order:
 
-1. **[recipe-name]** (`recipes/[recipe-name].rb`):
+**IMPORTANT: Use FULL paths from the File Structure section (e.g., `cookbooks/myapp/recipes/default.rb` not just `recipes/default.rb`)**
+
+1. **[recipe-name]** (`[module-path]/recipes/[recipe-name].rb`):
    - [Step 1: What this recipe does]
    - [Step 2: Resources used]  
    - [Step 3: Files/templates deployed]
@@ -90,6 +101,7 @@ Respond with ONLY the cleaned, final migration plan. No explanations, no preambl
 
 **Quality Checklist:**
 - No JSON artifacts remain
+- **File Structure section preserved with complete directory listing**
 - All instances listed by exact name
 - All recipes mentioned in correct order
 - All .each loops expanded with actual item names

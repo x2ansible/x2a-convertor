@@ -20,7 +20,7 @@ class ChefState(TypedDict):
     user_message: str
     specification: str
     dependency_paths: List[str]
-    temp_export_path: Optional[str]
+    export_path: Optional[str]
 
 
 class ChefSubagent:
@@ -90,16 +90,22 @@ class ChefSubagent:
         if not has_deps:
             logger.info("No external dependencies found, using local cookbooks only")
             state["dependency_paths"] = [f"{state['path']}/cookbooks"]
-            state["temp_export_path"] = None
+            state["export_path"] = None
             return state
 
         logger.info("Found external dependencies, fetching with chef-cli...")
         self._dependency_fetcher.fetch_dependencies()
-        dependency_paths = self._dependency_fetcher.get_dependencies_paths(deps)
-
-        if dependency_paths:
-            state["dependency_paths"] = dependency_paths
-            state["temp_export_path"] = self._dependency_fetcher.export_path
+        try:
+            dependency_paths = self._dependency_fetcher.get_dependencies_paths(deps)
+            if dependency_paths:
+                state["dependency_paths"] = dependency_paths
+                state["export_path"] = str(self._dependency_fetcher.export_path)
+        except RuntimeError:
+            logger.warning(
+                "PolicyLock has not been found, so there is no dependency path"
+            )
+            state["dependency_paths"] = []
+            state["export_path"] = None
 
         return state
 
@@ -213,9 +219,9 @@ class ChefSubagent:
 
     def _write_report(self, state: ChefState) -> ChefState:
         logger.info(f"Writing Chef report for {str(state)}")
-        search_tool = FileSearchTool()
-        all_files = search_tool.run({"dir_path": state["path"], "pattern": "*"})
-
+        data_list = "\n".join(
+            self.list_files([state["path"]] + state["dependency_paths"])
+        )
         # Generate tree-sitter analysis report
         analyzer = TreeSitterAnalyzer()
         try:
@@ -229,7 +235,7 @@ class ChefSubagent:
         user_prompt = get_prompt("chef_analysis_task").format(
             path=state["path"],
             user_message=state["user_message"],
-            directory_listing=all_files,
+            directory_listing=data_list,
             tree_sitter_report=tree_sitter_report,
         )
 
@@ -258,7 +264,7 @@ class ChefSubagent:
             user_message=user_message,
             specification="",
             dependency_paths=[],
-            temp_export_path=None,
+            export_path=None,
         )
 
         result = self._workflow.invoke(initial_state)
