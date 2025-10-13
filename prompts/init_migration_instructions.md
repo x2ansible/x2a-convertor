@@ -67,9 +67,18 @@ This repository contains [technology type] that need individual migration planni
 - **app**: Application deployment (INSUFFICIENT - what app? what runtime? what dependencies?)
 
 ### Infrastructure Files
+
 [List supporting infrastructure files]
 - `filename`: Purpose and migration considerations
 - `filename`: Purpose and migration considerations
+
+### Target Details
+
+Analyze the source repository to determine target environment specifications:
+
+- **Operating System**: Based on the source configuration files, cookbooks, manifests, or states, identify the target OS family and version. If not explicitly specified, infer from package managers, service configurations, or file paths. Default to Red Hat Enterprise Linux 9 if unclear.
+- **Virtual Machine Technology**: Identify VM platform from hints like cloud-init configs, VM tools packages, or infrastructure files (e.g., VMware, VirtualBox, KVM, Hyper-V). Mark as "Not specified" if unclear.
+- **Cloud Platform**: If cloud-specific configurations exist (AWS CLI, Azure tools, GCP SDK, metadata endpoints), document the target cloud provider.
 
 ## Migration Approach
 
