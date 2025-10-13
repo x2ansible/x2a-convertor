@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "click>=8.3.0",
     "ipdb>=0.13.13",
+    "langchain>=0.3.27",
     "langchain-anthropic>=0.3.20",
     "langchain-community>=0.3.27",
     "langchain-openai>=0.3.33",
@@ -19,8 +20,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "dotenv>=0.9.9",
-    "langchain>=0.3.27",
-    "langchain-google-vertexai>=2.1.2",
-    "langgraph>=0.6.7",
+    "pytest>=8.3.0",
     "ruff>=0.13.2",
 ]
