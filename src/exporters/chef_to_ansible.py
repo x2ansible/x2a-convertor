@@ -94,7 +94,7 @@ class ChefToAnsibleSubagent:
         )
         user_prompt = get_prompt("export_ansible_task").format(
             user_message=state["user_message"],
-            directory_listing=state["directory_listing"],
+            directory_listing="\n".join(state["directory_listing"]),
             path=state["path"],
             module_migration_plan=state["module_migration_plan"],
             high_level_migration_plan=state["high_level_migration_plan"],
