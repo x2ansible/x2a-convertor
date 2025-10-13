@@ -27,13 +27,9 @@ The user explicitly requests following:
 ## Module migration plan
 The sources have been analyzed with following findings:
 
->>>>>>> Start of module migration plan
 {module_migration_plan}
-<<<<<<<  End of module migration plan
 
 ## High-level migration plan
 If unclear, try to find answer in following high-level migration plan
 
->>>>>>> Start of high-level migration plan
 {high_level_migration_plan}
-<<<<<<<  End of high-level migration plan
