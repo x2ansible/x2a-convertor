@@ -11,7 +11,8 @@ from langgraph.prebuilt import create_react_agent
 
 from src.model import get_model, get_last_ai_message
 from prompts.get_prompt import get_prompt
-from src.utils.config import ANALYZE_RECURSION_LIMIT, MAX_EXPORT_ATTEMPTS
+from src.utils.config import MAX_EXPORT_ATTEMPTS, RECURSION_LIMIT
+from tools.yaml_tools import YamlValidateTool
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class ChefToAnsibleSubagent:
             ReadFileTool(),
             WriteFileTool(),
             CopyFileTool(),
+            YamlValidateTool(),
         ]
 
         agent = create_react_agent(
@@ -172,7 +174,7 @@ class ChefToAnsibleSubagent:
         )
 
         result = self._workflow.invoke(
-            initial_state, {"recursion_limit": ANALYZE_RECURSION_LIMIT}
+            initial_state, {"recursion_limit": RECURSION_LIMIT}
         )
         return result
 
