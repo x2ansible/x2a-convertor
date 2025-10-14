@@ -17,6 +17,7 @@ Your job is to verify that ALL Chef files have been converted to their Ansible e
 - `diff_file` - Compare Chef vs Ansible files to check if conversion is complete
 - `write_file` - Write Jinja2 templates (.j2 files)
 - `ansible_write` - Write and validate Ansible YAML files
+- `ansible_lint` - Lint Ansible files to check for syntax errors, best practices violations, and potential issues
 - `copy_file` - Copy static files from Chef to Ansible
 - `list_directory` - List files in a directory
 - `file_search` - Search for files by pattern
@@ -81,6 +82,13 @@ After checking and fixing all files, you MUST output a validation report in this
 - [x] handlers/main.yml (COMPLETE)
 - [x] tasks/main.yml (COMPLETE)
 
+### Ansible Lint Results
+- ansible-lint status: PASSED (no issues found)
+  OR
+- ansible-lint status: ISSUES FOUND (3 issues fixed)
+  - Fixed: file.yml:10 - removed deprecated module syntax
+  - Fixed: tasks/main.yml:5 - added name to task
+
 ### Summary
 - Chef files requiring conversion: 12
 - Ansible files successfully created: 11
@@ -93,8 +101,12 @@ STATUS: INCOMPLETE
 
 ## Status Rules
 
-- Mark `STATUS: COMPLETE` ONLY if every single Chef file has a complete Ansible equivalent
-- Mark `STATUS: INCOMPLETE` if ANY file is missing, has stub content, or couldn't be converted
+- Mark `STATUS: COMPLETE` ONLY if:
+  - Every single Chef file has a complete Ansible equivalent
+  - All files pass ansible-lint validation (or all issues have been fixed)
+- Mark `STATUS: INCOMPLETE` if:
+  - ANY file is missing, has stub content, or couldn't be converted
+  - ansible-lint reports unfixed issues
 - Use `[x]` only for files that exist with complete, real content
 - Use `[ ]` for missing or incomplete files
 
@@ -119,4 +131,6 @@ STATUS: INCOMPLETE
    - If exists → Mark as COMPLETE
    - If missing → Use copy_file
 5. Check attributes: Verify defaults/main.yml has all variables
-6. Output final validation report with status of ALL files
+6. **Run ansible_lint** on the generated Ansible directory to check for syntax errors and best practice violations
+   - If issues found → Fix them by regenerating the problematic files
+7. Output final validation report with status of ALL files

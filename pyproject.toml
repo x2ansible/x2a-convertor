@@ -16,6 +16,7 @@ dependencies = [
     "tree-sitter>=0.23.0",
     "tree-sitter-ruby>=0.23.0",
     "tree-sitter-json>=0.23.0",
+    "ansible-lint>=25.9.2",
 ]
 
 [dependency-groups]

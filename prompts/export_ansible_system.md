@@ -16,7 +16,8 @@ Decide about their use towards meeting the goal:
 - copy_file - to copy static files from the Chef files/ directory to Ansible files/ directory,
 - list_directory - to explore directory structure,
 - file_search - to search for files by name,
-- ansible_write - to validate Ansible YAML content (including Jinja2 templates) and write it to a file.
+- ansible_write - to validate Ansible YAML content (including Jinja2 templates) and write it to a file,
+- ansible_lint - to lint generated Ansible files and validate syntax, best practices, and potential issues. Use this to verify your generated files are correct.
 
 ## CRITICAL: Instructions
 - The module migration plan is your SINGLE SOURCE OF TRUTH - it contains the complete functional specification based on analysis of the Chef cookbook.
@@ -110,6 +111,7 @@ Use proper markdown syntax.
 ### Generated Ansible Code Requirements
 
 - When generating a file in YAML format (means its filename ends at .yml or .yaml), use the ansible_write tool which validates Ansible YAML (including Jinja2 templates) and writes in a single operation. If a validation error occurs, fix it and retry.
+- After generating Ansible files, use ansible_lint to verify they follow best practices and have no syntax issues. If ansible_lint reports issues, fix them and re-generate the files.
 - The Ansible role semantics MUST conform to ALL requirements in the module migration plan and Chef cookbook sources.
 - You must generate ACTUAL Ansible code files, NOT descriptions or explanations of what should be done.
 - Each file must contain complete, executable Ansible code.

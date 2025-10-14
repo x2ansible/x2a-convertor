@@ -13,6 +13,7 @@ from src.types import DocumentFile
 from prompts.get_prompt import get_prompt
 from src.utils.config import MAX_EXPORT_ATTEMPTS, RECURSION_LIMIT
 from tools.ansible import AnsibleWriteTool
+from tools.ansible_lint import AnsibleLintTool
 from tools.copy_file import CopyFileWithMkdirTool
 from tools.diff_file import DiffFileTool
 
@@ -53,6 +54,7 @@ class ChefToAnsibleSubagent:
             WriteFileTool(),
             CopyFileWithMkdirTool(),
             AnsibleWriteTool(),
+            AnsibleLintTool(),
         ]
 
         agent = create_react_agent(
@@ -73,6 +75,7 @@ class ChefToAnsibleSubagent:
             WriteFileTool(),
             AnsibleWriteTool(),
             CopyFileWithMkdirTool(),
+            AnsibleLintTool(),
         ]
 
         agent = create_react_agent(
@@ -141,7 +144,6 @@ class ChefToAnsibleSubagent:
         logger.info(
             f"Export got this tools calls: {report_tool_calls(result).to_string()}"
         )
-
         message = get_last_ai_message(result)
         if not message:
             logger.info(
