@@ -14,6 +14,7 @@ from prompts.get_prompt import get_prompt
 from src.utils.config import MAX_EXPORT_ATTEMPTS, RECURSION_LIMIT
 from tools.ansible import AnsibleWriteTool
 from tools.copy_file import CopyFileWithMkdirTool
+from tools.diff_file import DiffFileTool
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class ChefToAnsibleSubagent:
     def __init__(self, model=None):
         self.model = model or get_model()
         self.agent = self._create_agent()
+        self.validation_agent = self._create_validation_agent()
         self._workflow = self._create_workflow()
         logger.debug(self._workflow.get_graph().draw_mermaid())
 
@@ -51,6 +53,26 @@ class ChefToAnsibleSubagent:
             WriteFileTool(),
             CopyFileWithMkdirTool(),
             AnsibleWriteTool(),
+        ]
+
+        agent = create_react_agent(
+            model=self.model,
+            tools=tools,
+        )
+        return agent
+
+    def _create_validation_agent(self):
+        """Create an agent with file tools for validation"""
+        logger.info("Creating chef to ansible validation agent")
+
+        tools = [
+            ReadFileTool(),
+            DiffFileTool(),
+            ListDirectoryTool(),
+            FileSearchTool(),
+            WriteFileTool(),
+            AnsibleWriteTool(),
+            CopyFileWithMkdirTool(),
         ]
 
         agent = create_react_agent(
@@ -113,11 +135,13 @@ class ChefToAnsibleSubagent:
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_prompt},
                 ]
-            }
+            },
+            {"recursion_limit": RECURSION_LIMIT},
         )
         logger.info(
             f"Export got this tools calls: {report_tool_calls(result).to_string()}"
         )
+
         message = get_last_ai_message(result)
         if not message:
             logger.info(
@@ -129,13 +153,75 @@ class ChefToAnsibleSubagent:
         state["export_attempt_counter"] += 1
         return state
 
-    def _validate(self, state: ChefState):
-        logger.info("ChefToAnsibleSubagent is validating the exported Ansible")
-        # TODO: call Ansible linter or similar check
-        # If failing, store findings in state["last_validation_result"]
+    def _list_all_files(self, directory: str) -> list:
+        """List all files recursively in a directory"""
+        from pathlib import Path
 
-        state["last_validation_result"] = ""
-        state["validation_status"] = True
+        try:
+            path = Path(directory)
+            if not path.exists():
+                return []
+
+            files = [f for f in path.rglob("*") if f.is_file()]
+
+            # Return relative paths as strings
+            return [str(f.relative_to(path)) for f in sorted(files)]
+        except Exception as e:
+            logger.warning(f"Error listing files in {directory}: {e}")
+            return []
+
+    def _validate(self, state: ChefState):
+        """Validation using react-agent to compare Chef vs Ansible"""
+        logger.info("ChefToAnsibleSubagent is validating the exported Ansible")
+
+        # Pre-list ALL Chef source files
+        chef_path = state["path"]
+        chef_files = self._list_all_files(chef_path)
+
+        # Pre-list ALL Ansible output files
+        ansible_path = f"./ansible/{state['module']}"
+        ansible_files = self._list_all_files(ansible_path)
+
+        # Format listings for prompt
+        chef_files_str = "\n".join(chef_files) if chef_files else "(none)"
+        ansible_files_str = "\n".join(ansible_files) if ansible_files else "(none)"
+
+        validation_system = get_prompt("export_ansible_validate_system")
+        validation_task = get_prompt("export_ansible_validate_task").format(
+            module=state["module"],
+            chef_path=state["path"],
+            ansible_path=ansible_path,
+            migration_plan_content=state["module_migration_plan"].to_document(),
+            chef_files=chef_files_str,
+            ansible_files=ansible_files_str,
+        )
+
+        # Give validation agent more iterations since it needs to check many files
+        result = self.validation_agent.invoke(
+            {
+                "messages": [
+                    {"role": "system", "content": validation_system},
+                    {"role": "user", "content": validation_task},
+                ]
+            },
+            {"recursion_limit": RECURSION_LIMIT},
+        )
+
+        logger.info(
+            f"Validation agent completed: {report_tool_calls(result).to_string()}"
+        )
+
+        # Extract validation report
+        message = get_last_ai_message(result)
+        validation_report = message.content if message else "No validation output"
+        logger.info(validation_report)
+        # Parse report for COMPLETE/INCOMPLETE status
+        if "STATUS: INCOMPLETE" in validation_report or "MISSING:" in validation_report:
+            state["validation_status"] = False
+            state["last_validation_result"] = validation_report
+        else:
+            state["validation_status"] = True
+            state["last_validation_result"] = validation_report
 
         return state
 
@@ -152,6 +238,7 @@ class ChefToAnsibleSubagent:
     def _finalize(self, state: ChefState):
         # do clean-up, if needed
         logger.info("ChefToAnsibleSubagent final state")
+        print(f"{state['last_validation_result']}")
         return state
 
     def invoke(
