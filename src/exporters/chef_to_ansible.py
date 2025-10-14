@@ -1,6 +1,5 @@
 import logging
 
-from langchain_community.tools.file_management.copy import CopyFileTool
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
@@ -14,6 +13,7 @@ from src.types import DocumentFile
 from prompts.get_prompt import get_prompt
 from src.utils.config import MAX_EXPORT_ATTEMPTS, RECURSION_LIMIT
 from tools.ansible import AnsibleWriteTool
+from tools.copy_file import CopyFileWithMkdirTool
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class ChefToAnsibleSubagent:
             ListDirectoryTool(),
             ReadFileTool(),
             WriteFileTool(),
-            CopyFileTool(),
+            CopyFileWithMkdirTool(),
             AnsibleWriteTool(),
         ]
 
