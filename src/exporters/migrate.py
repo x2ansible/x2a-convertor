@@ -135,9 +135,9 @@ class MigrationAgent:
         return state
 
     def _write_migration_output(self, state: MigrationState) -> MigrationState:
-        """Write the migration report"""
+        """Write the migration last message(s) to the output file"""
         filename = EXPORT_OUTPUT_FILENAME_TEMPLATE.format(module=state["module"])
-        logger.info(f"Writing migration report to {filename}")
+        logger.info(f"Writing migration output to {filename}")
 
         file = Path(filename)
         # should not be needed but sometimes an unexpected flow occurs
