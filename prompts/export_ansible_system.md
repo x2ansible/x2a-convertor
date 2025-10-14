@@ -55,6 +55,7 @@ You MUST create the following Ansible role structure under "./ansible/{{module}}
 6. **handlers/main.yml** - All service restart/reload handlers
 7. **defaults/main.yml** - All default variables from Chef attributes
 8. **vars/main.yml** - Any role-specific variables
+9. **export-report.md** - Your report on the migration progress
 
 ## If something is unclear or ambiguous
 - The module migration plan is your primary source of truth.
