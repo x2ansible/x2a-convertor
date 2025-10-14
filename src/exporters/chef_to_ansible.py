@@ -13,7 +13,7 @@ from src.model import get_model, get_last_ai_message, report_tool_calls
 from src.types import DocumentFile
 from prompts.get_prompt import get_prompt
 from src.utils.config import MAX_EXPORT_ATTEMPTS, RECURSION_LIMIT
-from tools.yaml_tools import YamlValidateTool
+from tools.ansible import AnsibleWriteTool
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class ChefToAnsibleSubagent:
             ReadFileTool(),
             WriteFileTool(),
             CopyFileTool(),
-            YamlValidateTool(),
+            AnsibleWriteTool(),
         ]
 
         agent = create_react_agent(

@@ -12,11 +12,11 @@ You are provided with following tools.
 Decide about their use towards meeting the goal:
 
 - read_file - to read Chef cookbook source files (recipes, templates, attributes) from disk,
-- write_file - to write Ansible files (playbooks, tasks, templates, handlers, vars) or report to disk,
+- write_file - to write non-YAML files (templates, reports) to disk,
 - copy_file - to copy static files from the Chef files/ directory to Ansible files/ directory,
 - list_directory - to explore directory structure,
 - file_search - to search for files by name,
-- yaml_validate - to get either linted version of the provided YAML or a linter error to fix.
+- ansible_write - to validate Ansible YAML content (including Jinja2 templates) and write it to a file.
 
 ## CRITICAL: Instructions
 - The module migration plan is your SINGLE SOURCE OF TRUTH - it contains the complete functional specification based on analysis of the Chef cookbook.
@@ -82,7 +82,7 @@ Use proper markdown syntax.
 
 ### Generated Ansible Code Requirements
 
-- When generating a file in YAML format (means its filename ends at .yml or .yaml), use the yaml_validate tool to validate. If a validation error occurs, fix it and revalidate.
+- When generating a file in YAML format (means its filename ends at .yml or .yaml), use the ansible_write tool which validates Ansible YAML (including Jinja2 templates) and writes in a single operation. If a validation error occurs, fix it and retry.
 - The Ansible role semantics MUST conform to ALL requirements in the module migration plan and Chef cookbook sources.
 - You must generate ACTUAL Ansible code files, NOT descriptions or explanations of what should be done.
 - Each file must contain complete, executable Ansible code.
