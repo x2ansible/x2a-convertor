@@ -1,15 +1,15 @@
 import logging
-from typing import Literal, TypedDict
 
-from langchain_community.tools.file_management.write import WriteFileTool
 from langchain_community.tools.file_management.copy import CopyFileTool
-from langgraph.graph import StateGraph, START, END
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
+from langchain_community.tools.file_management.write import WriteFileTool
+from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
+from typing import Literal, TypedDict
 
-from src.model import get_model, get_last_ai_message
+from src.model import get_model, get_last_ai_message, report_tool_calls
 from src.types import DocumentFile
 from prompts.get_prompt import get_prompt
 from src.utils.config import MAX_EXPORT_ATTEMPTS, RECURSION_LIMIT
@@ -115,7 +115,9 @@ class ChefToAnsibleSubagent:
                 ]
             }
         )
-
+        logger.info(
+            f"Export got this tools calls: {report_tool_calls(result).to_string()}"
+        )
         message = get_last_ai_message(result)
         if not message:
             logger.info(
