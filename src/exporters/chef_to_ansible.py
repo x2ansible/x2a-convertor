@@ -10,6 +10,7 @@ from langchain_community.tools.file_management.read import ReadFileTool
 from langgraph.prebuilt import create_react_agent
 
 from src.model import get_model, get_last_ai_message
+from src.types import DocumentFile
 from prompts.get_prompt import get_prompt
 from src.utils.config import MAX_EXPORT_ATTEMPTS, RECURSION_LIMIT
 from tools.yaml_tools import YamlValidateTool
@@ -21,8 +22,8 @@ class ChefState(TypedDict):
     path: str
     module: str
     user_message: str
-    module_migration_plan: str
-    high_level_migration_plan: str
+    module_migration_plan: DocumentFile
+    high_level_migration_plan: DocumentFile
     directory_listing: str
     validation_status: bool
     export_attempt_counter: int
@@ -100,8 +101,8 @@ class ChefToAnsibleSubagent:
             user_message=state["user_message"],
             directory_listing="\n".join(state["directory_listing"]),
             path=state["path"],
-            module_migration_plan=state["module_migration_plan"],
-            high_level_migration_plan=state["high_level_migration_plan"],
+            module_migration_plan=state["module_migration_plan"].to_document(),
+            high_level_migration_plan=state["high_level_migration_plan"].to_document(),
             previous_attempts=export_ansible_previous_attempts_partial,
         )
 
@@ -156,8 +157,8 @@ class ChefToAnsibleSubagent:
         path: str,
         module: str,
         user_message: str,
-        module_migration_plan: str,
-        high_level_migration_plan: str,
+        module_migration_plan: DocumentFile,
+        high_level_migration_plan: DocumentFile,
         directory_listing: str,
     ) -> str:
         """Export Ansible playbook based on the module migration plan and Chef sources"""

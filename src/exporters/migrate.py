@@ -11,6 +11,7 @@ from pathlib import Path
 from prompts.get_prompt import get_prompt
 from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
 from src.exporters.chef_to_ansible import ChefToAnsibleSubagent
+from src.types import DocumentFile
 from src.model import get_model
 from src.utils.list_files import list_files
 from src.utils.technology import Technology
@@ -24,8 +25,8 @@ class MigrationState(TypedDict):
     path: str
     module: str
     source_technology: Technology
-    high_level_migration_plan_content: str
-    module_migration_plan_content: str
+    high_level_migration_plan: DocumentFile
+    module_migration_plan: DocumentFile
     directory_listing: str
     migration_output: str
 
@@ -55,7 +56,7 @@ class MigrationAgent:
         logger.info("MigrationAgent is reading source metadata")
         prompt = get_prompt("export_source_metadata_system")
         system_message = prompt.format(
-            module_migration_plan=state["module_migration_plan_content"],
+            module_migration_plan=state["module_migration_plan"].content,
         )
         user_prompt = get_prompt("export_source_metadata_task").format(
             user_message=state["user_message"],
@@ -116,8 +117,8 @@ class MigrationAgent:
                 path=state["path"],
                 module=state["module"],
                 user_message=state["user_message"],
-                module_migration_plan=state["module_migration_plan_content"],
-                high_level_migration_plan=state["high_level_migration_plan_content"],
+                module_migration_plan=state["module_migration_plan"],
+                high_level_migration_plan=state["high_level_migration_plan"],
                 directory_listing=state["directory_listing"],
             )
             state["migration_output"] = result["last_output"]
@@ -173,19 +174,9 @@ def migrate_module(
     if not high_level_migration_plan:
         raise ValueError("High level migration plan not found")
 
-    # Read the high_level_migration_plan file
-    high_level_migration_plan_path = Path(high_level_migration_plan)
-    if not high_level_migration_plan_path.exists():
-        raise ValueError(
-            f"High level migration plan not found: {high_level_migration_plan}"
-        )
-    high_level_migration_plan_content = high_level_migration_plan_path.read_text()
-
-    # Read the module_migration_plan file
-    module_migration_plan_path = Path(module_migration_plan)
-    if not module_migration_plan_path.exists():
-        raise ValueError(f"module migration plan not found: {module_migration_plan}")
-    module_migration_plan_content = module_migration_plan_path.read_text()
+    # Load migration plan documents
+    high_level_migration_plan_doc = DocumentFile.from_path(high_level_migration_plan)
+    module_migration_plan_doc = DocumentFile.from_path(module_migration_plan)
 
     logger.info(
         f"Module name: {module_name}. Both the high-level and module migration plans have been read."
@@ -201,8 +192,8 @@ def migrate_module(
         path="/",
         source_technology=technology,
         module=module_name,
-        high_level_migration_plan_content=high_level_migration_plan_content,
-        module_migration_plan_content=module_migration_plan_content,
+        high_level_migration_plan=high_level_migration_plan_doc,
+        module_migration_plan=module_migration_plan_doc,
         directory_listing="",
     )
 
