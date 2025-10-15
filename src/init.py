@@ -10,7 +10,7 @@ from langgraph.prebuilt import create_react_agent
 from pathlib import Path
 
 from prompts.get_prompt import get_prompt
-from src.model import get_model
+from src.model import get_model, get_runnable_config
 from src.const import MIGRATION_PLAN_FILE
 
 logger = logging.getLogger(__name__)
@@ -81,10 +81,7 @@ def init_project(user_requirements, source_dir="."):
         # Execute the agent with higher recursion limit
         result = agent.invoke(
             {"messages": [{"role": "user", "content": user_message}]},
-            config={
-                "recursion_limit": 50,
-                "max_concurrency": 50,
-            },
+            config=get_runnable_config(),
         )
 
         logger.debug("Migration agent result:")

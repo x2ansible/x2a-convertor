@@ -1,10 +1,13 @@
 import os
 import logging
-
 from collections import Counter
+
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
+
+from src.utils.config import RECURSION_LIMIT
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,11 @@ def get_last_ai_message(state: MessagesState):
     )
 
     return last_ai_message
+
+
+def get_runnable_config() -> RunnableConfig:
+    """Get RunnableConfig dict with recursion limit from environment"""
+    return {"recursion_limit": RECURSION_LIMIT}
 
 
 def get_model():
