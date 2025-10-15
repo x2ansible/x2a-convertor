@@ -272,11 +272,3 @@ class ChefToAnsibleSubagent:
 
         result = self._workflow.invoke(initial_state, get_runnable_config())
         return result
-
-
-# Notes to try
-# - Either
-#   - call the linter tool to validate the syntax. If not valid, fix the generated playbook and try again.
-#   - or use linter as a tool
-# - tune the validate-export loop to fix the issues found in the generated playbook
-#

@@ -81,4 +81,5 @@ Based on the migration plan, you should create:
 
 ### Final Output
 
-Produce exactly ONE validation report following the format in the system prompt. Do not produce multiple reports or keep repeating the same actions.
+Produce exactly ONE validation {ansible_path}/validation-report.md report file following the format stated in the system prompt.
+Do not produce multiple reports or keep repeating the same actions.
