@@ -10,8 +10,7 @@ from typing import TypedDict
 from prompts.get_prompt import get_prompt
 from src.const import MIGRATION_PLAN_FILE, MODULE_MIGRATION_PLAN_TEMPLATE
 from src.inputs.chef import ChefSubagent
-from src.model import get_model
-from src.utils.config import RECURSION_LIMIT
+from src.model import get_model, get_runnable_config
 from src.utils.technology import Technology
 
 logger = logging.getLogger(__name__)
@@ -86,7 +85,7 @@ class MigrationAnalysisWorkflow:
             {"role": "user", "content": user_prompt},
         ]
 
-        llm_response = self.model.invoke(messages)
+        llm_response = self.model.invoke(messages, config=get_runnable_config())
         logger.debug(f"LLM select_module response: {llm_response.content}")
 
         try:
@@ -183,6 +182,6 @@ def analyze_project(user_requirements: str, source_dir: str = "."):
         module_plan_path="",
     )
 
-    result = workflow.graph.invoke(initial_state, {"recursion_limit": RECURSION_LIMIT})
+    result = workflow.graph.invoke(initial_state, config=get_runnable_config())
     logger.info("Chef to Ansible migration analysis completed successfully!")
     return result

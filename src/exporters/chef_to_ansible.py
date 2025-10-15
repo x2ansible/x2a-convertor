@@ -8,10 +8,15 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
 from typing import Literal, TypedDict
 
-from src.model import get_model, get_last_ai_message, report_tool_calls
+from src.model import (
+    get_model,
+    get_last_ai_message,
+    report_tool_calls,
+    get_runnable_config,
+)
 from src.types import DocumentFile
 from prompts.get_prompt import get_prompt
-from src.utils.config import MAX_EXPORT_ATTEMPTS, RECURSION_LIMIT
+from src.utils.config import MAX_EXPORT_ATTEMPTS
 from tools.ansible import AnsibleWriteTool
 from tools.ansible_lint import AnsibleLintTool
 from tools.copy_file import CopyFileWithMkdirTool
@@ -139,7 +144,7 @@ class ChefToAnsibleSubagent:
                     {"role": "user", "content": user_prompt},
                 ]
             },
-            {"recursion_limit": RECURSION_LIMIT},
+            get_runnable_config(),
         )
         logger.info(
             f"Export got this tools calls: {report_tool_calls(result).to_string()}"
@@ -206,7 +211,7 @@ class ChefToAnsibleSubagent:
                     {"role": "user", "content": validation_task},
                 ]
             },
-            {"recursion_limit": RECURSION_LIMIT},
+            get_runnable_config(),
         )
 
         logger.info(
@@ -265,9 +270,7 @@ class ChefToAnsibleSubagent:
             export_attempt_counter=1,
         )
 
-        result = self._workflow.invoke(
-            initial_state, {"recursion_limit": RECURSION_LIMIT}
-        )
+        result = self._workflow.invoke(initial_state, get_runnable_config())
         return result
 
 

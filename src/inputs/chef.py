@@ -7,7 +7,7 @@ from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
 from langgraph.prebuilt import create_react_agent
 
-from src.model import get_model, get_last_ai_message
+from src.model import get_model, get_last_ai_message, get_runnable_config
 from src.inputs.chef_dependency_fetcher import ChefDependencyManager
 from prompts.get_prompt import get_prompt
 from src.inputs.tree_analysis import TreeSitterAnalyzer
@@ -149,7 +149,8 @@ class ChefSubagent:
                             {"role": "system", "content": system_message},
                             {"role": "user", "content": user_prompt},
                         ]
-                    }
+                    },
+                    config=get_runnable_config(),
                 )
                 message = get_last_ai_message(result)
                 if not message:
@@ -205,7 +206,8 @@ class ChefSubagent:
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_prompt},
                 ]
-            }
+            },
+            config=get_runnable_config(),
         )
 
         message = get_last_ai_message(result)
@@ -246,7 +248,8 @@ class ChefSubagent:
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_prompt},
                 ]
-            }
+            },
+            config=get_runnable_config(),
         )
         result_messages_len = len(result.get("messages"))
         if result_messages_len < 2:
@@ -267,7 +270,7 @@ class ChefSubagent:
             export_path=None,
         )
 
-        result = self._workflow.invoke(initial_state)
+        result = self._workflow.invoke(initial_state, config=get_runnable_config())
         initial_state["specification"] = result["specification"]
         return initial_state["specification"]
 
