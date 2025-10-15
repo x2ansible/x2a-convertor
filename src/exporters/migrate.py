@@ -176,6 +176,7 @@ def migrate_module(
     module_migration_plan,
     high_level_migration_plan,
     source_dir,
+    # pyrefly: ignore
 ) -> MigrationState:
     """Based on the migration plan produced within analysis, this will migrate the project"""
     logger.info(f"Migrating: {source_dir}")
