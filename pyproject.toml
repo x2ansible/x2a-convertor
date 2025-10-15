@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "ansible>=12.1.0",
     "click>=8.3.0",
     "ipdb>=0.13.13",
     "langchain>=0.3.27",
@@ -15,6 +16,7 @@ dependencies = [
     "tree-sitter>=0.23.0",
     "tree-sitter-ruby>=0.23.0",
     "tree-sitter-json>=0.23.0",
+    "ansible-lint>=25.9.2",
 ]
 
 [dependency-groups]

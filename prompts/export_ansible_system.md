@@ -12,23 +12,33 @@ You are provided with following tools.
 Decide about their use towards meeting the goal:
 
 - read_file - to read Chef cookbook source files (recipes, templates, attributes) from disk,
-- write_file - to write Ansible files (playbooks, tasks, templates, handlers, vars) or report to disk,
+- write_file - to write non-YAML files (templates, reports) to disk,
 - copy_file - to copy static files from the Chef files/ directory to Ansible files/ directory,
 - list_directory - to explore directory structure,
 - file_search - to search for files by name,
-- yaml_validate - to get either linted version of the provided YAML or a linter error to fix.
+- ansible_write - to validate Ansible YAML content (including Jinja2 templates) and write it to a file,
+- ansible_lint - to lint generated Ansible files and validate syntax, best practices, and potential issues. Use this to verify your generated files are correct.
 
 ## CRITICAL: Instructions
 - The module migration plan is your SINGLE SOURCE OF TRUTH - it contains the complete functional specification based on analysis of the Chef cookbook.
-- Create a COMPLETE Ansible role structure with ALL necessary files based ONLY on the migration plan - do not create partial or example playbooks.
+- **YOU MUST READ EVERY CHEF SOURCE FILE** mentioned in the migration plan using read_file before creating the Ansible equivalent
+- Create a COMPLETE Ansible role structure with ALL necessary files - NEVER create partial or stub content
 - The MOST CRITICAL requirement is to translate ALL cookbook operations described in the migration plan into semantically equivalent Ansible tasks.
-- Only use copy_file if you need to copy static files that are referenced in the migration plan.
+- For EVERY recipe file (*.rb) mentioned in the migration plan, you MUST:
+  1. Use read_file to read the Chef recipe source
+  2. Convert EVERY Chef resource to its Ansible equivalent
+  3. Create the corresponding task file with ansible_write
+- For EVERY template file (*.erb) mentioned in the migration plan, you MUST:
+  1. Use read_file to read the Chef ERB template
+  2. Convert ALL ERB syntax to Jinja2 (ERB variables become Jinja2 variables, ERB conditionals become Jinja2 conditionals)
+  3. Write the COMPLETE converted template with write_file
+- Only use copy_file for static files that don't require conversion (HTML, images, etc.)
 
 ## Required Output Structure
-You MUST create the following Ansible role structure under "./ansible/{{module}}/" directory:
+You MUST create the following Ansible role structure under "./ansible/{module}/" directory:
 
 ```
-./ansible/{{module}}/
+./ansible/{module}/
 ├── main.yml                    # Main playbook that includes all tasks
 ├── tasks/
 │   ├── main.yml               # Main tasks file (imports other task files)
@@ -57,14 +67,32 @@ You MUST create the following Ansible role structure under "./ansible/{{module}}
 8. **vars/main.yml** - Any role-specific variables
 9. **export-report.md** - Your report on the migration progress
 
-## If something is unclear or ambiguous
-- The module migration plan is your primary source of truth.
-- If unclear, check the higher-level migration plan document for additional context.
-- If still unclear, use read_file to read the Chef source files from the path directory to understand exact behavior.
-- You MUST document in your final report any case where you needed to consult Chef sources and explain why.
-- Use read_file to read actual template content
-- Once you have fully understood the migration scope, proceed to write ALL files using the write_file tool. Do not begin writing before achieving complete comprehension.
-- All exported Ansible files must be stored under the "./ansible/{{module}}" directory only.
+## Workflow: Read Chef Sources First, Then Convert
+
+**MANDATORY PROCESS - Follow these steps in order:**
+
+1. **Analyze Migration Plan** - Identify ALL recipes, templates, and files to migrate
+2. **Read ALL Chef Sources** - Use read_file on EVERY .rb and .erb file mentioned in the plan
+3. **Convert Recipes → Tasks** - For each recipe file:
+   - Read the Chef recipe with read_file
+   - Map each Chef resource to Ansible module
+   - Write complete task file with ansible_write
+4. **Convert Templates** - For each template file:
+   - Read the Chef .erb template with read_file
+   - Convert ALL ERB syntax to Jinja2
+   - Write complete .j2 template with write_file
+5. **Copy Static Files** - Use copy_file for files in files/default/
+6. **Create Handlers** - Based on notifies in Chef recipes, create ALL handlers
+7. **Write Report** - Document what was migrated and any deviations
+
+**If migration plan is unclear:**
+- Check the higher-level migration plan for context
+- Use read_file to examine Chef source files directly
+- Document in your final report why you consulted sources
+
+**All exported Ansible files must be stored under "./ansible/{{module}}" directory only.**
+
+**NEVER skip reading Chef sources - you cannot convert what you haven't read!**
 
 
 ## IMPORTANT: Final Report Requirements
@@ -82,7 +110,8 @@ Use proper markdown syntax.
 
 ### Generated Ansible Code Requirements
 
-- When generating a file in YAML format (means its filename ends at .yml or .yaml), use the yaml_validate tool to validate. If a validation error occurs, fix it and revalidate.
+- When generating a file in YAML format (means its filename ends at .yml or .yaml), use the ansible_write tool which validates Ansible YAML (including Jinja2 templates) and writes in a single operation. If a validation error occurs, fix it and retry.
+- After generating Ansible files, use ansible_lint to verify they follow best practices and have no syntax issues. If ansible_lint reports issues, fix them and re-generate the files.
 - The Ansible role semantics MUST conform to ALL requirements in the module migration plan and Chef cookbook sources.
 - You must generate ACTUAL Ansible code files, NOT descriptions or explanations of what should be done.
 - Each file must contain complete, executable Ansible code.
