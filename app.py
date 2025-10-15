@@ -13,7 +13,7 @@ from src.validate import validate_module
 from src.inputs.analyze import analyze_project
 
 
-def setup_logging():
+def setup_logging() -> None:
     log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(stream=sys.stderr, level=log_level)
     if log_level == "DEBUG":
@@ -22,7 +22,7 @@ def setup_logging():
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-def cli(ctx):
+def cli(ctx) -> None:
     """X2Ansible - Infrastructure Migration Tool"""
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -31,7 +31,7 @@ def cli(ctx):
 @cli.command()
 @click.argument("user_requirements")
 @click.option("--source-dir", default=".", help="Source directory to analyze")
-def init(user_requirements, source_dir):
+def init(user_requirements, source_dir) -> None:
     """Initialize project with interactive message"""
     init_project(user_requirements=user_requirements, source_dir=source_dir)
 
@@ -39,7 +39,7 @@ def init(user_requirements, source_dir):
 @cli.command()
 @click.argument("user_requirements")
 @click.option("--source-dir", default=".", help="Source directory to analyze")
-def analyze(user_requirements, source_dir):
+def analyze(user_requirements, source_dir) -> None:
     """Perform detailed analysis and create module migration plans"""
     analyze_project(user_requirements, source_dir)
 
@@ -66,7 +66,7 @@ def migrate(
     source_dir,
     module_migration_plan,
     high_level_migration_plan,
-):
+) -> None:
     """Based on the migration plan produced within analysis, migrate the project"""
     migrate_module(
         user_requirements,
@@ -79,7 +79,7 @@ def migrate(
 
 @cli.command()
 @click.argument("module_name")
-def validate(module_name):
+def validate(module_name) -> None:
     """Validate migrated module against original configuration"""
     validate_module(module_name)
 

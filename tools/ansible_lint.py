@@ -23,8 +23,10 @@ class AnsibleLintTool(BaseTool):
         "Checks for best practices, syntax issues, and potential problems. "
         "Returns a list of issues found or confirmation that no issues were detected."
     )
+    # pyrefly: ignore
     args_schema: type[BaseModel] = AnsibleLintInput
 
+    # pyrefly: ignore
     def _run(self, ansible_path: str) -> str:
         """Lint Ansible files and report issues."""
         try:
@@ -51,7 +53,7 @@ class AnsibleLintTool(BaseTool):
             if not matches:
                 return "No ansible-lint issues found. All files pass linting checks."
 
-            issues = []
+            issues: list[str] = []
             for match in matches:
                 issue = (
                     f"{match.filename}:{match.lineno or 0} "

@@ -24,8 +24,10 @@ class YamlValidateTool(BaseTool):
         "Use this when you need to ensure YAML is valid and get a clean version back. "
         "Returns the linted YAML if valid, or an error message if invalid."
     )
+    # pyrefly: ignore
     args_schema: type[BaseModel] = YamlValidateInput
 
+    # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:
         """Validate and lint YAML content."""
         try:
@@ -39,6 +41,7 @@ class YamlValidateTool(BaseTool):
                 sort_keys=False,
                 allow_unicode=True,
             )
+            # pyrefly: ignore
             return linted
         except yaml.YAMLError as e:
             return f"YAML validation error: {str(e)}"
@@ -55,8 +58,10 @@ class YamlLintTool(BaseTool):
         "Use this to check if YAML is valid without getting the reformatted version. "
         "Returns 'Valid YAML' if no issues found, or specific error messages if problems detected."
     )
+    # pyrefly: ignore
     args_schema: type[BaseModel] = YamlLintInput
 
+    # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:
         """Lint YAML content and report issues."""
         try:
@@ -66,7 +71,7 @@ class YamlLintTool(BaseTool):
             return "Valid YAML"
         except yaml.YAMLError as e:
             error_msg = str(e)
-            if hasattr(e, "problem_mark"):
+            if hasattr(e, "problem_mark") and hasattr(e, "problem"):
                 mark = e.problem_mark
                 return (
                     f"YAML syntax error at line {mark.line + 1}, "

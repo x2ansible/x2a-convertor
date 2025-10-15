@@ -31,7 +31,7 @@ class ChefState(TypedDict):
     user_message: str
     module_migration_plan: DocumentFile
     high_level_migration_plan: DocumentFile
-    directory_listing: str
+    directory_listing: list[str]
     validation_status: bool
     export_attempt_counter: int
     last_validation_result: str
@@ -41,7 +41,7 @@ class ChefState(TypedDict):
 class ChefToAnsibleSubagent:
     """Subagent called by the MigrationAgent to do the actual Chef -> Ansible export"""
 
-    def __init__(self, model=None):
+    def __init__(self, model=None) -> None:
         self.model = model or get_model()
         self.agent = self._create_agent()
         self.validation_agent = self._create_validation_agent()
@@ -62,6 +62,7 @@ class ChefToAnsibleSubagent:
             AnsibleLintTool(),
         ]
 
+        # pyrefly: ignore
         agent = create_react_agent(
             model=self.model,
             tools=tools,
@@ -83,6 +84,7 @@ class ChefToAnsibleSubagent:
             AnsibleLintTool(),
         ]
 
+        # pyrefly: ignore
         agent = create_react_agent(
             model=self.model,
             tools=tools,
@@ -91,8 +93,11 @@ class ChefToAnsibleSubagent:
 
     def _create_workflow(self):
         workflow = StateGraph(ChefState)
+        # pyrefly: ignore
         workflow.add_node("export", self._export)
+        # pyrefly: ignore
         workflow.add_node("validate", self._validate)
+        # pyrefly: ignore
         workflow.add_node("finalize", self._finalize)
 
         workflow.add_edge(START, "export")
@@ -102,7 +107,8 @@ class ChefToAnsibleSubagent:
 
         return workflow.compile()
 
-    def _export(self, state: ChefState):
+    # pyrefly: ignore
+    def _export(self, state: ChefState) -> TypedDict[ChefState]:
         logger.info(
             f"ChefToAnsibleSubagent is cooking Ansible, attempt {state['export_attempt_counter']}"
         )
@@ -177,7 +183,8 @@ class ChefToAnsibleSubagent:
             logger.warning(f"Error listing files in {directory}: {e}")
             return []
 
-    def _validate(self, state: ChefState):
+    # pyrefly: ignore
+    def _validate(self, state: ChefState) -> TypedDict[ChefState]:
         """Validation using react-agent to compare Chef vs Ansible"""
         logger.info("ChefToAnsibleSubagent is validating the exported Ansible")
 
@@ -242,7 +249,8 @@ class ChefToAnsibleSubagent:
 
         return "export"
 
-    def _finalize(self, state: ChefState):
+    # pyrefly: ignore
+    def _finalize(self, state: ChefState) -> TypedDict[ChefState]:
         # do clean-up, if needed
         logger.info("ChefToAnsibleSubagent final state")
         print(f"{state['last_validation_result']}")
@@ -255,8 +263,8 @@ class ChefToAnsibleSubagent:
         user_message: str,
         module_migration_plan: DocumentFile,
         high_level_migration_plan: DocumentFile,
-        directory_listing: str,
-    ) -> str:
+        directory_listing: list[str],
+    ) -> ChefState:
         """Export Ansible playbook based on the module migration plan and Chef sources"""
         logger.info("Using ChefToAnsible agent for migration")
 
@@ -268,9 +276,13 @@ class ChefToAnsibleSubagent:
             high_level_migration_plan=high_level_migration_plan,
             directory_listing=directory_listing,
             export_attempt_counter=1,
+            validation_status=False,
+            last_validation_result="",
+            last_output="",
         )
 
         result = self._workflow.invoke(initial_state, get_runnable_config())
+        # pyrefly: ignore
         return result
 
 

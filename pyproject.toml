@@ -19,9 +19,21 @@ dependencies = [
     "ansible-lint>=25.9.2",
 ]
 
+[tool.pyrefly]
+project-includes = ["**/*"]
+project-excludes = [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/*venv/**/*",
+]
+search_path = ["."]
+
 [dependency-groups]
 dev = [
     "dotenv>=0.9.9",
+    "pyrefly>=0.37.0",
     "pytest>=8.3.0",
     "ruff>=0.13.2",
 ]
+
+[tool]

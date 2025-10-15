@@ -1,11 +1,12 @@
 import os
 import logging
 from collections import Counter
+from typing import Any
 
 from langchain.chat_models import init_chat_model
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph import MessagesState
 
 from src.utils.config import RECURSION_LIMIT
 
@@ -23,7 +24,7 @@ class ToolCallCounter(Counter):
         return "Tool calls:\n\t -" + "\n\t- ".join(report_lines)
 
 
-def report_tool_calls(state: MessagesState) -> ToolCallCounter:
+def report_tool_calls(state: dict[str, Any]) -> ToolCallCounter:
     messages = state.get("messages", [])
     tool_call_counts = ToolCallCounter()
 
@@ -40,7 +41,7 @@ def report_tool_calls(state: MessagesState) -> ToolCallCounter:
     return tool_call_counts
 
 
-def get_last_ai_message(state: MessagesState):
+def get_last_ai_message(state: dict[str, Any]):
     messages = state.get("messages", [])
 
     last_ai_message = next(
@@ -55,7 +56,7 @@ def get_runnable_config() -> RunnableConfig:
     return {"recursion_limit": RECURSION_LIMIT}
 
 
-def get_model():
+def get_model() -> BaseChatModel:
     """Initialize and return the configured language model"""
     model_name = os.getenv("LLM_MODEL", "claude-3-5-sonnet-20241022")
     logger.info(f"Initializing model: {model_name}")

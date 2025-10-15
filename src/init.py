@@ -2,12 +2,18 @@ import click
 import logging
 import os
 
+from pathlib import Path
+from typing import Sequence
+
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_community.tools.file_management.write import WriteFileTool
+from langchain_core.tools import BaseTool
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
-from pathlib import Path
+from langgraph.prebuilt.chat_agent_executor import AgentStatePydantic
+
 
 from prompts.get_prompt import get_prompt
 from src.model import get_model, get_runnable_config
@@ -16,14 +22,14 @@ from src.const import MIGRATION_PLAN_FILE
 logger = logging.getLogger(__name__)
 
 
-def create_migration_agent():
+def create_migration_agent() -> CompiledStateGraph[AgentStatePydantic]:
     """Create a LangGraph agent with file management tools for migration planning"""
     logger.info("Creating migration agent")
 
     model = get_model()
 
     # Set up file management tools
-    tools = [
+    tools: Sequence[BaseTool] = [
         FileSearchTool(),
         ListDirectoryTool(),
         ReadFileTool(),
@@ -36,18 +42,19 @@ def create_migration_agent():
     )
     logger.debug(f"System prompt: {system_prompt}")
 
-    # Create the agent with higher recursion limit
+    # pyrefly: ignore
     agent = create_react_agent(
         model=model,
         tools=tools,
         prompt=system_prompt,
+        state_schema=AgentStatePydantic,
     )
     return agent
 
 
-def list_with_depth(dir_path, max_depth=2):
+def list_with_depth(dir_path: str, max_depth=2) -> str:
     path = Path(dir_path)
-    items = []
+    items: list[str] = []
     for item in path.rglob("*"):
         relative = item.relative_to(path)
         if any(part.startswith(".") for part in relative.parts):
@@ -58,7 +65,7 @@ def list_with_depth(dir_path, max_depth=2):
     return "\n".join(sorted(items))
 
 
-def init_project(user_requirements, source_dir="."):
+def init_project(user_requirements, source_dir: str = "."):
     """Initialize project with migration planning"""
     logger.info("Analyzing repository for migration planning...")
     logger.debug(f"User requirements: {user_requirements}")

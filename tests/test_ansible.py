@@ -6,19 +6,19 @@ from tools.ansible import AnsibleWriteTool
 class TestAnsibleWriteTool:
     """Test cases for AnsibleWriteTool."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.tool = AnsibleWriteTool()
         self.temp_dir = tempfile.mkdtemp()
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test fixtures."""
         import shutil
 
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
-    def test_valid_ansible_yaml(self):
+    def test_valid_ansible_yaml(self) -> None:
         """Test writing valid Ansible YAML content."""
         yaml_content = """---
 - name: Install nginx
@@ -36,7 +36,7 @@ class TestAnsibleWriteTool:
             content = f.read()
             assert content == yaml_content
 
-    def test_ansible_yaml_with_jinja2_variables(self):
+    def test_ansible_yaml_with_jinja2_variables(self) -> None:
         """Test writing Ansible YAML with Jinja2 variables."""
         yaml_content = """---
 - name: Configure site
@@ -57,7 +57,7 @@ class TestAnsibleWriteTool:
             content = f.read()
             assert "{{ item }}" in content
 
-    def test_ansible_yaml_with_jinja2_in_dict(self):
+    def test_ansible_yaml_with_jinja2_in_dict(self) -> None:
         """Test writing Ansible YAML with Jinja2 templates in dictionary values."""
         yaml_content = """---
 - name: Generate SSL certificates
@@ -80,7 +80,7 @@ class TestAnsibleWriteTool:
             assert "{{ item }}" in content
             assert ".crt" in content
 
-    def test_ansible_yaml_with_when_conditionals(self):
+    def test_ansible_yaml_with_when_conditionals(self) -> None:
         """Test writing Ansible YAML with Jinja2 conditionals."""
         yaml_content = """---
 - name: Configure multiple sites
@@ -96,7 +96,7 @@ class TestAnsibleWriteTool:
         assert "Successfully wrote valid Ansible YAML" in result
         assert os.path.exists(file_path)
 
-    def test_ansible_yaml_with_complex_jinja2(self):
+    def test_ansible_yaml_with_complex_jinja2(self) -> None:
         """Test writing Ansible YAML with complex Jinja2 expressions."""
         yaml_content = """---
 - name: Set fact with conditional
@@ -116,7 +116,7 @@ class TestAnsibleWriteTool:
         assert "Successfully wrote valid Ansible YAML" in result
         assert os.path.exists(file_path)
 
-    def test_valid_ansible_playbook(self):
+    def test_valid_ansible_playbook(self) -> None:
         """Test writing a complete Ansible playbook."""
         yaml_content = """---
 - name: Configure Nginx multisite
@@ -134,7 +134,7 @@ class TestAnsibleWriteTool:
         assert "Successfully wrote valid Ansible YAML" in result
         assert os.path.exists(file_path)
 
-    def test_ansible_handlers(self):
+    def test_ansible_handlers(self) -> None:
         """Test writing Ansible handlers file."""
         yaml_content = """---
 - name: Restart Nginx
@@ -153,7 +153,7 @@ class TestAnsibleWriteTool:
         assert "Successfully wrote valid Ansible YAML" in result
         assert os.path.exists(file_path)
 
-    def test_ansible_vars_file(self):
+    def test_ansible_vars_file(self) -> None:
         """Test writing Ansible variables file."""
         yaml_content = """---
 nginx_port: 80
@@ -166,7 +166,7 @@ document_root: /var/www/html
         assert "Successfully wrote valid Ansible YAML" in result
         assert os.path.exists(file_path)
 
-    def test_empty_yaml_with_comment(self):
+    def test_empty_yaml_with_comment(self) -> None:
         """Test writing empty YAML file with just a comment."""
         yaml_content = """---
 # Role variables
@@ -178,7 +178,7 @@ document_root: /var/www/html
         assert "Successfully wrote valid Ansible YAML" in result
         assert os.path.exists(file_path)
 
-    def test_invalid_yaml_syntax(self):
+    def test_invalid_yaml_syntax(self) -> None:
         """Test validation of invalid YAML syntax."""
         yaml_content = """---
 name: test
@@ -192,7 +192,7 @@ name: test
         assert "File not written" in result
         assert not os.path.exists(file_path)
 
-    def test_malformed_yaml(self):
+    def test_malformed_yaml(self) -> None:
         """Test validation of malformed YAML."""
         yaml_content = """---
 key: [unclosed bracket
@@ -205,7 +205,7 @@ another: value
         assert "File not written" in result
         assert not os.path.exists(file_path)
 
-    def test_preserves_formatting(self):
+    def test_preserves_formatting(self) -> None:
         """Test that original formatting is preserved."""
         yaml_content = """---
 # This is a comment

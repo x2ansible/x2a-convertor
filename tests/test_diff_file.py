@@ -6,10 +6,10 @@ from tools.diff_file import DiffFileTool
 
 class TestDiffFileTool:
     @pytest.fixture
-    def tool(self):
+    def tool(self) -> DiffFileTool:
         return DiffFileTool()
 
-    def test_diff_shows_differences(self, tool):
+    def test_diff_shows_differences(self, tool) -> None:
         source_content = "line 1\nline 2\nline 3\n"
         dest_content = "line 1\nmodified line 2\nline 3\n"
 
@@ -31,7 +31,7 @@ class TestDiffFileTool:
             os.unlink(source_path)
             os.unlink(dest_path)
 
-    def test_diff_with_identical_files(self, tool):
+    def test_diff_with_identical_files(self, tool) -> None:
         content = "test content\nline 2\n"
 
         with (
@@ -50,7 +50,7 @@ class TestDiffFileTool:
             os.unlink(f1_path)
             os.unlink(f2_path)
 
-    def test_source_file_not_found(self, tool):
+    def test_source_file_not_found(self, tool) -> None:
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as dest:
             dest_path = dest.name
 
@@ -60,7 +60,7 @@ class TestDiffFileTool:
         finally:
             os.unlink(dest_path)
 
-    def test_destination_file_not_found(self, tool):
+    def test_destination_file_not_found(self, tool) -> None:
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as source:
             source_path = source.name
 

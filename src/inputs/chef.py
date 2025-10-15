@@ -2,6 +2,7 @@ import logging
 from typing import TypedDict, List, Optional
 
 from langgraph.graph import StateGraph, END
+from langgraph.prebuilt.chat_agent_executor import AgentStatePydantic
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
@@ -24,7 +25,7 @@ class ChefState(TypedDict):
 
 
 class ChefSubagent:
-    def __init__(self, model=None):
+    def __init__(self, model=None) -> None:
         self.model = model or get_model()
         self.agent = self._create_agent()
         self._workflow = self._create_workflow()
@@ -43,18 +44,25 @@ class ChefSubagent:
         ]
 
         # Create the agent with higher recursion limit
+        # pyrefly: ignore
         agent = create_react_agent(
             model=self.model,
             tools=tools,
+            state_schema=AgentStatePydantic,
         )
         return agent
 
     def _create_workflow(self):
         workflow = StateGraph(ChefState)
+        # pyrefly: ignore
         workflow.add_node("fetch_dependencies", self._prepare_dependencies)
+        # pyrefly: ignore
         workflow.add_node("write_report", self._write_report)
+        # pyrefly: ignore
         workflow.add_node("check_files", self._check_files)
+        # pyrefly: ignore
         workflow.add_node("cleanup_specification", self._cleanup_specification)
+        # pyrefly: ignore
         workflow.add_node("cleanup_temp_files", self._cleanup_temp_files)
 
         workflow.set_entry_point("fetch_dependencies")
@@ -195,9 +203,11 @@ class ChefSubagent:
             messy_specification=state["specification"]
         )
 
+        # pyrefly: ignore
         agent = create_react_agent(
             model=self.model,
             tools=[],
+            state_schema=AgentStatePydantic,
         )
         # Execute cleanup agent
         result = agent.invoke(
@@ -251,11 +261,11 @@ class ChefSubagent:
             },
             config=get_runnable_config(),
         )
-        result_messages_len = len(result.get("messages"))
-        if result_messages_len < 2:
+        messages = result.get("messages", [])
+        if len(messages) < 2:
             raise Exception("Invalid response from Chef agent")
 
-        state["specification"] = result.get("messages", ["No response"])[-1].content
+        state["specification"] = messages[-1].content
         return state
 
     def invoke(self, path: str, user_message: str) -> str:
