@@ -37,13 +37,12 @@ class AnsibleWriteTool(BaseTool):
     def _run(self, file_path: str, yaml_content: str) -> str:
         """Validate Ansible YAML content and write to file."""
         try:
-            # Use Ansible's DataLoader which understands Jinja2 templates
-            parsed = self._loader.load(yaml_content)
+            parsed_yaml = self._loader.load(data=yaml_content, json_only=False)
 
             # Allow empty/null for things like empty vars files with just comments
             # Check if content is truly empty (not just whitespace/comments)
             stripped_content = yaml_content.strip()
-            if parsed is None and stripped_content:
+            if parsed_yaml is None and stripped_content:
                 # If it starts with --- and only has comments, allow it
                 lines_without_comments = [
                     line.strip()
@@ -54,6 +53,15 @@ class AnsibleWriteTool(BaseTool):
                 ]
                 if lines_without_comments:
                     return "Error: Empty or null YAML content, file not written"
+
+            try:
+                # Since YAML can be valid JSON, we need to check if the input is JSON and not allow it
+                parsed_json = self._loader.load(data=yaml_content, json_only=True)
+                if parsed_json is not None:
+                    return "Error: JSON input is not allowed, file not written"
+            except Exception:
+                # expected to fail
+                pass
 
             # Write original content to preserve Jinja2 templates and formatting
             self._write_tool.invoke({"file_path": file_path, "text": yaml_content})
