@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
 from typing import Any
 
-from ansiblelint.runner import Runner
+import ansiblelint
 from ansiblelint.rules import RulesCollection
+from ansiblelint.runner import Runner
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -34,25 +36,18 @@ class AnsibleLintTool(BaseTool):
             if not path.exists():
                 return f"Error: Path '{ansible_path}' does not exist"
 
-            # Collect all YAML files
-            if path.is_file():
-                files = [str(path)]
-            else:
-                files = [str(f) for f in path.rglob("*.yml")] + [
-                    str(f) for f in path.rglob("*.yaml")
-                ]
+            # Load all built-in rules from ansible-lint package
+            rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
+            rules = RulesCollection(rulesdirs=[rules_dir])
 
-            if not files:
-                return f"No Ansible files found in '{ansible_path}'"
-
-            # Create rules and run linter
-            rules = RulesCollection()
-            runner = Runner(*files, rules=rules)
+            # Run linter with all rules
+            runner = Runner(str(path), rules=rules)
             matches = runner.run()
 
             if not matches:
                 return "No ansible-lint issues found. All files pass linting checks."
 
+            # Format issues
             issues: list[str] = []
             for match in matches:
                 issue = (
