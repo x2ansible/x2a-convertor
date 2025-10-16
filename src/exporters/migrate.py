@@ -12,7 +12,7 @@ from prompts.get_prompt import get_prompt
 from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
 from src.exporters.chef_to_ansible import ChefToAnsibleSubagent
 from src.types import DocumentFile
-from src.model import get_model
+from src.model import get_model, get_runnable_config
 from src.utils.list_files import list_files
 from src.utils.technology import Technology
 
@@ -40,12 +40,13 @@ class MigrationAgent:
     def _build_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(MigrationState)
 
-        # pyrefly: ignore
-        workflow.add_node("read_source_metadata", self._read_source_metadata)
-        # pyrefly: ignore
-        workflow.add_node("choose_subagent", self._choose_subagent)
-        # pyrefly: ignore
-        workflow.add_node("write_migration_output", self._write_migration_output)
+        workflow.add_node(
+            "read_source_metadata", lambda state: self._read_source_metadata
+        )
+        workflow.add_node("choose_subagent", lambda state: self._choose_subagent)
+        workflow.add_node(
+            "write_migration_output", lambda state: self._write_migration_output
+        )
 
         workflow.set_entry_point("read_source_metadata")
         workflow.add_edge("read_source_metadata", "choose_subagent")
@@ -164,10 +165,9 @@ class MigrationAgent:
 
     def invoke(self, initial_state: MigrationState) -> MigrationState:
         """Invoke the migration agent"""
-        result = self._graph.invoke(initial_state)
+        result = self._graph.invoke(input=initial_state, config=get_runnable_config())
         logger.debug(f"Migration agent result: {result}")
-        # pyrefly: ignore
-        return result
+        return MigrationState(**result)
 
 
 def migrate_module(
@@ -176,8 +176,7 @@ def migrate_module(
     module_migration_plan,
     high_level_migration_plan,
     source_dir,
-    # pyrefly: ignore
-) -> TypedDict[MigrationState]:
+) -> MigrationState:
     """Based on the migration plan produced within analysis, this will migrate the project"""
     logger.info(f"Migrating: {source_dir}")
     os.chdir(source_dir)
@@ -218,5 +217,4 @@ def migrate_module(
 
     result = workflow.invoke(initial_state)
     logger.info("Migration completed successfully!")
-    # pyrefly: ignore
-    return result
+    return MigrationState(**result)
