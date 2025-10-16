@@ -35,11 +35,13 @@ class MigrationAnalysisWorkflow:
     def _build_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(MigrationState)
 
-        workflow.add_node("read_migration_plan", lambda state: self.read_migration_plan)
-        workflow.add_node("select_module", lambda state: self.select_module)
-        workflow.add_node("choose_subagent", lambda state: self.choose_subagent)
         workflow.add_node(
-            "write_migration_file", lambda state: self.write_migration_file
+            "read_migration_plan", lambda state: self.read_migration_plan(state)
+        )
+        workflow.add_node("select_module", lambda state: self.select_module(state))
+        workflow.add_node("choose_subagent", lambda state: self.choose_subagent(state))
+        workflow.add_node(
+            "write_migration_file", lambda state: self.write_migration_file(state)
         )
 
         workflow.set_entry_point("read_migration_plan")

@@ -55,14 +55,16 @@ class ChefSubagent:
     def _create_workflow(self):
         workflow = StateGraph(ChefState)
         workflow.add_node(
-            "fetch_dependencies", lambda state: self._prepare_dependencies
+            "fetch_dependencies", lambda state: self._prepare_dependencies(state)
         )
-        workflow.add_node("write_report", lambda state: self._write_report)
-        workflow.add_node("check_files", lambda state: self._check_files)
+        workflow.add_node("write_report", lambda state: self._write_report(state))
+        workflow.add_node("check_files", lambda state: self._check_files(state))
         workflow.add_node(
-            "cleanup_specification", lambda state: self._cleanup_specification
+            "cleanup_specification", lambda state: self._cleanup_specification(state)
         )
-        workflow.add_node("cleanup_temp_files", lambda state: self._cleanup_temp_files)
+        workflow.add_node(
+            "cleanup_temp_files", lambda state: self._cleanup_temp_files(state)
+        )
 
         workflow.set_entry_point("fetch_dependencies")
         workflow.add_edge("fetch_dependencies", "write_report")

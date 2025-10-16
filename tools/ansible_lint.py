@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from ansiblelint.runner import Runner
 from ansiblelint.rules import RulesCollection
@@ -23,7 +24,7 @@ class AnsibleLintTool(BaseTool):
         "Checks for best practices, syntax issues, and potential problems. "
         "Returns a list of issues found or confirmation that no issues were detected."
     )
-    args_schema = AnsibleLintInput
+    args_schema: dict[str, Any] | type[BaseModel] | None = AnsibleLintInput
 
     # pyrefly: ignore
     def _run(self, ansible_path: str) -> str:

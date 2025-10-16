@@ -1,3 +1,4 @@
+from typing import Any
 from ansible.parsing.dataloader import DataLoader
 from ansible.errors import AnsibleError
 from langchain_core.tools import BaseTool
@@ -24,8 +25,8 @@ class AnsibleWriteTool(BaseTool):
         "Jinja2 templating syntax like {{ variable }} or {% for %} loops. "
         "Returns success message if written, or an error message if validation fails."
     )
-    # pyrefly: ignore
-    args_schema: type[BaseModel] = AnsibleWriteInput
+
+    args_schema: dict[str, Any] | type[BaseModel] | None = AnsibleWriteInput
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)

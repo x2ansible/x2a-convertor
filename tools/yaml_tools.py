@@ -1,3 +1,4 @@
+from typing import Any
 import yaml
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -24,7 +25,7 @@ class YamlValidateTool(BaseTool):
         "Use this when you need to ensure YAML is valid and get a clean version back. "
         "Returns the linted YAML if valid, or an error message if invalid."
     )
-    args_schema = YamlValidateInput
+    args_schema: dict[str, Any] | type[BaseModel] | None = YamlValidateInput
 
     # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:
@@ -57,7 +58,7 @@ class YamlLintTool(BaseTool):
         "Use this to check if YAML is valid without getting the reformatted version. "
         "Returns 'Valid YAML' if no issues found, or specific error messages if problems detected."
     )
-    args_schema = YamlLintInput
+    args_schema: dict[str, Any] | type[BaseModel] | None = YamlLintInput
 
     # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:
