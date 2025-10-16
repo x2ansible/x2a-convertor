@@ -234,3 +234,17 @@ another: value
             assert "# This is a comment" in content
             assert "# Another comment" in content
             assert yaml_content == content
+
+    def test_json_input(self) -> None:
+        """Test writing Ansible YAML with JSON input."""
+        yaml_content = """
+{
+    "json": "shall",
+    "not": "pass"
+}
+"""
+        file_path = os.path.join(self.temp_dir, "json.yml")
+        result = self.tool._run(file_path, yaml_content)
+        assert "error" in result.lower()
+        assert "JSON input is not allowed" in result
+        assert not os.path.exists(file_path)
