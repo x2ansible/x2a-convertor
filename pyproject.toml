@@ -36,4 +36,9 @@ dev = [
     "ruff>=0.13.2",
 ]
 
+[tool.pytest.ini_options]
+markers = [
+    "libyaml: marks tests that require libyaml",
+]
+
 [tool]
