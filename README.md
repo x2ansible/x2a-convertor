@@ -1,8 +1,120 @@
 # X2A Convertor
 
-Infrastructure migration tool with AI-powered analysis and planning.
+**AI-powered Chef-to-Ansible migration tool that reduces migration time**
 
-## Environment Variables
+## What It Does
+
+Converts legacy Chef, Puppet, Salt infrastructure code to modern Ansible playbooks with intelligent analysis, automatic validation, and zero manual translation.
+
+```mermaid
+flowchart LR
+    subgraph Input["📦 Chef Infrastructure"]
+        Chef[Cookbooks<br/>Recipes<br/>Templates]
+    end
+
+    subgraph Tool["🤖 X2Ansible"]
+        P1["1️⃣ Plan"]
+        P2["2️⃣ Analyze"]
+        P3["3️⃣ Migrate"]
+        P1 --> P2 --> P3
+    end
+
+    subgraph Output["✅ Production-Ready Ansible"]
+        Ansible[Roles<br/>Playbooks<br/>Validated]
+    end
+
+    Chef --> Tool --> Ansible
+
+    style Input fill:#ffebee
+    style Tool fill:#e3f2fd
+    style Output fill:#e8f5e9
+```
+
+## Key Benefits
+
+- **Automated Migration**: AI agents handle code conversion, not humans
+- **Risk Reduction**: Incremental module-by-module migration approach
+- **Quality Assurance**: Built-in ansible-lint validation with auto-retry (up to 5 attempts)
+- **Maintainable Output**: Clean, idiomatic Ansible code following best practices
+
+## How It Works
+
+| Phase | What It Does | Output | Time |
+|-------|--------------|--------|------|
+| **1️⃣ Init** | Scans entire Chef repo, identifies cookbooks, maps dependencies | Strategic migration plan (`migration-plan.md`) | ~5 min |
+| **2️⃣ Analyze** | Deep-dive analysis of specific cookbook/module | Detailed conversion spec (`migration-plan-<module>.md`) | ~10 min |
+| **3️⃣ Migrate** | Converts Chef code to Ansible with validation | Production-ready Ansible role | ~15 min |
+
+**Total time per module: ~30 minutes** (vs. days/weeks of manual conversion)
+
+## Quick Start
+
+```bash
+# 1. Plan the migration
+uv run app.py init --source-dir ./chef-repo "Migrate to Ansible"
+
+# 2. Analyze a specific cookbook
+uv run app.py analyze --source-dir ./chef-repo "Analyze nginx-multisite"
+
+# 3. Generate Ansible code
+uv run app.py migrate --source-dir ./chef-repo \
+  --source-technology Chef \
+  --high-level-migration-plan migration-plan.md \
+  --module-migration-plan migration-plan-nginx-multisite.md \
+  "Convert nginx-multisite"
+```
+
+---
+
+## Technical Details
+
+<details>
+<summary><b>Click to expand detailed architecture</b></summary>
+
+### Technical Workflow
+
+```mermaid
+flowchart TB
+    Start([Chef Repository]) --> Init
+
+    subgraph Init["1️⃣ INIT: Strategic Planning"]
+        I1["Scan Repository"] --> I2["Identify Cookbooks"] --> I3["Map Dependencies"] --> I4["migration-plan.md"]
+    end
+
+    Init --> Analyze
+
+    subgraph Analyze["2️⃣ ANALYZE: Deep-Dive"]
+        A1["Select Module"] --> A2["Parse Recipes/Templates"] --> A3["Analyze Dependencies"] --> A4["migration-plan-MODULE.md"]
+    end
+
+    Analyze --> Migrate
+
+    subgraph Migrate["3️⃣ MIGRATE: Code Generation"]
+        M1["Read Plans"] --> M2["Convert .erb → .j2"] --> M3["Convert .rb → .yml"] --> M4["Validate"] --> M5["Ansible Role"]
+    end
+
+    Migrate --> Output["Production-Ready Ansible"]
+
+    style Init fill:#e3f2fd
+    style Analyze fill:#fff3e0
+    style Migrate fill:#e8f5e9
+```
+
+### What Gets Converted
+
+| Chef Artifact | Ansible Equivalent |
+|---------------|-------------------|
+| Recipes (`.rb`) | Tasks (`.yml`) |
+| Templates (`.erb`) | Templates (`.j2`) |
+| Attributes | Defaults (`defaults/main.yml`) |
+| Resources | Modules + Tasks |
+| Files | Files (copied) |
+
+</details>
+
+## Development
+
+### Environment Variables
 
 | Variable               | Description                                         | Example Values                                                                                           | Required                  |
 | ---------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------- |
@@ -20,39 +132,18 @@ Infrastructure migration tool with AI-powered analysis and planning.
 | `RECURSION_LIMIT`      | Maximum recursion limit to be used by the langchain | `100`, `200`                                                                                             | No (default: 100)         |
 | `MAX_EXPORT_ATTEMPTS`  | Maximum number of attempts to export the playbook   | `5`, `10`                                                                                                | No (default: 5)           |
 
-
-## Usage
-
-```bash
-# Cloud LLM example
-export LLM_MODEL="claude-3-5-sonnet-20241022"
-
-# Local LLM example (Ollama)
-export LLM_MODEL="openai:qwen3:4b"
-export OPENAI_API_BASE="http://localhost:11434/v1"
-export OPENAI_API_KEY="not-needed"
-
-# Enable debug logging
-export LOG_LEVEL="DEBUG"
-export LANGCHAIN_DEBUG="true"
-```
-
 Optionally, a `.env` file with these settings for development purposes can be created.
 
-## Run migration planning
-```bash
-uv run app.py init --source-dir ./input/hello_world "I want to migrate this Chef repository to Ansible"
-
-# or
-
-make name=hello_world run-init
-```
-
-## Development
+### Development Commands
 
 ```bash
 # Format code
-uv run ruff format
+make format
+make check
+
+
+# Checks
+make ci-check
 
 # Run application
 uv run app.py
