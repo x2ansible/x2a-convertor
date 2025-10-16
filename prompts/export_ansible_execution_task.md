@@ -19,10 +19,10 @@ Your task:
    b. Convert it to the appropriate Ansible format
    c. Write it to the target Ansible location using the correct tool
    d. Move on to the next item
-3. Do NOT stop after creating just one or two files
+3. Do NOT stop after creating just one or a few files, repeat the loop for all checklist items
 4. Process ALL items before finishing
 
-Suggested order:
+Suggested order for the task:
 - Structure files first (meta/main.yml, handlers/main.yml)
 - Attributes/variables (defaults/main.yml)
 - Static files (copy using copy_file tool)

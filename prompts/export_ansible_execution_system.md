@@ -68,14 +68,13 @@ STRUCTURE FILES:
 - Create proper Ansible role structure (meta/main.yml, handlers/main.yml, tasks/main.yml)
 - Follow Ansible best practices
 
-Always:
-1. Read the source file first
-2. Convert the content appropriately
-3. Write to the correct Ansible location
-4. Run ansible-lint to check individual file syntax and quality
-5. Run ansible_role_check after creating task files to verify role structure is correct
-6. If ansible_role_check fails, fix the errors immediately (especially remove playbook syntax like 'hosts:', 'tasks:' wrapper)
-7. Report what you did clearly
+Instructions to perform for every item from the checklist:
+1. Read the source file first using read_file
+2. Convert the content based on the conversion rules above for the specific file type (templates, recipes, attributes, static files, or structure files)
+3. Write to the correct Ansible location (ansible_path is provided in the task prompt as the target directory)
+4. Run ansible-lint to check individual file syntax and quality. If errors are found, fix them before proceeding
+5. After creating the task files, run ansible_role_check to ensure that the role structure is correct. If errors are found, fix them immediately (especially remove playbook syntax like 'hosts:', 'tasks:' wrapper)
+6. Provide a clear report of the actions you performed.
 
 CRITICAL: Task files must contain ONLY task definitions, not playbook syntax. Never include 'hosts:', 'become:', or 'tasks:' wrapper in task files.
 
