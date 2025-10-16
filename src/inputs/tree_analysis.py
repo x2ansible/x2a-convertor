@@ -4,7 +4,7 @@ import tree_sitter_json as tsjson
 import tree_sitter_ruby as tsruby
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from tree_sitter import Language, Parser, Node
 from typing import Dict, List, Any, Optional
@@ -94,11 +94,7 @@ class ChefResource:
     block_content: Optional[str] = None
     category: str = "other"
     has_dynamic_name: bool = False
-    important_attributes: Dict[str, Any] = None
-
-    def __post_init__(self):
-        if self.important_attributes is None:
-            self.important_attributes = {}
+    important_attributes: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -110,7 +106,7 @@ class ChefAttribute:
     line: int
     display_value: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.display_value:
             self.display_value = (
                 self.value[:77] + "..." if len(self.value) > 80 else self.value
@@ -549,7 +545,7 @@ class RubyParser(BaseTreeSitterParser):
         Returns:
             ChefResource instance containing resource information
         """
-        resource_name = None
+        resource_name: Optional[str] = None
         attributes = {}
         block_content = None
 
@@ -892,7 +888,7 @@ class TreeSitterAnalyzer:
                 return {"error": error_msg}
 
             # Initialize results structure
-            results = {
+            results: Dict[str, Any] = {
                 "directory_path": directory_path,
                 "files": {},
                 "categorized_files": {

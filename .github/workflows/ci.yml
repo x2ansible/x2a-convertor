@@ -30,6 +30,9 @@ jobs:
     - name: Run ruff format check
       run: uv run ruff format --check
 
+    - name: Run pyrefly check
+      run: uv run pyrefly check
+
   build-container:
     runs-on: ubuntu-latest
 

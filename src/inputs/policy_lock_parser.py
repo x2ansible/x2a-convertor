@@ -23,7 +23,7 @@ class CookbookDependency(TypedDict):
 class CookbookInfo:
     """Information about a cookbook from policy lock"""
 
-    def __init__(self, name: str, data: Dict):
+    def __init__(self, name: str, data: Dict) -> None:
         self.name = name
         self.version = data.get("version")
         self.identifier = data.get("identifier")
@@ -44,7 +44,7 @@ class CookbookInfo:
             return False
         return "supermarket.chef.io" in self.cache_key
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         source_type = "local" if self.is_local else "supermarket"
         return f"<CookbookInfo {self.name}@{self.version} ({source_type})>"
 
@@ -52,7 +52,7 @@ class CookbookInfo:
 class PolicyLockParser:
     """Parser for Policyfile.lock.json"""
 
-    def __init__(self, lock_file_path: str):
+    def __init__(self, lock_file_path: str) -> None:
         """
         Initialize parser with policy lock file path
 
@@ -172,7 +172,7 @@ class PolicyLockParser:
 
         for dep_name in all_dep_names:
             dep_cb = self.get_cookbook_by_name(dep_name)
-            if dep_cb:
+            if dep_cb and dep_cb.identifier and dep_cb.version:
                 dep: CookbookDependency = {
                     "name": dep_cb.name,
                     "identifier": dep_cb.identifier,
@@ -182,7 +182,7 @@ class PolicyLockParser:
                 logger.debug(f"Added dependency: {dep_name}@{dep_cb.version}")
             else:
                 logger.warning(
-                    f"Dependency '{dep_name}' listed but not found in cookbook_locks"
+                    f"Dependency '{dep_name}' listed but not found in cookbook_locks or missing required fields"
                 )
 
         return result

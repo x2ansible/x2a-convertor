@@ -21,10 +21,10 @@ class ChefDependencyManager:
     """Fetches Chef cookbook dependencies using chef-cli export"""
 
     @property
-    def cookbook_path(self):
+    def cookbook_path(self) -> Path:
         return self._cookbook_path
 
-    def __init__(self, cookbook_path: str):
+    def __init__(self, cookbook_path: str) -> None:
         """
         Initialize dependency fetcher
 
@@ -227,10 +227,10 @@ class ChefDependencyManager:
         return paths
 
     @property
-    def export_path(self):
+    def export_path(self) -> Path | None:
         return self.export_dir
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Remove export directory"""
         if not self.export_dir:
             logger.debug("No export directory to cleanup")
@@ -254,6 +254,6 @@ class ChefDependencyManager:
         """Context manager entry"""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Context manager exit - ensure cleanup"""
         self.cleanup()

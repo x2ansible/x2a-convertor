@@ -21,8 +21,10 @@ class DiffFileTool(BaseTool):
         "Useful for comparing source files with generated files to identify "
         "missing or incorrect content."
     )
+    # pyrefly: ignore
     args_schema: Type[BaseModel] = DiffFileInput
 
+    # pyrefly: ignore
     def _run(
         self, source_path: str, destination_path: str, context_lines: int = 3
     ) -> str:

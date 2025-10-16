@@ -27,12 +27,12 @@ class MigrationState(TypedDict):
     source_technology: Technology
     high_level_migration_plan: DocumentFile
     module_migration_plan: DocumentFile
-    directory_listing: str
+    directory_listing: list[str]
     migration_output: str
 
 
 class MigrationAgent:
-    def __init__(self, model=None):
+    def __init__(self, model=None) -> None:
         self.model = model or get_model()
         self._graph = self._build_graph()
         logger.debug("Migration workflow: " + self._graph.get_graph().draw_mermaid())
@@ -40,8 +40,11 @@ class MigrationAgent:
     def _build_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(MigrationState)
 
+        # pyrefly: ignore
         workflow.add_node("read_source_metadata", self._read_source_metadata)
+        # pyrefly: ignore
         workflow.add_node("choose_subagent", self._choose_subagent)
+        # pyrefly: ignore
         workflow.add_node("write_migration_output", self._write_migration_output)
 
         workflow.set_entry_point("read_source_metadata")
@@ -71,7 +74,15 @@ class MigrationAgent:
         logger.debug(f"LLM read_source_metadata response: {llm_response.content}")
 
         try:
-            response_data = json.loads(llm_response.content.strip())
+            content = llm_response.content
+            if isinstance(content, list) and content:
+                first_item = content[0]
+                content = (
+                    first_item.get("text", "")
+                    if isinstance(first_item, dict)
+                    else str(first_item)
+                )
+            response_data = json.loads(str(content).strip())
         except Exception as e:
             logger.error(
                 f"Error during parsing LLM-generated JSON with module metadata: {str(e)}"
@@ -124,10 +135,15 @@ class MigrationAgent:
             state["migration_output"] = result["last_output"]
         elif technology == Technology.PUPPET:
             logger.warning("Puppet agent not implemented yet")
-            state["module_migration_plan"] = "Export from Puppet not available"
+            state["module_migration_plan"] = DocumentFile(
+                path=Path("not_available.txt"),
+                content="Export from Puppet not available",
+            )
         elif technology == Technology.SALT:
             logger.warning("Salt agent not implemented yet")
-            state["module_migration_plan"] = "Export from Salt not available"
+            state["module_migration_plan"] = DocumentFile(
+                path=Path("not_available.txt"), content="Export from Salt not available"
+            )
         else:
             logger.error(f"Unknown source technology: {technology}")
             raise ValueError(f"Unknown source technology: {technology}")
@@ -150,6 +166,7 @@ class MigrationAgent:
         """Invoke the migration agent"""
         result = self._graph.invoke(initial_state)
         logger.debug(f"Migration agent result: {result}")
+        # pyrefly: ignore
         return result
 
 
@@ -159,7 +176,8 @@ def migrate_module(
     module_migration_plan,
     high_level_migration_plan,
     source_dir,
-):
+    # pyrefly: ignore
+) -> TypedDict[MigrationState]:
     """Based on the migration plan produced within analysis, this will migrate the project"""
     logger.info(f"Migrating: {source_dir}")
     os.chdir(source_dir)
@@ -194,9 +212,11 @@ def migrate_module(
         module=module_name,
         high_level_migration_plan=high_level_migration_plan_doc,
         module_migration_plan=module_migration_plan_doc,
-        directory_listing="",
+        directory_listing=[],
+        migration_output="",
     )
 
     result = workflow.invoke(initial_state)
     logger.info("Migration completed successfully!")
+    # pyrefly: ignore
     return result

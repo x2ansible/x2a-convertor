@@ -24,13 +24,15 @@ class AnsibleWriteTool(BaseTool):
         "Jinja2 templating syntax like {{ variable }} or {% for %} loops. "
         "Returns success message if written, or an error message if validation fails."
     )
+    # pyrefly: ignore
     args_schema: type[BaseModel] = AnsibleWriteInput
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self._write_tool = WriteFileTool()
         self._loader = DataLoader()
 
+    # pyrefly: ignore
     def _run(self, file_path: str, yaml_content: str) -> str:
         """Validate Ansible YAML content and write to file."""
         try:

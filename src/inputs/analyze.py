@@ -19,14 +19,14 @@ logger = logging.getLogger(__name__)
 class MigrationState(TypedDict):
     user_message: str
     path: str
-    technology: Technology
+    technology: Technology | None
     migration_plan_content: str
     module_migration_plan: str
     module_plan_path: str
 
 
 class MigrationAnalysisWorkflow:
-    def __init__(self, model=None):
+    def __init__(self, model=None) -> None:
         self.model = model or get_model()
         self.chef_subagent = ChefSubagent(model=self.model)
         self.graph = self._build_graph()
@@ -35,9 +35,13 @@ class MigrationAnalysisWorkflow:
     def _build_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(MigrationState)
 
+        # pyrefly: ignore
         workflow.add_node("read_migration_plan", self.read_migration_plan)
+        # pyrefly: ignore
         workflow.add_node("select_module", self.select_module)
+        # pyrefly: ignore
         workflow.add_node("choose_subagent", self.choose_subagent)
+        # pyrefly: ignore
         workflow.add_node("write_migration_file", self.write_migration_file)
 
         workflow.set_entry_point("read_migration_plan")
@@ -89,7 +93,15 @@ class MigrationAnalysisWorkflow:
         logger.debug(f"LLM select_module response: {llm_response.content}")
 
         try:
-            response_data = json.loads(llm_response.content.strip())
+            content = llm_response.content
+            if isinstance(content, list) and content:
+                first_item = content[0]
+                content = (
+                    first_item.get("text", "")
+                    if isinstance(first_item, dict)
+                    else str(first_item)
+                )
+            response_data = json.loads(str(content).strip())
         except Exception as e:
             logger.error(
                 f"Error during parsing LLM-generated JSON with list of modules: {str(e)}"
