@@ -1,6 +1,6 @@
 import difflib
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -21,7 +21,7 @@ class DiffFileTool(BaseTool):
         "Useful for comparing source files with generated files to identify "
         "missing or incorrect content."
     )
-    args_schema = DiffFileInput
+    args_schema: dict[str, Any] | type[BaseModel] | None = DiffFileInput
 
     # pyrefly: ignore
     def _run(

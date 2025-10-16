@@ -41,11 +41,11 @@ class MigrationAgent:
         workflow = StateGraph(MigrationState)
 
         workflow.add_node(
-            "read_source_metadata", lambda state: self._read_source_metadata
+            "read_source_metadata", lambda state: self._read_source_metadata(state)
         )
-        workflow.add_node("choose_subagent", lambda state: self._choose_subagent)
+        workflow.add_node("choose_subagent", lambda state: self._choose_subagent(state))
         workflow.add_node(
-            "write_migration_output", lambda state: self._write_migration_output
+            "write_migration_output", lambda state: self._write_migration_output(state)
         )
 
         workflow.set_entry_point("read_source_metadata")
