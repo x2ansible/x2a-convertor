@@ -93,12 +93,10 @@ class ChefToAnsibleSubagent:
 
     def _create_workflow(self):
         workflow = StateGraph(ChefState)
-        # pyrefly: ignore
-        workflow.add_node("export", self._export)
-        # pyrefly: ignore
-        workflow.add_node("validate", self._validate)
-        # pyrefly: ignore
-        workflow.add_node("finalize", self._finalize)
+
+        workflow.add_node("export", lambda state: self._export(state))
+        workflow.add_node("validate", lambda state: self._validate(state))
+        workflow.add_node("finalize", lambda state: self._finalize(state))
 
         workflow.add_edge(START, "export")
         workflow.add_edge("export", "validate")
@@ -107,8 +105,7 @@ class ChefToAnsibleSubagent:
 
         return workflow.compile()
 
-    # pyrefly: ignore
-    def _export(self, state: ChefState) -> TypedDict[ChefState]:
+    def _export(self, state: ChefState) -> ChefState:
         logger.info(
             f"ChefToAnsibleSubagent is cooking Ansible, attempt {state['export_attempt_counter']}"
         )
@@ -183,8 +180,7 @@ class ChefToAnsibleSubagent:
             logger.warning(f"Error listing files in {directory}: {e}")
             return []
 
-    # pyrefly: ignore
-    def _validate(self, state: ChefState) -> TypedDict[ChefState]:
+    def _validate(self, state: ChefState) -> ChefState:
         """Validation using react-agent to compare Chef vs Ansible"""
         logger.info("ChefToAnsibleSubagent is validating the exported Ansible")
 
@@ -249,8 +245,7 @@ class ChefToAnsibleSubagent:
 
         return "export"
 
-    # pyrefly: ignore
-    def _finalize(self, state: ChefState) -> TypedDict[ChefState]:
+    def _finalize(self, state: ChefState) -> ChefState:
         # do clean-up, if needed
         logger.info("ChefToAnsibleSubagent final state")
         print(f"{state['last_validation_result']}")
@@ -281,6 +276,7 @@ class ChefToAnsibleSubagent:
             last_output="",
         )
 
-        result = self._workflow.invoke(initial_state, get_runnable_config())
-        # pyrefly: ignore
-        return result
+        result = self._workflow.invoke(
+            input=initial_state, config=get_runnable_config()
+        )
+        return ChefState(**result)

@@ -35,14 +35,12 @@ class MigrationAnalysisWorkflow:
     def _build_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(MigrationState)
 
-        # pyrefly: ignore
-        workflow.add_node("read_migration_plan", self.read_migration_plan)
-        # pyrefly: ignore
-        workflow.add_node("select_module", self.select_module)
-        # pyrefly: ignore
-        workflow.add_node("choose_subagent", self.choose_subagent)
-        # pyrefly: ignore
-        workflow.add_node("write_migration_file", self.write_migration_file)
+        workflow.add_node("read_migration_plan", lambda state: self.read_migration_plan)
+        workflow.add_node("select_module", lambda state: self.select_module)
+        workflow.add_node("choose_subagent", lambda state: self.choose_subagent)
+        workflow.add_node(
+            "write_migration_file", lambda state: self.write_migration_file
+        )
 
         workflow.set_entry_point("read_migration_plan")
         workflow.add_edge("read_migration_plan", "select_module")

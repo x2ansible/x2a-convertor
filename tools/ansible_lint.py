@@ -23,8 +23,7 @@ class AnsibleLintTool(BaseTool):
         "Checks for best practices, syntax issues, and potential problems. "
         "Returns a list of issues found or confirmation that no issues were detected."
     )
-    # pyrefly: ignore
-    args_schema: type[BaseModel] = AnsibleLintInput
+    args_schema = AnsibleLintInput
 
     # pyrefly: ignore
     def _run(self, ansible_path: str) -> str:

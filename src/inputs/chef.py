@@ -54,16 +54,15 @@ class ChefSubagent:
 
     def _create_workflow(self):
         workflow = StateGraph(ChefState)
-        # pyrefly: ignore
-        workflow.add_node("fetch_dependencies", self._prepare_dependencies)
-        # pyrefly: ignore
-        workflow.add_node("write_report", self._write_report)
-        # pyrefly: ignore
-        workflow.add_node("check_files", self._check_files)
-        # pyrefly: ignore
-        workflow.add_node("cleanup_specification", self._cleanup_specification)
-        # pyrefly: ignore
-        workflow.add_node("cleanup_temp_files", self._cleanup_temp_files)
+        workflow.add_node(
+            "fetch_dependencies", lambda state: self._prepare_dependencies
+        )
+        workflow.add_node("write_report", lambda state: self._write_report)
+        workflow.add_node("check_files", lambda state: self._check_files)
+        workflow.add_node(
+            "cleanup_specification", lambda state: self._cleanup_specification
+        )
+        workflow.add_node("cleanup_temp_files", lambda state: self._cleanup_temp_files)
 
         workflow.set_entry_point("fetch_dependencies")
         workflow.add_edge("fetch_dependencies", "write_report")

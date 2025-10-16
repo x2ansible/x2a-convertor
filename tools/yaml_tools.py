@@ -24,8 +24,7 @@ class YamlValidateTool(BaseTool):
         "Use this when you need to ensure YAML is valid and get a clean version back. "
         "Returns the linted YAML if valid, or an error message if invalid."
     )
-    # pyrefly: ignore
-    args_schema: type[BaseModel] = YamlValidateInput
+    args_schema = YamlValidateInput
 
     # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:
@@ -58,8 +57,7 @@ class YamlLintTool(BaseTool):
         "Use this to check if YAML is valid without getting the reformatted version. "
         "Returns 'Valid YAML' if no issues found, or specific error messages if problems detected."
     )
-    # pyrefly: ignore
-    args_schema: type[BaseModel] = YamlLintInput
+    args_schema = YamlLintInput
 
     # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:

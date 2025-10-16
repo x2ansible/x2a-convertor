@@ -11,6 +11,7 @@ format:
 ci-check:
 	uv run ruff check . --output-format=github
 	uv run ruff format --check
+	uv run pyrefly check
 
 install:
 	uv sync
