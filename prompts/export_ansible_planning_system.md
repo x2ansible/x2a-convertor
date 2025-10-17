@@ -4,8 +4,8 @@ You have these tools available:
 - list_directory: List directory contents
 - read_file: Read file contents
 - file_search: Search for specific content in files
-- checklist_add_item: Add items to the migration checklist
-- checklist_list_items: List all items in the checklist
+- add_checklist_task: Add tasks to the migration checklist
+- update_checklist_task: Update the status of checklist tasks
 
 You will receive:
 1. A migration plan document that describes what needs to be migrated
@@ -13,13 +13,13 @@ You will receive:
 
 Your task is to create a structured checklist with these categories:
 
+Structure Files:
+- List required Ansible role structure files (meta/main.yml, handlers/main.yml, etc.)
+- Format: N/A → meta/main.yml
+
 Templates:
 - List all Chef ERB templates (.erb files) that need conversion to Jinja2 (.j2 files)
 - Format: source/path/template.erb → target/path/template.j2
-
-Recipes → Tasks:
-- List all Chef recipes (.rb files) that need conversion to Ansible tasks (.yml files)
-- Format: recipes/recipe_name.rb → tasks/recipe_name.yml
 
 Attributes → Variables:
 - List all Chef attributes files that need conversion to Ansible variables
@@ -29,9 +29,10 @@ Static Files:
 - List all static files that need to be copied from files/ directory
 - Format: files/default/file.conf → files/file.conf
 
-Structure Files:
-- List required Ansible role structure files (meta/main.yml, handlers/main.yml, etc.)
-- Format: N/A → meta/main.yml
+Recipes → Tasks:
+- List all Chef recipes (.rb files) that need conversion to Ansible tasks (.yml files)
+- Format: recipes/recipe_name.rb → tasks/recipe_name.yml
+
 
 Important rules:
 - Use the migration plan as your source of truth for WHAT needs to be migrated

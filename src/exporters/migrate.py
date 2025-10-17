@@ -124,16 +124,17 @@ class MigrationAgent:
         logger.info(f"Choosing subagent based on technology: '{technology}'")
 
         if technology == Technology.CHEF:
-            chef_to_ansible_subagent = ChefToAnsibleSubagent(model=self.model)
+            chef_to_ansible_subagent = ChefToAnsibleSubagent(
+                model=self.model, module=state["module"]
+            )
             result = chef_to_ansible_subagent.invoke(
                 path=state["path"],
-                module=state["module"],
                 user_message=state["user_message"],
                 module_migration_plan=state["module_migration_plan"],
                 high_level_migration_plan=state["high_level_migration_plan"],
                 directory_listing=state["directory_listing"],
             )
-            state["migration_output"] = result["last_output"]
+            state["migration_output"] = result.last_output
         elif technology == Technology.PUPPET:
             logger.warning("Puppet agent not implemented yet")
             state["module_migration_plan"] = DocumentFile(
