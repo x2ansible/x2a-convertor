@@ -7,6 +7,7 @@ from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_community.tools.file_management.write import WriteFileTool
+from langchain_core.messages.tool import ToolMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import create_react_agent
 
@@ -130,10 +131,51 @@ class ChefToAnsibleSubagent:
             AnsibleRoleCheckTool(),
         ]
 
+        read_file_name = ReadFileTool().name
+
+        def clean_read_file(state):
+            messages = state.get("messages", [])
+            read_file_msgs = [
+                msg
+                for msg in messages
+                if isinstance(msg, ToolMessage) and msg.name == read_file_name
+            ]
+
+            if len(read_file_msgs) <= 3:
+                return state
+
+            # Collect tool_call_ids of the first 2 read_file messages to remove
+            call_ids_to_remove = {msg.tool_call_id for msg in read_file_msgs[:2]}
+
+            # Filter messages
+            new_messages = []
+            for msg in messages:
+                # Skip read_file ToolMessages we want to remove
+                if (
+                    isinstance(msg, ToolMessage)
+                    and msg.tool_call_id in call_ids_to_remove
+                ):
+                    continue
+
+                # For AIMessages with tool_calls, remove the read_file tool_calls
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    msg.tool_calls = [
+                        tc
+                        for tc in msg.tool_calls
+                        if tc.get("id") not in call_ids_to_remove
+                    ]
+
+                new_messages.append(msg)
+
+            logger.info(f"Trimmed {len(call_ids_to_remove)} read_file messages")
+            state["messages"] = new_messages
+            return state
+
         # pyrefly: ignore
         agent = create_react_agent(
             model=self.model,
             tools=tools,
+            pre_model_hook=clean_read_file,
         )
         return agent
 
@@ -252,7 +294,6 @@ class ChefToAnsibleSubagent:
         """Phase 2: Execute migration tasks from checklist"""
         logger.info(f"Executing migration, attempt {state['export_attempt_counter']}")
         state["current_phase"] = MigrationPhase.EXECUTING
-
         # Get items that need processing
         items_to_process = [
             item
@@ -285,7 +326,6 @@ class ChefToAnsibleSubagent:
             },
             get_runnable_config(),
         )
-
         logger.info(f"Execution agent tools: {report_tool_calls(result).to_string()}")
 
         message = get_last_ai_message(result)
