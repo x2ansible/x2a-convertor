@@ -15,8 +15,9 @@ from src.inputs.analyze import analyze_project
 
 def setup_logging() -> None:
     log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    langchain_debug = os.environ.get("LANGCHAIN_DEBUG", "FALSE").upper()
     logging.basicConfig(stream=sys.stderr, level=log_level)
-    if log_level == "DEBUG":
+    if langchain_debug == "TRUE":
         set_debug(True)
 
 
