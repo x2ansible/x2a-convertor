@@ -1,7 +1,26 @@
 import os
+from typing import Literal
 
-# Maximum recursion limit for LLM calls
-RECURSION_LIMIT = int(os.getenv("RECURSION_LIMIT", default="100"))
+defaults = {
+    "RECURSION_LIMIT": 100,
+    "MAX_EXPORT_ATTEMPTS": 5,
+}
 
-# Maximum number of attempts to export the Ansible playbook
-MAX_EXPORT_ATTEMPTS = int(os.getenv("MAX_EXPORT_ATTEMPTS", default="5"))
+
+# Delay os.getnv() in favor of dotenv
+def get_config_int(
+    envVar: Literal["RECURSION_LIMIT", "MAX_EXPORT_ATTEMPTS"],
+) -> int:
+    """Get an integer configuration value from the environment
+    Args:
+        envVar: The environment variable to get the value from
+
+        RECURSION_LIMIT: Maximum recursion limit for LLM calls
+        MAX_EXPORT_ATTEMPTS: Maximum number of attempts to export the Ansible playbook
+    Returns:
+        The integer value of the environment variable
+    """
+    if envVar not in defaults:
+        raise ValueError(f"Invalid environment variable: {envVar}")
+
+    return int(os.getenv(envVar, default=defaults[envVar]))
