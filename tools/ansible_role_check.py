@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any
 import sys
@@ -13,6 +14,9 @@ from ansible.inventory.manager import InventoryManager
 from ansible.module_utils.common.collections import ImmutableDict
 from ansible.parsing.dataloader import DataLoader
 from ansible.vars.manager import VariableManager
+
+
+logger = logging.getLogger(__name__)
 
 
 class AnsibleRoleCheckInput(BaseModel):
@@ -40,6 +44,7 @@ class AnsibleRoleCheckTool(BaseTool):
     def _run(self, ansible_role_path: str) -> str:
         """Validate Ansible role by running it in check mode."""
         role_path = Path(ansible_role_path)
+        logger.debug(f"AnsibleRoleCheckTool in {ansible_role_path}")
 
         if not role_path.exists():
             return f"Error: Role path '{ansible_role_path}' does not exist"
