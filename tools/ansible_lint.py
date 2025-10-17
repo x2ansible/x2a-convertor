@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +8,9 @@ from ansiblelint.rules import RulesCollection
 from ansiblelint.runner import Runner
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
+
+
+logger = logging.getLogger(__name__)
 
 
 class AnsibleLintInput(BaseModel):
@@ -31,6 +35,7 @@ class AnsibleLintTool(BaseTool):
     # pyrefly: ignore
     def _run(self, ansible_path: str) -> str:
         """Lint Ansible files and report issues."""
+        logger.debug(f"AnsibleLintTool in {ansible_path}")
         try:
             path = Path(ansible_path)
             if not path.exists():

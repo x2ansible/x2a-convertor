@@ -1,6 +1,6 @@
 import os
 import tempfile
-from tools.ansible import AnsibleWriteTool
+from tools.ansible_write import AnsibleWriteTool
 
 
 class TestAnsibleWriteTool:
