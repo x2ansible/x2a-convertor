@@ -25,7 +25,7 @@ from src.types import (
     ChecklistStatus,
 )
 from prompts.get_prompt import get_prompt
-from src.utils.config import MAX_EXPORT_ATTEMPTS
+from src.utils.config import get_config_int
 from tools.ansible_write import AnsibleWriteTool
 from tools.ansible_lint import AnsibleLintTool
 from tools.ansible_role_check import AnsibleRoleCheckTool
@@ -308,9 +308,6 @@ class ChefToAnsibleSubagent:
         checklist_md = state["checklist"].to_markdown()
         ansible_path = self._get_ansible_path(state["module"])
 
-        # TODO: Do NOT finish until...
-        # TODO: no validation if yaml is wrong
-        # TODO: validate single file via tool, let LLM fix the issue
         system_message = get_prompt("export_ansible_execution_system")
         user_prompt = get_prompt("export_ansible_execution_task").format(
             module=state["module"],
@@ -321,13 +318,13 @@ class ChefToAnsibleSubagent:
         )
 
         result = self.execution_agent.invoke(
-            {
+            input={
                 "messages": [
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": user_prompt},
                 ]
             },
-            get_runnable_config(),
+            config=get_runnable_config(),
         )
         logger.info(f"Execution agent tools: {report_tool_calls(result).to_string()}")
 
@@ -442,9 +439,9 @@ class ChefToAnsibleSubagent:
             logger.info("Migration complete - all items successful")
             return "finalize"
 
-        if state["export_attempt_counter"] >= MAX_EXPORT_ATTEMPTS:
+        if state["export_attempt_counter"] >= get_config_int("MAX_EXPORT_ATTEMPTS"):
             logger.warning(
-                f"Max attempts ({MAX_EXPORT_ATTEMPTS}) of top-level export loop reached, finalizing with incomplete items."
+                f"Max attempts ({get_config_int('MAX_EXPORT_ATTEMPTS')}) of top-level export loop reached, finalizing with incomplete items."
             )
             return "finalize"
 

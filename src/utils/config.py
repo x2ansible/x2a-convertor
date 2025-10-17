@@ -3,7 +3,7 @@ from typing import Literal
 
 defaults = {
     "RECURSION_LIMIT": 100,
-    "MAX_EXPORT_ATTEMPTS": 5,
+    "MAX_EXPORT_ATTEMPTS": 10,
 }
 
 

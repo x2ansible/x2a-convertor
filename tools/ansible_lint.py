@@ -17,7 +17,7 @@ class AnsibleLintInput(BaseModel):
     """Input schema for Ansible linting tool."""
 
     ansible_path: str = Field(
-        description="Path to Ansible file or directory to lint (e.g., '../chef-example/ansible/')"
+        description="Path to a single Ansible file or a directory to lint"
     )
 
 
@@ -36,9 +36,13 @@ class AnsibleLintTool(BaseTool):
     def _run(self, ansible_path: str) -> str:
         """Lint Ansible files and report issues."""
         logger.debug(f"AnsibleLintTool in {ansible_path}")
+
         try:
             path = Path(ansible_path)
             if not path.exists():
+                logger.error(
+                    f"AnsibleLintTool error: Path '{ansible_path}' does not exist"
+                )
                 return f"Error: Path '{ansible_path}' does not exist"
 
             # Load all built-in rules from ansible-lint package
@@ -50,6 +54,7 @@ class AnsibleLintTool(BaseTool):
             matches = runner.run()
 
             if not matches:
+                logger.debug(f"No AnsibleLintTool issues found for {ansible_path}")
                 return "No ansible-lint issues found. All files pass linting checks."
 
             # Format issues
@@ -63,12 +68,19 @@ class AnsibleLintTool(BaseTool):
 
             result = f"Found {len(matches)} ansible-lint issue(s):\n\n"
             result += "\n".join(issues)
+            logger.debug(
+                f"AnsibleLintTool found {len(matches)} ansible-lint issue(s) for {ansible_path}: {result}"
+            )
             return result
 
         except ImportError:
+            logger.error(
+                "Error: ansible-lint is not installed. Install it with: uv add ansible-lint"
+            )
             return (
                 "Error: ansible-lint is not installed. "
                 "Install it with: uv add ansible-lint"
             )
         except Exception as e:
+            logger.error(f"Error running ansible-lint: {str(e)}")
             return f"Error running ansible-lint: {str(e)}"
