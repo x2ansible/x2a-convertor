@@ -18,8 +18,9 @@ Your task:
    a. Read the Chef source file (if it exists, skip if "N/A")
    b. Convert it to the appropriate Ansible format
    c. Write it to the target Ansible location using the correct tool
-   d. Move on to the next item
-3. Do NOT stop after creating just one or a few files, repeat the loop for all checklist items
+   d. Call the ansible_lint tool to validate the generated files, fix all found errors
+   e. Keep repeating fixing issues until the validation passes. You CAN NOT move to another item until the current one is correct.
+3. Do NOT stop after creating just one or a few files, you MUST repeat the loop for all checklist items
 4. Process ALL items before finishing
 
 Suggested order for the task:
