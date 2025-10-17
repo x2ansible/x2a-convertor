@@ -7,13 +7,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
+from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "DocumentFile",
-    "MigrationCategory",
     "ChecklistStatus",
     "ChecklistItem",
     "Checklist",
@@ -47,27 +47,6 @@ class DocumentFile:
 # ============================================================================
 # Migration Checklist Types
 # ============================================================================
-
-
-class MigrationCategory(str, Enum):
-    """Categories of migration items"""
-
-    TEMPLATES = "templates"
-    RECIPES = "recipes"
-    ATTRIBUTES = "attributes"
-    FILES = "files"
-    STRUCTURE = "structure"
-
-    def to_title(self) -> str:
-        """Return markdown title for this category"""
-        titles = {
-            self.TEMPLATES: "### Templates",
-            self.RECIPES: "### Recipes → Tasks",
-            self.ATTRIBUTES: "### Attributes → Variables",
-            self.FILES: "### Static Files",
-            self.STRUCTURE: "### Structure Files",
-        }
-        return titles.get(self, f"### {self.value.title()}")
 
 
 class ChecklistStatus(str, Enum):
@@ -145,6 +124,14 @@ class Checklist:
         Raises:
             ValueError: If category is not valid for the injected enum
         """
+        # Check if task already exists
+        existing_item = self.find_task(source_path, target_path)
+        if existing_item:
+            logger.warning(
+                f"Task already exists: {source_path} → {target_path}, skipping add"
+            )
+            return existing_item
+
         # Validate category against injected enum
         valid_categories = [cat.value for cat in self.category_enum]
         if category not in valid_categories:
@@ -208,36 +195,6 @@ class Checklist:
         logger.warning(f"Task not found: {source_path} → {target_path}")
         return False
 
-    def complete_task(
-        self, source_path: str, target_path: str, notes: str = ""
-    ) -> bool:
-        """Mark a task as complete
-
-        Returns:
-            True if task was found and marked complete, False otherwise
-        """
-        return self.update_task(
-            source_path, target_path, ChecklistStatus.COMPLETE, notes
-        )
-
-    def mark_missing(self, source_path: str, target_path: str, notes: str = "") -> bool:
-        """Mark a task as missing
-
-        Returns:
-            True if task was found and marked missing, False otherwise
-        """
-        return self.update_task(
-            source_path, target_path, ChecklistStatus.MISSING, notes
-        )
-
-    def mark_error(self, source_path: str, target_path: str, notes: str) -> bool:
-        """Mark a task as error
-
-        Returns:
-            True if task was found and marked as error, False otherwise
-        """
-        return self.update_task(source_path, target_path, ChecklistStatus.ERROR, notes)
-
     def find_task(self, source_path: str, target_path: str) -> Optional[ChecklistItem]:
         """Find a specific task by source and target paths
 
@@ -252,14 +209,6 @@ class Checklist:
     # ============================================================================
     # Query Methods
     # ============================================================================
-
-    def get_items_by_status(self, status: str) -> list[ChecklistItem]:
-        """Filter checklist items by status"""
-        return [item for item in self._items if item.status == status]
-
-    def get_items_by_category(self, category: str) -> list[ChecklistItem]:
-        """Filter checklist items by category"""
-        return [item for item in self._items if item.category == category]
 
     def get_stats(self) -> dict[str, int]:
         """Get statistics about checklist completion"""
@@ -479,3 +428,74 @@ class Checklist:
 
     def __str__(self) -> str:
         return self.to_markdown()
+
+    # ============================================================================
+    # LangChain Tool Integration
+    # ============================================================================
+
+    def get_tools(self) -> list:
+        """Return LangChain tools for checklist operations
+
+        Returns:
+            List of LangChain tool instances bound to this checklist
+        """
+
+        @tool("add_checklist_task")
+        def add_task_tool(
+            category: str,
+            source_path: str,
+            target_path: str,
+            description: str = "",
+            status: str = "pending",
+            notes: str = "",
+        ) -> str:
+            """Add a new task to the migration checklist.
+
+            Args:
+                category: Category of the task (e.g., 'templates', 'recipes', 'attributes')
+                source_path: Source file path in Chef
+                target_path: Target file path in Ansible
+                description: Optional description of the task
+                status: Task status (pending, complete, missing, error)
+                notes: Optional notes about the task
+
+            Returns:
+                Success message with task details
+            """
+            try:
+                self.add_task(
+                    category=category,
+                    source_path=source_path,
+                    target_path=target_path,
+                    description=description,
+                    status=status,
+                    notes=notes,
+                )
+                return f"Added task: {source_path} → {target_path} ({status})"
+            except Exception as e:
+                return f"Error adding task: {str(e)}"
+
+        @tool("update_checklist_task")
+        def update_task_tool(
+            source_path: str, target_path: str, status: str, notes: str = ""
+        ) -> str:
+            """Update the status of an existing checklist task.
+
+            Args:
+                source_path: Source file path in Chef
+                target_path: Target file path in Ansible
+                status: New status (pending, complete, missing, error)
+                notes: Optional notes to add/update
+
+            Returns:
+                Success or failure message
+            """
+            try:
+                success = self.update_task(source_path, target_path, status, notes)
+                if success:
+                    return f"Updated task: {source_path} → {target_path} to {status}"
+                return f"Task not found: {source_path} → {target_path}"
+            except Exception as e:
+                return f"Error updating task: {str(e)}"
+
+        return [add_task_tool, update_task_tool]

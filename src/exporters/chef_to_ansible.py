@@ -1,7 +1,8 @@
 import logging
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Literal, TypedDict
+from typing import Literal, Optional
 
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
@@ -21,9 +22,9 @@ from src.model import (
 from src.types import (
     DocumentFile,
     Checklist,
-    MigrationCategory,
     ChecklistStatus,
 )
+from src.exporters.types import MigrationCategory
 from prompts.get_prompt import get_prompt
 from src.utils.config import get_config_int
 from tools.ansible_write import AnsibleWriteTool
@@ -31,7 +32,6 @@ from tools.ansible_lint import AnsibleLintTool
 from tools.ansible_role_check import AnsibleRoleCheckTool
 from tools.copy_file import CopyFileWithMkdirTool
 from tools.diff_file import DiffFileTool
-from tools.checklist import create_checklist_tools
 
 logger = logging.getLogger(__name__)
 
@@ -55,18 +55,34 @@ class MigrationPhase(str, Enum):
     COMPLETE = "complete"
 
 
-class ChefState(TypedDict):
+class AgentType(str, Enum):
+    """Types of agents used in the migration workflow"""
+
+    PLANNING = "planning"
+    EXECUTION = "execution"
+    VALIDATION = "validation"
+
+
+@dataclass
+class ChefState:
     path: str
     module: str
     user_message: str
     module_migration_plan: DocumentFile
     high_level_migration_plan: DocumentFile
     directory_listing: list[str]
-    checklist: Checklist
     current_phase: str
     export_attempt_counter: int
     validation_report: str
     last_output: str
+
+    def get_ansible_path(self) -> str:
+        """Get the Ansible output path for this module"""
+        return ANSIBLE_PATH_TEMPLATE.format(module=self.module)
+
+    def get_checklist_path(self) -> Path:
+        """Get the path to the checklist JSON file"""
+        return Path(self.get_ansible_path()) / CHECKLIST_FILENAME
 
 
 class ChefToAnsibleSubagent:
@@ -78,59 +94,78 @@ class ChefToAnsibleSubagent:
     3. Validation Agent: Verifies artifacts and updates checklist status
     """
 
-    def __init__(self, model=None) -> None:
+    # Configuration mapping: agent type -> list of tool factory functions
+    # This serves as a single source of truth for agent tool configurations
+    AGENT_TOOL_CONFIGS = {
+        AgentType.PLANNING: [
+            lambda: ListDirectoryTool(),
+            lambda: ReadFileTool(),
+            lambda: FileSearchTool(),
+        ],
+        AgentType.EXECUTION: [
+            lambda: FileSearchTool(),
+            lambda: ListDirectoryTool(),
+            lambda: ReadFileTool(),
+            lambda: WriteFileTool(),
+            lambda: CopyFileWithMkdirTool(),
+            lambda: AnsibleWriteTool(),
+            lambda: AnsibleLintTool(),
+            lambda: AnsibleRoleCheckTool(),
+        ],
+        AgentType.VALIDATION: [
+            lambda: ReadFileTool(),
+            lambda: DiffFileTool(),
+            lambda: ListDirectoryTool(),
+            lambda: FileSearchTool(),
+            lambda: WriteFileTool(),
+            lambda: AnsibleWriteTool(),
+            lambda: CopyFileWithMkdirTool(),
+            lambda: AnsibleLintTool(),
+        ],
+    }
+
+    def __init__(self, model=None, module: Optional[str] = None) -> None:
         self.model = model or get_model()
-        self.execution_agent = self._create_execution_agent()
+        if module is None:
+            raise ValueError("module parameter is required")
+        self.module = module
+        self.checklist: Checklist = Checklist(module, MigrationCategory)
         self._workflow = self._create_workflow()
         logger.debug(self._workflow.get_graph().draw_mermaid())
 
-    def _get_ansible_path(self, module: str) -> str:
-        """Get the Ansible output path for a module"""
-        return ANSIBLE_PATH_TEMPLATE.format(module=module)
-
-    def _get_checklist_path(self, module: str) -> Path:
-        """Get the path to the checklist JSON file"""
-        return Path(self._get_ansible_path(module)) / CHECKLIST_FILENAME
-
-    def _create_planning_agent(self, checklist: Checklist, checklist_path: Path):
-        """Create agent for analyzing migration plan and building checklist
+    def _create_agent(self, agent_type: AgentType, pre_model_hook=None):
+        """Factory method to create an agent with configured tools
 
         Args:
-            checklist: Checklist instance to inject into tools
-            checklist_path: Path to checklist JSON file
-        """
-        logger.info("Creating migration planning agent")
+            agent_type: Type of agent to create (planning, execution, or validation)
+            pre_model_hook: Optional hook to run before model invocation
 
-        tools = [
-            ListDirectoryTool(),
-            ReadFileTool(),
-            FileSearchTool(),
-            # Add checklist tools for LLM to populate checklist
-            *create_checklist_tools(checklist, checklist_path, include_add=True),
-        ]
+        Returns:
+            Configured react agent with appropriate tools
+        """
+        logger.info(f"Creating migration {agent_type.value} agent")
+
+        # Get base tools for this agent type
+        tool_factories = self.AGENT_TOOL_CONFIGS.get(agent_type, [])
+        tools = [factory() for factory in tool_factories]
+
+        # All agents get checklist tools
+        tools.extend(self.checklist.get_tools())
 
         # pyrefly: ignore
         agent = create_react_agent(
             model=self.model,
             tools=tools,
+            pre_model_hook=pre_model_hook,
         )
         return agent
 
+    def _create_planning_agent(self):
+        """Create agent for analyzing migration plan and building checklist"""
+        return self._create_agent(AgentType.PLANNING)
+
     def _create_execution_agent(self):
         """Create agent for executing migrations and generating Ansible files"""
-        logger.info("Creating migration execution agent")
-
-        tools = [
-            FileSearchTool(),
-            ListDirectoryTool(),
-            ReadFileTool(),
-            WriteFileTool(),
-            CopyFileWithMkdirTool(),
-            AnsibleWriteTool(),
-            AnsibleLintTool(),
-            AnsibleRoleCheckTool(),
-        ]
-
         read_file_name = ReadFileTool().name
 
         def clean_read_file(state):
@@ -171,42 +206,11 @@ class ChefToAnsibleSubagent:
             state["messages"] = new_messages
             return state
 
-        # pyrefly: ignore
-        agent = create_react_agent(
-            model=self.model,
-            tools=tools,
-            pre_model_hook=clean_read_file,
-        )
-        return agent
+        return self._create_agent(AgentType.EXECUTION, pre_model_hook=clean_read_file)
 
-    def _create_validation_agent(self, checklist: Checklist, checklist_path: Path):
-        """Create agent for validating migration completeness and correctness
-
-        Args:
-            checklist: Checklist instance to inject into tools
-            checklist_path: Path to checklist JSON file
-        """
-        logger.info("Creating migration validation agent")
-
-        tools = [
-            ReadFileTool(),
-            DiffFileTool(),
-            ListDirectoryTool(),
-            FileSearchTool(),
-            WriteFileTool(),
-            AnsibleWriteTool(),
-            CopyFileWithMkdirTool(),
-            AnsibleLintTool(),
-            # Add checklist tools for LLM to update tasks
-            *create_checklist_tools(checklist, checklist_path),
-        ]
-
-        # pyrefly: ignore
-        agent = create_react_agent(
-            model=self.model,
-            tools=tools,
-        )
-        return agent
+    def _create_validation_agent(self):
+        """Create agent for validating migration completeness and correctness"""
+        return self._create_agent(AgentType.VALIDATION)
 
     def _create_workflow(self):
         workflow = StateGraph(ChefState)
@@ -242,31 +246,45 @@ class ChefToAnsibleSubagent:
             logger.warning(f"Error listing files in {directory}: {e}")
             return []
 
+    def _load_checklist(self, state: ChefState):
+        checklist_path = state.get_checklist_path()
+        if checklist_path.exists():
+            logger.info(f"Loaded checklist from previous run: {checklist_path}")
+            self.checklist = self.checklist.load(checklist_path, MigrationCategory)
+            return
+
+        logger.info(f"Created empty checklist at {checklist_path}")
+        checklist_path.parent.mkdir(parents=True, exist_ok=True)
+        self.checklist.save(checklist_path)
+
     def _plan_migration(self, state: ChefState) -> ChefState:
         """Phase 1: Analyze migration plan and create detailed checklist"""
         logger.info(
             "Planning migration: analyzing migration plan and creating checklist"
         )
-        state["current_phase"] = MigrationPhase.PLANNING
+        state.current_phase = MigrationPhase.PLANNING
+        self._load_checklist(state)
 
-        checklist_path = self._get_checklist_path(state["module"])
-        checklist_path.parent.mkdir(parents=True, exist_ok=True)
-
-        state["checklist"] = Checklist(state["module"], MigrationCategory)
-        state["checklist"].save(checklist_path)
-        logger.info(f"Created empty checklist at {checklist_path}")
+        # Gather existing checklist from previous runs
+        existing_checklist = ""
+        if self.checklist.items:
+            existing_checklist = "<checklist>\n"
+            existing_checklist += "Existing checklist from previous run:\n"
+            existing_checklist += self.checklist.to_markdown()
+            existing_checklist += "</checklist>"
 
         # Create planning agent with checklist tools
-        planning_agent = self._create_planning_agent(state["checklist"], checklist_path)
+        planning_agent = self._create_planning_agent()
 
         system_message = get_prompt("export_ansible_planning_system")
-        user_prompt = get_prompt("export_ansible_planning_task").format(
-            module=state["module"],
-            module_migration_plan=state["module_migration_plan"].to_document(),
-            directory_listing="\n".join(state["directory_listing"]),
-            path=state["path"],
-        )
 
+        user_prompt = get_prompt("export_ansible_planning_task").format(
+            module=state.module,
+            module_migration_plan=state.module_migration_plan.to_document(),
+            directory_listing="\n".join(state.directory_listing),
+            path=state.path,
+            existing_checklist=existing_checklist,
+        )
         result = planning_agent.invoke(
             {
                 "messages": [
@@ -276,44 +294,40 @@ class ChefToAnsibleSubagent:
             },
             get_runnable_config(),
         )
-
         logger.info(f"Planning agent tools: {report_tool_calls(result).to_string()}")
-
-        # Reload checklist from JSON (LLM populated it via tools)
-        if checklist_path.exists():
-            state["checklist"] = Checklist.load(checklist_path, MigrationCategory)
-            logger.info(f"Loaded checklist with {len(state['checklist'])} items")
-        else:
-            logger.warning(
-                f"Checklist file not found after planning at {checklist_path}"
-            )
+        self.checklist.save(state.get_checklist_path())
+        logger.info(f"Checklist after planning:\n{self.checklist.to_markdown()}")
 
         return state
 
     def _execute_migration(self, state: ChefState) -> ChefState:
         """Phase 2: Execute migration tasks from checklist"""
-        logger.info(f"Executing migration, attempt {state['export_attempt_counter']}")
-        state["current_phase"] = MigrationPhase.EXECUTING
+        logger.info(f"Executing migration, attempt {state.export_attempt_counter}")
+        state.current_phase = MigrationPhase.EXECUTING
+
+        logger.debug(f"Checklist before execution:\n{self.checklist.to_markdown()}")
+
+        checklist_path = state.get_checklist_path()
+
+        self.execution_agent = self._create_execution_agent()
         # Get items that need processing
         items_to_process = [
-            item
-            for item in state["checklist"].items
-            if item.status in PROCESSABLE_STATUSES
+            item for item in self.checklist.items if item.status in PROCESSABLE_STATUSES
         ]
 
         if not items_to_process:
             logger.info("No items to process in execution phase")
             return state
 
-        checklist_md = state["checklist"].to_markdown()
-        ansible_path = self._get_ansible_path(state["module"])
+        checklist_md = self.checklist.to_markdown()
+        ansible_path = state.get_ansible_path()
 
         system_message = get_prompt("export_ansible_execution_system")
         user_prompt = get_prompt("export_ansible_execution_task").format(
-            module=state["module"],
-            chef_path=state["path"],
+            module=state.module,
+            chef_path=state.path,
             ansible_path=ansible_path,
-            migration_plan=state["module_migration_plan"].to_document(),
+            migration_plan=state.module_migration_plan.to_document(),
             checklist=checklist_md,
         )
 
@@ -327,72 +341,59 @@ class ChefToAnsibleSubagent:
             config=get_runnable_config(),
         )
         logger.info(f"Execution agent tools: {report_tool_calls(result).to_string()}")
+        self.checklist.save(checklist_path)
 
+        logger.info(f"Checklist after execution:\n{self.checklist.to_markdown()}")
         message = get_last_ai_message(result)
         if message:
-            state["last_output"] = message.content
+            state.last_output = message.content
             logger.info("Execution phase completed")
         else:
             logger.warning("Execution agent did not produce output")
 
-        state["export_attempt_counter"] += 1
+        state.export_attempt_counter += 1
         return state
 
     def _validate_migration(self, state: ChefState) -> ChefState:
         """Phase 3: Validate migration completeness and correctness"""
         logger.info("Validating migration output")
-        state["current_phase"] = MigrationPhase.VALIDATING
+        state.current_phase = MigrationPhase.VALIDATING
 
-        ansible_path = self._get_ansible_path(state["module"])
-        checklist_path = self._get_checklist_path(state["module"])
-
-        # Reload checklist from JSON
-        if checklist_path.exists():
-            logger.info(f"Reloading checklist from {checklist_path}")
-            state["checklist"] = Checklist.load(checklist_path, MigrationCategory)
-        else:
-            logger.warning(f"Checklist file not found at {checklist_path}")
+        ansible_path = state.get_ansible_path()
 
         # Run structural validation
         role_check_tool = AnsibleRoleCheckTool()
         logger.info(f"Running ansible_role_check on {ansible_path}")
         role_check_result = role_check_tool.run(ansible_path)
 
-        # Check for validation failure
+        # Log role validation result but don't fail immediately
+        # The validation agent will check individual files
         if "Validation failed" in role_check_result or "Error:" in role_check_result:
-            logger.error("Role validation failed")
-            state["validation_report"] = f"## Validation Failed\n\n{role_check_result}"
-            for item in state["checklist"].items:
-                if item.status in {ChecklistStatus.PENDING, ChecklistStatus.MISSING}:
-                    state["checklist"].update_task(
-                        item.source_path,
-                        item.target_path,
-                        ChecklistStatus.ERROR,
-                        "Role validation failed",
-                    )
-            return state
-
-        logger.info("Role validation passed")
+            logger.warning(f"Role validation has issues: {role_check_result}")
+            state.validation_report = (
+                f"## Role Validation Issues\n\n{role_check_result}\n\n"
+            )
+        else:
+            logger.info("Role validation passed")
+            state.validation_report = "## Role Validation Passed\n\n"
 
         # Agent-based validation for file existence and content
-        chef_files = self._list_all_files(state["path"])
+        chef_files = self._list_all_files(state.path)
         ansible_files = self._list_all_files(ansible_path)
 
         chef_files_str = "\n".join(chef_files) if chef_files else "(none)"
         ansible_files_str = "\n".join(ansible_files) if ansible_files else "(none)"
-        checklist_md = state["checklist"].to_markdown()
+        checklist_md = self.checklist.to_markdown()
 
         # Create validation agent
-        validation_agent = self._create_validation_agent(
-            state["checklist"], checklist_path
-        )
+        validation_agent = self._create_validation_agent()
 
         validation_system = get_prompt("export_ansible_validation_system")
         validation_task = get_prompt("export_ansible_validation_task").format(
-            module=state["module"],
-            chef_path=state["path"],
+            module=state.module,
+            chef_path=state.path,
             ansible_path=ansible_path,
-            migration_plan=state["module_migration_plan"].to_document(),
+            migration_plan=state.module_migration_plan.to_document(),
             checklist=checklist_md,
             chef_files=chef_files_str,
             ansible_files=ansible_files_str,
@@ -409,19 +410,11 @@ class ChefToAnsibleSubagent:
         )
 
         logger.info(f"Validation agent tools: {report_tool_calls(result).to_string()}")
-
         # Extract validation report
         message = get_last_ai_message(result)
-        state["validation_report"] = (
-            message.content if message else "No validation output"
-        )
+        state.validation_report = message.content if message else "No validation output"
         logger.info("Validation phase completed")
-
-        if checklist_path.exists():
-            state["checklist"] = Checklist.load(checklist_path, MigrationCategory)
-            logger.info(f"Reloaded checklist: {len(state['checklist'])} items")
-        else:
-            logger.warning(f"Checklist file not found at {checklist_path}")
+        self.checklist.save(state.get_checklist_path())
 
         return state
 
@@ -431,15 +424,15 @@ class ChefToAnsibleSubagent:
         """Decide whether to finalize or retry execution based on validation"""
         logger.info("Evaluating validation results")
 
-        stats = state["checklist"].get_stats()
+        stats = self.checklist.get_stats()
         logger.info(f"Checklist stats: {stats}")
 
         # Check if we're complete or hit max attempts
-        if state["checklist"].is_complete():
+        if self.checklist.is_complete():
             logger.info("Migration complete - all items successful")
             return "finalize"
 
-        if state["export_attempt_counter"] >= get_config_int("MAX_EXPORT_ATTEMPTS"):
+        if state.export_attempt_counter >= get_config_int("MAX_EXPORT_ATTEMPTS"):
             logger.warning(
                 f"Max attempts ({get_config_int('MAX_EXPORT_ATTEMPTS')}) of top-level export loop reached, finalizing with incomplete items."
             )
@@ -452,24 +445,26 @@ class ChefToAnsibleSubagent:
     def _finalize(self, state: ChefState) -> ChefState:
         """Finalize migration and report results"""
         logger.info("Finalizing migration")
-        state["current_phase"] = MigrationPhase.COMPLETE
+        state.current_phase = MigrationPhase.COMPLETE
 
-        stats = state["checklist"].get_stats()
+        stats = self.checklist.get_stats()
 
         summary_lines = [
-            f"Migration Summary for {state['module']}:",
+            f"Migration Summary for {state.module}:",
             f"  Total items: {stats['total']}",
             f"  Completed: {stats['complete']}",
             f"  Pending: {stats['pending']}",
             f"  Missing: {stats['missing']}",
             f"  Errors: {stats['error']}",
-            f"  Attempts: {state['export_attempt_counter']}",
+            f"  Attempts: {state.export_attempt_counter}",
             "",
             "Final Validation Report:",
-            state["validation_report"],
+            state.validation_report,
+            "Final check list:",
+            self.checklist.to_markdown(),
         ]
 
-        state["last_output"] = "\n".join(summary_lines)
+        state.last_output = "\n".join(summary_lines)
         logger.info(
             f"Migration finalized: {stats['complete']}/{stats['total']} completed"
         )
@@ -479,23 +474,21 @@ class ChefToAnsibleSubagent:
     def invoke(
         self,
         path: str,
-        module: str,
         user_message: str,
         module_migration_plan: DocumentFile,
         high_level_migration_plan: DocumentFile,
         directory_listing: list[str],
     ) -> ChefState:
         """Execute the complete Chef to Ansible migration workflow"""
-        logger.info(f"Starting Chef to Ansible migration for module: {module}")
+        logger.info(f"Starting Chef to Ansible migration for module: {self.module}")
 
         initial_state = ChefState(
             path=path,
-            module=module,
+            module=self.module,
             user_message=user_message,
             module_migration_plan=module_migration_plan,
             high_level_migration_plan=high_level_migration_plan,
             directory_listing=directory_listing,
-            checklist=Checklist(module, MigrationCategory),
             current_phase=MigrationPhase.INITIALIZING,
             export_attempt_counter=0,
             validation_report="",

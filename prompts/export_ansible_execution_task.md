@@ -7,7 +7,9 @@ MIGRATION PLAN FOR REFERENCE:
 {migration_plan}
 
 CHECKLIST TO PROCESS:
+<document>
 {checklist}
+</document>
 
 CRITICAL INSTRUCTIONS:
 You MUST process EVERY SINGLE ITEM in the checklist that is marked as "pending", "missing", or "error".
@@ -21,8 +23,12 @@ Your task:
    d. Use the ansible_lint tool to validate every single generated file individually
    e. Fix all found errors and revalidate the file using the ansible_lint
    f. Keep repeating fixing issues and revalidating until the validation passes. You CAN NOT move to next item until the current one is correct.
+   g. Use update_checklist_task to mark the item as "complete" with notes about what was done
 3. Do NOT stop after creating just one or a few files, you MUST repeat the loop for all checklist items
 4. Process ALL items before finishing
+
+IMPORTANT: After successfully creating each file, you MUST call:
+update_checklist_task(source_path, target_path, status="complete", notes="Description of what was created")
 
 Suggested order for the task:
 - Process structure files first (meta/main.yml, handlers/main.yml)
