@@ -70,9 +70,6 @@ def init_project(user_requirements, source_dir: str = "."):
     logger.info("Analyzing repository for migration planning...")
     logger.debug(f"User requirements: {user_requirements}")
 
-    # Change to source directory if specified
-    os.chdir(source_dir)
-
     try:
         # Create the migration planning agent
         agent = create_migration_agent()

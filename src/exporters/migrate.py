@@ -1,6 +1,5 @@
 import logging
 import json
-import os
 import re
 
 from langgraph.graph import StateGraph, END
@@ -180,7 +179,6 @@ def migrate_module(
 ) -> MigrationState:
     """Based on the migration plan produced within analysis, this will migrate the project"""
     logger.info(f"Migrating: {source_dir}")
-    os.chdir(source_dir)
 
     # Extract module_name from module_migration_plan, which is in the form "migration-plan-{module_name}.md"
     match = re.match(r".*migration-plan-(.+)\.md", module_migration_plan)
