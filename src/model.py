@@ -1,8 +1,9 @@
 import os
-import logging
+import structlog
 from collections import Counter
 from typing import Any
 
+from langchain.callbacks.base import BaseCallbackHandler
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
@@ -10,7 +11,37 @@ from langchain_core.runnables import RunnableConfig
 
 from src.utils.config import get_config_int
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
+
+
+class DebugToolEventHandler(BaseCallbackHandler):
+    """Callback handler to log tool execution events"""
+
+    def __init__(self):
+        super().__init__()
+        self._tool_names = {}  # Maps run_id to tool_name
+        self._logger = structlog.get_logger()
+
+    def get_tool_name(self, run_id):
+        """Get and remove tool name from cache"""
+        return self._tool_names.pop(run_id, "unknown") if run_id else "unknown"
+
+    def on_tool_start(self, serialized, input_str, **kwargs):
+        tool_name = serialized.get("name", "unknown")
+        run_id = kwargs.get("run_id")
+        if run_id:
+            self._tool_names[run_id] = tool_name
+        self._logger.debug("Tool Started", tool_name=tool_name, input=input_str)
+
+    def on_tool_end(self, output, **kwargs):
+        tool_name = self.get_tool_name(kwargs.get("run_id"))
+        output_str = str(output)[:30]
+        self._logger.info("Tool Ended", tool_name=tool_name, output=output_str)
+
+    def on_tool_error(self, error, **kwargs):
+        tool_name = self.get_tool_name(kwargs.get("run_id"))
+        error_str = str(error)[:30]
+        self._logger.error("Tool Error", tool_name=tool_name, error=error_str)
 
 
 class ToolCallCounter(Counter):
@@ -53,7 +84,10 @@ def get_last_ai_message(state: dict[str, Any]):
 
 def get_runnable_config() -> RunnableConfig:
     """Get RunnableConfig dict with recursion limit from environment"""
-    return {"recursion_limit": get_config_int("RECURSION_LIMIT")}
+    return {
+        "recursion_limit": get_config_int("RECURSION_LIMIT"),
+        "callbacks": [DebugToolEventHandler()],
+    }
 
 
 def get_model() -> BaseChatModel:
