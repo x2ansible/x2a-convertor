@@ -1,9 +1,10 @@
 import structlog
-import json
+
 
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
 from pathlib import Path
+from pydantic import BaseModel
 from typing import TypedDict
 
 from prompts.get_prompt import get_prompt
@@ -13,6 +14,13 @@ from src.model import get_model, get_runnable_config
 from src.utils.technology import Technology
 
 logger = structlog.get_logger(__name__)
+
+
+class ModuleSelection(BaseModel):
+    """Structured output for module selection"""
+
+    path: str
+    technology: str = "Chef"
 
 
 class MigrationState(TypedDict):
@@ -88,40 +96,13 @@ class MigrationAnalysisWorkflow:
             {"role": "user", "content": user_prompt},
         ]
 
-        llm_response = self.model.invoke(messages, config=get_runnable_config())
-        logger.debug(f"LLM select_module response: {llm_response.content}")
+        structured_llm = self.model.with_structured_output(ModuleSelection)
+        response = structured_llm.invoke(messages, config=get_runnable_config())
+        logger.debug(f"LLM select_module response: {response}")
 
-        try:
-            content = llm_response.content
-            if isinstance(content, list) and content:
-                first_item = content[0]
-                content = (
-                    first_item.get("text", "")
-                    if isinstance(first_item, dict)
-                    else str(first_item)
-                )
-            response_data = json.loads(str(content).strip())
-        except Exception as e:
-            logger.error(
-                f"Error during parsing LLM-generated JSON with list of modules: {str(e)}"
-            )
-            # TODO: if this is an issue among several attempts, we should retry the LLM call
-            raise
-
-        if isinstance(response_data, dict) and "path" in response_data:
-            raw_path = response_data["path"]
-            raw_technology = response_data.get("technology", "Chef")
-        elif (
-            isinstance(response_data, list)
-            and len(response_data) == 1
-            and "path" in response_data[0]
-        ):
-            raw_path = response_data[0]["path"]
-            raw_technology = response_data[0].get("technology", "Chef")
-        else:
-            raise ValueError(
-                f"Unexpected format for LLM response, expected a dictionary with a 'path' key but got: {response_data}"
-            )
+        assert isinstance(response, ModuleSelection)
+        raw_path = response.path
+        raw_technology = response.technology
 
         # Convert absolute paths to relative
         if raw_path.startswith("/"):
