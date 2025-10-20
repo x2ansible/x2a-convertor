@@ -1,6 +1,5 @@
 import logging
 import json
-import os
 
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
@@ -182,7 +181,6 @@ class MigrationAnalysisWorkflow:
 def analyze_project(user_requirements: str, source_dir: str = "."):
     """Create dependency graph and granular migration tasks"""
     logger.info("Starting migration analysis workflow...")
-    os.chdir(source_dir)
 
     workflow = MigrationAnalysisWorkflow()
     initial_state = MigrationState(

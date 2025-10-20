@@ -21,6 +21,13 @@ def setup_logging() -> None:
         set_debug(True)
 
 
+def change_dir_callback(ctx, param, value):
+    """Callback to change directory when source-dir is provided"""
+    if value:
+        os.chdir(value)
+    return value
+
+
 @click.group(invoke_without_command=True)
 @click.pass_context
 def cli(ctx) -> None:
@@ -31,7 +38,14 @@ def cli(ctx) -> None:
 
 @cli.command()
 @click.argument("user_requirements")
-@click.option("--source-dir", default=".", help="Source directory to analyze")
+@click.option(
+    "--source-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=".",
+    callback=change_dir_callback,
+    is_eager=True,
+    help="Source directory to analyze",
+)
 def init(user_requirements, source_dir) -> None:
     """Initialize project with interactive message"""
     init_project(user_requirements=user_requirements, source_dir=source_dir)
@@ -39,7 +53,14 @@ def init(user_requirements, source_dir) -> None:
 
 @cli.command()
 @click.argument("user_requirements")
-@click.option("--source-dir", default=".", help="Source directory to analyze")
+@click.option(
+    "--source-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=".",
+    callback=change_dir_callback,
+    is_eager=True,
+    help="Source directory to analyze",
+)
 def analyze(user_requirements, source_dir) -> None:
     """Perform detailed analysis and create module migration plans"""
     analyze_project(user_requirements, source_dir)
@@ -47,7 +68,14 @@ def analyze(user_requirements, source_dir) -> None:
 
 @cli.command()
 @click.argument("user_requirements")
-@click.option("--source-dir", default=".", help="Source directory to migrate")
+@click.option(
+    "--source-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=".",
+    callback=change_dir_callback,
+    is_eager=True,
+    help="Source directory to migrate",
+)
 @click.option(
     "--source-technology",
     default="Chef",
@@ -55,10 +83,12 @@ def analyze(user_requirements, source_dir) -> None:
 )
 @click.option(
     "--module-migration-plan",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
     help="Module migration plan file produced by the analyze command. Must be in the format: migration-plan-<module_name>.md. Path is relative to the --source-dir. Example: migration-plan-nginx.md",
 )
 @click.option(
     "--high-level-migration-plan",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
     help="High level migration plan file produced by the init command. Path is relative to the --source-dir. Example: migration-plan.md",
 )
 def migrate(
