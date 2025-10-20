@@ -110,7 +110,7 @@ class ChefDependencyManager:
             return (False, [])
 
         logger.info(
-            f"Cookbook '{self.cookbook_name}' has {len(deps)} dependencies: {[d['name'] for d in deps]}"
+            f"Cookbook '{self.cookbook_name}' has {len(deps)} dependencies: {[d.name for d in deps]}"
         )
         return (True, deps)
 
@@ -201,14 +201,14 @@ class ChefDependencyManager:
         missing_deps = []
 
         for dep in deps:
-            dep_dir = artifacts_path / f"{dep['name']}-{dep['identifier']}"
+            dep_dir = artifacts_path / f"{dep.name}-{dep.identifier}"
             if not dep_dir.exists():
                 log.warning(f"Dependency directory not found: {dep_dir}")
-                missing_deps.append(f"{dep['name']}@{dep['version']}")
+                missing_deps.append(f"{dep.name}@{dep.version}")
                 continue
 
             paths.append(str(dep_dir))
-            log.debug(f"Found dependency: {dep['name']}@{dep['version']} -> {dep_dir}")
+            log.debug(f"Found dependency: {dep.name}@{dep.version} -> {dep_dir}")
 
         if missing_deps:
             log.warning(

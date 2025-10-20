@@ -1,5 +1,6 @@
 import structlog
-from typing import TypedDict, List, Optional
+from dataclasses import dataclass
+from typing import List, Optional
 
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt.chat_agent_executor import AgentStatePydantic
@@ -16,7 +17,8 @@ from src.inputs.tree_analysis import TreeSitterAnalyzer
 logger = structlog.get_logger(__name__)
 
 
-class ChefState(TypedDict):
+@dataclass
+class ChefState:
     path: str
     user_message: str
     specification: str
@@ -93,14 +95,14 @@ class ChefSubagent:
     def _prepare_dependencies(self, state: ChefState) -> ChefState:
         """Fetch external dependencies using chef-cli"""
         slog = logger.bind(phase="prepare_dependencies")
-        slog.info(f"Checking for external dependencies for {state['path']}")
-        self._dependency_fetcher = ChefDependencyManager(state["path"])
+        slog.info(f"Checking for external dependencies for {state.path}")
+        self._dependency_fetcher = ChefDependencyManager(state.path)
 
         has_deps, deps = self._dependency_fetcher.has_dependencies()
         if not has_deps:
             slog.info("No external dependencies found, using local cookbooks only")
-            state["dependency_paths"] = [f"{state['path']}/cookbooks"]
-            state["export_path"] = None
+            state.dependency_paths = [f"{state.path}/cookbooks"]
+            state.export_path = None
             return state
 
         slog.info("Found external dependencies, fetching with chef-cli...")
@@ -108,14 +110,14 @@ class ChefSubagent:
         try:
             dependency_paths = self._dependency_fetcher.get_dependencies_paths(deps)
             if dependency_paths:
-                state["dependency_paths"] = dependency_paths
-                state["export_path"] = str(self._dependency_fetcher.export_path)
+                state.dependency_paths = dependency_paths
+                state.export_path = str(self._dependency_fetcher.export_path)
         except RuntimeError:
             slog.warning(
                 "PolicyLock has not been found, so there is no dependency path"
             )
-            state["dependency_paths"] = []
-            state["export_path"] = None
+            state.dependency_paths = []
+            state.export_path = None
 
         return state
 
@@ -128,7 +130,7 @@ class ChefSubagent:
 
     def _check_files(self, state: ChefState) -> ChefState:
         """Validate and improve migration plan by analyzing each file"""
-        files = self.list_files([state["path"]] + state["dependency_paths"])
+        files = self.list_files([state.path] + state.dependency_paths)
         read_tool = ReadFileTool()
         slog = logger.bind(phase="check_files")
         slog.info(f"Validating migration plan against {len(files)} files")
@@ -147,7 +149,7 @@ class ChefSubagent:
                 # Prepare validation prompts
                 system_message = get_prompt("chef_analysis_file_validation_system")
                 user_prompt = get_prompt("chef_analysis_file_validation_task").format(
-                    current_specification=state["specification"],
+                    current_specification=state.specification,
                     file_path=fp,
                     file_content=file_content,
                 )
@@ -175,8 +177,8 @@ class ChefSubagent:
                     continue
 
                 slog.info(f"Updating specification based on file: {fp}")
-                state["specification"] = self._merge_specification_update(
-                    state["specification"], validation_response
+                state.specification = self._merge_specification_update(
+                    state.specification, validation_response
                 )
             except Exception as e:
                 slog.warning(f"Error processing file {fp}: {e}")
@@ -204,7 +206,7 @@ class ChefSubagent:
         # Prepare cleanup prompts
         system_message = get_prompt("chef_analysis_cleanup_system")
         user_prompt = get_prompt("chef_analysis_cleanup_task").format(
-            messy_specification=state["specification"]
+            messy_specification=state.specification
         )
 
         # pyrefly: ignore
@@ -229,19 +231,17 @@ class ChefSubagent:
             slog.warning("No valid response from cleanup agent")
             return state
 
-        state["specification"] = message.content
+        state.specification = message.content
 
         return state
 
     def _write_report(self, state: ChefState) -> ChefState:
         logger.info(f"Writing Chef report for {str(state)}")
-        data_list = "\n".join(
-            self.list_files([state["path"]] + state["dependency_paths"])
-        )
+        data_list = "\n".join(self.list_files([state.path] + state.dependency_paths))
         # Generate tree-sitter analysis report
         analyzer = TreeSitterAnalyzer()
         try:
-            tree_sitter_report = analyzer.report_directory(state["path"])
+            tree_sitter_report = analyzer.report_directory(state.path)
         except Exception as e:
             logger.warning(f"Failed to generate tree-sitter report: {e}")
             tree_sitter_report = "Tree-sitter analysis not available"
@@ -249,8 +249,8 @@ class ChefSubagent:
         # Prepare system and user messages for chef agent
         system_message = get_prompt("chef_analysis_system")
         user_prompt = get_prompt("chef_analysis_task").format(
-            path=state["path"],
-            user_message=state["user_message"],
+            path=state.path,
+            user_message=state.user_message,
             directory_listing=data_list,
             tree_sitter_report=tree_sitter_report,
         )
@@ -269,7 +269,7 @@ class ChefSubagent:
         if len(messages) < 2:
             raise Exception("Invalid response from Chef agent")
 
-        state["specification"] = messages[-1].content
+        state.specification = messages[-1].content
         return state
 
     def invoke(self, path: str, user_message: str) -> str:
@@ -285,8 +285,7 @@ class ChefSubagent:
         )
 
         result = self._workflow.invoke(initial_state, config=get_runnable_config())
-        initial_state["specification"] = result["specification"]
-        return initial_state["specification"]
+        return result["specification"]
 
 
 def get_chef_agent():

@@ -5,7 +5,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
 from pathlib import Path
 from pydantic import BaseModel
-from typing import TypedDict
+from dataclasses import dataclass
 
 from prompts.get_prompt import get_prompt
 from src.const import MIGRATION_PLAN_FILE, MODULE_MIGRATION_PLAN_TEMPLATE
@@ -23,7 +23,8 @@ class ModuleSelection(BaseModel):
     technology: str = "Chef"
 
 
-class MigrationState(TypedDict):
+@dataclass
+class MigrationState:
     user_message: str
     path: str
     technology: Technology | None
@@ -64,13 +65,13 @@ class MigrationAnalysisWorkflow:
         migration_plan_path = Path(MIGRATION_PLAN_FILE)
 
         if not migration_plan_path.exists():
-            state["migration_plan_content"] = (
+            state.migration_plan_content = (
                 "# Migration Plan\n\nNo existing migration plan found."
             )
             logger.warning("No existing migration plan found, starting fresh")
             return state
 
-        state["migration_plan_content"] = migration_plan_path.read_text()
+        state.migration_plan_content = migration_plan_path.read_text()
         logger.info(f"Read migration plan from {migration_plan_path}")
         return state
 
@@ -78,8 +79,8 @@ class MigrationAnalysisWorkflow:
         """Select module to migrate based on user input and LLM analysis"""
 
         # Get user requirements and migration plan content
-        user_message = state.get("user_message")
-        migration_plan_content = state.get("migration_plan_content", "")
+        user_message = state.user_message
+        migration_plan_content = state.migration_plan_content
 
         # Prepare system message with migration plan context
         system_message = get_prompt("analyze_select_module_system").format(
@@ -112,49 +113,49 @@ class MigrationAnalysisWorkflow:
         if raw_path.endswith("/") and len(raw_path) > 1:
             raw_path = raw_path.rstrip("/")
 
-        state["path"] = raw_path
-        state["technology"] = Technology(raw_technology)
+        state.path = raw_path
+        state.technology = Technology(raw_technology)
         logger.info(
-            f"Selected path: '{state['path']}' technology: '{state['technology'].value}'"
+            f"Selected path: '{state.path}' technology: '{state.technology.value}'"
         )
 
         return state
 
     def choose_subagent(self, state: MigrationState) -> MigrationState:
         """Choose and execute the appropriate subagent based on technology"""
-        technology = state.get("technology")
+        technology = state.technology
 
         if technology == Technology.CHEF:
-            state["module_migration_plan"] = self.chef_subagent.invoke(
-                state["path"], state["user_message"]
+            state.module_migration_plan = self.chef_subagent.invoke(
+                state.path, state.user_message
             )
         elif technology == Technology.PUPPET:
             logger.warning("Puppet agent not implemented yet")
-            state["module_migration_plan"] = "Puppet analysis not available"
+            state.module_migration_plan = "Puppet analysis not available"
         elif technology == Technology.SALT:
             logger.warning("Salt agent not implemented yet")
-            state["module_migration_plan"] = "Salt analysis not available"
+            state.module_migration_plan = "Salt analysis not available"
         else:
             logger.error("Technology not set correctly")
-            state["module_migration_plan"] = "Technology analysis failed"
+            state.module_migration_plan = "Technology analysis failed"
 
         return state
 
     def write_migration_file(self, state: MigrationState) -> MigrationState:
         """Write the migration plan to a file"""
-        migration_content = state.get("module_migration_plan")
+        migration_content = state.module_migration_plan
         if not migration_content:
             logger.error("Migration failed, no plan generated")
             return state
 
-        path = state.get("path", "")
+        path = state.path
         module = path.split("/")[-1] if path else "unknown"
 
         filename = MODULE_MIGRATION_PLAN_TEMPLATE.format(module=module)
 
         Path(filename).write_text(migration_content)
         logger.info(f"Migration plan written to {filename}")
-        state["module_plan_path"] = filename
+        state.module_plan_path = filename
 
         return state
 

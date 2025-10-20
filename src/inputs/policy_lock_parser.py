@@ -7,12 +7,14 @@ Parses Chef Policyfile.lock.json to extract dependency information.
 import json
 import structlog
 from pathlib import Path
-from typing import Dict, List, Optional, TypedDict
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 logger = structlog.get_logger(__name__)
 
 
-class CookbookDependency(TypedDict):
+@dataclass
+class CookbookDependency:
     """Dependency information for a cookbook"""
 
     name: str
@@ -173,11 +175,11 @@ class PolicyLockParser:
         for dep_name in all_dep_names:
             dep_cb = self.get_cookbook_by_name(dep_name)
             if dep_cb and dep_cb.identifier and dep_cb.version:
-                dep: CookbookDependency = {
-                    "name": dep_cb.name,
-                    "identifier": dep_cb.identifier,
-                    "version": dep_cb.version,
-                }
+                dep = CookbookDependency(
+                    name=dep_cb.name,
+                    identifier=dep_cb.identifier,
+                    version=dep_cb.version,
+                )
                 result.append(dep)
                 logger.debug(f"Added dependency: {dep_name}@{dep_cb.version}")
             else:
