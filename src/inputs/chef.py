@@ -1,4 +1,4 @@
-import logging
+import structlog
 from typing import TypedDict, List, Optional
 
 from langgraph.graph import StateGraph, END
@@ -13,7 +13,7 @@ from src.inputs.chef_dependency_fetcher import ChefDependencyManager
 from prompts.get_prompt import get_prompt
 from src.inputs.tree_analysis import TreeSitterAnalyzer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ChefState(TypedDict):
@@ -92,17 +92,18 @@ class ChefSubagent:
 
     def _prepare_dependencies(self, state: ChefState) -> ChefState:
         """Fetch external dependencies using chef-cli"""
-        logger.info(f"Checking for external dependencies for {state['path']}")
+        slog = logger.bind(phase="prepare_dependencies")
+        slog.info(f"Checking for external dependencies for {state['path']}")
         self._dependency_fetcher = ChefDependencyManager(state["path"])
 
         has_deps, deps = self._dependency_fetcher.has_dependencies()
         if not has_deps:
-            logger.info("No external dependencies found, using local cookbooks only")
+            slog.info("No external dependencies found, using local cookbooks only")
             state["dependency_paths"] = [f"{state['path']}/cookbooks"]
             state["export_path"] = None
             return state
 
-        logger.info("Found external dependencies, fetching with chef-cli...")
+        slog.info("Found external dependencies, fetching with chef-cli...")
         self._dependency_fetcher.fetch_dependencies()
         try:
             dependency_paths = self._dependency_fetcher.get_dependencies_paths(deps)
@@ -110,7 +111,7 @@ class ChefSubagent:
                 state["dependency_paths"] = dependency_paths
                 state["export_path"] = str(self._dependency_fetcher.export_path)
         except RuntimeError:
-            logger.warning(
+            slog.warning(
                 "PolicyLock has not been found, so there is no dependency path"
             )
             state["dependency_paths"] = []
@@ -129,8 +130,8 @@ class ChefSubagent:
         """Validate and improve migration plan by analyzing each file"""
         files = self.list_files([state["path"]] + state["dependency_paths"])
         read_tool = ReadFileTool()
-
-        logger.info(f"Validating migration plan against {len(files)} files")
+        slog = logger.bind(phase="check_files")
+        slog.info(f"Validating migration plan against {len(files)} files")
 
         # TODO: Rethink following.
         # Maybe run this in parallel, there can be many files and it takes forever to finish on a more complex example
@@ -163,25 +164,25 @@ class ChefSubagent:
                 )
                 message = get_last_ai_message(result)
                 if not message:
-                    logger.info("There is no response from AI on file '{fp}'")
+                    slog.info("There is no response from AI on file '{fp}'")
                     continue
                 validation_response = message.content
                 if validation_response.startswith("VALIDATED:"):
-                    logger.debug(f"File validated: {fp} - {validation_response}")
+                    slog.debug(f"File validated: {fp} - {validation_response}")
                     continue
                 if validation_response.startswith("SKIP:"):
-                    logger.debug(f"File skipped: {fp} - {validation_response}")
+                    slog.debug(f"File skipped: {fp} - {validation_response}")
                     continue
 
-                logger.info(f"Updating specification based on file: {fp}")
+                slog.info(f"Updating specification based on file: {fp}")
                 state["specification"] = self._merge_specification_update(
                     state["specification"], validation_response
                 )
             except Exception as e:
-                logger.warning(f"Error processing file {fp}: {e}")
+                slog.warning(f"Error processing file {fp}: {e}")
                 continue
 
-        logger.info("File validation completed")
+        slog.info("File validation completed")
         return state
 
     def _merge_specification_update(self, current_spec: str, update: str) -> str:
@@ -196,7 +197,9 @@ class ChefSubagent:
 
     def _cleanup_specification(self, state: ChefState) -> ChefState:
         """Clean up the messy specification with validation updates"""
-        logger.info("Cleaning up migration specification")
+
+        slog = logger.bind(phase="cleanup_specification")
+        slog.info("Cleaning up migration specification")
 
         # Prepare cleanup prompts
         system_message = get_prompt("chef_analysis_cleanup_system")
@@ -223,7 +226,7 @@ class ChefSubagent:
 
         message = get_last_ai_message(result)
         if not message:
-            logger.warning("No valid response from cleanup agent")
+            slog.warning("No valid response from cleanup agent")
             return state
 
         state["specification"] = message.content

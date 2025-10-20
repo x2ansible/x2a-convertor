@@ -5,7 +5,7 @@ Uses chef-cli export to download cookbook dependencies from Chef Supermarket
 and make them available for analysis.
 """
 
-import logging
+import structlog
 import shutil
 import subprocess
 import tempfile
@@ -14,7 +14,7 @@ from typing import List, Optional, Tuple
 
 from src.inputs.policy_lock_parser import PolicyLockParser, CookbookDependency
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ChefDependencyManager:
@@ -31,37 +31,34 @@ class ChefDependencyManager:
         Args:
             cookbook_path: Path to cookbook directory containing Policyfile.lock.json
         """
-        logger.info(f"Initializing ChefDependencyManager for path: {cookbook_path}")
-
         self._cookbook_path = Path(cookbook_path)
         self.export_dir: Optional[Path] = None
 
+        log = logger.bind(cookbook_path=cookbook_path)
+        log.info("Initializing ChefDependencyManager")
+
         # Verify chef-cli is available
         if not shutil.which("chef-cli"):
-            logger.error("chef-cli not found in PATH")
+            log.error("chef-cli not found in PATH")
             raise RuntimeError("chef-cli not found in PATH. Install Chef Workstation.")
 
-        logger.debug("chef-cli found in PATH")
+        log.debug("Verified chef-cli availability")
 
         # Find and parse Policyfile.lock.json
         self.policy_lock_path = self._find_policy_lock()
         if not self.policy_lock_path:
-            logger.error(
-                f"Policyfile.lock.json not found in {cookbook_path} or parent directories"
-            )
+            log.error("Policyfile.lock.json not found in path or parent directories")
             raise RuntimeError("Policyfile.lock.json cannot be found.")
 
-        logger.info(f"Using policy lock file: {self.policy_lock_path}")
+        log.info(f"Using policy lock file: {self.policy_lock_path}")
         self.policy_lock = PolicyLockParser(str(self.policy_lock_path))
 
         # Detect cookbook name from path
         self.cookbook_name = self._detect_cookbook_name()
         if self.cookbook_name:
-            logger.info(
-                f"Initialized ChefDependencyManager for cookbook: {self.cookbook_name}"
-            )
+            log.info(f"Initialized for cookbook: {self.cookbook_name}")
         else:
-            logger.warning("Could not detect cookbook name from path")
+            log.warning("Could not detect cookbook name")
 
     def _find_policy_lock(self) -> Optional[Path]:
         """Find Policyfile.lock.json in current directory or up to 3 levels up"""
@@ -85,17 +82,14 @@ class ChefDependencyManager:
 
     def _detect_cookbook_name(self) -> Optional[str]:
         """Detect cookbook name by matching path against policy lock"""
-        logger.debug("Detecting cookbook name from path")
+        log = logger.bind(path=str(self.cookbook_path))
+        log.debug("Detecting cookbook name")
         cookbook = self.policy_lock.get_cookbook_by_path(str(self.cookbook_path))
         if not cookbook:
-            logger.warning(
-                f"No cookbook found in policy lock matching path: {self.cookbook_path}"
-            )
+            log.warning("No cookbook found in policy lock matching path")
             return None
 
-        logger.info(
-            f"Detected cookbook '{cookbook.name}' (version {cookbook.version}) from policy lock"
-        )
+        log.info(f"Detected cookbook '{cookbook.name}' (version {cookbook.version})")
         return cookbook.name
 
     def has_dependencies(self) -> Tuple[bool, List[CookbookDependency]]:
@@ -122,11 +116,12 @@ class ChefDependencyManager:
 
     def fetch_dependencies(self) -> None:
         """Download dependencies using chef-cli export"""
-        logger.info("Fetching dependencies using chef-cli export")
+        log = logger.bind(cookbook=self.cookbook_name)
+        log.info("Fetching dependencies using chef-cli export")
 
         # Use a temp directory for chef-cli export to avoid path conflicts
         temp_export_dir = Path(tempfile.mkdtemp(prefix="chef-export-"))
-        logger.info(f"Created temporary export directory: {temp_export_dir}")
+        log.info(f"Created temporary export directory: {temp_export_dir}")
 
         try:
             cmd = [
@@ -136,8 +131,8 @@ class ChefDependencyManager:
                 str(temp_export_dir),
             ]
 
-            logger.info(f"Running chef-cli command: {' '.join(cmd)}")
-            logger.debug(f"Working directory: {self.cookbook_path}")
+            log.info(f"Running chef-cli command: {' '.join(cmd)}")
+            log.debug(f"Working directory: {self.cookbook_path}")
 
             result = subprocess.run(
                 cmd,
@@ -148,37 +143,35 @@ class ChefDependencyManager:
             )
 
             if result.returncode != 0:
-                logger.error(
+                log.error(
                     f"chef-cli export failed with return code {result.returncode}"
                 )
-                logger.error(f"stderr: {result.stderr.strip()}")
+                log.error(f"stderr: {result.stderr.strip()}")
                 if result.stdout:
-                    logger.debug(f"stdout: {result.stdout.strip()}")
+                    log.debug(f"stdout: {result.stdout.strip()}")
                 raise RuntimeError(f"chef-cli export failed: {result.stderr.strip()}")
 
-            logger.info("chef-cli export completed successfully")
+            log.info("chef-cli export completed successfully")
             if result.stdout:
-                logger.debug(f"chef-cli output: {result.stdout.strip()}")
+                log.debug(f"chef-cli output: {result.stdout.strip()}")
 
             # Now copy to migration-dependencies in the repo
             self.export_dir = Path("migration-dependencies")
 
             # Clean up if it already exists
             if self.export_dir.exists():
-                logger.info(
-                    f"Removing existing migration-dependencies directory: {self.export_dir}"
-                )
+                log.info(f"Removing existing directory: {self.export_dir}")
                 shutil.rmtree(self.export_dir)
 
             # Copy from temp to migration-dependencies
-            logger.info(f"Copying dependencies from temp to {self.export_dir}")
+            log.info(f"Copying dependencies to {self.export_dir}")
             shutil.copytree(temp_export_dir, self.export_dir)
-            logger.info(f"Dependencies copied to {self.export_dir}")
+            log.info("Dependencies copied successfully")
 
         finally:
             # Clean up temp directory
             if temp_export_dir.exists():
-                logger.debug(f"Cleaning up temporary directory: {temp_export_dir}")
+                log.debug(f"Cleaning up temporary directory: {temp_export_dir}")
                 shutil.rmtree(temp_export_dir)
 
     def get_dependencies_paths(self, deps: List[CookbookDependency]) -> List[str]:
@@ -191,39 +184,38 @@ class ChefDependencyManager:
         Returns:
             List of paths to individual cookbook directories
         """
-        logger.debug(f"Resolving paths for {len(deps)} dependencies")
+        log = logger.bind(cookbook=self.cookbook_name, dep_count=len(deps))
+        log.debug("Resolving dependency paths")
 
         if not self.export_dir:
-            logger.warning("No export directory set, cannot resolve dependency paths")
+            log.warning("No export directory set, cannot resolve dependency paths")
             return []
 
         artifacts_path = self.export_dir / "cookbook_artifacts"
         if not artifacts_path.exists():
-            logger.error(f"cookbook_artifacts directory not found at {artifacts_path}")
+            log.error(f"cookbook_artifacts directory not found at {artifacts_path}")
             return []
 
-        logger.debug(f"Looking for cookbook artifacts in: {artifacts_path}")
+        log.debug(f"Looking for cookbook artifacts in: {artifacts_path}")
         paths = []
         missing_deps = []
 
         for dep in deps:
             dep_dir = artifacts_path / f"{dep['name']}-{dep['identifier']}"
             if not dep_dir.exists():
-                logger.warning(f"Dependency directory not found: {dep_dir}")
+                log.warning(f"Dependency directory not found: {dep_dir}")
                 missing_deps.append(f"{dep['name']}@{dep['version']}")
                 continue
 
             paths.append(str(dep_dir))
-            logger.debug(
-                f"Found dependency path: {dep['name']}@{dep['version']} -> {dep_dir}"
-            )
+            log.debug(f"Found dependency: {dep['name']}@{dep['version']} -> {dep_dir}")
 
         if missing_deps:
-            logger.warning(
+            log.warning(
                 f"Missing {len(missing_deps)} dependencies: {', '.join(missing_deps)}"
             )
 
-        logger.info(f"Resolved {len(paths)}/{len(deps)} dependency paths successfully")
+        log.info(f"Resolved {len(paths)}/{len(deps)} dependency paths")
         return paths
 
     @property
@@ -232,21 +224,23 @@ class ChefDependencyManager:
 
     def cleanup(self) -> None:
         """Remove export directory"""
+        log = logger.bind(cookbook=self.cookbook_name)
+
         if not self.export_dir:
-            logger.debug("No export directory to cleanup")
+            log.debug("No export directory to cleanup")
             return
 
         if not self.export_dir.exists():
-            logger.debug(f"Export directory already removed: {self.export_dir}")
+            log.debug(f"Export directory already removed: {self.export_dir}")
             self.export_dir = None
             return
 
         try:
-            logger.info(f"Cleaning up export directory: {self.export_dir}")
+            log.info(f"Cleaning up export directory: {self.export_dir}")
             shutil.rmtree(self.export_dir)
-            logger.info(f"Successfully removed export directory: {self.export_dir}")
+            log.info("Successfully removed export directory")
         except Exception as e:
-            logger.error(f"Failed to cleanup export directory {self.export_dir}: {e}")
+            log.error(f"Failed to cleanup export directory {self.export_dir}: {e}")
         finally:
             self.export_dir = None
 

@@ -1,4 +1,4 @@
-import logging
+import structlog
 import re
 import tree_sitter_json as tsjson
 import tree_sitter_ruby as tsruby
@@ -9,7 +9,7 @@ from pathlib import Path
 from tree_sitter import Language, Parser, Node
 from typing import Dict, List, Any, Optional
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Chef-specific constants
 CHEF_RESOURCES = [
@@ -79,8 +79,6 @@ IMPORTANT_ATTRIBUTES = {
     "content",
     "path",
 }
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
