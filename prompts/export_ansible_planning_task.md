@@ -11,7 +11,9 @@ CHEF DIRECTORY LISTING:
 CHEF SOURCE PATH: {path}
 ANSIBLE OUTPUT PATH: ./ansible/{module}
 
+<document>
 {existing_checklist}
+</document>
 
 Read the migration plan carefully and create a complete checklist of all files that need to be migrated.
 
