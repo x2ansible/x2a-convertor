@@ -1,4 +1,4 @@
-import logging
+import structlog
 import json
 
 from langgraph.graph import StateGraph, END
@@ -12,7 +12,7 @@ from src.inputs.chef import ChefSubagent
 from src.model import get_model, get_runnable_config
 from src.utils.technology import Technology
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class MigrationState(TypedDict):

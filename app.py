@@ -4,6 +4,7 @@ import click
 import logging
 import os
 import sys
+import structlog
 from dotenv import load_dotenv
 
 from langchain.globals import set_debug
@@ -13,12 +14,41 @@ from src.validate import validate_module
 from src.inputs.analyze import analyze_project
 
 
+def format_context(logger, method_name, event_dict):
+    """Format bound context into the event message"""
+    excluded = {"level", "timestamp", "logger", "stack", "exc_info", "event"}
+    context = " ".join(f"{k}={v}" for k, v in event_dict.items() if k not in excluded)
+
+    event = event_dict.get("event", "")
+    event_dict["event"] = f"{event} [{context}]" if context else event
+
+    return event_dict
+
+
 def setup_logging() -> None:
     log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
     langchain_debug = os.environ.get("LANGCHAIN_DEBUG", "FALSE").upper()
-    logging.basicConfig(stream=sys.stderr, level=log_level)
+    logging.basicConfig(
+        stream=sys.stderr, level=log_level, format="%(levelname)s:%(name)s: %(message)s"
+    )
     if langchain_debug == "TRUE":
         set_debug(True)
+
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.UnicodeDecoder(),
+            format_context,
+            structlog.stdlib.render_to_log_kwargs,
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
 
 
 def change_dir_callback(ctx, param, value):
