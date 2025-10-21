@@ -4,10 +4,16 @@ MIGRATION PLAN:
 {module_migration_plan}
 
 CHEF DIRECTORY LISTING:
+```
 {directory_listing}
+```
 
 CHEF SOURCE PATH: {path}
 ANSIBLE OUTPUT PATH: ./ansible/{module}
+
+<document>
+{existing_checklist}
+</document>
 
 Read the migration plan carefully and create a complete checklist of all files that need to be migrated.
 
@@ -34,5 +40,3 @@ Examples:
 - add_checklist_task(category="structure", source_path="N/A", target_path="meta/main.yml", description="Role metadata")
 
 Make sure to add EVERY file mentioned in the migration plan. Be complete and thorough.
-
-After adding all tasks, use get_checklist_summary to confirm the checklist is complete.

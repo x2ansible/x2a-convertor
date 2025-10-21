@@ -8,6 +8,9 @@ check:
 format:
 	uv run ruff format
 
+type-check:
+	uv run pyrefly check
+
 ci-check:
 	uv run ruff check . --output-format=github
 	uv run ruff format --check
