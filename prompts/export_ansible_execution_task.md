@@ -30,6 +30,16 @@ Your task:
 IMPORTANT: After successfully creating each file, you MUST call:
 update_checklist_task(source_path, target_path, status="complete", notes="Description of what was created")
 
+**CRITICAL PATH FORMAT**: Use EXACT paths from the checklist (as shown in the checklist document above).
+When calling update_checklist_task, you MUST use the paths EXACTLY as they appear in the checklist:
+- source_path: Copy the exact source path from the checklist (full path including cookbooks prefix)
+- target_path: Copy the exact target path from the checklist (full path including ansible/{module} prefix)
+- DO NOT modify, shorten, or add prefixes - use paths EXACTLY as shown in the checklist
+
+Example: If checklist shows "cookbooks/myapp/templates/default/config.erb → ansible/myapp/templates/config.j2"
+- source_path = "cookbooks/myapp/templates/default/config.erb"
+- target_path = "ansible/myapp/templates/config.j2"
+
 Suggested order for the task:
 - Process structure files first (meta/main.yml, handlers/main.yml)
 - Then attributes/variables (defaults/main.yml)
