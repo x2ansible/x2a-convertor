@@ -48,7 +48,10 @@ CORRECT (role task syntax):
     state: started
 ```
 
-Conversions:
+ALWAYS use FQCN (Fully Qualified Collection Names)
+Example: `ansible.builtin.file`, NOT `file`. This is required by ansible-lint.
+
+Conversions examples:
 - package resources → ansible.builtin.package or specific modules (apt, yum, etc.)
 - service resources → ansible.builtin.service
 - template resources → ansible.builtin.template
