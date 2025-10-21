@@ -177,7 +177,7 @@ class ChefToAnsibleSubagent:
             ]
 
             if len(read_file_msgs) <= 3:
-                return state
+                return {"messages": messages}
 
             # Collect tool_call_ids of the first 2 read_file messages to remove
             call_ids_to_remove = {msg.tool_call_id for msg in read_file_msgs[:2]}
@@ -203,8 +203,7 @@ class ChefToAnsibleSubagent:
                 new_messages.append(msg)
 
             logger.info(f"Trimmed {len(call_ids_to_remove)} read_file messages")
-            state["messages"] = new_messages
-            return state
+            return {"messages": new_messages}
 
         return self._create_agent(AgentType.EXECUTION, pre_model_hook=clean_read_file)
 
