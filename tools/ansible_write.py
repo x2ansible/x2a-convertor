@@ -11,7 +11,7 @@ class AnsibleWriteInput(BaseModel):
 
     file_path: str = Field(description="The path to write the Ansible YAML file to")
     yaml_content: str = Field(
-        description="The Ansible YAML content (with Jinja2 templates) to validate and write"
+        description="The Ansible YAML content to validate and write"
     )
 
 
@@ -20,10 +20,10 @@ class AnsibleWriteTool(BaseTool):
 
     name: str = "ansible_write"
     description: str = (
-        "Validates Ansible YAML content (including Jinja2 templates) and writes it to a file if valid. "
-        "Use this for Ansible playbooks, tasks, handlers, and other Ansible YAML files that contain "
-        "Jinja2 templating syntax like {{ variable }} or {% for %} loops. "
-        "Returns success message if written, or an error message if validation fails."
+        "Validates and writes Ansible YAML files (tasks, handlers, vars, defaults, meta/main.yml). "
+        "Performs YAML validation before writing. "
+        "DO NOT use for template files (.j2). "
+        "Returns success message if written, or validation error if invalid."
     )
 
     args_schema: dict[str, Any] | type[BaseModel] | None = AnsibleWriteInput
