@@ -1,4 +1,4 @@
-import logging
+import structlog
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -33,7 +33,7 @@ from tools.ansible_role_check import AnsibleRoleCheckTool
 from tools.copy_file import CopyFileWithMkdirTool
 from tools.diff_file import DiffFileTool
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Constants
 ANSIBLE_PATH_TEMPLATE = "./ansible/{module}"
@@ -259,9 +259,8 @@ class ChefToAnsibleSubagent:
 
     def _plan_migration(self, state: ChefState) -> ChefState:
         """Phase 1: Analyze migration plan and create detailed checklist"""
-        logger.info(
-            "Planning migration: analyzing migration plan and creating checklist"
-        )
+        slog = logger.bind(phase="plan_migration")
+        slog.info("Planning migration: analyzing migration plan and creating checklist")
         state.current_phase = MigrationPhase.PLANNING
         self._load_checklist(state)
 
@@ -294,18 +293,21 @@ class ChefToAnsibleSubagent:
             },
             get_runnable_config(),
         )
-        logger.info(f"Planning agent tools: {report_tool_calls(result).to_string()}")
+        slog.info(f"Planning agent tools: {report_tool_calls(result).to_string()}")
         self.checklist.save(state.get_checklist_path())
-        logger.info(f"Checklist after planning:\n{self.checklist.to_markdown()}")
+        slog.info(f"Checklist after planning:\n{self.checklist.to_markdown()}")
 
         return state
 
     def _execute_migration(self, state: ChefState) -> ChefState:
         """Phase 2: Execute migration tasks from checklist"""
-        logger.info(f"Executing migration, attempt {state.export_attempt_counter}")
+        slog = logger.bind(
+            phase="execute_migration", attempt=state.export_attempt_counter
+        )
+        slog.info("Executing migration")
         state.current_phase = MigrationPhase.EXECUTING
 
-        logger.debug(f"Checklist before execution:\n{self.checklist.to_markdown()}")
+        slog.debug(f"Checklist before execution:\n{self.checklist.to_markdown()}")
 
         checklist_path = state.get_checklist_path()
 
@@ -316,7 +318,7 @@ class ChefToAnsibleSubagent:
         ]
 
         if not items_to_process:
-            logger.info("No items to process in execution phase")
+            slog.info("No items to process in execution phase")
             return state
 
         checklist_md = self.checklist.to_markdown()
@@ -340,41 +342,42 @@ class ChefToAnsibleSubagent:
             },
             config=get_runnable_config(),
         )
-        logger.info(f"Execution agent tools: {report_tool_calls(result).to_string()}")
+        slog.info(f"Execution agent tools: {report_tool_calls(result).to_string()}")
         self.checklist.save(checklist_path)
 
-        logger.info(f"Checklist after execution:\n{self.checklist.to_markdown()}")
+        slog.info(f"Checklist after execution:\n{self.checklist.to_markdown()}")
         message = get_last_ai_message(result)
         if message:
             state.last_output = message.content
-            logger.info("Execution phase completed")
+            slog.info("Execution phase completed")
         else:
-            logger.warning("Execution agent did not produce output")
+            slog.warning("Execution agent did not produce output")
 
         state.export_attempt_counter += 1
         return state
 
     def _validate_migration(self, state: ChefState) -> ChefState:
         """Phase 3: Validate migration completeness and correctness"""
-        logger.info("Validating migration output")
+        slog = logger.bind(phase="validate_migration")
+        slog.info("Validating migration output")
         state.current_phase = MigrationPhase.VALIDATING
 
         ansible_path = state.get_ansible_path()
 
         # Run structural validation
         role_check_tool = AnsibleRoleCheckTool()
-        logger.info(f"Running ansible_role_check on {ansible_path}")
+        slog.info(f"Running ansible_role_check on {ansible_path}")
         role_check_result = role_check_tool.run(ansible_path)
 
         # Log role validation result but don't fail immediately
         # The validation agent will check individual files
         if "Validation failed" in role_check_result or "Error:" in role_check_result:
-            logger.warning(f"Role validation has issues: {role_check_result}")
+            slog.warning(f"Role validation has issues: {role_check_result}")
             state.validation_report = (
                 f"## Role Validation Issues\n\n{role_check_result}\n\n"
             )
         else:
-            logger.info("Role validation passed")
+            slog.info("Role validation passed")
             state.validation_report = "## Role Validation Passed\n\n"
 
         # Agent-based validation for file existence and content
@@ -409,11 +412,11 @@ class ChefToAnsibleSubagent:
             get_runnable_config(),
         )
 
-        logger.info(f"Validation agent tools: {report_tool_calls(result).to_string()}")
+        slog.info(f"Validation agent tools: {report_tool_calls(result).to_string()}")
         # Extract validation report
         message = get_last_ai_message(result)
         state.validation_report = message.content if message else "No validation output"
-        logger.info("Validation phase completed")
+        slog.info("Validation phase completed")
         self.checklist.save(state.get_checklist_path())
 
         return state
@@ -422,29 +425,31 @@ class ChefToAnsibleSubagent:
         self, state: ChefState
     ) -> Literal["finalize", "execute_migration"]:
         """Decide whether to finalize or retry execution based on validation"""
-        logger.info("Evaluating validation results")
+        slog = logger.bind(phase="evaluate_validation")
+        slog.info("Evaluating validation results")
 
         stats = self.checklist.get_stats()
-        logger.info(f"Checklist stats: {stats}")
+        slog.info(f"Checklist stats: {stats}")
 
         # Check if we're complete or hit max attempts
         if self.checklist.is_complete():
-            logger.info("Migration complete - all items successful")
+            slog.info("Migration complete - all items successful")
             return "finalize"
 
         if state.export_attempt_counter >= get_config_int("MAX_EXPORT_ATTEMPTS"):
-            logger.warning(
+            slog.warning(
                 f"Max attempts ({get_config_int('MAX_EXPORT_ATTEMPTS')}) of top-level export loop reached, finalizing with incomplete items."
             )
             return "finalize"
 
         incomplete_count = stats["pending"] + stats["missing"] + stats["error"]
-        logger.info(f"Retrying execution for {incomplete_count} incomplete items")
+        slog.info(f"Retrying execution for {incomplete_count} incomplete items")
         return "execute_migration"
 
     def _finalize(self, state: ChefState) -> ChefState:
         """Finalize migration and report results"""
-        logger.info("Finalizing migration")
+        slog = logger.bind(phase="finalize")
+        slog.info("Finalizing migration")
         state.current_phase = MigrationPhase.COMPLETE
 
         stats = self.checklist.get_stats()
@@ -465,7 +470,7 @@ class ChefToAnsibleSubagent:
         ]
 
         state.last_output = "\n".join(summary_lines)
-        logger.info(
+        slog.info(
             f"Migration finalized: {stats['complete']}/{stats['total']} completed"
         )
 
