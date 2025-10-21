@@ -1,11 +1,11 @@
 import logging
-import json
 import re
 
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
 from typing import TypedDict
 from pathlib import Path
+from pydantic import BaseModel
 
 from prompts.get_prompt import get_prompt
 from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
@@ -17,6 +17,12 @@ from src.utils.technology import Technology
 
 
 logger = logging.getLogger(__name__)
+
+
+class SourceMetadata(BaseModel):
+    """Structured output for source metadata"""
+
+    path: str
 
 
 class MigrationState(TypedDict):
@@ -70,43 +76,19 @@ class MigrationAgent:
             {"role": "user", "content": user_prompt},
         ]
 
-        llm_response = self.model.invoke(messages)
-        logger.debug(f"LLM read_source_metadata response: {llm_response.content}")
+        structured_llm = self.model.with_structured_output(SourceMetadata)
+        response = structured_llm.invoke(messages, config=get_runnable_config())
+        logger.debug(f"LLM read_source_metadata response: {response}")
 
-        try:
-            content = llm_response.content
-            if isinstance(content, list) and content:
-                first_item = content[0]
-                content = (
-                    first_item.get("text", "")
-                    if isinstance(first_item, dict)
-                    else str(first_item)
-                )
-            response_data = json.loads(str(content).strip())
-        except Exception as e:
-            logger.error(
-                f"Error during parsing LLM-generated JSON with module metadata: {str(e)}"
-            )
-            raise
+        assert isinstance(response, SourceMetadata)
+        raw_path = response.path
 
-        if isinstance(response_data, dict) and "path" in response_data:
-            raw_path = response_data["path"]
-        elif (
-            isinstance(response_data, list)
-            and len(response_data) == 1
-            and "path" in response_data[0]
-        ):
-            raw_path = response_data[0]["path"]
-        else:
-            raise ValueError(
-                f"Unexpected format for LLM response: {response_data}, expected a dictionary with a 'path' key"
-            )
-        state["path"] = raw_path
-
-        if not state["path"] or not Path(state["path"]).exists():
+        if not raw_path or not Path(raw_path).exists():
             raise ValueError(
                 f"Module path from the module migration plan not found: {raw_path}"
             )
+
+        state["path"] = raw_path
 
         # Get the directory listing
         state["directory_listing"] = list_files(path=state["path"])
