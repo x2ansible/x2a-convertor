@@ -4,6 +4,7 @@ You have these tools available:
 - list_directory: List directory contents
 - read_file: Read file contents
 - file_search: Search for specific content in files
+- list_checklist_tasks: List all existing tasks in the checklist
 - add_checklist_task: Add tasks to the migration checklist
 - update_checklist_task: Update the status of checklist tasks
 
