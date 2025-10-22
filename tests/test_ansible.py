@@ -189,7 +189,7 @@ name: test
         result = self.tool._run(file_path, yaml_content)
 
         assert "error" in result.lower()
-        assert "File not written" in result
+        assert "ERROR when validating Ansible YAML" in result
         assert not os.path.exists(file_path)
 
     def test_malformed_yaml(self) -> None:
@@ -202,7 +202,7 @@ another: value
         result = self.tool._run(file_path, yaml_content)
 
         assert "error" in result.lower()
-        assert "File not written" in result
+        assert "ERROR when validating Ansible YAML" in result
         assert not os.path.exists(file_path)
 
     def test_preserves_formatting(self) -> None:
