@@ -11,23 +11,25 @@ CHECKLIST TO PROCESS:
 {checklist}
 </document>
 
+VALIDATION REPORT FROM A PREVIOUS ATTEMPT:
+{validation_report}
+
 CRITICAL INSTRUCTIONS:
 You MUST process EVERY SINGLE ITEM in the checklist that is marked as "pending", "missing", or "error".
+You MUST address all issues in the validation report which may involve changes to multiple files.
 
 Your task:
 1. Go through the ENTIRE checklist from top to bottom
 2. For EACH item that needs processing:
    a. Read the Chef source file (if it exists, skip if "N/A")
-   b. Convert it to the appropriate Ansible format
-   c. Write it to the target Ansible location using the correct tool
-   d. Use the ansible_lint tool to validate every single generated file individually
-   e. Fix all found errors and revalidate the file using the ansible_lint
-   f. Keep repeating fixing issues and revalidating until the validation passes. You CAN NOT move to next item until the current one is correct.
-   g. Use update_checklist_task to mark the item as "complete" with notes about what was done
-3. Do NOT stop after creating just one or a few files, you MUST repeat the loop for all checklist items
-4. Process ALL items before finishing
+   b. Convert it to the appropriate Ansible format while addressing issues listed in the validation report or item's note (if any listed).
+   c. Write it to the target Ansible location using the correct tool.
+   d. If the write fails, immediately fix all errors listed by the tool and write it again. Do not move on until the write is successful.
+   e. Use the update_checklist_task tool to mark the item as "complete" with notes about what was done.
+3. Do NOT stop after creating just one or a few files, you MUST repeat the loop for all checklist items.
+4. Process ALL checklist items before finishing.
 
-IMPORTANT: After successfully creating each file, you MUST call:
+IMPORTANT: After successfully writing each file, you MUST call:
 update_checklist_task(source_path, target_path, status="complete", notes="Description of what was created")
 
 **CRITICAL PATH FORMAT**: Use EXACT paths from the checklist (as shown in the checklist document above).
@@ -40,7 +42,21 @@ Example: If checklist shows "cookbooks/myapp/templates/default/config.erb → an
 - source_path = "cookbooks/myapp/templates/default/config.erb"
 - target_path = "ansible/myapp/templates/config.j2"
 
-Suggested order for the task:
+If a call of the ansible_write tool fails with an ERROR, you ALWAYS must to fix the issue and call the tool again until it returns successfully.
+Here is a list of Error examples and how to fix them:
+- Error: Mapping values are not allowed in this context.
+  - example of a wrong YAML fragment causing the error:
+    - name: Set default deny policy
+      ansible.builtin.command: ufw --force default deny
+      when: ufw_status is not search('Default: deny')
+  - correctly formatted YAML should look like:
+    - name: Set default deny policy
+      ansible.builtin.command: ufw --force default deny
+      when: "ufw_status is not search('Default: deny')"
+  - how was it fixed: the right-side string value of the "when:" key has been wrapped in quotes (") so it became just a string
+
+
+Suggested order of checklist items for processing:
 - Process structure files first (meta/main.yml, handlers/main.yml)
 - Then attributes/variables (defaults/main.yml)
 - Static files (copy using copy_file tool)

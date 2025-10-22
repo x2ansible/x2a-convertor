@@ -13,22 +13,18 @@ You have these tools available:
 
 Your task is to validate a migration checklist by:
 
-1. FILE EXISTENCE: Check that every target file in the checklist exists
-   - If missing, mark as "missing"
-   - If exists, proceed to content check
-
-2. CONTENT VALIDATION: For each file that exists, verify:
+1. CONTENT VALIDATION: For each file that exists, verify:
    - Templates: Jinja2 syntax is correct, variables match Chef templates
    - Tasks: All Chef resources are converted, proper Ansible modules used
    - Variables: All Chef attributes are present in YAML format
    - Files: Static files are copied correctly
    - Structure: meta/main.yml, handlers/main.yml exist and are valid
 
-3. ANSIBLE LINT: Run ansible-lint on the generated role
+2. ANSIBLE LINT: Run ansible-lint on the generated role
    - Report any syntax errors
    - Report any best practice violations
 
-4. COMPLETENESS: Compare against the migration plan
+3. COMPLETENESS: Compare against the migration plan
    - Are all requirements from the plan addressed?
    - Are there any gaps in functionality?
 
