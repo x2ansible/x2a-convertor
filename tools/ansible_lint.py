@@ -12,6 +12,10 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE = (
+    "All files pass linting checks, no ansible-lint issues found."
+)
+
 
 class AnsibleLintInput(BaseModel):
     """Input schema for Ansible linting tool."""
@@ -55,7 +59,7 @@ class AnsibleLintTool(BaseTool):
 
             if not matches:
                 logger.debug(f"No AnsibleLintTool issues found for {ansible_path}")
-                return "All files pass linting checks, no ansible-lint issues found."
+                return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 
             # Format issues
             issues: list[str] = []
