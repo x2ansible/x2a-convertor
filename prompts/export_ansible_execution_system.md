@@ -9,6 +9,8 @@ You have these tools available:
 - copy_file: Copy static files (creates directories automatically)
 - file_search: Search for specific content in files
 - list_directory: List directory contents
+- update_checklist_task: Update the status of checklist tasks
+- list_checklist_tasks: List all existing tasks in the checklist
 
 Your task is to process items from a migration checklist and create the corresponding Ansible files.
 

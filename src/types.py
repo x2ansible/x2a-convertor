@@ -498,4 +498,19 @@ class Checklist:
             except Exception as e:
                 return f"Error updating task: {str(e)}"
 
-        return [add_task_tool, update_task_tool]
+        @tool("list_checklist_tasks")
+        def list_tasks_tool() -> str:
+            """List all tasks in the checklist.
+
+            Returns:
+                Markdown formatted list of all checklist tasks
+            """
+            try:
+                if not self.items:
+                    return "Checklist is empty - no tasks have been added yet."
+
+                return self.to_markdown()
+            except Exception as e:
+                return f"Error listing tasks: {str(e)}"
+
+        return [add_task_tool, update_task_tool, list_tasks_tool]
