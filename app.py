@@ -28,9 +28,11 @@ def format_context(logger, method_name, event_dict):
 def setup_logging() -> None:
     log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
     langchain_debug = os.environ.get("LANGCHAIN_DEBUG", "FALSE").upper()
+
     logging.basicConfig(
         stream=sys.stderr, level=log_level, format="%(levelname)s:%(name)s: %(message)s"
     )
+
     if langchain_debug == "TRUE":
         set_debug(True)
 
