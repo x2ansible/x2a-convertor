@@ -11,7 +11,6 @@ CHECKLIST TO PROCESS:
 {checklist}
 </document>
 
-VALIDATION REPORT FROM A PREVIOUS ATTEMPT:
 {validation_report}
 
 CRITICAL INSTRUCTIONS:
@@ -20,7 +19,7 @@ You MUST address all issues in the validation report which may involve changes t
 
 Your task:
 1. Go through the ENTIRE checklist from top to bottom
-2. For EACH item that needs processing:
+2. For EACH item that is either "pending", "missing", or "error" do following:
    a. Read the Chef source file (if it exists, skip if "N/A")
    b. Convert it to the appropriate Ansible format while addressing issues listed in the validation report or item's note (if any listed).
    c. Write it to the target Ansible location using the correct tool.
@@ -28,6 +27,10 @@ Your task:
    e. Use the update_checklist_task tool to mark the item as "complete" with notes about what was done.
 3. Do NOT stop after creating just one or a few files, you MUST repeat the loop for all checklist items.
 4. Process ALL checklist items before finishing.
+5. If validation report stated above contains errors, you must
+    a. read the relevant target ansible files,
+    b. fix the reported issue while still considering the overall functional requirements,
+    c. use the ansible_write tool to persist the changes
 
 IMPORTANT: After successfully writing each file, you MUST call:
 update_checklist_task(source_path, target_path, status="complete", notes="Description of what was created")

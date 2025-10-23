@@ -19,6 +19,8 @@ __all__ = [
     "Checklist",
 ]
 
+SUMMARY_SUCCESS_MESSAGE = "All migration tasks have been completed successfully"
+
 
 @dataclass
 class DocumentFile:
@@ -513,4 +515,18 @@ class Checklist:
             except Exception as e:
                 return f"Error listing tasks: {str(e)}"
 
-        return [add_task_tool, update_task_tool, list_tasks_tool]
+        @tool("get_checklist_summary")
+        def checklist_summary_tool() -> str:
+            """Get the summary of the checklist for the final report"""
+            stats = self.get_stats()
+            if stats["total"] == stats["complete"]:
+                return SUMMARY_SUCCESS_MESSAGE
+
+            return f"Checklist summary: {stats['total']} items, {stats['complete']} complete, {stats['pending']} pending, {stats['missing']} missing, {stats['error']} error"
+
+        return [
+            add_task_tool,
+            update_task_tool,
+            list_tasks_tool,
+            checklist_summary_tool,
+        ]
