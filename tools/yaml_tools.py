@@ -76,6 +76,8 @@ class YamlLintTool(BaseTool):
                     f"ERROR: YAML syntax error at line {mark.line + 1}, "
                     f"column {mark.column + 1}: {e.problem}"
                 )
-            return f"ERROR: YAML parsing failed: {error_msg}"
+            return (
+                f"ERROR: YAML parsing failed with following error:\n```{error_msg}```"
+            )
         except Exception as e:
-            return f"ERROR: linting provided YAML content failed: {str(e)}"
+            return f"ERROR: linting failed on provided YAML content with following error:\n```{str(e)}```."

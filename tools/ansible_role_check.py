@@ -160,24 +160,22 @@ class AnsibleRoleCheckTool(BaseTool):
                             f"Original error: {error_msg}"
                         )
                     else:
-                        return (
-                            f"Validation failed: CONFLICTING STATEMENTS\n\n{error_msg}"
-                        )
+                        return f"ERROR:Validation failed, CONFLICTING STATEMENTS:\n{error_msg}"
 
                 elif "is not defined" in error_msg:
                     return (
                         "Validation failed: UNDEFINED VARIABLE\n\n"
-                        f"A variable is referenced but not defined in defaults/main.yml or vars/main.yml\n\n"
-                        f"Error details: {error_msg}\n\n"
-                        "Check that all {{ variable }} references match variables defined in defaults/main.yml"
+                        f"A variable is referenced but not defined in defaults/main.yml or vars/main.yml\n"
+                        f"Error details: ```{error_msg}```\n\n"
+                        "Check that all {{ variable }} references match variables defined in defaults/main.yml."
                     )
 
                 elif "No handler named" in error_msg or "handler" in error_msg.lower():
                     return (
                         "Validation failed: UNDEFINED HANDLER\n\n"
-                        f"A handler is referenced with 'notify:' but not defined in handlers/main.yml\n\n"
-                        f"Error details: {error_msg}\n\n"
-                        "Check that handlers/main.yml exists and defines all referenced handlers"
+                        f"A handler is referenced with 'notify:' but not defined in handlers/main.yml\n"
+                        f"Error details: ```{error_msg}```\n\n"
+                        "Check that handlers/main.yml exists and defines all referenced handlers."
                     )
 
                 elif (
@@ -188,20 +186,20 @@ class AnsibleRoleCheckTool(BaseTool):
                         module_hint = "\n\nHint: Replace 'include:' with 'import_tasks:' or 'include_tasks:'"
                     return (
                         "Validation failed: DEPRECATED/REMOVED MODULE\n\n"
-                        f"A module or action plugin has been removed from Ansible\n\n"
-                        f"Error details: {error_msg}{module_hint}"
+                        f"A module or action plugin has been removed from Ansible\n"
+                        f"Error details: ```{error_msg}{module_hint}```"
                     )
 
                 elif "module" in error_msg.lower() and "not found" in error_msg.lower():
                     return (
                         "Validation failed: MODULE NOT FOUND\n\n"
-                        f"An Ansible module doesn't exist or isn't installed\n\n"
-                        f"Error details: {error_msg}\n\n"
-                        "Check module names and ensure required collections are installed"
+                        f"An Ansible module doesn't exist or isn't installed\n"
+                        f"Error details: ```{error_msg}```\n\n"
+                        "Check module names and ensure required collections are installed."
                     )
 
                 else:
-                    return f"Validation failed:\n\n{error_msg}"
+                    return f"ERROR:Validation failed:\n```{error_msg}```"
             finally:
                 sys.stdout = old_stdout
                 sys.stderr = old_stderr
@@ -255,7 +253,7 @@ class AnsibleRoleCheckTool(BaseTool):
         if errors:
             return (
                 "Validation failed: SYNTAX ERRORS IN TASK FILES\n\n"
-                "Found the following issues:\n" + "\n".join(errors) + "\n\n"
+                "Found the following issues:```" + "\n".join(errors) + "```\n\n"
                 "Fix these issues before the role can be validated.\n\n"
                 "Common fixes:\n"
                 "  - Remove 'hosts:', 'become:', 'tasks:' from task files (use role syntax)\n"

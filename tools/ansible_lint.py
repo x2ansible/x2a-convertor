@@ -43,7 +43,7 @@ class AnsibleLintTool(BaseTool):
                 logger.error(
                     f"AnsibleLintTool error: Path '{ansible_path}' does not exist"
                 )
-                return f"ERROR: Path '{ansible_path}' does not exist"
+                return f"ERROR: Path '{ansible_path}' does not exist."
 
             # Load all built-in rules from ansible-lint package
             rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
@@ -77,7 +77,7 @@ class AnsibleLintTool(BaseTool):
             logger.error(
                 "Error: ansible-lint is not installed. Install it with: uv add ansible-lint"
             )
-            return "ERROR: ansible-lint is not installed. Install it with: uv add ansible-lint"
+            return "ERROR: ansible-lint is not installed. Install it with: uv add ansible-lint."
         except Exception as e:
             logger.error(f"Error running ansible-lint: {str(e)}")
-            return f"ERROR running ansible-lint: {str(e)}"
+            return f"ERROR: running ansible-lint:\n```{str(e)}```"

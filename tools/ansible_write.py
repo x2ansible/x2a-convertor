@@ -67,6 +67,6 @@ class AnsibleWriteTool(BaseTool):
             self._write_tool.invoke({"file_path": file_path, "text": yaml_content})
             return f"Successfully wrote valid Ansible YAML to {file_path}."
         except AnsibleError as e:
-            return f"ERROR when validating Ansible YAML: {str(e)}. The file was not written."
+            return f"ERROR: the provided YAML is not valid, the file was not written. Fix following error and try again:\n```{str(e)}```."
         except Exception as e:
-            return f"ERROR when writing Ansible YAML file: {str(e)}. The file was not written."
+            return f"ERROR: when writing Ansible YAML file, the file was not written. Fix following error and try again:\n```{str(e)}```."
