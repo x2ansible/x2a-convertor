@@ -251,7 +251,6 @@ class ChefToAnsibleSubagent:
 
         workflow.add_edge(START, "plan_migration")
         workflow.add_edge("plan_migration", "execute_migration")
-        # TODO: add conditional: if all files from checklist exist, call linter. If not, repeat to migrate
         workflow.add_edge("execute_migration", "validate_migration")
         workflow.add_conditional_edges("validate_migration", self._evaluate_validation)
         workflow.add_edge("finalize", END)
