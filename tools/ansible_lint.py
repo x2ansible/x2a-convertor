@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import ansiblelint
+from ansiblelint.config import Options
 from ansiblelint.rules import RulesCollection
 from ansiblelint.runner import Runner
 from langchain_core.tools import BaseTool
@@ -51,10 +52,17 @@ class AnsibleLintTool(BaseTool):
 
             # Load all built-in rules from ansible-lint package
             rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
-            rules = RulesCollection(rulesdirs=[rules_dir])
+            options = Options(
+                offline=False,  # TODO: set to True or understand how it works in a disconnected environment
+                # TODO: the --fix is still not working, i.e. https://ansible.readthedocs.io/projects/lint/rules/yaml/ rule should be one of the fixables but it is not happening
+                write_list=[
+                    "all"
+                ],  # Transformer.effective_write_set(["all"]),  # Mimics --fix=all
+            )
+            rules = RulesCollection(rulesdirs=[rules_dir], options=options)
 
             # Run linter with all rules
-            runner = Runner(str(path), rules=rules)
+            runner = Runner(str(path), rules=rules, verbosity=2)
             matches = runner.run()
 
             if not matches:
