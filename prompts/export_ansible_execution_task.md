@@ -27,8 +27,8 @@ Your task:
    e. Use the update_checklist_task tool to mark the item as "complete" with notes about what was done.
 3. Do NOT stop after creating just one or a few files, you MUST repeat the loop for all checklist items.
 4. Process ALL checklist items before finishing.
-5. If validation report stated above contains errors, you must
-    a. read the relevant target ansible files,
+5. If validation report stated above contains errors, fix them all. For every error, you must
+    a. read the relevant target ansible files containing the error,
     b. fix the reported issue while still considering the overall functional requirements,
     c. use the ansible_write tool to persist the changes
 
