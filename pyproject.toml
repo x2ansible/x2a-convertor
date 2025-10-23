@@ -21,6 +21,8 @@ dependencies = [
     "ansible-lint>=25.9.2",
     "ansible-risk-insight>=0.2.10",
     "langchain-aws>=1.0.0",
+    "molecule>=25.9.0",
+    "molecule-podman>=2.0.3",
 ]
 
 [tool.pyrefly]

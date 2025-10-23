@@ -204,6 +204,7 @@ flowchart TB
 | `MAX_EXPORT_ATTEMPTS`      | Maximum number of attempts to export the playbook                           | `5`, `10`                                                                                                | No (default: 5)           |
 | `REASONING_EFFORT`         | Reasoning effort when using a LLM model                                     | `low`, `medium`, `high`                                                                                  | No (default: None)        |
 | `RATE_LIMIT_REQUESTS`      | Rate limit for API requests (requests per second)                           | `5`, `10`, `20`                                                                                          | No (default: disabled)    |
+| `MOLECULE_DOCKER_IMAGE`    | Container image for Molecule testing                                        | `docker.io/geerlingguy/docker-fedora40-ansible:latest`<br>`docker.io/geerlingguy/docker-ubuntu2204-ansible:latest` | No (default: Fedora 40)   |
 
 #### AWS Bedrock Authentication
 
