@@ -1,8 +1,23 @@
-import os
+from pathlib import Path
+from jinja2 import Environment, FileSystemLoader
 
-base_path = os.path.dirname(os.path.realpath(__file__))
+base_path = Path(__file__).parent
+jinja_env = Environment(loader=FileSystemLoader(base_path))
 
 
-def get_prompt(prompt_name: str) -> str:
-    with open(base_path + "/" + prompt_name + ".md", "r", encoding="utf-8") as f:
-        return f.read()
+class JinjaTemplate:
+    def __init__(self, template):
+        self.template = template
+
+    def format(self, **kwargs):
+        return self.template.render(**kwargs)
+
+
+def get_prompt(prompt_name: str) -> str | JinjaTemplate:
+    j2_file = base_path / f"{prompt_name}.j2"
+    if j2_file.exists():
+        template = jinja_env.get_template(f"{prompt_name}.j2")
+        return JinjaTemplate(template)
+
+    md_file = base_path / f"{prompt_name}.md"
+    return md_file.read_text(encoding="utf-8")
