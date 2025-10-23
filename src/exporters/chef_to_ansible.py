@@ -21,6 +21,7 @@ from src.model import (
     get_runnable_config,
 )
 from src.types import (
+    SUMMARY_SUCCESS_MESSAGE,
     DocumentFile,
     Checklist,
     ChecklistStatus,
@@ -315,20 +316,13 @@ class ChefToAnsibleSubagent:
         checklist_path = state.get_checklist_path()
 
         self.execution_agent = self._create_execution_agent()
-        # Get items that need processing
-        items_to_process = [
-            item for item in self.checklist.items if item.status in PROCESSABLE_STATUSES
-        ]
-
-        if (
-            not items_to_process
-            and state.validation_report == ROLE_VALIDATION_SUCCESS_MESSAGE
-        ):
-            slog.info("No items to process in execution phase")
-            return state
 
         checklist_md = self.checklist.to_markdown()
         ansible_path = state.get_ansible_path()
+
+        validation_report_formatted = ""
+        if state.validation_report:
+            validation_report_formatted = f"VALIDATION REPORT FROM A PREVIOUS ATTEMPT:\n```{state.validation_report}```\n"
 
         system_message = get_prompt("export_ansible_execution_system")
         user_prompt = get_prompt("export_ansible_execution_task").format(
@@ -337,7 +331,7 @@ class ChefToAnsibleSubagent:
             ansible_path=ansible_path,
             migration_plan=state.module_migration_plan.to_document(),
             checklist=checklist_md,
-            validation_report=state.validation_report,
+            validation_report=validation_report_formatted,
         )
 
         result = self.execution_agent.invoke(
@@ -363,7 +357,7 @@ class ChefToAnsibleSubagent:
         state.export_attempt_counter += 1
         return state
 
-    def _validate_role_check(self, state: ChefState) -> bool:
+    def _validate_role_check(self, state: ChefState) -> tuple[bool, str]:
         """Structural validation"""
         slog = logger.bind(phase="validate_migration_role_check")
         ansible_path = state.get_ansible_path()
@@ -374,18 +368,14 @@ class ChefToAnsibleSubagent:
             role_check_result = role_check_tool.run(ansible_path)
         except Exception as e:
             role_check_result = f"Error: {str(e)}"
-        slog.info(f"Role check result: {role_check_result}")
+        slog.debug(f"Role check result: {role_check_result}")
 
         if "Validation failed" in role_check_result or "Error:" in role_check_result:
             slog.warning(f"Role validation has issues: {role_check_result}")
-            state.validation_report = (
-                f"Role Validation Issues:\n{role_check_result}\n\n"
-            )
-            return False
+            return False, role_check_result
 
         slog.info("Role validation passed")
-        state.validation_report = ROLE_VALIDATION_SUCCESS_MESSAGE
-        return True
+        return True, ROLE_VALIDATION_SUCCESS_MESSAGE
 
     def _validate_file_existence(self, state: ChefState) -> bool:
         """Validate that all files in the checklist exist"""
@@ -410,29 +400,16 @@ class ChefToAnsibleSubagent:
 
         return success
 
-    def _validate_ansible_lint(self, state: ChefState) -> bool:
+    def _validate_ansible_lint(self, state: ChefState) -> tuple[bool, str]:
         """Run ansible_lint on every MigrationCategory.RECIPES and MigrationCategory.STRUCTURE"""
         slog = logger.bind(phase="validate_migration_ansible_lint")
         slog.info("Validating ansible_lint")
+
+        ansible_path = state.get_ansible_path()
         ansible_lint_tool = AnsibleLintTool()
+        result = ansible_lint_tool.run(ansible_path)
 
-        success = True
-        for item in self.checklist.items:
-            if (
-                item.category == MigrationCategory.RECIPES
-                or item.category == MigrationCategory.STRUCTURE
-            ):
-                result = ansible_lint_tool.run(item.target_path)
-                if result != ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE:
-                    slog.error(
-                        f"Ansible lint validation failed for {item.target_path}: {result}"
-                    )
-                    self.checklist.update_task(
-                        item.source_path, item.target_path, ChecklistStatus.ERROR
-                    )
-                    success = False
-
-        return success
+        return result == ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE, result
 
     def _validate_migration(self, state: ChefState) -> ChefState:
         """Phase 3: Validate migration completeness and correctness"""
@@ -441,6 +418,7 @@ class ChefToAnsibleSubagent:
         )
         slog.info("Validating migration output")
         state.current_phase = MigrationPhase.VALIDATING
+        state.validation_report = ""
 
         # Check completeness of existence of all files in checklist
         if not self._validate_file_existence(state):
@@ -448,19 +426,22 @@ class ChefToAnsibleSubagent:
             self.checklist.save(state.get_checklist_path())
             return state
 
-        # Run ansible_lint on selected categories
-        if not self._validate_ansible_lint(state):
+        # Run ansible_lint on the folder
+        [successAnsibleLint, resultAnsibleLint] = self._validate_ansible_lint(state)
+        if not successAnsibleLint:
             slog.error("Ansible lint validation failed")
-            self.checklist.save(state.get_checklist_path())
+            state.validation_report = (
+                f"ERROR:Ansible lint validation failed:\n```{resultAnsibleLint}```"
+            )
             return state
 
-        # TODO: check for other categories
-        # TBD
-
         # Run structural validation
-        if not self._validate_role_check(state):
+        successRoleCheck, resultRoleCheck = self._validate_role_check(state)
+        if not successRoleCheck:
             slog.error("Role validation failed")
-            # state.validation_report has been updated
+            state.validation_report = (
+                f"ERROR: Ansible role validation failed:\n```{resultRoleCheck}```"
+            )
             return state
 
         # Agent-based validation for additional checks
@@ -514,7 +495,7 @@ class ChefToAnsibleSubagent:
         # Check if we're complete or hit max attempts
         if (
             self.checklist.is_complete()
-            and state.validation_report == ROLE_VALIDATION_SUCCESS_MESSAGE
+            and SUMMARY_SUCCESS_MESSAGE in state.validation_report
         ):
             slog.info("Migration complete - all items successful")
             return "finalize"

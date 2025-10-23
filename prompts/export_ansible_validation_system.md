@@ -10,6 +10,7 @@ You have these tools available:
 - ansible_write: Fix issues if needed (writes validated Ansible YAML)
 - copy_file: Copy missing files if needed (creates directories automatically)
 - write_file: Write regular files (use ansible_write for Ansible YAML files)
+- get_checklist_summary: To get overall status of the migration
 
 Your task is to validate a migration checklist by:
 
