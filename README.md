@@ -71,6 +71,71 @@ uv run app.py migrate --source-dir ./chef-repo \
 <details>
 <summary><b>Click to expand detailed architecture</b></summary>
 
+### Agent Architecture
+
+```mermaid
+flowchart LR
+    %% The render order is reversed on the rendering, this is why I started with migrate
+
+    subgraph Migrate["Migrate & Validation Agent"]
+        MigrateAgent["Migrate AGENT<br/>Create Ansible playbook output"]
+    end
+
+    subgraph MigrateTools["Migrate Tools"]
+        AnsibleMigrateer["ANSIBLE Migrate Agent<br/>MCP with collections<br/>+ Ansible lint"]
+    end
+
+    MigrateAgent <-.-> AnsibleMigrateer
+
+    subgraph ChefTools["Chef Tools"]
+        ChefT["LIST/READ/GREP<br/>+ TREESITTER<br/>CHEF-COMMANDS"]
+    end
+
+    subgraph PuppetTools["Puppet Tools"]
+        PuppetT["LIST/READ/GREP<br/>+ TREESITTER<br/>PUPPET-COMMANDS"]
+    end
+
+    subgraph SaltTools["Salt Tools"]
+        SaltT["LIST/READ/GREP<br/>+ TREESITTER<br/>SALT-COMMANDS"]
+    end
+
+    subgraph Input["Input Analysis Agents"]
+        Chef["CHEF AGENT"]
+        Puppet["PUPPET AGENT"]
+        Salt["SALT AGENT"]
+    end
+
+    subgraph Planning["Planning Agent"]
+        InputAgent["INPUT AGENT<br/>Creates migration plan:<br/>- MIGRATION-MODULE-PLAN.md"]
+    end
+
+    Chef <-.-> ChefT
+    Puppet <-.-> PuppetT
+    Salt <-.-> SaltT
+    InputAgent <--> Chef
+    InputAgent <--> Puppet
+    InputAgent <--> Salt
+
+    subgraph InitTools["Init Tools"]
+        InitT["FileSearch<br/>ListDirectory<br/>ReadFile<br/>WriteFile"]
+    end
+
+    subgraph Init["Init Agent"]
+        InitAgent["INIT AGENT<br/>Creates:<br/>- MIGRATION-PLAN.md"]
+    end
+    InitAgent <-.-> InitT
+
+    style Init fill:#e3f2fd
+    style Input fill:#e8f5e9
+    style Planning fill:#e3f2fd
+    style Migrate fill:#fff3e0
+    style InitTools fill:#f5f5f5
+    style ChefTools fill:#f5f5f5
+    style PuppetTools fill:#f5f5f5
+    style SaltTools fill:#f5f5f5
+    style MigrateTools fill:#f5f5f5
+```
+
 ### Technical Workflow
 
 ```mermaid
