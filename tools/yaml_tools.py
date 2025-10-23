@@ -55,8 +55,8 @@ class YamlLintTool(BaseTool):
     name: str = "yaml_lint"
     description: str = (
         "Lints YAML content and reports any syntax or formatting issues. "
-        "Use this to check if YAML is valid without getting the reformatted version. "
-        "Returns 'Valid YAML' if no issues found, or specific error messages if problems detected."
+        "Use this to check if YAML is valid without getting the reformatted content. "
+        "Returns either 'Success, the provided yaml content is valid.' if no issues found, or specific error messages if problems detected."
     )
     args_schema: dict[str, Any] | type[BaseModel] | None = YamlLintInput
 
@@ -67,15 +67,17 @@ class YamlLintTool(BaseTool):
             parsed = yaml.safe_load(yaml_content)
             if parsed is None:
                 return "Warning: Empty or null YAML content"
-            return "Valid YAML"
+            return "Success, the provided yaml content is valid."
         except yaml.YAMLError as e:
             error_msg = str(e)
             if hasattr(e, "problem_mark") and hasattr(e, "problem"):
                 mark = e.problem_mark
                 return (
-                    f"YAML syntax error at line {mark.line + 1}, "
+                    f"ERROR: YAML syntax error at line {mark.line + 1}, "
                     f"column {mark.column + 1}: {e.problem}"
                 )
-            return f"YAML error: {error_msg}"
+            return (
+                f"ERROR: YAML parsing failed with following error:\n```{error_msg}```"
+            )
         except Exception as e:
-            return f"Error linting YAML: {str(e)}"
+            return f"ERROR: linting failed on provided YAML content with following error:\n```{str(e)}```."

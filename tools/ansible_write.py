@@ -21,7 +21,7 @@ class AnsibleWriteTool(BaseTool):
     name: str = "ansible_write"
     description: str = (
         "Validates and writes Ansible YAML files (tasks, handlers, vars, defaults, meta/main.yml). "
-        "Performs YAML validation before writing. "
+        "Performs YAML validation before writing the file. "
         "DO NOT use for template files (.j2). "
         "Returns success message if written, or validation error if invalid."
     )
@@ -52,21 +52,21 @@ class AnsibleWriteTool(BaseTool):
                     and line.strip() != "---"
                 ]
                 if lines_without_comments:
-                    return "Error: Empty or null YAML content, file not written"
+                    return "ERROR: The provided yaml content is either null or empty. The file was not written."
 
             try:
                 # Since YAML can be valid JSON, we need to check if the input is JSON and not allow it
                 parsed_json = self._loader.load(data=yaml_content, json_only=True)
                 if parsed_json is not None:
-                    return "Error: JSON input is not allowed, file not written"
+                    return "ERROR: JSON input is not allowed, expecting yaml content instead. The file was not written."
             except Exception:
                 # expected to fail
                 pass
 
             # Write original content to preserve Jinja2 templates and formatting
             self._write_tool.invoke({"file_path": file_path, "text": yaml_content})
-            return f"Successfully wrote valid Ansible YAML to {file_path}"
+            return f"Successfully wrote valid Ansible YAML to {file_path}."
         except AnsibleError as e:
-            return f"Ansible YAML validation error: {str(e)}. File not written."
+            return f"ERROR: the provided YAML is not valid, the file was not written. Fix following error and try again:\n```{str(e)}```."
         except Exception as e:
-            return f"Error writing Ansible YAML file: {str(e)}"
+            return f"ERROR: when writing Ansible YAML file, the file was not written. Fix following error and try again:\n```{str(e)}```."

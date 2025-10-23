@@ -1,5 +1,7 @@
 from tools.yaml_tools import YamlValidateTool, YamlLintTool
 
+SUCCESS_MESSAGE = "Success, the provided yaml content is valid."
+
 
 class TestYamlValidateTool:
     """Test cases for YamlValidateTool."""
@@ -98,7 +100,7 @@ items:
   - item2
 """
         result = self.tool._run(yaml_content)
-        assert result == "Valid YAML"
+        assert SUCCESS_MESSAGE in result
 
     def test_valid_yaml_complex(self) -> None:
         """Test linting of complex valid YAML."""
@@ -112,7 +114,7 @@ services:
       - DEBUG=true
 """
         result = self.tool._run(yaml_content)
-        assert result == "Valid YAML"
+        assert SUCCESS_MESSAGE in result
 
     def test_invalid_yaml_syntax(self) -> None:
         """Test linting of invalid YAML syntax."""
@@ -122,7 +124,7 @@ name: test
 """
         result = self.tool._run(yaml_content)
         assert "error" in result.lower()
-        assert "Valid YAML" not in result
+        assert "success" not in result.lower()
 
     def test_yaml_syntax_error_with_location(self) -> None:
         """Test that syntax errors include location information."""
@@ -153,4 +155,4 @@ doc1: value1
 doc2: value2
 """
         result = self.tool._run(yaml_content)
-        assert "Valid YAML" in result or "error" in result.lower()
+        assert SUCCESS_MESSAGE in result or "error" in result.lower()
