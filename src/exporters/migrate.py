@@ -13,6 +13,7 @@ from src.exporters.chef_to_ansible import ChefToAnsibleSubagent
 from src.types import DocumentFile
 from src.model import get_model, get_runnable_config
 from src.utils.list_files import list_files
+from src.utils.logging import mute_unrelated_logging
 from src.utils.technology import Technology
 
 
@@ -41,6 +42,7 @@ class MigrationAgent:
         self.model = model or get_model()
         self._graph = self._build_graph()
         logger.debug("Migration workflow: " + self._graph.get_graph().draw_mermaid())
+        mute_unrelated_logging()
 
     def _build_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(MigrationState)
