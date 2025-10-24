@@ -4,9 +4,10 @@ from pathlib import Path
 from typing import Any
 
 import ansiblelint
+from ansiblelint.__main__ import fix
 from ansiblelint.config import Options
 from ansiblelint.rules import RulesCollection
-from ansiblelint.runner import Runner
+from ansiblelint.runner import get_matches
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -53,35 +54,54 @@ class AnsibleLintTool(BaseTool):
             # Load all built-in rules from ansible-lint package
             rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
             options = Options(
-                offline=False,  # TODO: set to True or understand how it works in a disconnected environment
-                # TODO: the --fix is still not working, i.e. https://ansible.readthedocs.io/projects/lint/rules/yaml/ rule should be one of the fixables but it is not happening
-                write_list=[
-                    "all"
-                ],  # Transformer.effective_write_set(["all"]),  # Mimics --fix=all
+                # TODO: either set to True (means default) or understand how it works in a disconnected environment
+                offline=False,
+                lintables=[str(path)],
             )
+
+            # all available rules
             rules = RulesCollection(rulesdirs=[rules_dir], options=options)
 
-            # Run linter with all rules
-            runner = Runner(str(path), rules=rules, verbosity=2)
-            matches = runner.run()
+            # Run linter
+            lintResult = get_matches(rules, options)
 
-            if not matches:
+            if not lintResult.matches:
                 logger.debug(f"No AnsibleLintTool issues found for {ansible_path}")
                 return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 
-            # Format issues
+            logger.debug(
+                f"AnsibleLintTool found {len(lintResult.matches)} matches, trying to fix them"
+            )
+
+            # Try to fix it
+            fix(runtime_options=options, result=lintResult, rules=rules)
+
+            # Re-run linter
+            lintResult = get_matches(rules, options)
+
+            if not lintResult.matches:
+                logger.debug(
+                    f"No AnsibleLintTool issues found for {ansible_path} after fixes"
+                )
+                return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
+
+            logger.debug(
+                f"After fixes, the AnsibleLintTool still found {len(lintResult.matches)} matches."
+            )
+
+            # Format issues after fixes
             issues: list[str] = []
-            for match in matches:
+            for match in lintResult.matches:
                 issue = (
                     f"{match.filename}:{match.lineno or 0} "
                     f"[{match.rule.id}] {match.message}"
                 )
                 issues.append(issue)
 
-            result = f"Found {len(matches)} ansible-lint issue(s):\n\n"
+            result = f"Found {len(lintResult.matches)} ansible-lint issue(s):\n\n"
             result += "\n".join(issues)
             logger.debug(
-                f"AnsibleLintTool found {len(matches)} ansible-lint issue(s) for {ansible_path}: {result}"
+                f"AnsibleLintTool found {len(lintResult.matches)} ansible-lint issue(s) for {ansible_path}: {result}"
             )
             return result
 
