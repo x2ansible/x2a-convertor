@@ -263,14 +263,6 @@ class ChefToAnsibleSubagent:
         state.current_phase = MigrationPhase.PLANNING
         self._load_checklist(state)
 
-        # Gather existing checklist from previous runs
-        existing_checklist = ""
-        if self.checklist.items:
-            existing_checklist = "<checklist>\n"
-            existing_checklist += "Existing checklist from previous run:\n"
-            existing_checklist += self.checklist.to_markdown()
-            existing_checklist += "</checklist>"
-
         # Create planning agent with checklist tools
         planning_agent = self._create_planning_agent()
 
@@ -281,8 +273,9 @@ class ChefToAnsibleSubagent:
             module_migration_plan=state.module_migration_plan.to_document(),
             directory_listing="\n".join(state.directory_listing),
             path=state.path,
-            existing_checklist=existing_checklist,
+            existing_checklist=self.checklist.to_markdown(),
         )
+
         result = planning_agent.invoke(
             {
                 "messages": [
