@@ -46,6 +46,14 @@ class ChecklistItem(BaseModel):
         description="Error messages, validation notes, or additional info",
     )
 
+    def target_exists(self) -> bool:
+        """Check if the target file exists on the filesystem
+
+        Returns:
+            True if target_path exists as a file, False otherwise
+        """
+        return Path(self.target_path).is_file()
+
 
 class Checklist:
     """Encapsulates checklist with methods for manipulation and persistence
