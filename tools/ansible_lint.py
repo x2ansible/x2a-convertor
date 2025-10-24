@@ -51,6 +51,12 @@ class AnsibleLintTool(BaseTool):
                 )
                 return f"ERROR: Path '{ansible_path}' does not exist."
 
+            if not path.is_dir():
+                logger.error(
+                    f"AnsibleLintTool error: Path '{ansible_path}' must be a directory, not a file"
+                )
+                return f"ERROR: Path '{ansible_path}' must be a directory, not a file."
+
             # Load all built-in rules from ansible-lint package
             rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
             options = Options(
