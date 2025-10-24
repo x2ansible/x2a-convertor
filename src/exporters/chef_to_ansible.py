@@ -1,6 +1,5 @@
 import structlog
 import os
-import logging
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -48,26 +47,6 @@ PROCESSABLE_STATUSES = {
 }
 
 ROLE_VALIDATION_SUCCESS_MESSAGE = "Role Validation Passed"
-
-SILENT_LOGGERS = ["openai.", "langchain_openai.", "httpcore.", "httpx."]
-
-
-def lower_unrelated_logging():
-    """Make logging less verbose - we only want to see errors and warnings
-    We can not set that in app.py because the loggers are not created yet.
-    """
-    langchain_debug = os.environ.get("LANGCHAIN_DEBUG", "FALSE").upper()
-    if langchain_debug == "TRUE":
-        # keep verbose logging
-        return
-
-    logger.warning(
-        f"Silencing unnecessary / very verbose logging from: {SILENT_LOGGERS}"
-    )
-    for log_name, _ in logging.Logger.manager.loggerDict.items():
-        for silent in SILENT_LOGGERS:
-            if log_name.startswith(silent):
-                logging.getLogger(log_name).setLevel(logging.INFO)
 
 
 class MigrationPhase(str, Enum):
@@ -153,8 +132,6 @@ class ChefToAnsibleSubagent:
         self.model = model or get_model()
         if module is None:
             raise ValueError("module parameter is required")
-        lower_unrelated_logging()
-
         self.module = module
         self.checklist: Checklist = Checklist(module, MigrationCategory)
         self._workflow = self._create_workflow()
