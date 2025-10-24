@@ -253,7 +253,7 @@ class Checklist:
     def to_markdown(self) -> str:
         """Convert checklist to markdown format for LLM prompts"""
         if not self._items:
-            return f"## Checklist: {self.module_name}\n\n(empty checklist)"
+            return ""
 
         # Group by category
         by_category: dict[str, list[ChecklistItem]] = {}
