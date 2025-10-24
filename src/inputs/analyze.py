@@ -1,6 +1,3 @@
-import structlog
-
-
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
 from pathlib import Path
@@ -12,8 +9,9 @@ from src.const import MIGRATION_PLAN_FILE, MODULE_MIGRATION_PLAN_TEMPLATE
 from src.inputs.chef import ChefSubagent
 from src.model import get_model, get_runnable_config
 from src.utils.technology import Technology
+from src.utils.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 class ModuleSelection(BaseModel):

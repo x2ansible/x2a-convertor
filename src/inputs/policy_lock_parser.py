@@ -5,12 +5,13 @@ Parses Chef Policyfile.lock.json to extract dependency information.
 """
 
 import json
-import structlog
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-logger = structlog.get_logger(__name__)
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass

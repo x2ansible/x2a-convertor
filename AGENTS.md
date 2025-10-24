@@ -78,7 +78,8 @@ uv run app.py validate "module-name"
 - `LLM_MODEL`: Model selection (e.g., "claude-3-5-sonnet-20241022", "openai:gpt-4o")
 - `OPENAI_API_BASE`: Custom endpoints for local/compatible APIs
 - `TARGET_REPO_PATH`: Repository path to analyze
-- `LOG_LEVEL`: Debug/logging configuration
+- `LOG_LEVEL`: Logging level for x2convertor namespace (INFO, DEBUG, ERROR)
+- `DEBUG_ALL`: Enable DEBUG logging for all libraries (true/false)
 - `LANGCHAIN_DEBUG`: Enable LangChain debugging
 
 ### Workflow Pattern

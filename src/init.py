@@ -1,5 +1,4 @@
 import click
-import logging
 import os
 
 from pathlib import Path
@@ -18,8 +17,9 @@ from langgraph.prebuilt.chat_agent_executor import AgentStatePydantic
 from prompts.get_prompt import get_prompt
 from src.model import get_model, get_runnable_config
 from src.const import MIGRATION_PLAN_FILE
+from src.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def create_migration_agent() -> CompiledStateGraph[AgentStatePydantic]:

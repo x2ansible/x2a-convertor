@@ -186,7 +186,8 @@ flowchart TB
 | `LLM_MODEL`            | Language model to use                               | `claude-3-5-sonnet-20241022`<br>`openai:gpt-4o`<br>`google_vertexai:gemini-2.5-pro`<br>`openai:qwen3:4b` | Yes                       |
 | `OPENAI_API_BASE`      | Custom API endpoint for OpenAI-compatible APIs      | `http://localhost:11434/v1`<br>`http://192.168.1.100:8000/v1`                                            | No                        |
 | `OPENAI_API_KEY`       | API key for OpenAI or compatible services           | `sk-...` or `not-needed` for local                                                                       | No                        |
-| `LOG_LEVEL`            | Logging verbosity                                   | `INFO`, `DEBUG`, `ERROR`                                                                                 | No (default: INFO)        |
+| `LOG_LEVEL`            | Logging verbosity for x2convertor namespace         | `INFO`, `DEBUG`, `ERROR`                                                                                 | No (default: INFO)        |
+| `DEBUG_ALL`            | Enable DEBUG logging for all libraries              | `true`, `false`                                                                                          | No (default: false)       |
 | `LANGCHAIN_DEBUG`      | Enable LangChain debug mode                         | `true`, `false`                                                                                          | No                        |
 | `LANGCHAIN_TRACING_V2` | Enable LangChain tracing                            | `true`, `false`                                                                                          | No                        |
 | `LANGCHAIN_API_KEY`    | LangSmith API key for tracing                       | `ls_...`                                                                                                 | No                        |
@@ -206,10 +207,74 @@ Optionally, a `.env` file with these settings for development purposes can be cr
 make format
 make check
 
-
 # Checks
 make ci-check
 
 # Run application
 uv run app.py
 ```
+
+### Logging
+
+The project uses a custom logging setup with structlog to ensure clean, consistent logging across the codebase.
+
+#### Using Loggers
+
+**Always use `get_logger()` instead of `logging.getLogger()`:**
+
+```python
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+logger.info("Migration started")
+logger.debug("Processing file", file_path="/path/to/file")
+```
+
+**Ruff enforcement:** The project uses Ruff to automatically prevent incorrect logging usage:
+
+```bash
+# Check for logging violations
+uv run ruff check --select TID .
+```
+
+If you accidentally use `logging.getLogger()`, Ruff will fail with:
+```
+TID251 `logging.getLogger` is banned: Use get_logger() from src.utils.logging instead of logging.getLogger()
+```
+
+#### Log Levels
+
+| Setting | x2convertor.* logs | Third-party logs | Use Case |
+|---------|-------------------|------------------|----------|
+| Default | INFO | WARNING | Normal operation |
+| `LOG_LEVEL=DEBUG` | DEBUG | WARNING | Debug your code only |
+| `DEBUG_ALL=true` | DEBUG | DEBUG | Debug everything (verbose) |
+
+**Examples:**
+
+```bash
+# Normal operation (INFO level for app, WARNING for libraries)
+uv run app.py init --source-dir ./chef-repo "Migrate to Ansible"
+
+# Debug your application code only
+LOG_LEVEL=DEBUG uv run app.py migrate ...
+
+# Debug everything including HTTP requests, LangChain internals
+DEBUG_ALL=true uv run app.py analyze ...
+```
+
+#### Best Practices
+
+1. Use appropriate log levels:
+   - `logger.debug()` - Detailed diagnostic info
+   - `logger.info()` - General informational messages
+   - `logger.warning()` - Warning messages
+   - `logger.error()` - Error messages
+
+2. Add context with structured logging:
+   ```python
+   logger.info("File processed", file_path=path, line_count=100)
+   ```
+
+3. Never use `logging.getLogger()` directly - use `get_logger()` instead

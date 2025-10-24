@@ -1,4 +1,3 @@
-import structlog
 from typing import Any
 from ansible.parsing.dataloader import DataLoader
 from ansible.errors import AnsibleError
@@ -6,7 +5,9 @@ from langchain_core.tools import BaseTool
 from langchain_community.tools.file_management.write import WriteFileTool
 from pydantic import BaseModel, Field
 
-logger = structlog.get_logger(__name__)
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AnsibleWriteInput(BaseModel):

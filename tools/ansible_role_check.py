@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 from typing import Any
 import sys
@@ -15,8 +14,9 @@ from ansible.module_utils.common.collections import ImmutableDict
 from ansible.parsing.dataloader import DataLoader
 from ansible.vars.manager import VariableManager
 
+from src.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AnsibleRoleCheckInput(BaseModel):
