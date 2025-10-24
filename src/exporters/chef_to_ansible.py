@@ -37,6 +37,26 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
+def sanitize_module_name(module_name: str) -> str:
+    """Sanitize module name to be ansible-lint compliant.
+
+    Ansible role names must match ^[a-z][a-z0-9_]*$ pattern:
+    - Only lowercase letters, numbers, and underscores
+    - Must start with a letter
+    """
+    # Replace hyphens with underscores
+    sanitized = module_name.replace("-", "_")
+    # Convert to lowercase
+    sanitized = sanitized.lower()
+    # Remove any other invalid characters
+    sanitized = "".join(c for c in sanitized if c.isalnum() or c == "_")
+    # Ensure it starts with a letter
+    if sanitized and not sanitized[0].isalpha():
+        sanitized = "role_" + sanitized
+    return sanitized
+
+
 # Constants
 ANSIBLE_PATH_TEMPLATE = "./ansible/{module}"
 CHECKLIST_FILENAME = ".checklist.json"
@@ -132,8 +152,8 @@ class ChefToAnsibleSubagent:
         self.model = model or get_model()
         if module is None:
             raise ValueError("module parameter is required")
-        self.module = module
-        self.checklist: Checklist = Checklist(module, MigrationCategory)
+        self.module = sanitize_module_name(module)
+        self.checklist: Checklist = Checklist(self.module, MigrationCategory)
         self._workflow = self._create_workflow()
         logger.debug(self._workflow.get_graph().draw_mermaid())
 
