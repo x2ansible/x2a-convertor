@@ -5,7 +5,6 @@ Uses chef-cli export to download cookbook dependencies from Chef Supermarket
 and make them available for analysis.
 """
 
-import structlog
 import shutil
 import subprocess
 import tempfile
@@ -13,8 +12,9 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from src.inputs.policy_lock_parser import PolicyLockParser, CookbookDependency
+from src.utils.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 class ChefDependencyManager:

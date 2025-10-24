@@ -1,7 +1,6 @@
 """Migration checklist management system"""
 
 import json
-import logging
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -9,7 +8,9 @@ from typing import Optional
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 __all__ = [
     "ChecklistStatus",

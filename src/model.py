@@ -1,5 +1,4 @@
 import os
-import structlog
 from collections import Counter
 from typing import Any
 
@@ -10,8 +9,9 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.utils.config import get_config_int
+from src.utils.logging import get_logger
 
-logger = structlog.get_logger()
+logger = get_logger(__name__)
 
 
 class DebugToolEventHandler(BaseCallbackHandler):
@@ -20,7 +20,7 @@ class DebugToolEventHandler(BaseCallbackHandler):
     def __init__(self):
         super().__init__()
         self._tool_names = {}  # Maps run_id to tool_name
-        self._logger = structlog.get_logger()
+        self._logger = get_logger(__name__)
 
     def get_tool_name(self, run_id):
         """Get and remove tool name from cache"""

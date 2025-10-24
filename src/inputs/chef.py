@@ -1,4 +1,3 @@
-import structlog
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -13,8 +12,9 @@ from src.model import get_model, get_last_ai_message, get_runnable_config
 from src.inputs.chef_dependency_fetcher import ChefDependencyManager
 from prompts.get_prompt import get_prompt
 from src.inputs.tree_analysis import TreeSitterAnalyzer
+from src.utils.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
