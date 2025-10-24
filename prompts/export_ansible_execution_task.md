@@ -45,19 +45,7 @@ Example: If checklist shows "cookbooks/myapp/templates/default/config.erb → an
 - source_path = "cookbooks/myapp/templates/default/config.erb"
 - target_path = "ansible/myapp/templates/config.j2"
 
-If a call of the ansible_write tool fails with an ERROR, you ALWAYS must to fix the issue and call the tool again until it returns successfully.
-Here is a list of Error examples and how to fix them:
-- Error: Mapping values are not allowed in this context.
-  - example of a wrong YAML fragment causing the error:
-    - name: Set default deny policy
-      ansible.builtin.command: ufw --force default deny
-      when: ufw_status is not search('Default: deny')
-  - correctly formatted YAML should look like:
-    - name: Set default deny policy
-      ansible.builtin.command: ufw --force default deny
-      when: "ufw_status is not search('Default: deny')"
-  - how was it fixed: the right-side string value of the "when:" key has been wrapped in quotes (") so it became just a string
-
+{fragment_yaml_hints}
 
 Suggested order of checklist items for processing:
 - Process structure files first (meta/main.yml, handlers/main.yml)

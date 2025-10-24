@@ -324,6 +324,7 @@ class ChefToAnsibleSubagent:
             migration_plan=state.module_migration_plan.to_document(),
             checklist=checklist_md,
             validation_report=validation_report_formatted,
+            fragment_yaml_hints=get_prompt("fragment_yaml_hints"),
         )
 
         result = self.execution_agent.invoke(
