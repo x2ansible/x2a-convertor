@@ -2,9 +2,9 @@ import re
 
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
-from typing import TypedDict
 from pathlib import Path
 from pydantic import BaseModel
+from typing import TypedDict
 
 from prompts.get_prompt import get_prompt
 from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
@@ -14,7 +14,7 @@ from src.model import get_model, get_runnable_config
 from src.utils.list_files import list_files
 from src.utils.technology import Technology
 from src.utils.logging import get_logger
-
+from src.exporters.chef_to_ansible import sanitize_module_name
 
 logger = get_logger(__name__)
 
@@ -169,6 +169,9 @@ def migrate_module(
 
     if not module_name:
         raise ValueError("module name not found in module_migration_plan filename")
+
+    # Sanitize module name for ansible-lint compliance
+    module_name = sanitize_module_name(module_name)
 
     if not high_level_migration_plan:
         raise ValueError("High level migration plan not found")
