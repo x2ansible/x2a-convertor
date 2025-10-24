@@ -2,8 +2,12 @@ version = 1
 revision = 1
 requires-python = ">=3.13"
 resolution-markers = [
-    "python_full_version >= '3.14'",
-    "python_full_version < '3.14'",
+    "python_full_version >= '3.14' and sys_platform == 'linux'",
+    "python_full_version >= '3.14' and sys_platform == 'linux2'",
+    "python_full_version >= '3.14' and sys_platform != 'linux' and sys_platform != 'linux2'",
+    "python_full_version < '3.14' and sys_platform == 'linux'",
+    "python_full_version < '3.14' and sys_platform == 'linux2'",
+    "python_full_version < '3.14' and sys_platform != 'linux' and sys_platform != 'linux2'",
 ]
 
 [[package]]
@@ -321,6 +325,18 @@ wheels = [
 ]
 
 [[package]]
+name = "click-help-colors"
+version = "0.9.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6f/50/76f51d9c7fcd72a12da466801f7c1fa3884424c947787333c74327b4fcf3/click-help-colors-0.9.4.tar.gz", hash = "sha256:f4cabe52cf550299b8888f4f2ee4c5f359ac27e33bcfe4d61db47785a5cc936c", size = 8048 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/f8/8768f803151714640cb6f06fd9de490ce7db632d351da05f42f77330d2fd/click_help_colors-0.9.4-py3-none-any.whl", hash = "sha256:b33c5803eeaeb084393b1ab5899dc5476c7196b87a18713045afe76f840b42db", size = 6437 },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -434,6 +450,18 @@ dependencies = [
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892 },
+]
+
+[[package]]
+name = "enrich"
+version = "1.2.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/bb/77/cb9b3d6f2e2e5f8104e907ea4c4d575267238f52c51cf9f864b865a99710/enrich-1.2.7.tar.gz", hash = "sha256:0a2ab0d2931dff8947012602d1234d2a3ee002d9a355b5d70be6bf5466008893", size = 16918 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/67/aecd1d435dbbdcea21a197d708e9ff0bcc7306c2847c6c87cc1a91e2cca4/enrich-1.2.7-py3-none-any.whl", hash = "sha256:f29b2c8c124b4dbd7c975ab5c3568f6c7a47938ea3b7d2106c8a3bd346545e4f", size = 8717 },
 ]
 
 [[package]]
@@ -925,6 +953,18 @@ wheels = [
 ]
 
 [[package]]
+name = "markdown-it-py"
+version = "4.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mdurl" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5b/f5/4ec618ed16cc4f8fb3b701563655a69816155e79e24a17b651541804721d/markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3", size = 73070 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/54/e7d793b573f298e1c9013b8c4dade17d481164aa517d1d7148619c2cedbf/markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147", size = 87321 },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -998,6 +1038,52 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/99/5b/a36a337438a14116b16480db471ad061c36c3694df7c2084a0da7ba538b7/matplotlib_inline-0.1.7.tar.gz", hash = "sha256:8423b23ec666be3d16e16b60bdd8ac4e86e840ebd1dd11a30b9f117f2fa0ab90", size = 8159 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8f/8e/9ad090d3553c280a8060fbf6e24dc1c0c29704ee7d1c372f0c174aa59285/matplotlib_inline-0.1.7-py3-none-any.whl", hash = "sha256:df192d39a4ff8f21b1895d72e6a13f5fcc5099f00fa84384e0ea28c2cc0653ca", size = 9899 },
+]
+
+[[package]]
+name = "mdurl"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979 },
+]
+
+[[package]]
+name = "molecule"
+version = "25.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ansible-compat" },
+    { name = "ansible-core" },
+    { name = "click" },
+    { name = "click-help-colors" },
+    { name = "enrich" },
+    { name = "jinja2" },
+    { name = "jsonschema" },
+    { name = "packaging" },
+    { name = "pluggy" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "wcmatch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/93/dc/96458f3a5ed721364a76e773f60d04ca35e9d068c907a5723e65d0897d97/molecule-25.9.0.tar.gz", hash = "sha256:1a56d283b1fb5488439eac945971dbd66b772ed43b2c66a776922cb93d39fbfd", size = 4532514 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cd/8e/db30c16ae15e7abd2f0be55b376ad15cc8153735b2e43031292515d5dd93/molecule-25.9.0-py3-none-any.whl", hash = "sha256:0efe39245ccefbb440ef39f1af50eb647bf82fef57892078fa880f6e14c0b505", size = 153072 },
+]
+
+[[package]]
+name = "molecule-podman"
+version = "2.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ansible-compat" },
+    { name = "molecule" },
+    { name = "selinux", marker = "sys_platform == 'linux' or sys_platform == 'linux2'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9c/e1/f338657ea1e2402961ae180ed188f7ef6f1e8109ce051598bd3cc96303c7/molecule-podman-2.0.3.tar.gz", hash = "sha256:cea2eacac54f129824530d35469ddd7bff109a94ebcd8408828af8c0dabf5c7a", size = 20141 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b4/6a/bda82fd6399b00eadc078d9e44d39f67dc15054644083a393a7af20d44c5/molecule_podman-2.0.3-py3-none-any.whl", hash = "sha256:85d928ab36ab0a2fae57e03eb549dd523c9be36b4b904d050748c27ca72ac07f", size = 15660 },
 ]
 
 [[package]]
@@ -1578,6 +1664,19 @@ wheels = [
 ]
 
 [[package]]
+name = "rich"
+version = "14.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fb/d2/8920e102050a0de7bfabeb4c4614a49248cf8d5d7a8d01885fbb24dc767a/rich-14.2.0.tar.gz", hash = "sha256:73ff50c7c0c1c77c8243079283f4edb376f0f6442433aecb8ce7e6d0b92d1fe4", size = 219990 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/7a/b0178788f8dc6cafce37a212c99565fa1fe7872c70c6c9c1e1a372d9d88f/rich-14.2.0-py3-none-any.whl", hash = "sha256:76bc51fe2e57d2b1be1f96c524b890b816e334ab4c1e45888799bfaab0021edd", size = 243393 },
+]
+
+[[package]]
 name = "rpds-py"
 version = "0.27.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1701,6 +1800,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/f7/00/e7f1501e81e8ec290e79527827af1d88f541d8d26151751b46108978dade/ruff-0.13.2-py3-none-win32.whl", hash = "sha256:7c2a0b7c1e87795fec3404a485096bcd790216c7c146a922d121d8b9c8f1aaac", size = 12245990 },
     { url = "https://files.pythonhosted.org/packages/ee/bd/d9f33a73de84fafd0146c6fba4f497c4565fe8fa8b46874b8e438869abc2/ruff-0.13.2-py3-none-win_amd64.whl", hash = "sha256:17d95fb32218357c89355f6f6f9a804133e404fc1f65694372e02a557edf8585", size = 13324004 },
     { url = "https://files.pythonhosted.org/packages/c3/12/28fa2f597a605884deb0f65c1b1ae05111051b2a7030f5d8a4ff7f4599ba/ruff-0.13.2-py3-none-win_arm64.whl", hash = "sha256:da711b14c530412c827219312b7d7fbb4877fb31150083add7e8c5336549cea7", size = 12484437 },
+]
+
+[[package]]
+name = "selinux"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "distro", marker = "sys_platform == 'linux' or sys_platform == 'linux2'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/25/07/51acd62e1e15e1172d46f7e32faf138725b147f8c08dbf2d512159d7a310/selinux-0.3.0.tar.gz", hash = "sha256:2a88b337ac46ad0f06f557b2806c3df62421972f766673dd8bf26732fb75a9ea", size = 13479 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/a7/ef33f8e5818ed6333cf5cb6f85f4f604e13d37d1bae4671e10d6f627f6d6/selinux-0.3.0-py2.py3-none-any.whl", hash = "sha256:ecf7add45c939e9dda682c390a2cd0a845c94a4793a2cce9e8870d4ee9501f99", size = 4160 },
 ]
 
 [[package]]
@@ -1943,6 +2054,8 @@ dependencies = [
     { name = "langchain-community" },
     { name = "langchain-openai" },
     { name = "langgraph" },
+    { name = "molecule" },
+    { name = "molecule-podman" },
     { name = "structlog" },
     { name = "tree-sitter" },
     { name = "tree-sitter-json" },
@@ -1968,6 +2081,8 @@ requires-dist = [
     { name = "langchain-community", specifier = ">=0.3.27" },
     { name = "langchain-openai", specifier = ">=0.3.33" },
     { name = "langgraph", specifier = ">=0.6.7" },
+    { name = "molecule", specifier = ">=25.9.0" },
+    { name = "molecule-podman", specifier = ">=2.0.3" },
     { name = "structlog", specifier = ">=25.4.0" },
     { name = "tree-sitter", specifier = ">=0.23.0" },
     { name = "tree-sitter-json", specifier = ">=0.23.0" },

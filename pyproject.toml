@@ -18,6 +18,8 @@ dependencies = [
     "tree-sitter-ruby>=0.23.0",
     "tree-sitter-json>=0.23.0",
     "ansible-lint>=25.9.2",
+    "molecule>=25.9.0",
+    "molecule-podman>=2.0.3",
 ]
 
 [tool.pyrefly]
