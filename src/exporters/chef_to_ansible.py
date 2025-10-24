@@ -1,4 +1,3 @@
-import structlog
 import os
 from dataclasses import dataclass
 from enum import Enum
@@ -34,8 +33,9 @@ from tools.ansible_lint import ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE, AnsibleLintToo
 from tools.ansible_role_check import AnsibleRoleCheckTool
 from tools.copy_file import CopyFileWithMkdirTool
 from tools.diff_file import DiffFileTool
+from src.utils.logging import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 # Constants
 ANSIBLE_PATH_TEMPLATE = "./ansible/{module}"

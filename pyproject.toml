@@ -42,4 +42,14 @@ markers = [
     "libyaml: marks tests that require libyaml",
 ]
 
+[tool.ruff]
+# Exclude the logging module itself from the ban
+extend-exclude = ["src/utils/logging.py"]
+
+[tool.ruff.lint]
+select = ["TID"]  # Enable flake8-tidy-imports
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"logging.getLogger".msg = "Use get_logger() from src.utils.logging instead of logging.getLogger()"
+
 [tool]

@@ -1,5 +1,4 @@
 import os
-import logging
 from pathlib import Path
 from typing import Any
 
@@ -11,8 +10,9 @@ from ansiblelint.runner import get_matches
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
+from src.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE = (
     "All files pass linting checks, no ansible-lint issues found."
