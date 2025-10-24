@@ -1,5 +1,4 @@
 import structlog
-import os
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -374,15 +373,10 @@ class ChefToAnsibleSubagent:
         """Validate that all files in the checklist exist"""
         slog = logger.bind(phase="validate_migration_file_existence")
         slog.info("Validating file existence")
-        ansible_files = self._list_all_files(state.get_ansible_path())
-        ansible_path = state.get_ansible_path()
-        if ansible_path.startswith("./"):
-            ansible_path = ansible_path[2:]
-        ansible_files = [os.path.join(ansible_path, f) for f in ansible_files]
 
         success = True
         for item in self.checklist.items:
-            if item.target_path not in ansible_files:
+            if not item.target_exists():
                 slog.error(
                     f"Checklist target file {item.target_path} does not exist in Ansible output"
                 )
