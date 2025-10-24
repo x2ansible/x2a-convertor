@@ -15,6 +15,7 @@ from src.model import get_model, get_runnable_config
 from src.utils.list_files import list_files
 from src.utils.logging import mute_unrelated_logging
 from src.utils.technology import Technology
+from src.exporters.chef_to_ansible import sanitize_module_name
 
 
 logger = logging.getLogger(__name__)
@@ -171,6 +172,9 @@ def migrate_module(
 
     if not module_name:
         raise ValueError("module name not found in module_migration_plan filename")
+
+    # Sanitize module name for ansible-lint compliance
+    module_name = sanitize_module_name(module_name)
 
     if not high_level_migration_plan:
         raise ValueError("High level migration plan not found")
