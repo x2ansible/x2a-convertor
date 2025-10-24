@@ -1,8 +1,7 @@
-"""Core data structures for Chef to Ansible migration"""
+"""Migration checklist management system"""
 
 import json
 import logging
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -13,42 +12,13 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "DocumentFile",
     "ChecklistStatus",
     "ChecklistItem",
     "Checklist",
+    "SUMMARY_SUCCESS_MESSAGE",
 ]
 
 SUMMARY_SUCCESS_MESSAGE = "All migration tasks have been completed successfully"
-
-
-@dataclass
-class DocumentFile:
-    path: Path
-    content: str
-
-    @classmethod
-    def from_path(cls, file_path: str | Path) -> "DocumentFile":
-        """Create DocumentFile from a file path by reading its content"""
-        path_obj = Path(file_path)
-        if not path_obj.exists():
-            raise ValueError(f"File not found: '{file_path}'")
-        content = path_obj.read_text()
-        return cls(path=path_obj, content=content)
-
-    def to_document(self) -> str:
-        """Export as XML document format"""
-        return f"""<document>
-<source>{self.path}</source>
-<document_content>
-{self.content}
-</document_content>
-</document>"""
-
-
-# ============================================================================
-# Migration Checklist Types
-# ============================================================================
 
 
 class ChecklistStatus(str, Enum):
