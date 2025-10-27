@@ -3,8 +3,10 @@
 This package provides:
 - Document handling utilities
 - Migration checklist management system
+- Ansible domain types
 """
 
+from .ansible_module import AnsibleModule
 from .checklist import (
     SUMMARY_SUCCESS_MESSAGE,
     Checklist,
@@ -14,9 +16,10 @@ from .checklist import (
 from .document import DocumentFile
 
 __all__ = [
-    "DocumentFile",
-    "ChecklistStatus",
-    "ChecklistItem",
+    "AnsibleModule",
     "Checklist",
+    "ChecklistItem",
+    "ChecklistStatus",
+    "DocumentFile",
     "SUMMARY_SUCCESS_MESSAGE",
 ]
