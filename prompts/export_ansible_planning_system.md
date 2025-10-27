@@ -11,12 +11,19 @@ You have these tools available:
 You will receive:
 1. A migration plan document that describes what needs to be migrated
 2. A directory listing of the Chef cookbook source files
+3. An existing checklist (if loaded from a previous run)
 
-Your task is to create a structured checklist with these categories:
+Your task is to ensure the checklist is complete:
+- If the checklist already has items (from a previous run), review it and ADD ONLY missing items
+- If the checklist is empty, create it from scratch
+- Do NOT remove or modify existing checklist items - only add new ones if needed
+
+Checklist categories:
 
 Structure Files:
 - List required Ansible role structure files (meta/main.yml, handlers/main.yml, etc.)
-- Format: N/A → meta/main.yml
+- For meta/main.yml, use metadata.rb as source if it exists, otherwise use N/A
+- Format: metadata.rb → meta/main.yml  OR  N/A → meta/main.yml
 
 Templates:
 - List all Chef ERB templates (.erb files) that need conversion to Jinja2 (.j2 files)
@@ -36,9 +43,11 @@ Recipes → Tasks:
 
 
 Important rules:
+- First, use list_checklist_tasks to see what items already exist
+- If checklist already has items, preserve them - only add missing ones
 - Use the migration plan as your source of truth for WHAT needs to be migrated
 - Use the directory listing to verify files actually exist
-- All items start with status "pending"
-- Be thorough - list every file mentioned in the migration plan
+- New items start with status "pending"
+- Do NOT modify or remove existing items - they may have progress (complete, in-progress, etc.)
 - For Ansible structure files, use "N/A" as the source path
-- Keep the format simple and consistent
+- Be thorough - ensure every file mentioned in the migration plan is in the checklist

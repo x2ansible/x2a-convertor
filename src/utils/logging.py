@@ -5,9 +5,6 @@ import structlog
 
 from langchain.globals import set_debug
 
-# Third-party loggers to keep quiet unless DEBUG_ALL is enabled
-THIRD_PARTY_LOGGERS = ["openai.", "langchain_openai.", "httpcore.", "httpx.", "langchain.", "langgraph."]
-
 
 def get_logger(name: str | None = None):
     """
@@ -39,18 +36,9 @@ def setup_third_party_logging(debug_all: bool = False):
     if debug_all:
         return
 
-    # Set parent loggers preemptively (before they're created)
-    # This ensures child loggers inherit WARNING level when created later
-    for prefix in THIRD_PARTY_LOGGERS:
-        # Remove trailing dot for parent logger name
-        parent_logger = prefix.rstrip(".")
-        logging.getLogger(parent_logger).setLevel(logging.WARNING)
-
-    # Also set any existing child loggers
+    # Also set any existing child loggers to warning
     for log_name, _ in logging.Logger.manager.loggerDict.items():
-        for prefix in THIRD_PARTY_LOGGERS:
-            if log_name.startswith(prefix):
-                logging.getLogger(log_name).setLevel(logging.WARNING)
+        logging.getLogger(log_name).setLevel(logging.WARNING)
 
 
 def format_context(logger, method_name, event_dict):
@@ -75,10 +63,11 @@ def setup_logging() -> None:
     debug_all = os.environ.get("DEBUG_ALL", "false").lower() == "true"
     log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
 
-    # Root logger level - set to DEBUG to allow all loggers to emit messages
+    # Root logger level - WARNING by default, DEBUG only if DEBUG_ALL is set
+    root_level = "DEBUG" if debug_all else "WARNING"
     logging.basicConfig(
         stream=sys.stderr,
-        level=log_level,
+        level=root_level,
         format="%(levelname)s:%(name)s: %(message)s"
     )
 
@@ -102,6 +91,8 @@ def setup_logging() -> None:
         cache_logger_on_first_use=True,
     )
 
-    # all logs to warning if no debug_all
+    # Suppress third-party loggers unless DEBUG_ALL is set
     setup_third_party_logging(debug_all)
-    logging.getLogger("x2convertor").setLevel(log_level if not debug_all else "DEBUG")
+
+    # x2convertor logs: use LOG_LEVEL if set, otherwise DEBUG if DEBUG_ALL, otherwise INFO
+    logging.getLogger("x2convertor").setLevel(log_level)

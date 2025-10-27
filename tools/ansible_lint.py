@@ -25,6 +25,10 @@ class AnsibleLintInput(BaseModel):
     ansible_path: str = Field(
         description="Path to a single Ansible file or a directory to lint"
     )
+    autofix: bool = Field(
+        default=True,
+        description="Whether to automatically fix issues. Set to False to only report issues without fixing them.",
+    )
 
 
 class AnsibleLintTool(BaseTool):
@@ -34,14 +38,52 @@ class AnsibleLintTool(BaseTool):
     description: str = (
         "Lints Ansible playbooks, roles, and task files using ansible-lint. "
         "Checks for best practices, syntax issues, and potential problems. "
-        "Returns a list of issues found or confirmation that no issues were detected."
+        "Returns a list of issues found or confirmation that no issues were detected. "
+        "Use autofix=true to automatically fix issues (default), or autofix=false to only report them. "
+        "Setting autofix=false is recommended when fixing may introduce new issues."
     )
     args_schema: dict[str, Any] | type[BaseModel] | None = AnsibleLintInput
 
+    def _format_lint_issues(
+        self, matches: list, prefix: str = "", base_path: str = ""
+    ) -> str:
+        """Format ansible-lint matches into a human-readable string.
+
+        Args:
+            matches: List of ansible-lint match objects
+            prefix: Optional prefix message to add before the issue list
+            base_path: Base path to prepend to relative filenames (makes paths absolute)
+
+        Returns:
+            Formatted string with all issues listed
+        """
+        issues: list[str] = []
+        for match in matches:
+            # If base_path provided, construct full path; otherwise use relative
+            if base_path:
+                full_path = os.path.join(base_path, match.filename)
+            else:
+                full_path = match.filename
+
+            issue = f"{full_path}:{match.lineno or 0} [{match.rule.id}] {match.message}"
+            issues.append(issue)
+
+        if prefix:
+            result = f"{prefix}\n"
+        else:
+            result = f"Found {len(matches)} ansible-lint issue(s):\n"
+        result += "\n".join(issues)
+        return result
+
     # pyrefly: ignore
-    def _run(self, ansible_path: str) -> str:
-        """Lint Ansible files and report issues."""
-        logger.info(f"AnsibleLintTool in {ansible_path}")
+    def _run(self, ansible_path: str, autofix: bool = True) -> str:
+        """Lint Ansible files and report issues.
+
+        Args:
+            ansible_path: Path to Ansible directory to lint
+            autofix: Whether to automatically fix issues (default: True)
+        """
+        logger.info(f"AnsibleLintTool in {ansible_path} (autofix={autofix})")
 
         try:
             path = Path(ansible_path)
@@ -59,22 +101,30 @@ class AnsibleLintTool(BaseTool):
 
             # Convert to absolute path to ensure ansible-lint works correctly
             # even when the current working directory is different
-            path = path.resolve()
+            absolute_path = path.resolve()
+
+            # Keep the original relative path for error reporting
+            # Normalize it by removing leading './'
+            relative_base_path = ansible_path.lstrip("./")
 
             # Save current directory and change to the ansible directory
-            # This is necessary because ansible-lint runs 'ansible-config dump'
-            # which needs to be executed from a proper Ansible context
+            # This ensures relative paths in lintables work correctly
             original_cwd = os.getcwd()
             try:
-                os.chdir(path)
-                logger.debug(f"Changed directory to {path} for ansible-lint execution")
+                os.chdir(absolute_path)
+                logger.debug(
+                    f"Changed directory to {absolute_path} for ansible-lint execution"
+                )
 
                 # Load all built-in rules from ansible-lint package
                 rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
                 options = Options(
-                    # TODO: either set to True (means default) or understand how it works in a disconnected environment
-                    offline=False,
+                    offline=True,  # Prevent external dependencies and ansible-config dump
                     lintables=["."],  # Use current directory since we changed to it
+                    _skip_ansible_syntax_check=True,  # Skip ansible-playbook --syntax-check
+                    skip_list=[
+                        "yaml[line-length]"
+                    ],  # Skip line length checks for auto-generated code
                 )
 
                 # all available rules
@@ -86,6 +136,33 @@ class AnsibleLintTool(BaseTool):
                 if not lintResult.matches:
                     logger.info(f"No AnsibleLintTool issues found for '{ansible_path}'")
                     return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
+
+                # Check for syntax errors (load-failure, syntax-check) that prevent fixing
+                syntax_errors = [
+                    match
+                    for match in lintResult.matches
+                    if match.rule.id in ["load-failure", "syntax-check", "parser-error"]
+                ]
+
+                ## If syntax_errors the autofix is not going to work, and the LLM get into a loop that does not know where it fails.
+                if syntax_errors:
+                    logger.warning(
+                        f"Found {len(syntax_errors)} syntax error(s) that prevent auto-fixing"
+                    )
+                    # Format all issues with filename and line (including syntax errors)
+                    prefix = f"Found {len(lintResult.matches)} ansible-lint issue(s) (including {len(syntax_errors)} syntax error(s)):"
+                    return self._format_lint_issues(
+                        lintResult.matches, prefix=prefix, base_path=relative_base_path
+                    )
+
+                # If autofix is disabled, return issues immediately without attempting to fix
+                if not autofix:
+                    logger.info(
+                        f"Autofix disabled, returning {len(lintResult.matches)} issue(s) without fixing"
+                    )
+                    return self._format_lint_issues(
+                        lintResult.matches, base_path=relative_base_path
+                    )
 
                 logger.debug(
                     f"AnsibleLintTool found {len(lintResult.matches)} matches, trying to fix them"
@@ -107,17 +184,10 @@ class AnsibleLintTool(BaseTool):
                     f"After fixes, the AnsibleLintTool still found {len(lintResult.matches)} matches."
                 )
 
-                # Format issues after fixes
-                issues: list[str] = []
-                for match in lintResult.matches:
-                    issue = (
-                        f"{match.filename}:{match.lineno or 0} "
-                        f"[{match.rule.id}] {match.message}"
-                    )
-                    issues.append(issue)
-
-                result = f"Found {len(lintResult.matches)} ansible-lint issue(s):\n"
-                result += "\n".join(issues)
+                # Format issues after fixes with relative paths
+                result = self._format_lint_issues(
+                    lintResult.matches, base_path=relative_base_path
+                )
                 logger.debug(
                     f"AnsibleLintTool found {len(lintResult.matches)} ansible-lint issue(s) for {ansible_path}: {result}"
                 )

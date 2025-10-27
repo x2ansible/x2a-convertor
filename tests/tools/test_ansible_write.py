@@ -133,7 +133,9 @@ class TestAnsibleWriteTool:
 
         # Should fail with YAML validation error
         assert "ERROR" in result
-        assert "not valid" in result or "Fix following error" in result
+        assert "YAML validation failed" in result
+        # Should now have XML format
+        assert "<ansible_yaml_error>" in result
         # File should not be created
         assert not os.path.exists(file_path)
 
@@ -332,3 +334,65 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         # Should succeed - whitespace-only is treated as empty
         assert "Successfully wrote" in result
         assert os.path.exists(file_path)
+
+    def test_yaml_syntax_error_returns_xml_with_line_info(self) -> None:
+        """Test that YAML syntax errors return XML-formatted error with line/column info."""
+        # YAML with syntax error (colon in search() filter)
+        invalid_yaml = """---
+- name: Check firewall
+  ansible.builtin.command: ufw status
+  register: fw_status
+  changed_when: false
+
+- name: Set default deny
+  ansible.builtin.command: ufw default deny
+  when: fw_status is not search('Default: deny')
+"""
+        file_path = os.path.join(self.temp_dir, "syntax_error.yml")
+
+        result = self.tool._run(file_path=file_path, yaml_content=invalid_yaml)
+
+        # Should return an error
+        assert "ERROR" in result
+        assert "YAML validation failed" in result
+
+        # Should have XML structure
+        assert "<ansible_yaml_error>" in result
+        assert "</ansible_yaml_error>" in result
+        assert "<file_path>" in result
+        assert file_path in result
+
+        # Should have error details
+        assert "<error_details>" in result
+        assert "<message>" in result
+        assert "<line_number>" in result
+        assert "<column_number>" in result
+
+        # Should have problematic location
+        assert "<problematic_location>" in result
+        assert "<line_content>" in result
+        assert "<column_pointer>" in result
+
+        # Should include the original YAML content
+        assert "<yaml_content>" in result
+        assert "fw_status is not search" in result
+
+        # File should not be created
+        assert not os.path.exists(file_path)
+
+    def test_yaml_syntax_error_includes_line_number(self) -> None:
+        """Test that syntax errors include the specific line number where error occurred."""
+        # Error is on line 3 (the when clause with problematic search)
+        invalid_yaml = """---
+- name: Test task
+  when: var is not search('value: test')
+"""
+        file_path = os.path.join(self.temp_dir, "line_error.yml")
+
+        result = self.tool._run(file_path=file_path, yaml_content=invalid_yaml)
+
+        assert "ERROR" in result
+        # Should contain line number in XML
+        assert "<line_number>3</line_number>" in result
+        # Should show the problematic line
+        assert "when: var is not search" in result

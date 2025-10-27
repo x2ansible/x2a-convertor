@@ -1,6 +1,9 @@
 Create a migration checklist for the module: {{module}}
 
-MIGRATION PLAN:
+HIGH-LEVEL MIGRATION PLAN:
+{{high_level_migration_plan}}
+
+MODULE MIGRATION PLAN:
 {{module_migration_plan}}
 
 CHEF DIRECTORY LISTING:
@@ -12,13 +15,21 @@ CHEF SOURCE PATH: `{{ path }}`
 ANSIBLE OUTPUT PATH: `./ansible/{{ module }}`
 
 {% if existing_checklist %}
+EXISTING CHECKLIST (from previous run):
 <checklist>
 {{existing_checklist}}
 </checklist>
-{% endif %}
-Read the migration plan carefully and create a complete checklist of all files that need to be migrated.
 
-USE THE add_checklist_task TOOL to add each migration task:
+IMPORTANT: The checklist above already has items with progress. DO NOT recreate or modify these items.
+Only ADD new items that are missing from the checklist but mentioned in the migration plan.
+{% else %}
+EXISTING CHECKLIST: Empty (first run)
+{% endif %}
+
+Read the migration plan carefully and ensure the checklist is complete.
+
+FIRST: Use list_checklist_tasks to see what items already exist.
+THEN: USE add_checklist_task TOOL to add ONLY missing migration tasks:
 
 TOOL: add_checklist_task(category, source_path, target_path, description)
 
@@ -30,10 +41,14 @@ Categories:
 - "structure": Generated Ansible role structure files (meta/main.yml, handlers/main.yml, etc.)
 
 For each file in the migration plan:
-1. Identify the category
-2. Specify source_path (Chef file path, or "N/A" for generated files)
-3. Specify target_path (Ansible file path)
-4. Add optional description if helpful
+1. Check if it already exists in the checklist (use list_checklist_tasks)
+2. If it exists, SKIP IT - do not add again
+3. If it's missing:
+   a. Identify the category
+   b. Specify source_path (Chef file path, or "N/A" for generated files)
+   c. Specify target_path (Ansible file path)
+   d. Add optional description if helpful
+   e. Call add_checklist_task to add it
 
 **IMPORTANT**:
 - source_path: Use EXACT full paths from the CHEF DIRECTORY LISTING above
@@ -52,4 +67,6 @@ Sample calls (replace {{module}} with actual module name from ANSIBLE OUTPUT PAT
 - add_checklist_task(category="recipes", source_path="<full_path_from_directory_listing>", target_path="ansible/{{module}}/tasks/main.yml", description="Main recipe tasks")
 - add_checklist_task(category="structure", source_path="N/A", target_path="ansible/{{module}}/meta/main.yml", description="Role metadata")
 
-Make sure to add EVERY file mentioned in the migration plan. Be complete and thorough.
+Your goal: Ensure the checklist contains EVERY file mentioned in the migration plan.
+- If checklist already has items: only add what's missing
+- If checklist is empty: add all items from the migration plan
