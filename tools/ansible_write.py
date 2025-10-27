@@ -1,8 +1,11 @@
 from typing import Any
-from ansible.parsing.dataloader import DataLoader
+
+import yaml
 from ansible.errors import AnsibleError
-from langchain_core.tools import BaseTool
+from ansible.parsing.dataloader import DataLoader
+from ansible.parsing.yaml.dumper import AnsibleDumper
 from langchain_community.tools.file_management.write import WriteFileTool
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
@@ -73,11 +76,30 @@ class AnsibleWriteTool(BaseTool):
                 # expected to fail
                 pass
 
-            # Write original content to preserve Jinja2 templates and formatting
-            self._write_tool.invoke({"file_path": file_path, "text": yaml_content})
+            # Re-format YAML using AnsibleDumper to ensure proper formatting
+            # This will fix common formatting issues while preserving Jinja2 templates
+            if parsed_yaml is not None:
+                formatted_yaml = yaml.dump(
+                    parsed_yaml,
+                    Dumper=AnsibleDumper,
+                    default_flow_style=False,
+                    allow_unicode=True,
+                    sort_keys=False,
+                    width=160,
+                )
+                self._write_tool.invoke(
+                    {"file_path": file_path, "text": formatted_yaml}
+                )
+            else:
+                # For empty/comment-only files, write original content
+                self._write_tool.invoke({"file_path": file_path, "text": yaml_content})
+
             return f"Successfully wrote valid Ansible YAML to {file_path}."
         except AnsibleError as e:
-            slog.debug(f"Failed on YAML validation: {str(e)}\nContent: {yaml_content}")
+            slog.info(f"Failed to write Ansible yaml for '{file_path}'")
+            slog.debug(
+                f"Failed on YAML validation for '{file_path}': {str(e)}\nContent: {yaml_content}"
+            )
             # TODO: The LLM gets sometimes in an infinite loop as it can not fix (understand) the validation issue and keeps writing the same incorrect file.
             # TODO: Example of a hard-to-understand issue: YAML parsing failed: Mapping values are not allowed in this context.
             # If only we can provide additional data, like the failing line number
