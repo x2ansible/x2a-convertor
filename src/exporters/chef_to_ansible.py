@@ -346,7 +346,6 @@ class ChefToAnsibleSubagent:
             validation_report=validation_report_formatted,
             fragment_yaml_hints=get_prompt("fragment_yaml_hints"),
         )
-
         result = self.execution_agent.invoke(
             input={
                 "messages": [

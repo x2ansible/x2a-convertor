@@ -41,7 +41,7 @@ class AnsibleLintTool(BaseTool):
     # pyrefly: ignore
     def _run(self, ansible_path: str) -> str:
         """Lint Ansible files and report issues."""
-        logger.debug(f"AnsibleLintTool in {ansible_path}")
+        logger.info(f"AnsibleLintTool in {ansible_path}")
 
         try:
             path = Path(ansible_path)
@@ -57,59 +57,75 @@ class AnsibleLintTool(BaseTool):
                 )
                 return f"ERROR: Path '{ansible_path}' must be a directory, not a file."
 
-            # Load all built-in rules from ansible-lint package
-            rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
-            options = Options(
-                # TODO: either set to True (means default) or understand how it works in a disconnected environment
-                offline=False,
-                lintables=[str(path)],
-            )
+            # Convert to absolute path to ensure ansible-lint works correctly
+            # even when the current working directory is different
+            path = path.resolve()
 
-            # all available rules
-            rules = RulesCollection(rulesdirs=[rules_dir], options=options)
+            # Save current directory and change to the ansible directory
+            # This is necessary because ansible-lint runs 'ansible-config dump'
+            # which needs to be executed from a proper Ansible context
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(path)
+                logger.debug(f"Changed directory to {path} for ansible-lint execution")
 
-            # Run linter
-            lintResult = get_matches(rules, options)
+                # Load all built-in rules from ansible-lint package
+                rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
+                options = Options(
+                    # TODO: either set to True (means default) or understand how it works in a disconnected environment
+                    offline=False,
+                    lintables=["."],  # Use current directory since we changed to it
+                )
 
-            if not lintResult.matches:
-                logger.debug(f"No AnsibleLintTool issues found for {ansible_path}")
-                return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
+                # all available rules
+                rules = RulesCollection(rulesdirs=[rules_dir], options=options)
 
-            logger.debug(
-                f"AnsibleLintTool found {len(lintResult.matches)} matches, trying to fix them"
-            )
+                # Run linter
+                lintResult = get_matches(rules, options)
 
-            # Try to fix it
-            fix(runtime_options=options, result=lintResult, rules=rules)
+                if not lintResult.matches:
+                    logger.info(f"No AnsibleLintTool issues found for '{ansible_path}'")
+                    return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 
-            # Re-run linter
-            lintResult = get_matches(rules, options)
-
-            if not lintResult.matches:
                 logger.debug(
-                    f"No AnsibleLintTool issues found for {ansible_path} after fixes"
+                    f"AnsibleLintTool found {len(lintResult.matches)} matches, trying to fix them"
                 )
-                return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 
-            logger.debug(
-                f"After fixes, the AnsibleLintTool still found {len(lintResult.matches)} matches."
-            )
+                # Try to fix it
+                fix(runtime_options=options, result=lintResult, rules=rules)
 
-            # Format issues after fixes
-            issues: list[str] = []
-            for match in lintResult.matches:
-                issue = (
-                    f"{match.filename}:{match.lineno or 0} "
-                    f"[{match.rule.id}] {match.message}"
+                # Re-run linter
+                lintResult = get_matches(rules, options)
+
+                if not lintResult.matches:
+                    logger.info(
+                        f"No AnsibleLintTool issues found for {ansible_path} after fixes"
+                    )
+                    return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
+
+                logger.info(
+                    f"After fixes, the AnsibleLintTool still found {len(lintResult.matches)} matches."
                 )
-                issues.append(issue)
 
-            result = f"Found {len(lintResult.matches)} ansible-lint issue(s):\n\n"
-            result += "\n".join(issues)
-            logger.debug(
-                f"AnsibleLintTool found {len(lintResult.matches)} ansible-lint issue(s) for {ansible_path}: {result}"
-            )
-            return result
+                # Format issues after fixes
+                issues: list[str] = []
+                for match in lintResult.matches:
+                    issue = (
+                        f"{match.filename}:{match.lineno or 0} "
+                        f"[{match.rule.id}] {match.message}"
+                    )
+                    issues.append(issue)
+
+                result = f"Found {len(lintResult.matches)} ansible-lint issue(s):\n"
+                result += "\n".join(issues)
+                logger.debug(
+                    f"AnsibleLintTool found {len(lintResult.matches)} ansible-lint issue(s) for {ansible_path}: {result}"
+                )
+                return result
+            finally:
+                # Always restore the original directory
+                os.chdir(original_cwd)
+                logger.debug(f"Restored directory to {original_cwd}")
 
         except ImportError:
             logger.error(
