@@ -118,7 +118,8 @@ Common fixes:
 - Missing FQCN → ansible.builtin.command not command
 {% endraw %}
 
-NEVER use write_file when ansible_write fails - fix the YAML!
+NEVER use write_file when ansible_write fails. Instead, try fixing the ansible yaml code until it is correct.
+
 
 CORRECT task file format:
 ```yaml

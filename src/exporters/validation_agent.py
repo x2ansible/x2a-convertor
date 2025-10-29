@@ -99,7 +99,7 @@ class ValidationAgent(BaseAgent):
         return workflow.compile()
 
     def _validate_node(self, state: ValidationAgentState) -> ValidationAgentState:
-        """Node: Run validation service on output.
+        """Node: Run validation service on the state.get_ansible_path().
 
         Args:
             state: Internal agent state
@@ -108,6 +108,7 @@ class ValidationAgent(BaseAgent):
             Updated agent state with validation_results and has_errors
         """
         chef_state = state.chef_state
+
         slog = logger.bind(phase="validate", attempt=state.attempt)
         slog.info("Running validation")
 

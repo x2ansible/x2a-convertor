@@ -20,7 +20,7 @@ EXISTING CHECKLIST (from previous run):
 {{existing_checklist}}
 </checklist>
 
-IMPORTANT: The checklist above already has items with progress. DO NOT recreate or modify these items.
+IMPORTANT: The checklist above already has items that are in progress. DO NOT recreate or modify these items.
 Only ADD new items that are missing from the checklist but mentioned in the migration plan.
 {% else %}
 EXISTING CHECKLIST: Empty (first run)
@@ -45,7 +45,7 @@ For each file in the migration plan:
 2. If it exists, SKIP IT - do not add again
 3. If it's missing:
    a. Identify the category
-   b. Specify source_path (Chef file path, or "N/A" for generated files)
+   b. Specify source_path (source path, or "N/A" for generated files)
    c. Specify target_path (Ansible file path)
    d. Add optional description if helpful
    e. Call add_checklist_task to add it

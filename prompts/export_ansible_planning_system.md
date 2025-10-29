@@ -48,6 +48,6 @@ Important rules:
 - Use the migration plan as your source of truth for WHAT needs to be migrated
 - Use the directory listing to verify files actually exist
 - New items start with status "pending"
-- Do NOT modify or remove existing items - they may have progress (complete, in-progress, etc.)
+- Do NOT modify or remove existing items - they may have already been addressed
 - For Ansible structure files, use "N/A" as the source path
-- Be thorough - ensure every file mentioned in the migration plan is in the checklist
+- Be thorough - ensure every file mentioned in the migration plan has been added to the checklist
