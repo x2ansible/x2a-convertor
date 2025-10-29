@@ -14,9 +14,13 @@ CHECKLIST:
 {checklist}
 </document>
 
-Your task: Process ONLY items marked as "pending" or "missing". Skip items marked as "complete" - those files already exist.
+Your task: Process ONLY items marked as "pending" or "missing".
 
-Before writing each file, check if it already exists. If the target file exists, skip it and move to the next item.
+CRITICAL: NEVER write or overwrite files marked as "complete" in the checklist. Complete files are already done and should not be touched.
+
+Before writing each file:
+1. First check the checklist status - if "complete", skip to next item
+2. Then check if the target file exists - if yes, skip to next item
 
 ## LINTING RULES
 
@@ -45,29 +49,30 @@ Your generated files will be validated with ansible-lint. Follow these rules to 
 
 These rules prevent validation failures later.
 
-Process order:
+Process order (skip any files already marked "complete" in checklist):
 1. Structure files:
-   - meta/main.yml: Read metadata.rb and convert to Ansible Galaxy format
+   - meta/main.yml: Skip if already complete, otherwise read metadata.rb and convert to Ansible Galaxy format
    - handlers/main.yml: Create with common handlers (restart/reload services)
 2. Attributes/variables (defaults/main.yml, vars/main.yml)
 3. Static files (copy from files/)
 4. Templates (convert .erb to .j2)
 5. Recipes/tasks (convert .rb to .yml)
 
-For each pending/missing item:
-1. Check if target file exists - if yes, skip to next item
-2. Read the Chef source file using read_file (skip if source is "N/A")
-3. Convert to Ansible format following conversion rules
-4. Write to target path using:
+For each item in the checklist:
+1. Check checklist status - if "complete", skip to next item immediately
+2. Check if target file exists - if yes, skip to next item
+3. Read the Chef source file using read_file (skip if source is "N/A")
+4. Convert to Ansible format following conversion rules
+5. Write to target path using:
    - ansible_write for YAML files (tasks, handlers, defaults, vars, meta)
    - write_file for templates (.j2) and other files
    - copy_file for static files
-5. IF ansible_write returns ERROR:
+6. IF ansible_write returns ERROR:
    - Read the error (has line number and problematic content)
    - Fix the specific YAML issue
    - Call ansible_write AGAIN with corrected content
    - DO NOT use write_file as fallback
-6. Update checklist using update_checklist_task with:
+7. Update checklist using update_checklist_task with:
    - source_path: EXACT path from checklist
    - target_path: EXACT path from checklist
    - status: "complete"

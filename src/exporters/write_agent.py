@@ -3,6 +3,7 @@
 Creates all migration files from the checklist.
 """
 
+from pathlib import Path
 from typing import Literal, TYPE_CHECKING
 
 from langchain_community.tools.file_management.file_search import FileSearchTool
@@ -22,7 +23,8 @@ from src.types import ChecklistStatus
 from src.utils.config import get_config_int
 from src.utils.logging import get_logger
 from prompts.get_prompt import get_prompt
-from tools.ansible_lint import AnsibleLintTool
+
+# from tools.ansible_lint import AnsibleLintTool
 from tools.ansible_write import AnsibleWriteTool
 from tools.copy_file import CopyFileWithMkdirTool
 from tools.validated_write import ValidatedWriteTool
@@ -52,7 +54,7 @@ class WriteAgent(BaseAgent):
         lambda: ValidatedWriteTool(),  # Auto-routes YAML to ansible_write
         lambda: CopyFileWithMkdirTool(),
         lambda: AnsibleWriteTool(),
-        lambda: AnsibleLintTool(),
+        # lambda: AnsibleLintTool(),
     ]
 
     SYSTEM_PROMPT_NAME = "export_ansible_write_system"
@@ -73,19 +75,90 @@ class WriteAgent(BaseAgent):
         """Build the internal StateGraph for write workflow.
 
         Graph structure:
-        START → write_files → check_files → evaluate → END
-                                                ↓
-                                          (loop back if incomplete)
+        START → write_standard_files → write_files → check_files → evaluate → END
+                                                                        ↓
+                                                                  (loop back if incomplete)
         """
         workflow = StateGraph(WriteAgentState)
+        workflow.add_node("write_standard_files", self._write_standard_files_node)
         workflow.add_node("write_files", self._write_files_node)
         workflow.add_node("check_files", self._check_files_node)
 
-        workflow.add_edge(START, "write_files")
+        workflow.add_edge(START, "write_standard_files")
+        workflow.add_edge("write_standard_files", "write_files")
         workflow.add_edge("write_files", "check_files")
         workflow.add_conditional_edges("check_files", self._evaluate_write_node)
 
         return workflow.compile()
+
+    def _write_standard_files_node(self, state: WriteAgentState) -> WriteAgentState:
+        """Node: Create standard boilerplate files before LLM agent runs.
+
+        Creates simple files like meta/main.yml with known-good templates,
+        then updates the checklist to mark them as complete.
+
+        Args:
+            state: Internal agent state
+
+        Returns:
+            Updated agent state with files created and checklist updated
+        """
+        chef_state = state.chef_state
+        slog = logger.bind(phase="write_standard_files")
+        slog.info("Creating standard boilerplate files")
+
+        # 1. CREATE meta/main.yml directly
+        ansible_path = chef_state.get_ansible_path()
+        meta_file_path = Path(ansible_path) / "meta" / "main.yml"
+
+        role_name = chef_state.module
+        meta_content = f"""---
+galaxy_info:
+  role_name: {role_name}
+  author: Migration Tool
+  description: Migrated from Chef to Ansible
+  license: Apache-2.0
+  min_ansible_version: "2.9"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - bionic
+        - focal
+  galaxy_tags: []
+"""
+
+        meta_file_path.parent.mkdir(parents=True, exist_ok=True)
+        meta_file_path.write_text(meta_content, encoding="utf-8")
+        slog.info(f"Created: {meta_file_path}")
+
+        target_path_str = str(meta_file_path)
+        source_path = "N/A"  # No direct source file for meta/main.yml
+
+        assert chef_state.checklist is not None, (
+            "Checklist must exist before writing files"
+        )
+        # Try to update existing task
+        updated = chef_state.checklist.update_task(
+            source_path=source_path,
+            target_path=target_path_str,
+            status=ChecklistStatus.COMPLETE,
+            notes="Created standard meta/main.yml",
+        )
+
+        # If task doesn't exist, add it
+        if not updated:
+            chef_state.checklist.add_task(
+                category="structure",
+                source_path=source_path,
+                target_path=target_path_str,
+                status=ChecklistStatus.COMPLETE,
+                description="Created standard meta/main.yml",
+            )
+            slog.info(f"Added task to checklist: {target_path_str}")
+
+        chef_state.checklist.save(chef_state.get_checklist_path())
+        state.chef_state = chef_state
+        return state
 
     def _write_files_node(self, state: WriteAgentState) -> WriteAgentState:
         """Node: Write files from checklist using react agent.
