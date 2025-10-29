@@ -9,12 +9,11 @@ from typing import TypedDict
 from prompts.get_prompt import get_prompt
 from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
 from src.exporters.chef_to_ansible import ChefToAnsibleSubagent
-from src.types import DocumentFile
 from src.model import get_model, get_runnable_config
+from src.types import AnsibleModule, DocumentFile
 from src.utils.list_files import list_files
-from src.utils.technology import Technology
 from src.utils.logging import get_logger
-from src.exporters.chef_to_ansible import sanitize_module_name
+from src.utils.technology import Technology
 
 logger = get_logger(__name__)
 
@@ -28,7 +27,7 @@ class SourceMetadata(BaseModel):
 class MigrationState(TypedDict):
     user_message: str
     path: str
-    module: str
+    module: AnsibleModule
     source_technology: Technology
     high_level_migration_plan: DocumentFile
     module_migration_plan: DocumentFile
@@ -135,7 +134,7 @@ class MigrationAgent:
 
     def _write_migration_output(self, state: MigrationState) -> MigrationState:
         """Write the migration last message(s) to the output file"""
-        filename = EXPORT_OUTPUT_FILENAME_TEMPLATE.format(module=state["module"])
+        filename = EXPORT_OUTPUT_FILENAME_TEMPLATE.format(module=str(state["module"]))
         logger.info(f"Writing migration output to {filename}")
 
         file = Path(filename)
@@ -165,13 +164,13 @@ def migrate_module(
 
     # Extract module_name from module_migration_plan, which is in the form "migration-plan-{module_name}.md"
     match = re.match(r".*migration-plan-(.+)\.md", module_migration_plan)
-    module_name = match.group(1) if match else None
+    raw_module_name = match.group(1) if match else None
 
-    if not module_name:
+    if not raw_module_name:
         raise ValueError("module name not found in module_migration_plan filename")
 
-    # Sanitize module name for ansible-lint compliance
-    module_name = sanitize_module_name(module_name)
+    # Create AnsibleModule value object (automatically sanitizes)
+    module_name = AnsibleModule(raw_module_name)
 
     if not high_level_migration_plan:
         raise ValueError("High level migration plan not found")
