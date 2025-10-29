@@ -49,13 +49,13 @@ Using the wrong tool will break files! Always check the file extension before wr
 
 ## Context
 
-Module: {module}
-Chef Source: {chef_path}
-Ansible Output: {ansible_path}
+Module: {{ module }}
+Chef Source: {{ chef_path }}
+Ansible Output: {{ ansible_path }}
 
 ## Error Report
 
-{error_report}
+{{ error_report }}
 
 ## FILE PATH EXTRACTION
 
@@ -124,7 +124,7 @@ ansible/other_role/handlers/main.yml:12 [yaml] Wrong indentation...
 
 **DO NOT REMOVE:**
 - Loops (`loop:`, `with_items:`) - these are intentional
-- Variables that iterate (`item`, `{{{{ item }}}}`)
+- Variables that iterate (`item`, `{% raw %}{{ item }}{% endraw %}`)
 - Handler notifications (`notify:`)
 - Existing logic or functionality
 
@@ -208,14 +208,14 @@ ansible/other_role/handlers/main.yml:12 [yaml] Wrong indentation...
   template:
     src: config.j2
     dest: /etc/config
-  loop: "{{{{ sites }}}}"
+  loop: "{% raw %}{{ sites }}{% endraw %}"
 
 # After - only change module name
 - name: Deploy config
   ansible.builtin.template:
     src: config.j2
     dest: /etc/config
-  loop: "{{{{ sites }}}}"  # PRESERVE the loop!
+  loop: "{% raw %}{{ sites }}{% endraw %}"  # PRESERVE the loop!
 ```
 
 ### Fix 2: no-changed-when
@@ -369,13 +369,13 @@ tasks/ssl.yml:25 [no-changed-when] Commands should not change things if nothing 
 ```yaml
 ---
 - name: Generate SSL certificates
-  ansible.builtin.command: openssl req -x509 -newkey rsa:4096 -nodes -keyout /etc/ssl/private/{{{{ item }}}}.key -out /etc/ssl/certs/{{{{ item }}}}.crt -days 365 -subj "/C=US/ST=State/L=Locality/O=Organization/CN={{{{ item }}}}"
+  ansible.builtin.command: openssl req -x509 -newkey rsa:4096 -nodes -keyout /etc/ssl/private/{% raw %}{{ item }}{% endraw %}.key -out /etc/ssl/certs/{% raw %}{{ item }}{% endraw %}.crt -days 365 -subj "/C=US/ST=State/L=Locality/O=Organization/CN={% raw %}{{ item }}{% endraw %}"
   loop:
     - test.cluster.local
     - ci.cluster.local
     - status.cluster.local
   changed_when: true
-  creates: /etc/ssl/certs/{{{{ item }}}}.crt
+  creates: /etc/ssl/certs/{% raw %}{{ item }}{% endraw %}.crt
 ```
 
 **Changes made:**
@@ -383,7 +383,7 @@ tasks/ssl.yml:25 [no-changed-when] Commands should not change things if nothing 
 - ✓ Added `changed_when: true`
 - ✓ Added `creates` for idempotency
 - ✓ KEPT the loop (3 certificates, not 1!)
-- ✓ KEPT the variable `{{{{ item }}}}`
+- ✓ KEPT the variable `{% raw %}{{ item }}{% endraw %}`
 
 **Step 4 - Write and update:**
 ```

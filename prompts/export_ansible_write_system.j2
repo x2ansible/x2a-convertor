@@ -18,10 +18,48 @@ OPTIONAL: After writing files, you can run ansible_lint on the output directory 
 Key conversion rules:
 
 TEMPLATES (.erb → .j2):
-- Convert ERB syntax <%= var %> to Jinja2 {{ var }}
-- Convert ERB conditionals <% if %> to {% if %}
-- Convert ERB loops <% each do %> to {% for %}
-- Use write_file tool for .j2 files, NOT ansible_write
+CRITICAL: You MUST read the source .erb file and convert its actual content to Jinja2 format.
+NEVER write placeholder variables like {% raw %}{{ template_name_content }}{% endraw %} - this is wrong!
+
+Step-by-step process for EVERY template:
+1. Use read_file to read the Chef ERB source file
+2. Convert the ERB syntax to Jinja2:{% raw %}
+   - <%= @variable %> → {{ variable }} (remove @ prefix)
+   - <%= variable %> → {{ variable }}
+   - <% if @condition %> → {% if condition %}
+   - <% @items.each do |item| %> → {% for item in items %}
+   - <% end %> → {% endfor %} or {% endif %}{% endraw %}
+3. Write the CONVERTED CONTENT using write_file (NOT ansible_write)
+
+Example conversion:
+Source ERB (site.conf.erb):
+```
+server_name <%= @server_name %>;
+root <%= @document_root %>;
+<% if @ssl_enabled %>
+  listen 443 ssl;
+<% else %>
+  listen 80;
+<% end %>
+```
+
+Correct Jinja2 output (site.conf.j2):
+```{% raw %}
+server_name {{ server_name }};
+root {{ document_root }};
+{% if ssl_enabled %}
+  listen 443 ssl;
+{% else %}
+  listen 80;
+{% endif %}{% endraw %}
+```
+
+WRONG output (do NOT do this):
+```{% raw %}
+{{ site_conf_content }}{% endraw %}
+```
+
+If a template has NO ERB variables (static content), copy it as-is.
 
 RECIPES (.rb → .yml tasks):
 - Convert Chef resources to Ansible modules using FQCN (Fully Qualified Collection Names)
@@ -30,7 +68,7 @@ RECIPES (.rb → .yml tasks):
 - Use ansible_write tool for task files
 
 YAML QUOTING RULES FOR ANSIBLE:
-
+{% raw %}
 1. **Jinja2 Variables - ALWAYS quote:**
    CORRECT: msg: "{{ variable }}"
    CORRECT: msg: '{{ variable }}'
@@ -78,6 +116,7 @@ Common fixes:
 - Jinja2 with special chars → Add quotes: msg: '{{ var }}'
 - yes/no booleans → Use true/false: enabled: true
 - Missing FQCN → ansible.builtin.command not command
+{% endraw %}
 
 NEVER use write_file when ansible_write fails - fix the YAML!
 

@@ -1,17 +1,17 @@
-Write ALL files for module: {module}
+Write ALL files for module: {{ module }}
 
-CHEF SOURCE PATH: {chef_path}
-ANSIBLE OUTPUT PATH: {ansible_path}
+CHEF SOURCE PATH: {{ chef_path }}
+ANSIBLE OUTPUT PATH: {{ ansible_path }}
 
 HIGH-LEVEL MIGRATION PLAN:
-{high_level_migration_plan}
+{{ high_level_migration_plan }}
 
 MODULE MIGRATION PLAN:
-{migration_plan}
+{{ migration_plan }}
 
 CHECKLIST:
 <document>
-{checklist}
+{{ checklist }}
 </document>
 
 Your task: Process ONLY items marked as "pending" or "missing".
@@ -55,14 +55,34 @@ Process order (skip any files already marked "complete" in checklist):
    - handlers/main.yml: Create with common handlers (restart/reload services)
 2. Attributes/variables (defaults/main.yml, vars/main.yml)
 3. Static files (copy from files/)
-4. Templates (convert .erb to .j2)
+4. Templates (convert .erb to .j2):
+   CRITICAL: For EACH template file:
+   a. Read the source .erb file using read_file
+   b. Convert ERB syntax to Jinja2 (see system prompt for conversion rules)
+   c. Write the FULL CONVERTED CONTENT using write_file
+   d. DO NOT write placeholder variables like {% raw %}{{ template_content }}{% endraw %} - this is wrong!
 5. Recipes/tasks (convert .rb to .yml)
 
 For each item in the checklist:
 1. Check checklist status - if "complete", skip to next item immediately
 2. Check if target file exists - if yes, skip to next item
 3. Read the Chef source file using read_file (skip if source is "N/A")
-4. Convert to Ansible format following conversion rules
+4. Convert to Ansible format following conversion rules:
+
+   FOR TEMPLATES (.erb → .j2):
+   - Read the entire ERB file content
+   - Convert <%= @var %> to {% raw %}{{ var }}{% endraw %} (remove @ prefix)
+   - Convert <% if @condition %> to {% raw %}{% if condition %}{% endraw %}
+   - Convert <% @array.each do |item| %> to {% raw %}{% for item in array %}{% endraw %}
+   - Convert <% end %> to {% raw %}{% endfor %}{% endraw %} or {% raw %}{% endif %}{% endraw %}
+   - Write the FULL CONVERTED CONTENT (not a placeholder variable!)
+
+   FOR RECIPES (.rb → .yml):
+   - Analyze Chef resources and convert to Ansible tasks with FQCN
+
+   FOR ATTRIBUTES (.rb → .yml):
+   - Convert Ruby hash syntax to YAML key-value pairs
+
 5. Write to target path using:
    - ansible_write for YAML files (tasks, handlers, defaults, vars, meta)
    - write_file for templates (.j2) and other files
