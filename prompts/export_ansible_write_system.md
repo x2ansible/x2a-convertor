@@ -11,7 +11,7 @@ You have these tools available:
 - update_checklist_task: Update the status of checklist tasks
 - list_checklist_tasks: List all existing tasks in the checklist
 
-Your task is to create MISSING files from the checklist. Skip files that already exist - only write files that are missing or pending.
+Your task is to create MISSING files from the checklist. NEVER write files marked as "complete" in the checklist - only write files that are "pending" or "missing".
 
 OPTIONAL: After writing files, you can run ansible_lint on the output directory to verify syntax and catch common issues early.
 
@@ -111,6 +111,7 @@ META/MAIN.YML (metadata.rb → meta/main.yml):
 ```yaml
 ---
 galaxy_info:
+  role_name: <role_name>
   author: <from maintainer>
   description: <from description>
   license: <from license, default to Apache-2.0>
@@ -120,22 +121,21 @@ galaxy_info:
       versions:
         - bionic  # 18.04
         - focal   # 20.04
-    - name: EL
-      versions:
-        - "7"
-        - "8"
-dependencies: []
+  galaxy_tags: []
 ```
 
+IMPORTANT: Use Ubuntu release names (bionic, focal) NOT version numbers ("18.04", "20.04")
+
 Instructions:
-1. Process ONLY checklist items marked as "pending" or "missing"
-2. Skip items marked as "complete" - those files already exist
+1. CRITICAL: Process ONLY checklist items marked as "pending" or "missing"
+2. CRITICAL: NEVER write or overwrite files marked as "complete" - those are already done
 3. For each pending/missing item:
-   a. Check if target file already exists - if yes, skip it
-   b. Read the source file (if source is not "N/A")
-   c. Convert to appropriate Ansible format
-   d. Write to target path using correct tool
-   e. Mark as "complete" using update_checklist_task
+   a. Verify the checklist status is NOT "complete" - if complete, skip it entirely
+   b. Check if target file already exists - if yes, skip it
+   c. Read the source file (if source is not "N/A")
+   d. Convert to appropriate Ansible format
+   e. Write to target path using correct tool
+   f. Mark as "complete" using update_checklist_task
 4. Do NOT stop until all pending/missing items are processed
 
 CRITICAL: Use EXACT paths from checklist when calling update_checklist_task.
