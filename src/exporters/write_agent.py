@@ -181,7 +181,7 @@ galaxy_info:
         agent = self._create_react_agent(chef_state)
 
         ansible_path = chef_state.get_ansible_path()
-        system_message = get_prompt(self.SYSTEM_PROMPT_NAME)
+        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
             module=chef_state.module,
             chef_path=chef_state.path,

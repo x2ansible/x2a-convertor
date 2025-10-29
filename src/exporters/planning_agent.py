@@ -50,7 +50,7 @@ class PlanningAgent(BaseAgent):
 
         agent = self._create_react_agent(state)
 
-        system_message = get_prompt(self.SYSTEM_PROMPT_NAME)
+        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
             module=state.module,
             high_level_migration_plan=state.high_level_migration_plan.to_document(),
