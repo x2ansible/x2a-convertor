@@ -25,8 +25,8 @@ class TestAnsibleLintValidator:
         assert result.validator_name == "ansible-lint"
         assert result.failed is False
         assert result.message == ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
-        # Verify that autofix=False was passed
-        validator.tool._run.assert_called_once_with("/fake/path", autofix=False)
+        # Verify that autofix=True was passed (let ansible-lint fix simple issues)
+        validator.tool._run.assert_called_once_with("/fake/path", autofix=True)
 
     def test_validate_failure(self):
         """Test failed validation."""
@@ -40,8 +40,8 @@ class TestAnsibleLintValidator:
         assert result.failed is True
         assert "Error" in result.message
         assert result.validator_name == "ansible-lint"
-        # Verify that autofix=False was passed
-        validator.tool._run.assert_called_once_with("/fake/path", autofix=False)
+        # Verify that autofix=True was passed (let ansible-lint fix simple issues)
+        validator.tool._run.assert_called_once_with("/fake/path", autofix=True)
 
     def test_format_error_on_failure(self):
         """Test error formatting."""

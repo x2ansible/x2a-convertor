@@ -30,8 +30,9 @@ class AnsibleLintValidator:
         Returns:
             ValidationResult with success status and message
         """
-        # Validators should never autofix to avoid introducing new issues
-        result = self.tool._run(ansible_path, autofix=False)
+        # Use autofix=True to let ansible-lint fix simple issues (FQCN, yaml syntax)
+        # Only complex issues that can't be auto-fixed will go to the LLM agent
+        result = self.tool._run(ansible_path, autofix=True)
         return ValidationResult(
             success=(result == ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE),
             message=result,
