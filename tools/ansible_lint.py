@@ -64,8 +64,7 @@ class AnsibleLintTool(BaseTool):
                 full_path = os.path.join(base_path, match.filename)
             else:
                 full_path = match.filename
-
-            issue = f"{full_path}:{match.lineno or 0} [{match.rule.id}] {match.message}"
+            issue = f"[{match.rule.severity}] {full_path}:{match.lineno or 0} [{match.rule.id}] {match.message} ({match.details})"
             issues.append(issue)
 
         if prefix:
@@ -74,6 +73,24 @@ class AnsibleLintTool(BaseTool):
             result = f"Found {len(matches)} ansible-lint issue(s):\n"
         result += "\n".join(issues)
         return result
+
+    def _create_lint_options_and_rules(self):
+        """Create fresh Options and RulesCollection objects.
+
+        Returns:
+            Tuple of (Options, RulesCollection)
+        """
+        rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
+        options = Options(
+            offline=True,  # Prevent external dependencies and ansible-config dump
+            lintables=["."],  # Use current directory since we changed to it
+            _skip_ansible_syntax_check=True,  # Skip ansible-playbook --syntax-check
+            skip_list=[
+                "yaml[line-length]"
+            ],  # Skip line length checks for auto-generated code
+        )
+        rules = RulesCollection(rulesdirs=[rules_dir], options=options)
+        return options, rules
 
     # pyrefly: ignore
     def _run(self, ansible_path: str, autofix: bool = True) -> str:
@@ -116,19 +133,8 @@ class AnsibleLintTool(BaseTool):
                     f"Changed directory to {absolute_path} for ansible-lint execution"
                 )
 
-                # Load all built-in rules from ansible-lint package
-                rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
-                options = Options(
-                    offline=True,  # Prevent external dependencies and ansible-config dump
-                    lintables=["."],  # Use current directory since we changed to it
-                    _skip_ansible_syntax_check=True,  # Skip ansible-playbook --syntax-check
-                    skip_list=[
-                        "yaml[line-length]"
-                    ],  # Skip line length checks for auto-generated code
-                )
-
-                # all available rules
-                rules = RulesCollection(rulesdirs=[rules_dir], options=options)
+                # Create fresh options and rules for initial scan
+                options, rules = self._create_lint_options_and_rules()
 
                 # Run linter
                 lintResult = get_matches(rules, options)
@@ -171,7 +177,10 @@ class AnsibleLintTool(BaseTool):
                 # Try to fix it
                 fix(runtime_options=options, result=lintResult, rules=rules)
 
-                # Re-run linter
+                # Create fresh options and rules for re-scan to avoid stale state
+                # This is critical: the fix() call may modify objects or create caching issues
+                options, rules = self._create_lint_options_and_rules()
+
                 lintResult = get_matches(rules, options)
 
                 if not lintResult.matches:
