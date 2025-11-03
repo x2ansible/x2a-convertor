@@ -3,7 +3,7 @@ import logging
 import sys
 import structlog
 
-from langchain.globals import set_debug
+from langchain_core.globals import set_debug
 
 
 def get_logger(name: str | None = None):
