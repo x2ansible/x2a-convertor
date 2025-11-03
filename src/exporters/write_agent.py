@@ -60,7 +60,7 @@ class WriteAgent(BaseAgent):
     SYSTEM_PROMPT_NAME = "export_ansible_write_system"
     USER_PROMPT_NAME = "export_ansible_write_task"
 
-    def __init__(self, model=None, max_attempts=10):
+    def __init__(self, model=None, max_attempts=None):
         """Initialize write agent with optional model and max attempts.
 
         Args:
@@ -68,7 +68,7 @@ class WriteAgent(BaseAgent):
             max_attempts: Maximum write attempts (defaults to MAX_WRITE_ATTEMPTS config)
         """
         super().__init__(model)
-        self.max_attempts = max_attempts or get_config_int("MAX_WRITE_ATTEMPTS")
+        self.max_attempts = get_config_int("MAX_WRITE_ATTEMPTS")
         self._graph = self._build_internal_graph()
 
     def _build_internal_graph(self):

@@ -118,8 +118,9 @@ class AnsibleYAMLValidationError:
         output.append("")
         output.append("<fix_workflow>")
         output.append("1. Read the error message and problematic line above")
-        output.append("2. Call ansible_write again with the corrected yaml_content")
-        output.append("3. Repeat until you get success message")
+        output.append("2. Fix the yaml content")
+        output.append("3. Call ansible_write again with the corrected yaml_content")
+        output.append("4. Repeat until you get success message")
         output.append("</fix_workflow>")
 
         output.append("</ansible_yaml_error>")
