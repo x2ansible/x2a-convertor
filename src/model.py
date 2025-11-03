@@ -92,19 +92,38 @@ def get_runnable_config() -> RunnableConfig:
 
 def get_model() -> BaseChatModel:
     """Initialize and return the configured language model"""
-    model_name = os.getenv("LLM_MODEL", "claude-3-5-sonnet-20241022")
+    model_name = os.getenv("LLM_MODEL", "meta/llama-3.3-70b-instruct-maas")
+    model_provider = os.getenv("MODEL_PROVIDER", "openai")
     logger.info(f"Initializing model: {model_name}")
-    logger.debug(f"OPENAI_API_BASE: {os.getenv('OPENAI_API_BASE')}")
+    logger.debug(f"Model provider: {model_provider}")
+    logger.debug(f"Model name: {model_name}")
     logger.debug(f"MAX_TOKENS: {os.getenv('MAX_TOKENS')}")
     logger.debug(f"TEMPERATURE: {os.getenv('TEMPERATURE')}")
 
-    # Handle OpenAI-compatible local APIs
-    if os.getenv("OPENAI_API_BASE"):
+    # Handle OpenAI-compatible APIs
+    if model_provider == "openai":
         return init_chat_model(
-            model_name,
-            base_url=os.getenv("OPENAI_API_BASE"),
+            model=model_name,
             model_provider="openai",
             api_key=os.getenv("OPENAI_API_KEY", "not-needed"),
+            max_tokens=int(os.getenv("MAX_TOKENS", "8192")),
+            temperature=float(os.getenv("TEMPERATURE", "0.1")),
+        )
+
+    # Handle Anthropic (Claude) models on Vertex AI
+    if model_provider == "google_anthropic_vertex":
+        if not os.getenv("VERTEX_PROJECT"):
+            raise ValueError(
+                "VERTEX_PROJECT is required for Google Anthropic Vertex models"
+            )
+        logger.debug(f"VERTEX_PROJECT: {os.getenv('VERTEX_PROJECT')}")
+        logger.debug(f"VERTEX_LOCATION: {os.getenv('VERTEX_LOCATION', 'global')}")
+
+        return init_chat_model(
+            model=model_name,
+            model_provider="google_anthropic_vertex",
+            project=os.getenv("VERTEX_PROJECT"),
+            location=os.getenv("VERTEX_LOCATION", "global"),
             max_tokens=int(os.getenv("MAX_TOKENS", "8192")),
             temperature=float(os.getenv("TEMPERATURE", "0.1")),
         )

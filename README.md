@@ -39,11 +39,11 @@ flowchart LR
 
 ## How It Works
 
-| Phase | What It Does | Output | Time |
-|-------|--------------|--------|------|
-| **1️⃣ Init** | Scans entire Chef repo, identifies cookbooks, maps dependencies | Strategic migration plan (`migration-plan.md`) | ~5 min |
-| **2️⃣ Analyze** | Deep-dive analysis of specific cookbook/module | Detailed conversion spec (`migration-plan-<module>.md`) | ~10 min |
-| **3️⃣ Migrate** | Converts Chef code to Ansible with validation | Production-ready Ansible role | ~15 min |
+| Phase         | What It Does                                                    | Output                                                  | Time    |
+| ------------- | --------------------------------------------------------------- | ------------------------------------------------------- | ------- |
+| **1️⃣ Init**    | Scans entire Chef repo, identifies cookbooks, maps dependencies | Strategic migration plan (`migration-plan.md`)          | ~5 min  |
+| **2️⃣ Analyze** | Deep-dive analysis of specific cookbook/module                  | Detailed conversion spec (`migration-plan-<module>.md`) | ~10 min |
+| **3️⃣ Migrate** | Converts Chef code to Ansible with validation                   | Production-ready Ansible role                           | ~15 min |
 
 **Total time per module: ~30 minutes** (vs. days/weeks of manual conversion)
 
@@ -167,13 +167,13 @@ flowchart TB
 
 ### What Gets Converted
 
-| Chef Artifact | Ansible Equivalent |
-|---------------|-------------------|
-| Recipes (`.rb`) | Tasks (`.yml`) |
-| Templates (`.erb`) | Templates (`.j2`) |
-| Attributes | Defaults (`defaults/main.yml`) |
-| Resources | Modules + Tasks |
-| Files | Files (copied) |
+| Chef Artifact      | Ansible Equivalent             |
+| ------------------ | ------------------------------ |
+| Recipes (`.rb`)    | Tasks (`.yml`)                 |
+| Templates (`.erb`) | Templates (`.j2`)              |
+| Attributes         | Defaults (`defaults/main.yml`) |
+| Resources          | Modules + Tasks                |
+| Files              | Files (copied)                 |
 
 </details>
 
@@ -181,22 +181,25 @@ flowchart TB
 
 ### Environment Variables
 
-| Variable               | Description                                         | Example Values                                                                                           | Required                  |
-| ---------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------- |
-| `LLM_MODEL`            | Language model to use                               | `claude-3-5-sonnet-20241022`<br>`openai:gpt-4o`<br>`google_vertexai:gemini-2.5-pro`<br>`openai:qwen3:4b` | Yes                       |
-| `OPENAI_API_BASE`      | Custom API endpoint for OpenAI-compatible APIs      | `http://localhost:11434/v1`<br>`http://192.168.1.100:8000/v1`                                            | No                        |
-| `OPENAI_API_KEY`       | API key for OpenAI or compatible services           | `sk-...` or `not-needed` for local                                                                       | No                        |
-| `LOG_LEVEL`            | Logging verbosity for x2convertor namespace         | `INFO`, `DEBUG`, `ERROR`                                                                                 | No (default: INFO)        |
-| `DEBUG_ALL`            | Enable DEBUG logging for all libraries              | `true`, `false`                                                                                          | No (default: false)       |
-| `LANGCHAIN_DEBUG`      | Enable LangChain debug mode                         | `true`, `false`                                                                                          | No                        |
-| `LANGCHAIN_TRACING_V2` | Enable LangChain tracing                            | `true`, `false`                                                                                          | No                        |
-| `LANGCHAIN_API_KEY`    | LangSmith API key for tracing                       | `ls_...`                                                                                                 | No                        |
-| `LANGCHAIN_PROJECT`    | LangSmith project name                              | `x2a-convertor`                                                                                          | No                        |
-| `TARGET_REPO_PATH`     | Path to repository to analyze                       | `/path/to/chef-repo`<br>`../my-puppet-repo`                                                              | No (default: current dir) |
-| `MAX_TOKENS`           | Maximum tokens for response                         | `8192`, `16384`, `32768`                                                                                 | No (default: 8192)        |
-| `TEMPERATURE`          | Model temperature (0-1)                             | `0.1`, `0.5`, `1.0`                                                                                      | No (default: 0.1)         |
-| `RECURSION_LIMIT`      | Maximum recursion limit to be used by the langchain | `100`, `200`                                                                                             | No (default: 100)         |
-| `MAX_EXPORT_ATTEMPTS`  | Maximum number of attempts to export the playbook   | `5`, `10`                                                                                                | No (default: 5)           |
+| Variable               | Description                                                  | Example Values                                                                                           | Required                  |
+| ---------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `LLM_MODEL`            | Language model to use                                        | `claude-3-5-sonnet-20241022`<br>`openai:gpt-4o`<br>`google_vertexai:gemini-2.5-pro`<br>`openai:qwen3:4b` | Yes                       |
+| `OPENAI_API_BASE`      | Custom API endpoint for OpenAI-compatible APIs               | `http://localhost:11434/v1`<br>`http://192.168.1.100:8000/v1`                                            | No                        |
+| `OPENAI_API_KEY`       | API key for OpenAI or compatible services                    | `sk-...` or `not-needed` for local                                                                       | No                        |
+| `MODEL_PROVIDER`       | Langchain provider (default: OpenAI)                         | `openai`, `google_anthropic_vertex`                                                                      | No (default: openai)      |
+| `VERTEX_PROJECT`       | Vertex project (with MODEL_PROVIDER=google_anthropic_vertex) | depends on your Vertex settings                                                                          | No                        |
+| `VERTEX_LOCATION`      | Vertex project (with MODEL_PROVIDER=location)                | depends on your Vertex settings                                                                          | No (default: global)      |
+| `LOG_LEVEL`            | Logging verbosity for x2convertor namespace                  | `INFO`, `DEBUG`, `ERROR`                                                                                 | No (default: INFO)        |
+| `DEBUG_ALL`            | Enable DEBUG logging for all libraries                       | `true`, `false`                                                                                          | No (default: false)       |
+| `LANGCHAIN_DEBUG`      | Enable LangChain debug mode                                  | `true`, `false`                                                                                          | No                        |
+| `LANGCHAIN_TRACING_V2` | Enable LangChain tracing                                     | `true`, `false`                                                                                          | No                        |
+| `LANGCHAIN_API_KEY`    | LangSmith API key for tracing                                | `ls_...`                                                                                                 | No                        |
+| `LANGCHAIN_PROJECT`    | LangSmith project name                                       | `x2a-convertor`                                                                                          | No                        |
+| `TARGET_REPO_PATH`     | Path to repository to analyze                                | `/path/to/chef-repo`<br>`../my-puppet-repo`                                                              | No (default: current dir) |
+| `MAX_TOKENS`           | Maximum tokens for response                                  | `8192`, `16384`, `32768`                                                                                 | No (default: 8192)        |
+| `TEMPERATURE`          | Model temperature (0-1)                                      | `0.1`, `0.5`, `1.0`                                                                                      | No (default: 0.1)         |
+| `RECURSION_LIMIT`      | Maximum recursion limit to be used by the langchain          | `100`, `200`                                                                                             | No (default: 100)         |
+| `MAX_EXPORT_ATTEMPTS`  | Maximum number of attempts to export the playbook            | `5`, `10`                                                                                                | No (default: 5)           |
 
 Optionally, a `.env` file with these settings for development purposes can be created.
 
@@ -245,11 +248,11 @@ TID251 `logging.getLogger` is banned: Use get_logger() from src.utils.logging in
 
 #### Log Levels
 
-| Setting | x2convertor.* logs | Third-party logs | Use Case |
-|---------|-------------------|------------------|----------|
-| Default | INFO | WARNING | Normal operation |
-| `LOG_LEVEL=DEBUG` | DEBUG | WARNING | Debug your code only |
-| `DEBUG_ALL=true` | DEBUG | DEBUG | Debug everything (verbose) |
+| Setting           | x2convertor.* logs | Third-party logs | Use Case                   |
+| ----------------- | ------------------ | ---------------- | -------------------------- |
+| Default           | INFO               | WARNING          | Normal operation           |
+| `LOG_LEVEL=DEBUG` | DEBUG              | WARNING          | Debug your code only       |
+| `DEBUG_ALL=true`  | DEBUG              | DEBUG            | Debug everything (verbose) |
 
 **Examples:**
 

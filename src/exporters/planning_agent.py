@@ -71,7 +71,6 @@ class PlanningAgent(BaseAgent):
         )
 
         slog.info(f"Planning agent tools: {report_tool_calls(result).to_string()}")
-
         assert state.checklist is not None, (
             "Checklist must be created by planning agent"
         )

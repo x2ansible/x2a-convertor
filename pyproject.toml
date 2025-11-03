@@ -18,6 +18,7 @@ dependencies = [
     "tree-sitter-ruby>=0.23.0",
     "tree-sitter-json>=0.23.0",
     "ansible-lint>=25.9.2",
+    "langchain-google-vertexai>=2.1.2",
 ]
 
 [tool.pyrefly]
