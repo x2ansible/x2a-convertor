@@ -197,6 +197,7 @@ flowchart TB
 | `TEMPERATURE`          | Model temperature (0-1)                             | `0.1`, `0.5`, `1.0`                                                                                      | No (default: 0.1)         |
 | `RECURSION_LIMIT`      | Maximum recursion limit to be used by the langchain | `100`, `200`                                                                                             | No (default: 100)         |
 | `MAX_EXPORT_ATTEMPTS`  | Maximum number of attempts to export the playbook   | `5`, `10`                                                                                                | No (default: 5)           |
+| `REASONING_EFFORT`     | Reasoning effort when using a LLM model             | `low`, `medium`, `high`                                                                                  | No (default: high)        |
 
 Optionally, a `.env` file with these settings for development purposes can be created.
 
