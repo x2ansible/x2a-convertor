@@ -133,7 +133,7 @@ class TestAnsibleWriteTool:
 
         # Should fail with YAML validation error
         assert "ERROR" in result
-        assert "YAML validation failed" in result
+        assert "YAML parsing failed" in result
         # Should now have XML format
         assert "<ansible_yaml_error>" in result
         # File should not be created
@@ -354,7 +354,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
 
         # Should return an error
         assert "ERROR" in result
-        assert "YAML validation failed" in result
+        assert "YAML parsing failed" in result
 
         # Should have XML structure
         assert "<ansible_yaml_error>" in result
@@ -396,3 +396,131 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "<line_number>3</line_number>" in result
         # Should show the problematic line
         assert "when: var is not search" in result
+
+    def test_reject_playbook_wrapper_with_hosts_in_task_file(self) -> None:
+        """Test that task files with playbook wrapper (hosts) are rejected."""
+        playbook_yaml = """---
+- hosts: all
+  become: true
+  tasks:
+    - name: Install nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+"""
+        # File path includes /tasks/ directory
+        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+
+        # Should fail with playbook wrapper error
+        assert "ERROR" in result
+        assert "Task files must be FLAT lists, not playbooks" in result
+        assert "<ansible_yaml_error>" in result
+        assert "Playbook wrapper detected" in result
+        assert "<fix_workflow>" in result
+        assert "REMOVE the playbook wrapper" in result
+        # File should not be created
+        assert not os.path.exists(file_path)
+
+    def test_reject_playbook_wrapper_with_tasks_key_in_task_file(self) -> None:
+        """Test that task files with 'tasks:' wrapper are rejected."""
+        playbook_yaml = """---
+- name: Configure web server
+  tasks:
+    - name: Install nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+    - name: Start nginx
+      ansible.builtin.service:
+        name: nginx
+        state: started
+"""
+        file_path = os.path.join(self.temp_dir, "tasks", "webserver.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+
+        # Should fail with playbook wrapper error
+        assert "ERROR" in result
+        assert "Task files must be FLAT lists" in result
+        assert "tasks" in result
+        assert "<correct_format>" in result
+        # File should not be created
+        assert not os.path.exists(file_path)
+
+    def test_reject_playbook_wrapper_with_import_playbook_in_task_file(self) -> None:
+        """Test that task files with 'import_playbook' are rejected."""
+        playbook_yaml = """---
+- import_playbook: common.yml
+- import_playbook: webserver.yml
+"""
+        file_path = os.path.join(self.temp_dir, "tasks", "site.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+
+        # Should fail with playbook wrapper error
+        assert "ERROR" in result
+        assert "Playbook wrapper detected" in result
+        assert not os.path.exists(file_path)
+
+    def test_accept_valid_flat_task_list_in_task_file(self) -> None:
+        """Test that valid flat task lists in /tasks/ directory are accepted."""
+        valid_tasks = """---
+- name: Install nginx
+  ansible.builtin.package:
+    name: nginx
+    state: present
+
+- name: Start nginx service
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Configure firewall
+  ansible.builtin.firewalld:
+    service: http
+    permanent: true
+    state: enabled
+"""
+        file_path = os.path.join(self.temp_dir, "tasks", "nginx.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=valid_tasks)
+
+        # Should succeed
+        assert "Successfully wrote" in result
+        assert os.path.exists(file_path)
+
+        with open(file_path, "r") as f:
+            content = f.read()
+
+        # Should have the tasks
+        assert "Install nginx" in content
+        assert "Start nginx service" in content
+        assert "ansible.builtin.package" in content
+
+    def test_playbook_wrapper_allowed_outside_task_directory(self) -> None:
+        """Test that playbook structure is allowed in files outside /tasks/ directory."""
+        playbook_yaml = """---
+- hosts: all
+  become: true
+  tasks:
+    - name: Install nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+"""
+        # File NOT in tasks directory
+        file_path = os.path.join(self.temp_dir, "playbooks", "site.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+
+        # Should succeed - playbooks are allowed outside /tasks/
+        assert "Successfully wrote" in result
+        assert os.path.exists(file_path)
