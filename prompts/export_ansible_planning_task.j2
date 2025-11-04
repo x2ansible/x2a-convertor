@@ -1,20 +1,15 @@
 Create a migration checklist for the module: {{module}}
 
-HIGH-LEVEL MIGRATION PLAN:
-{{high_level_migration_plan}}
+A high-level migration plan describing all cookbooks in the repository is available at: {{ high_level_migration_plan.path }}
+(Read this file if you need context about how this module relates to other cookbooks in the migration)
 
 MODULE MIGRATION PLAN:
 {{module_migration_plan}}
 
-CHEF DIRECTORY LISTING:
-```
-{{directory_listing}}
-```
-
 CHEF SOURCE PATH: `{{ path }}`
 ANSIBLE OUTPUT PATH: `./ansible/{{ module }}`
 
-{% if existing_checklist %}
+{% if existing_checklist != "" %}
 EXISTING CHECKLIST (from previous run):
 <checklist>
 {{existing_checklist}}
@@ -22,11 +17,9 @@ EXISTING CHECKLIST (from previous run):
 
 IMPORTANT: The checklist above already has items that are in progress. DO NOT recreate or modify these items.
 Only ADD new items that are missing from the checklist but mentioned in the migration plan.
-{% else %}
-EXISTING CHECKLIST: Empty (first run)
 {% endif %}
 
-Read the migration plan carefully and ensure the checklist is complete.
+Read the migration plan carefully and ensure the checklist is complete. Some files may not be used by the specific module, so you don't need to add all files to the checklist, only the ones described in the migration plan.
 
 FIRST: Use list_checklist_tasks to see what items already exist.
 THEN: USE add_checklist_task TOOL to add ONLY missing migration tasks:
@@ -51,20 +44,20 @@ For each file in the migration plan:
    e. Call add_checklist_task to add it
 
 **IMPORTANT**:
-- source_path: Use EXACT full paths from the CHEF DIRECTORY LISTING above
+- source_path: Use EXACT full paths from the File Structure section in the migration plan above
 - target_path: Use full path including ANSIBLE OUTPUT PATH (e.g., "ansible/{{module}}/templates/config.j2")
 
-The directory listing shows full paths - you MUST use these complete paths for source_path.
+The migration plan's File Structure section shows full paths - you MUST use these complete paths for source_path.
 For target_path, combine ANSIBLE OUTPUT PATH with the relative Ansible role path.
 
 Examples:
-- If directory listing shows "cookbooks/myapp/templates/default/config.erb", use that EXACT path as source_path
+- If the File Structure shows "cookbooks/myapp/templates/default/config.erb", use that EXACT path as source_path
 - For target_path, use the ANSIBLE OUTPUT PATH + relative role path (e.g., "ansible/myapp/templates/config.j2")
 - For generated Ansible structure files, use source_path="N/A"
 
 Sample calls (replace {{module}} with actual module name from ANSIBLE OUTPUT PATH):
-- add_checklist_task(category="templates", source_path="<full_path_from_directory_listing>", target_path="ansible/{{module}}/templates/config.j2", description="Configuration template")
-- add_checklist_task(category="recipes", source_path="<full_path_from_directory_listing>", target_path="ansible/{{module}}/tasks/main.yml", description="Main recipe tasks")
+- add_checklist_task(category="templates", source_path="<full_path_from_file_structure>", target_path="ansible/{{module}}/templates/config.j2", description="Configuration template")
+- add_checklist_task(category="recipes", source_path="<full_path_from_file_structure>", target_path="ansible/{{module}}/tasks/main.yml", description="Main recipe tasks")
 - add_checklist_task(category="structure", source_path="N/A", target_path="ansible/{{module}}/meta/main.yml", description="Role metadata")
 
 Your goal: Ensure the checklist contains EVERY file mentioned in the migration plan.
