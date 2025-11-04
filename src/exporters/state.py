@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 
-from src.types import AnsibleModule, Checklist, DocumentFile
+from src.types import AnsibleModule, Checklist, DocumentFile, MigrationStateInterface
 
 
 # Constants
@@ -17,7 +17,7 @@ CHECKLIST_FILENAME = ".checklist.json"
 
 
 @dataclass
-class ChefState:
+class ChefState(MigrationStateInterface):
     """State object for tracking Chef to Ansible migration workflow.
 
     This is the aggregate root for the migration domain in DDD terms.
@@ -113,3 +113,27 @@ class ChefState:
             return state.mark_failed("Failed to create 5 files after 3 attempts")
         """
         return self.update(failed=True, failure_reason=reason)
+
+    def did_fail(self) -> bool:
+        """Check if the migration failed.
+
+        Returns:
+            True if migration failed, False otherwise
+        """
+        return self.failed
+
+    def get_failure_reason(self) -> str:
+        """Get the reason for migration failure.
+
+        Returns:
+            Human-readable failure reason string, empty if not failed
+        """
+        return self.failure_reason
+
+    def get_output(self) -> str:
+        """Get the final migration output/summary.
+
+        Returns:
+            Migration output string (success or failure summary)
+        """
+        return self.last_output
