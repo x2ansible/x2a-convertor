@@ -33,6 +33,8 @@ class MigrationState(TypedDict):
     module_migration_plan: DocumentFile
     directory_listing: list[str]
     migration_output: str
+    failed: bool
+    failure_reason: str
 
 
 class MigrationAgent:
@@ -114,18 +116,24 @@ class MigrationAgent:
                 high_level_migration_plan=state["high_level_migration_plan"],
                 directory_listing=state["directory_listing"],
             )
-            state["migration_output"] = result.last_output
+            state["migration_output"] = result.get_output()
+            state["failed"] = result.did_fail()
+            state["failure_reason"] = result.get_failure_reason()
         elif technology == Technology.PUPPET:
             logger.warning("Puppet agent not implemented yet")
             state["module_migration_plan"] = DocumentFile(
                 path=Path("not_available.txt"),
                 content="Export from Puppet not available",
             )
+            state["failed"] = True
+            state["failure_reason"] = "Puppet migration not implemented yet"
         elif technology == Technology.SALT:
             logger.warning("Salt agent not implemented yet")
             state["module_migration_plan"] = DocumentFile(
                 path=Path("not_available.txt"), content="Export from Salt not available"
             )
+            state["failed"] = True
+            state["failure_reason"] = "Salt migration not implemented yet"
         else:
             logger.error(f"Unknown source technology: {technology}")
             raise ValueError(f"Unknown source technology: {technology}")
@@ -197,8 +205,17 @@ def migrate_module(
         module_migration_plan=module_migration_plan_doc,
         directory_listing=[],
         migration_output="",
+        failed=False,
+        failure_reason="",
     )
 
     result = workflow.invoke(initial_state)
-    logger.info("Migration completed successfully!")
+
+    if result["failed"]:
+        logger.error(
+            f"Migration failed for module {module_name}: {result['failure_reason']}"
+        )
+    else:
+        logger.info(f"Migration completed successfully for module {module_name}!")
+
     return MigrationState(**result)

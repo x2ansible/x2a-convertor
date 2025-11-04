@@ -84,17 +84,19 @@ class ValidationAgent(BaseAgent):
         """Build the internal StateGraph for validation workflow.
 
         Graph structure:
-        START → validate → evaluate → END
+        START → validate → evaluate → END / fix_errors / mark_failed
                     ↑          ↓
                     └─ fix_errors (if has errors)
         """
         workflow = StateGraph(ValidationAgentState)
         workflow.add_node("validate", self._validate_node)
         workflow.add_node("fix_errors", self._fix_errors_node)
+        workflow.add_node("mark_failed", self._mark_failed_node)
 
         workflow.add_edge(START, "validate")
         workflow.add_conditional_edges("validate", self._evaluate_validation_node)
         workflow.add_edge("fix_errors", "validate")  # Loop back to re-validate
+        workflow.add_edge("mark_failed", END)
 
         return workflow.compile()
 
@@ -192,9 +194,38 @@ class ValidationAgent(BaseAgent):
         slog.info("Fix iteration completed")
         return state
 
+    def _mark_failed_node(self, state: ValidationAgentState) -> ValidationAgentState:
+        """Node: Mark the migration as failed due to validation errors.
+
+        This node is reached when max validation attempts are exceeded.
+        It updates the chef_state to mark the migration as failed.
+
+        Args:
+            state: Internal agent state
+
+        Returns:
+            Updated state with failed chef_state
+        """
+        slog = logger.bind(phase="mark_failed", attempt=state.attempt)
+        slog.error(
+            f"Max validation attempts ({state.max_attempts}) reached, marking migration as failed"
+        )
+
+        # Mark migration as failed
+        chef_state = state.chef_state.mark_failed(
+            f"Validation failed after {state.max_attempts} attempts. Errors remain:\n{state.error_report}"
+        )
+        # Also set validation report for debugging
+        chef_state = chef_state.update(
+            validation_report=f"Validation incomplete after {state.attempt} attempts:\n{state.error_report}"
+        )
+        state.chef_state = chef_state
+
+        return state
+
     def _evaluate_validation_node(
         self, state: ValidationAgentState
-    ) -> Literal["fix_errors", "__end__"]:
+    ) -> Literal["fix_errors", "mark_failed", "__end__"]:
         """Conditional edge: Decide whether to fix errors or finish.
 
         Args:
@@ -215,19 +246,7 @@ class ValidationAgent(BaseAgent):
             return "__end__"
 
         if state.attempt >= state.max_attempts:
-            slog.error(
-                f"Max validation attempts ({state.max_attempts}) reached, marking migration as failed"
-            )
-            # Mark migration as failed
-            chef_state = state.chef_state.mark_failed(
-                f"Validation failed after {state.max_attempts} attempts. Errors remain:\n{state.error_report}"
-            )
-            # Also set validation report for debugging
-            chef_state = chef_state.update(
-                validation_report=f"Validation incomplete after {state.attempt} attempts:\n{state.error_report}"
-            )
-            state.chef_state = chef_state
-            return "__end__"
+            return "mark_failed"
 
         slog.info(
             f"Attempting to fix errors (attempt {state.attempt + 1}/{state.max_attempts})"
