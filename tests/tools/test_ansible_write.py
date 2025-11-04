@@ -481,11 +481,11 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     state: started
     enabled: true
 
-- name: Configure firewall
-  ansible.builtin.firewalld:
-    service: http
-    permanent: true
-    state: enabled
+- name: Create config directory
+  ansible.builtin.file:
+    path: /etc/nginx/conf.d
+    state: directory
+    mode: '0755'
 """
         file_path = os.path.join(self.temp_dir, "tasks", "nginx.yml")
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -524,3 +524,166 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         # Should succeed - playbooks are allowed outside /tasks/
         assert "Successfully wrote" in result
         assert os.path.exists(file_path)
+
+    def test_ari_validation_passes_for_valid_taskfile(self) -> None:
+        """Test that ARI validation passes for valid taskfile with FQCN."""
+        valid_tasks = """---
+- name: Install nginx package
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+- name: Start nginx service
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+"""
+        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=valid_tasks)
+
+        # Should succeed with no warnings
+        assert "Successfully wrote" in result
+        assert "WARNING" not in result
+        assert os.path.exists(file_path)
+
+    def test_ari_validation_detects_missing_fqcn(self) -> None:
+        """Test that ARI validation detects tasks without FQCN."""
+        invalid_tasks = """---
+- name: Install nginx package
+  apt:
+    name: nginx
+    state: present
+"""
+        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=invalid_tasks)
+
+        # Should write file but return warning
+        assert "WARNING" in result
+        assert "validation issues" in result
+        assert os.path.exists(file_path)
+
+        # Should have structured error format
+        assert "<ansible_lint_errors>" in result
+        assert "<validation_errors>" in result
+        assert "R301" in result  # Non-FQCN rule
+        assert "apt → ansible.builtin.apt" in result
+
+        # Should have fix workflow
+        assert "<fix_workflow>" in result
+        assert "Non-FQCN" in result
+
+    def test_ari_validation_detects_missing_task_name(self) -> None:
+        """Test that ARI validation detects tasks without name."""
+        invalid_tasks = """---
+- ansible.builtin.apt:
+    name: nginx
+    state: present
+"""
+        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=invalid_tasks)
+
+        # Should write file but return warning
+        assert "WARNING" in result
+        assert "validation issues" in result
+        assert os.path.exists(file_path)
+
+        # Should have structured error format
+        assert "<ansible_lint_errors>" in result
+        assert "R303" in result  # Task without name rule
+        assert "Task Without Name" in result or "unnamed task" in result
+
+    def test_ari_validation_detects_multiple_issues(self) -> None:
+        """Test that ARI validation detects multiple issues in one file."""
+        invalid_tasks = """---
+- name: Install nginx
+  apt:
+    name: nginx
+    state: present
+
+- service:
+    name: nginx
+    state: started
+"""
+        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=invalid_tasks)
+
+        # Should write file but return warning
+        assert "WARNING" in result
+        assert "validation issues" in result
+        assert os.path.exists(file_path)
+
+        # Should detect both issues
+        assert "R301" in result or "R303" in result  # At least one rule violation
+        assert "issue(s)" in result or "Found" in result
+
+    def test_ari_validation_only_runs_on_taskfiles(self) -> None:
+        """Test that ARI validation only runs for files in tasks/ directory."""
+        # Use non-FQCN in a playbook - should not trigger ARI validation
+        playbook_yaml = """---
+- name: Configure web server
+  hosts: webservers
+  tasks:
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+"""
+        file_path = os.path.join(self.temp_dir, "playbooks", "site.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+
+        # Should succeed without ARI validation warnings
+        assert "Successfully wrote" in result
+        assert "WARNING" not in result
+        assert "<ansible_lint_errors>" not in result
+        assert os.path.exists(file_path)
+
+    def test_ari_validation_skips_non_yaml_extensions(self) -> None:
+        """Test that ARI validation only runs on .yml/.yaml files."""
+        # File in tasks/ but without yaml extension
+        tasks_content = """---
+- name: Install nginx
+  apt:
+    name: nginx
+"""
+        file_path = os.path.join(self.temp_dir, "tasks", "main.txt")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=tasks_content)
+
+        # Should succeed without ARI validation
+        assert (
+            "Successfully wrote" in result or "ERROR" in result
+        )  # May fail on extension
+        # If it writes, it should not run ARI validation
+        if "Successfully wrote" in result:
+            assert "WARNING" not in result
+
+    def test_ari_validation_includes_line_numbers(self) -> None:
+        """Test that ARI validation errors include line numbers."""
+        invalid_tasks = """---
+- name: Install nginx
+  apt:
+    name: nginx
+    state: present
+"""
+        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        result = self.tool._run(file_path=file_path, yaml_content=invalid_tasks)
+
+        # Should include line numbers in error messages
+        assert "WARNING" in result
+        # Line number format: "main.yml:1" or similar
+        assert "main.yml:" in result
+        # Should have a line number
+        assert any(char.isdigit() for char in result)

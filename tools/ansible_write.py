@@ -1,14 +1,19 @@
-from typing import Any, Optional
-from dataclasses import dataclass
 import re
-
+import shutil
+import tempfile
 import yaml
+
 from ansible.errors import AnsibleError
 from ansible.parsing.dataloader import DataLoader
 from ansible.parsing.yaml.dumper import AnsibleDumper
+from ansible_risk_insight import ARIScanner, Config
+from ansible_risk_insight.scanner import LoadType
+from dataclasses import dataclass
 from langchain_community.tools.file_management.write import WriteFileTool
 from langchain_core.tools import BaseTool
+from pathlib import Path
 from pydantic import BaseModel, Field
+from typing import Any, Optional, List, Tuple
 
 from src.utils.logging import get_logger
 
@@ -144,6 +149,211 @@ class AnsibleYAMLValidationError:
         return self.to_xml_string()
 
 
+class TaskfileValidator:
+    """Validates Ansible taskfiles using ARI and reports errors with line numbers.
+
+    Can be used as a context manager for automatic cleanup:
+        with TaskfileValidator() as validator:
+            success, message = validator.validate("tasks.yml")
+    """
+
+    def __init__(self, rules: Optional[List[str]] = None):
+        """
+        Initialize validator with specific rules.
+
+        Args:
+            rules: List of rule IDs to check. If None, uses default set.
+        """
+        if rules is None:
+            rules = [
+                "P001",  # Module Name Validation
+                "P002",  # Module Argument Key Validation
+                "P003",  # Module Argument Value Validation
+                "P004",  # Variable Validation
+                "R301",  # Non-FQCN Use
+                "R303",  # Task Without Name
+                "R306",  # Undefined Variables
+                "R116",  # Insecure File Permissions
+            ]
+
+        # Use system temp directory for ARI data
+        ari_tmp = Path(tempfile.gettempdir()) / "x2a-convertor" / "ari-data"
+        ari_tmp.mkdir(parents=True, exist_ok=True)
+
+        self.data_dir = ari_tmp
+        self.config = Config(
+            data_dir=str(ari_tmp),
+            rules=rules,
+        )
+        self.scanner = ARIScanner(self.config, silent=True)
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - cleanup temporary files."""
+        self.cleanup()
+        return False
+
+    def __del__(self):
+        """Destructor - cleanup on garbage collection."""
+        self.cleanup()
+
+    def cleanup(self):
+        """Clean up temporary ARI data directory."""
+        if hasattr(self, "data_dir") and self.data_dir and self.data_dir.exists():
+            try:
+                shutil.rmtree(self.data_dir)
+            except Exception:
+                # Ignore cleanup errors
+                pass
+
+    def validate(self, taskfile_path: str) -> Tuple[bool, str]:
+        """
+        Validate a taskfile and return simple pass/fail with error messages.
+
+        Args:
+            taskfile_path: Path to the YAML taskfile
+
+        Returns:
+            Tuple of (success: bool, message: str)
+            - If validation passes: (True, "All checks passed")
+            - If validation fails: (False, formatted error messages with line numbers)
+
+        Example:
+            >>> validator = TaskfileValidator()
+            >>> success, message = validator.validate("tasks.yml")
+            >>> if not success:
+            ...     print(message)
+            tasks.yml:3 [fqcn] Module 'apt' should use FQCN
+            tasks.yml:8 [name-missing] Task is missing a name
+        """
+        path_obj = Path(taskfile_path)
+        if not path_obj.exists():
+            return False, f"ERROR: File not found: {taskfile_path}"
+
+        # Read the taskfile
+        with open(path_obj) as f:
+            taskfile_yaml_content = f.read()
+
+        # Run ARI validation
+        try:
+            result = self.scanner.evaluate(
+                type=LoadType.TASKFILE,
+                name=path_obj.name,
+                taskfile_yaml=taskfile_yaml_content,
+                taskfile_only=True,
+            )
+        except Exception as e:
+            return False, f"ERROR: Validation failed: {str(e)}"
+
+        # Get scanner data to access task objects with line numbers
+        scandata = self.scanner.get_last_scandata()
+
+        # Check for task loading errors
+        if not result or not result.targets:
+            return False, "ERROR: No validation results returned"
+
+        # Get the taskfile object
+        target = result.targets[0]
+        taskfile_spec = None
+
+        if target.nodes:
+            node = target.nodes[0]
+            if hasattr(node, "node") and hasattr(node.node, "spec"):
+                taskfile_spec = node.node.spec
+
+        # Check task loading errors first
+        if taskfile_spec and hasattr(taskfile_spec, "task_loading"):
+            task_loading = taskfile_spec.task_loading
+            if task_loading.get("failure", 0) > 0:
+                error_lines = [
+                    f"ERROR: {task_loading['failure']} task(s) failed to load:"
+                ]
+                for error in task_loading.get("errors", []):
+                    error_lines.append(f"  - {error}")
+                return False, "\n".join(error_lines)
+
+        # Get task definitions with line numbers
+        tasks = scandata.root_definitions.get("definitions", {}).get("tasks", [])
+        task_map = {task.key: task for task in tasks}
+
+        # Collect errors
+        errors = []
+
+        for node in target.nodes:
+            if not hasattr(node, "rules"):
+                continue
+
+            for rule_result in node.rules:
+                # Check if rule matched AND found an issue
+                if not rule_result.matched:
+                    continue
+
+                # Determine if there's an actual issue based on the rule type
+                has_issue = False
+                rule = rule_result.rule
+                detail = rule_result.detail or {}
+
+                # For R301 (FQCN), only flag if module name differs from FQCN
+                if rule.rule_id == "R301" and detail:
+                    if "module" in detail and "fqcn" in detail:
+                        has_issue = detail["module"] != detail["fqcn"]
+                elif rule_result.verdict:
+                    # verdict=True usually means issue found for error-detection rules
+                    has_issue = True
+                elif rule_result.detail:
+                    # If there's detail content, it's likely an issue
+                    has_issue = True
+
+                if not has_issue:
+                    continue
+
+                # Get task information from the node
+                task_name = "unknown task"
+                line_num = "?"
+
+                # Try to get task from node spec
+                node_spec = getattr(node.node, "spec", None)
+                if node_spec and hasattr(node_spec, "key"):
+                    task_key = node_spec.key
+                    if task_key in task_map:
+                        task = task_map[task_key]
+                        task_name = task.name or "unnamed task"
+                        if task.line_num_in_file:
+                            line_num = task.line_num_in_file[0]
+                    # For nodes without task_map entry, try to get info from spec directly
+                    elif hasattr(node_spec, "name"):
+                        task_name = node_spec.name or "unnamed task"
+                        if (
+                            hasattr(node_spec, "line_num_in_file")
+                            and node_spec.line_num_in_file
+                        ):
+                            line_num = node_spec.line_num_in_file[0]
+
+                # Format error message
+                error_msg = f"{path_obj.name}:{line_num} [{rule.rule_id}] Task '{task_name}' has the following issue: '{rule.description}'"
+
+                if detail:
+                    # Add specific details if available
+                    if "module" in detail and "fqcn" in detail:
+                        error_msg += f" - {detail['module']} → {detail['fqcn']}"
+                    elif "undefined_variables" in detail:
+                        vars_list = ", ".join(detail["undefined_variables"])
+                        error_msg += f" - Variables: {vars_list}"
+
+                errors.append(error_msg)
+
+        # Return results
+        if not errors:
+            return True, "All checks passed"
+
+        error_count = len(errors)
+        error_message = f"Found {error_count} issue(s):\n" + "\n".join(errors)
+        return False, error_message
+
+
 class AnsibleWriteInput(BaseModel):
     """Input schema for Ansible YAML write tool."""
 
@@ -171,6 +381,16 @@ class AnsibleWriteTool(BaseTool):
         super().__init__(**kwargs)
         self._write_tool = WriteFileTool()
         self._loader = DataLoader()
+        self._validator = TaskfileValidator()
+
+    def _is_taskfile(self, file_path: str) -> bool:
+        """Check if file path indicates an Ansible taskfile.
+
+        Returns:
+            True if parent directory is 'tasks' and has .yml/.yaml extension
+        """
+        path = Path(file_path)
+        return path.parent.name == "tasks" and path.suffix in (".yml", ".yaml")
 
     def _validate_not_empty(self, parsed_yaml: Any, yaml_content: str) -> Optional[str]:
         """Validate that YAML content is not empty.
@@ -259,7 +479,7 @@ class AnsibleWriteTool(BaseTool):
         Returns:
             Error message if validation fails, None if validation passes.
         """
-        if parsed_yaml is None or "/tasks/" not in file_path:
+        if parsed_yaml is None or not self._is_taskfile(file_path):
             return None
 
         if not isinstance(parsed_yaml, list) or len(parsed_yaml) == 0:
@@ -278,6 +498,46 @@ class AnsibleWriteTool(BaseTool):
             )
 
         return None
+
+    def _format_ari_errors(self, file_path: str, validation_message: str) -> str:
+        """Format ARI validation errors in XML structure for LLM consumption.
+
+        Args:
+            file_path: Path to the file that was validated
+            validation_message: Error message from ARI validator
+
+        Returns:
+            XML-formatted error message with fix workflow
+        """
+        output = []
+        output.append("<ansible_lint_errors>")
+        output.append(f"<file_path>{file_path}</file_path>")
+        output.append("")
+        output.append("<validation_errors>")
+        output.append(validation_message)
+        output.append("</validation_errors>")
+        output.append("")
+        output.append("<fix_workflow>")
+        output.append("1. Review each error with its line number and rule ID")
+        output.append("2. Common fixes:")
+        output.append("   - [R301] Non-FQCN → Replace 'apt' with 'ansible.builtin.apt'")
+        output.append("   - [R303] Task Without Name → Add 'name:' field to task")
+        output.append(
+            "   - [R306] Undefined Variables → Check variable names and define them"
+        )
+        output.append("   - [P001] Invalid Module → Use correct module name")
+        output.append(
+            "   - [P002] Invalid Argument → Check module documentation for correct parameter names"
+        )
+        output.append("   - [R116] Insecure Permissions → Use mode: '0644' or stricter")
+        output.append("3. Read the current file content to see the full context")
+        output.append("4. Fix the specific issues at the reported line numbers")
+        output.append("5. Call ansible_write again with the corrected yaml_content")
+        output.append("6. Repeat until all validation checks pass")
+        output.append("</fix_workflow>")
+        output.append("</ansible_lint_errors>")
+
+        return "\n".join(output)
 
     def _format_and_write_yaml(
         self, parsed_yaml: Any, file_path: str, yaml_content: str
@@ -355,6 +615,26 @@ class AnsibleWriteTool(BaseTool):
 
         if result.startswith("Successfully"):
             slog.info("Successfully wrote valid Ansible YAML")
+
+            # Run ARI validation if this is a taskfile
+            if self._is_taskfile(file_path):
+                slog.debug("Running ARI validation on taskfile")
+                try:
+                    success, validation_message = self._validator.validate(file_path)
+                    if not success:
+                        slog.info(f"ARI validation failed for '{file_path}'")
+                        # Format ARI errors in XML structure for LLM
+                        structured_error = self._format_ari_errors(
+                            file_path, validation_message
+                        )
+                        return f"WARNING: File was written but has validation issues:\n\n{structured_error}"
+                    slog.debug("ARI validation passed")
+                except Exception as e:
+                    slog.warning(f"ARI validation failed with exception: {str(e)}")
+                    # Don't fail the write operation if ARI validation has an error
+                    return (
+                        f"{result}\n\nNote: ARI validation could not be run: {str(e)}"
+                    )
         else:
             slog.info(f"Failed to write Ansible yaml for '{file_path}'")
 
