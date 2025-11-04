@@ -53,9 +53,8 @@ class PlanningAgent(BaseAgent):
         system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
             module=state.module,
-            high_level_migration_plan=state.high_level_migration_plan.to_document(),
+            high_level_migration_plan=state.high_level_migration_plan,
             module_migration_plan=state.module_migration_plan.to_document(),
-            directory_listing="\n".join(state.directory_listing),
             path=state.path,
             existing_checklist=state.checklist.to_markdown() if state.checklist else "",
         )
