@@ -13,11 +13,13 @@ dependencies = [
     "langchain-community>=0.3.27",
     "langchain-openai>=1.0.2",
     "langgraph>=1.0.2",
+    "setuptools>=80.9.0",
     "structlog>=25.4.0",
     "tree-sitter>=0.23.0",
     "tree-sitter-ruby>=0.23.0",
     "tree-sitter-json>=0.23.0",
     "ansible-lint>=25.9.2",
+    "ansible-risk-insight>=0.2.10",
 ]
 
 [tool.pyrefly]
