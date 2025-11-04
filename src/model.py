@@ -100,6 +100,11 @@ def get_model() -> BaseChatModel:
 
     # Handle OpenAI-compatible local APIs
     if os.getenv("OPENAI_API_BASE"):
+        kwargs: dict[str, Any] = {}
+        reasoning_effort = os.getenv("REASONING_EFFORT", None)
+        if reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
+
         return init_chat_model(
             model_name,
             base_url=os.getenv("OPENAI_API_BASE"),
@@ -107,7 +112,7 @@ def get_model() -> BaseChatModel:
             api_key=os.getenv("OPENAI_API_KEY", "not-needed"),
             max_tokens=int(os.getenv("MAX_TOKENS", "8192")),
             temperature=float(os.getenv("TEMPERATURE", "0.1")),
-            reasoning_effort=os.getenv("REASONING_EFFORT", "high"),
+            **kwargs,
         )
 
     return init_chat_model(model_name)
