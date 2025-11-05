@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt.chat_agent_executor import AgentStatePydantic
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
@@ -50,7 +49,6 @@ class ChefSubagent:
         agent = create_react_agent(
             model=self.model,
             tools=tools,
-            state_schema=AgentStatePydantic,
         )
         return agent
 
@@ -213,7 +211,6 @@ class ChefSubagent:
         agent = create_react_agent(
             model=self.model,
             tools=[],
-            state_schema=AgentStatePydantic,
         )
         # Execute cleanup agent
         result = agent.invoke(
