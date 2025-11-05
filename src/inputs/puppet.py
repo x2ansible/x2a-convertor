@@ -5,4 +5,3 @@ def analyze_puppet_manifests() -> None:
     """Puppet manifest analyzer"""
     click.echo("Analyzing Puppet manifests")
     # TODO: Implement Puppet analysis logic
-    pass

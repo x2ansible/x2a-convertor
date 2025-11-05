@@ -1,7 +1,8 @@
 import os
-import tempfile
 import shutil
-from tools.ansible_lint import AnsibleLintTool, ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
+import tempfile
+
+from tools.ansible_lint import ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE, AnsibleLintTool
 
 
 class TestAnsibleLintTool:
@@ -49,7 +50,7 @@ class TestAnsibleLintTool:
         assert len(result) > 0
 
         # Read the file to verify it exists and was processed
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             fixed_content = f.read()
 
         # The file should exist and contain valid YAML
@@ -89,7 +90,7 @@ class TestAnsibleLintTool:
         assert "ansible-lint issue" in result
 
         # Read the file to verify it was NOT modified
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content_after = f.read()
 
         # The file should still have 'yes' (not fixed)

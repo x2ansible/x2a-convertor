@@ -9,8 +9,8 @@ from src.validation.service import ValidationService
 from src.validation.validators import AnsibleLintValidator, RoleStructureValidator
 
 __all__ = [
-    "ValidationResult",
-    "ValidationService",
     "AnsibleLintValidator",
     "RoleStructureValidator",
+    "ValidationResult",
+    "ValidationService",
 ]

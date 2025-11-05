@@ -1,14 +1,12 @@
 import shutil
-
 from pathlib import Path
-from typing import Optional
 
-from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_community.tools.file_management.copy import CopyFileTool
 from langchain_community.tools.file_management.utils import (
-    FileValidationError,
     INVALID_PATH_TEMPLATE,
+    FileValidationError,
 )
+from langchain_core.callbacks import CallbackManagerForToolRun
 
 
 class CopyFileWithMkdirTool(CopyFileTool):
@@ -20,7 +18,7 @@ class CopyFileWithMkdirTool(CopyFileTool):
         self,
         source_path: str,
         destination_path: str,
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+        run_manager: CallbackManagerForToolRun | None = None,
     ) -> str:
         try:
             source_path_ = self.get_relative_path(source_path)

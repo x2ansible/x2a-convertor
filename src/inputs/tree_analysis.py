@@ -1,12 +1,12 @@
 import re
-import tree_sitter_json as tsjson
-import tree_sitter_ruby as tsruby
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from tree_sitter import Language, Parser, Node
-from typing import Dict, List, Any, Optional
+from typing import Any
+
+import tree_sitter_json as tsjson
+import tree_sitter_ruby as tsruby
+from tree_sitter import Language, Node, Parser
 
 from src.utils.logging import get_logger
 
@@ -87,13 +87,13 @@ class ChefResource:
     """Represents a Chef resource with its properties."""
 
     type: str
-    name: Optional[str]
+    name: str | None
     line: int
-    attributes: Dict[str, Any]
-    block_content: Optional[str] = None
+    attributes: dict[str, Any]
+    block_content: str | None = None
     category: str = "other"
     has_dynamic_name: bool = False
-    important_attributes: Dict[str, Any] = field(default_factory=dict)
+    important_attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -136,10 +136,9 @@ class ChefReporting:
 
     def __init__(self) -> None:
         """Initialize the Chef reporting system."""
-        pass
 
     def generate_report(
-        self, directory_path: str, analysis_results: Dict[str, Any]
+        self, directory_path: str, analysis_results: dict[str, Any]
     ) -> str:
         """Generate a comprehensive LLM-friendly report of Chef cookbook structure.
 
@@ -197,7 +196,7 @@ class ChefReporting:
         return f"{path}.rb"
 
     def _add_attributes_section(
-        self, attributes_files: Dict[str, Any], report_lines: List[str]
+        self, attributes_files: dict[str, Any], report_lines: list[str]
     ) -> None:
         """Add attributes files section using enriched data."""
         if not attributes_files:
@@ -228,7 +227,7 @@ class ChefReporting:
             report_lines.append("")
 
     def _add_recipes_section(
-        self, recipe_files: Dict[str, Any], report_lines: List[str]
+        self, recipe_files: dict[str, Any], report_lines: list[str]
     ) -> None:
         """Add recipe files section using enriched data."""
         if not recipe_files:
@@ -269,7 +268,7 @@ class ChefReporting:
 
             report_lines.append("")
 
-    def _add_enriched_resource(self, resource, report_lines: List[str]) -> None:
+    def _add_enriched_resource(self, resource, report_lines: list[str]) -> None:
         """Add an enriched Chef resource to the report."""
 
         resource_type = resource.type
@@ -291,7 +290,7 @@ class ChefReporting:
             report_lines.append(f"    - {', '.join(attrs_list)}")
 
     def _add_resources_section(
-        self, resource_files: Dict[str, Any], report_lines: List[str]
+        self, resource_files: dict[str, Any], report_lines: list[str]
     ) -> None:
         """Add custom resource files section using enriched data."""
         if not resource_files:
@@ -306,7 +305,7 @@ class ChefReporting:
             report_lines.append("")
 
     def _add_metadata_section(
-        self, metadata_files: Dict[str, Any], report_lines: List[str]
+        self, metadata_files: dict[str, Any], report_lines: list[str]
     ) -> None:
         """Add metadata files section using enriched data."""
         if not metadata_files:
@@ -322,7 +321,7 @@ class ChefReporting:
             report_lines.append("")
 
     def _add_templates_section(
-        self, template_files: List[TemplateFile], report_lines: List[str]
+        self, template_files: list[TemplateFile], report_lines: list[str]
     ) -> None:
         """Add template files section using enriched data."""
         if not template_files:
@@ -355,7 +354,7 @@ class BaseTreeSitterParser(ABC):
         self.parser = parser
 
     @staticmethod
-    def get_node_text(node: Optional[Node], content: bytes) -> str:
+    def get_node_text(node: Node | None, content: bytes) -> str:
         """Get text content of an AST node.
 
         Args:
@@ -369,7 +368,7 @@ class BaseTreeSitterParser(ABC):
             return ""
         return content[node.start_byte : node.end_byte].decode("utf-8")
 
-    def parse_file(self, file_path: str) -> Dict[str, Any]:
+    def parse_file(self, file_path: str) -> dict[str, Any]:
         """Parse a file and return its structure.
 
         Args:
@@ -393,12 +392,12 @@ class BaseTreeSitterParser(ABC):
             logger.error(error_msg)
             return {"error": error_msg}
         except Exception as e:
-            error_msg = f"Failed to parse {file_path}: {str(e)}"
+            error_msg = f"Failed to parse {file_path}: {e!s}"
             logger.error(error_msg, exc_info=True)
             return {"error": error_msg}
 
     @abstractmethod
-    def _extract_structure(self, root_node: Node, content: bytes) -> Dict[str, Any]:
+    def _extract_structure(self, root_node: Node, content: bytes) -> dict[str, Any]:
         """Extract structure from AST root node.
 
         Args:
@@ -408,7 +407,6 @@ class BaseTreeSitterParser(ABC):
         Returns:
             Dictionary containing extracted structure
         """
-        pass
 
 
 class RubyParser(BaseTreeSitterParser):
@@ -425,7 +423,7 @@ class RubyParser(BaseTreeSitterParser):
         parser = Parser(ruby_language)
         return cls(parser)
 
-    def _extract_structure(self, root_node: Node, content: bytes) -> Dict[str, Any]:
+    def _extract_structure(self, root_node: Node, content: bytes) -> dict[str, Any]:
         """Extract Ruby/Chef structure from AST.
 
         Args:
@@ -454,7 +452,7 @@ class RubyParser(BaseTreeSitterParser):
         return structure
 
     def _traverse_ruby_node(
-        self, node: Node, content: bytes, structure: Dict[str, Any]
+        self, node: Node, content: bytes, structure: dict[str, Any]
     ) -> None:
         """Traverse Ruby AST and extract Chef-specific patterns.
 
@@ -496,7 +494,7 @@ class RubyParser(BaseTreeSitterParser):
             stack.extend(reversed(current_node.children))
 
     def _handle_method_call(
-        self, node: Node, content: bytes, structure: Dict[str, Any]
+        self, node: Node, content: bytes, structure: dict[str, Any]
     ) -> None:
         """Handle method call nodes for Chef resources and includes."""
         method_node = node.child_by_field_name("method")
@@ -520,7 +518,7 @@ class RubyParser(BaseTreeSitterParser):
                 target_list.extend(args)
 
     def _handle_assignment(
-        self, node: Node, content: bytes, structure: Dict[str, Any]
+        self, node: Node, content: bytes, structure: dict[str, Any]
     ) -> None:
         """Handle assignment nodes for Chef attributes."""
         left = node.child_by_field_name("left")
@@ -544,7 +542,7 @@ class RubyParser(BaseTreeSitterParser):
         Returns:
             ChefResource instance containing resource information
         """
-        resource_name: Optional[str] = None
+        resource_name: str | None = None
         attributes = {}
         block_content = None
 
@@ -570,7 +568,7 @@ class RubyParser(BaseTreeSitterParser):
             block_content=block_content,
         )
 
-    def _parse_chef_block(self, block_node: Node, content: bytes) -> Dict[str, Any]:
+    def _parse_chef_block(self, block_node: Node, content: bytes) -> dict[str, Any]:
         """Parse Chef resource block to extract attributes.
 
         Args:
@@ -612,7 +610,7 @@ class RubyParser(BaseTreeSitterParser):
 
         return attributes
 
-    def _extract_attribute_value(self, node: Node, content: bytes) -> Optional[str]:
+    def _extract_attribute_value(self, node: Node, content: bytes) -> str | None:
         """Extract the value of a Chef resource attribute.
 
         Args:
@@ -629,7 +627,7 @@ class RubyParser(BaseTreeSitterParser):
 
         return None
 
-    def _extract_string_args(self, node: Node, content: bytes) -> List[str]:
+    def _extract_string_args(self, node: Node, content: bytes) -> list[str]:
         """Extract string arguments from a method call.
 
         Args:
@@ -647,7 +645,7 @@ class RubyParser(BaseTreeSitterParser):
                         args.append(self.get_node_text(arg, content).strip("\"'"))
         return args
 
-    def _parse_assignment(self, node: Node, content: bytes) -> Optional[Dict[str, Any]]:
+    def _parse_assignment(self, node: Node, content: bytes) -> dict[str, Any] | None:
         """Parse variable assignments, especially Chef attributes.
 
         Args:
@@ -675,7 +673,7 @@ class RubyParser(BaseTreeSitterParser):
             "line": node.start_point[0] + 1,
         }
 
-    def _enrich_structure(self, structure: Dict[str, Any], content: bytes) -> None:
+    def _enrich_structure(self, structure: dict[str, Any], content: bytes) -> None:
         """Enrich the structure with additional processed information.
 
         Args:
@@ -709,7 +707,7 @@ class RubyParser(BaseTreeSitterParser):
             structure.get("chef_resources", [])
         )
 
-    def _detect_all_loops(self, content: bytes) -> List[LoopInfo]:
+    def _detect_all_loops(self, content: bytes) -> list[LoopInfo]:
         """Detect all types of loops in the content."""
         loops = []
         content_str = content.decode("utf-8")
@@ -729,8 +727,8 @@ class RubyParser(BaseTreeSitterParser):
         return loops
 
     def _enrich_chef_resources(
-        self, resources: List[ChefResource]
-    ) -> List[ChefResource]:
+        self, resources: list[ChefResource]
+    ) -> list[ChefResource]:
         """Enrich Chef resources with additional metadata."""
         enriched = []
 
@@ -776,7 +774,7 @@ class JsonParser(BaseTreeSitterParser):
         parser = Parser(json_language)
         return cls(parser)
 
-    def _extract_structure(self, root_node: Node, content: bytes) -> Dict[str, Any]:
+    def _extract_structure(self, root_node: Node, content: bytes) -> dict[str, Any]:
         """Extract JSON structure from AST.
 
         Args:
@@ -792,7 +790,7 @@ class JsonParser(BaseTreeSitterParser):
         return structure
 
     def _traverse_json_node(
-        self, node: Node, content: bytes, structure: Dict[str, Any]
+        self, node: Node, content: bytes, structure: dict[str, Any]
     ) -> None:
         """Traverse JSON AST and extract keys.
 
@@ -822,9 +820,9 @@ class TreeSitterAnalyzer:
 
     def __init__(
         self,
-        ruby_parser: Optional[RubyParser] = None,
-        json_parser: Optional[JsonParser] = None,
-        reporter: Optional[ChefReporting] = None,
+        ruby_parser: RubyParser | None = None,
+        json_parser: JsonParser | None = None,
+        reporter: ChefReporting | None = None,
     ) -> None:
         """Initialize analyzer with optional parser injection.
 
@@ -837,7 +835,7 @@ class TreeSitterAnalyzer:
         self.json_parser = json_parser or JsonParser.create()
         self.reporter = reporter or ChefReporting()
 
-    def parse_file(self, file_path: str) -> Dict[str, Any]:
+    def parse_file(self, file_path: str) -> dict[str, Any]:
         """Parse a file using the appropriate parser.
 
         Args:
@@ -860,11 +858,11 @@ class TreeSitterAnalyzer:
                 logger.warning(error_msg)
                 return {"error": error_msg}
         except Exception as e:
-            error_msg = f"Failed to determine file type for {file_path}: {str(e)}"
+            error_msg = f"Failed to determine file type for {file_path}: {e!s}"
             logger.error(error_msg, exc_info=True)
             return {"error": error_msg}
 
-    def analyze_directory(self, directory_path: str) -> Dict[str, Any]:
+    def analyze_directory(self, directory_path: str) -> dict[str, Any]:
         """Analyze all Ruby and JSON files in a directory.
 
         Args:
@@ -887,7 +885,7 @@ class TreeSitterAnalyzer:
                 return {"error": error_msg}
 
             # Initialize results structure
-            results: Dict[str, Any] = {
+            results: dict[str, Any] = {
                 "directory_path": directory_path,
                 "files": {},
                 "categorized_files": {
@@ -927,7 +925,7 @@ class TreeSitterAnalyzer:
             return results
 
         except Exception as e:
-            error_msg = f"Failed to analyze directory {directory_path}: {str(e)}"
+            error_msg = f"Failed to analyze directory {directory_path}: {e!s}"
             logger.error(error_msg, exc_info=True)
             return {"error": error_msg}
 
@@ -940,8 +938,8 @@ class TreeSitterAnalyzer:
             return file_path
 
     def _categorize_and_enrich_file(
-        self, analysis: Dict[str, Any], rel_path: str
-    ) -> Dict[str, Any]:
+        self, analysis: dict[str, Any], rel_path: str
+    ) -> dict[str, Any]:
         """Categorize file and add enrichment metadata."""
         # Determine file category using lookup table
         category = "other"  # default
@@ -959,7 +957,7 @@ class TreeSitterAnalyzer:
         return analysis
 
     def _add_to_category(
-        self, categorized: Dict[str, Dict], rel_path: str, analysis: Dict[str, Any]
+        self, categorized: dict[str, dict], rel_path: str, analysis: dict[str, Any]
     ) -> None:
         """Add file analysis to appropriate category."""
         category = analysis.get("file_category", "other")
@@ -968,7 +966,7 @@ class TreeSitterAnalyzer:
         else:
             categorized["other"][rel_path] = analysis
 
-    def _find_template_files(self, directory_path: str) -> List[TemplateFile]:
+    def _find_template_files(self, directory_path: str) -> list[TemplateFile]:
         """Find and categorize template files."""
         template_files = []
         try:
@@ -1007,6 +1005,6 @@ class TreeSitterAnalyzer:
             return self.reporter.generate_report(directory_path, results)
 
         except Exception as e:
-            error_msg = f"Failed to generate report for {directory_path}: {str(e)}"
+            error_msg = f"Failed to generate report for {directory_path}: {e!s}"
             logger.error(error_msg, exc_info=True)
             return f"Error generating report: {error_msg}"

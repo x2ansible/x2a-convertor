@@ -5,9 +5,8 @@ Parses Chef Policyfile.lock.json to extract dependency information.
 """
 
 import json
-from pathlib import Path
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from pathlib import Path
 
 from src.utils.logging import get_logger
 
@@ -26,7 +25,7 @@ class CookbookDependency:
 class CookbookInfo:
     """Information about a cookbook from policy lock"""
 
-    def __init__(self, name: str, data: Dict) -> None:
+    def __init__(self, name: str, data: dict) -> None:
         self.name = name
         self.version = data.get("version")
         self.identifier = data.get("identifier")
@@ -75,14 +74,14 @@ class PolicyLockParser:
 
         logger.debug(f"Reading policy lock file: {self.lock_file_path}")
         try:
-            with open(self.lock_file_path, "r") as f:
+            with open(self.lock_file_path) as f:
                 self.data = json.load(f)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON from {lock_file_path}: {e}")
             raise
 
         # Parse cookbook_locks
-        self.cookbooks: Dict[str, CookbookInfo] = {}
+        self.cookbooks: dict[str, CookbookInfo] = {}
         cookbook_locks = self.data.get("cookbook_locks", {})
 
         logger.debug(f"Parsing {len(cookbook_locks)} cookbook entries")
@@ -101,7 +100,7 @@ class PolicyLockParser:
             + f"({local_count} local, {supermarket_count} from supermarket)"
         )
 
-    def get_cookbook_by_path(self, source_path: str) -> Optional[CookbookInfo]:
+    def get_cookbook_by_path(self, source_path: str) -> CookbookInfo | None:
         """
         Find cookbook by its source path
 
@@ -121,7 +120,7 @@ class PolicyLockParser:
         logger.debug(f"No cookbook found with source path: {source_path}")
         return None
 
-    def get_cookbook_by_name(self, name: str) -> Optional[CookbookInfo]:
+    def get_cookbook_by_name(self, name: str) -> CookbookInfo | None:
         """
         Get cookbook by name
 
@@ -133,7 +132,7 @@ class PolicyLockParser:
         """
         return self.cookbooks.get(name)
 
-    def get_cookbook_dependencies(self, cookbook_name: str) -> List[CookbookDependency]:
+    def get_cookbook_dependencies(self, cookbook_name: str) -> list[CookbookDependency]:
         """
         Get dependencies for a specific cookbook
 
@@ -167,7 +166,7 @@ class PolicyLockParser:
         logger.debug(f"Found {len(dep_names)} direct dependencies: {dep_names}")
 
         # Build dependency list with identifiers
-        result: List[CookbookDependency] = []
+        result: list[CookbookDependency] = []
         all_dep_names = self._get_transitive_deps(cookbook_name, dependencies_map)
         logger.info(
             f"Resolved {len(all_dep_names)} total dependencies (including transitive) for {cookbook_name}"
@@ -191,8 +190,8 @@ class PolicyLockParser:
         return result
 
     def _get_transitive_deps(
-        self, cookbook_name: str, dependencies_map: Dict
-    ) -> List[str]:
+        self, cookbook_name: str, dependencies_map: dict
+    ) -> list[str]:
         """Get all transitive dependencies (recursive)"""
         logger.debug(f"Resolving transitive dependencies for: {cookbook_name}")
         cookbook = self.get_cookbook_by_name(cookbook_name)

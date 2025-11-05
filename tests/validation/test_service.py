@@ -2,8 +2,6 @@
 
 from unittest.mock import Mock
 
-import pytest
-
 from src.validation.results import ValidationResult
 from src.validation.service import ValidationService
 

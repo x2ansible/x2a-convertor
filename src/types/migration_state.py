@@ -31,7 +31,6 @@ class MigrationStateInterface(ABC):
         Returns:
             True if migration failed, False otherwise
         """
-        pass
 
     @abstractmethod
     def get_failure_reason(self) -> str:
@@ -40,7 +39,6 @@ class MigrationStateInterface(ABC):
         Returns:
             Human-readable failure reason string, empty if not failed
         """
-        pass
 
     @abstractmethod
     def get_output(self) -> str:
@@ -49,4 +47,3 @@ class MigrationStateInterface(ABC):
         Returns:
             Migration output string (success or failure summary)
         """
-        pass

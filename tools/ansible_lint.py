@@ -212,5 +212,5 @@ class AnsibleLintTool(BaseTool):
             )
             return "ERROR: ansible-lint is not installed. Install it with: uv add ansible-lint."
         except Exception as e:
-            logger.error(f"Error running ansible-lint: {str(e)}")
-            return f"ERROR: running ansible-lint:\n```{str(e)}```"
+            logger.error(f"Error running ansible-lint: {e!s}")
+            return f"ERROR: running ansible-lint:\n```{e!s}```"

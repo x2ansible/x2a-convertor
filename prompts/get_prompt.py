@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from jinja2 import Environment, FileSystemLoader
 
 base_path = Path(__file__).parent

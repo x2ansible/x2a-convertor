@@ -2,9 +2,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from langchain_core.tools import BaseTool
-from pydantic import BaseModel, Field
-
 # Ansible Python API imports
 from ansible import context
 from ansible.errors import AnsibleError, AnsibleParserError
@@ -12,8 +9,9 @@ from ansible.inventory.manager import InventoryManager
 from ansible.module_utils.common.collections import ImmutableDict
 from ansible.parsing.dataloader import DataLoader
 from ansible.playbook.play import Play
-from ansible.playbook.role.definition import RoleDefinition
 from ansible.vars.manager import VariableManager
+from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
 
@@ -159,7 +157,7 @@ class AnsibleRoleCheckTool(BaseTool):
             # - Handler definitions
             # - Template references
             # - Role dependencies in meta/main.yml
-            play = Play.load(
+            _ = Play.load(
                 play_ds,
                 variable_manager=variable_manager,
                 loader=loader,
@@ -168,7 +166,7 @@ class AnsibleRoleCheckTool(BaseTool):
             # If we get here, the role loaded successfully
             # This means Ansible validated all the structure
             logger.info(f"Role '{role_name}' passed validation")
-            return f"Role validation passed: All tasks, handlers, and role structure are valid."
+            return "Role validation passed: All tasks, handlers, and role structure are valid."
 
         except AnsibleParserError as e:
             # YAML syntax errors, malformed tasks, etc.

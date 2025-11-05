@@ -3,13 +3,14 @@
 Validates and fixes migration output issues.
 """
 
-from typing import Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 
+from prompts.get_prompt import get_prompt
 from src.exporters.agent_state import ValidationAgentState
 from src.exporters.base_agent import BaseAgent
 from src.exporters.state import ChefState
@@ -23,7 +24,6 @@ from src.utils.config import get_config_int
 from src.utils.logging import get_logger
 from src.validation.service import ValidationService
 from src.validation.validators import AnsibleLintValidator, RoleStructureValidator
-from prompts.get_prompt import get_prompt
 from tools.ansible_lint import AnsibleLintTool
 from tools.ansible_role_check import AnsibleRoleCheckTool
 from tools.ansible_write import AnsibleWriteTool
@@ -32,7 +32,7 @@ from tools.diff_file import DiffFileTool
 from tools.validated_write import ValidatedWriteTool
 
 if TYPE_CHECKING:
-    from src.exporters.chef_to_ansible import MigrationPhase
+    pass
 
 logger = get_logger(__name__)
 

@@ -20,7 +20,6 @@ dependencies = [
     "tree-sitter-json>=0.23.0",
     "ansible-lint>=25.9.2",
     "ansible-risk-insight>=0.2.10",
-    "langchain-aws>=1.0.0",
 ]
 
 [tool.pyrefly]
@@ -50,7 +49,29 @@ markers = [
 extend-exclude = ["src/utils/logging.py"]
 
 [tool.ruff.lint]
-select = ["TID"]  # Enable flake8-tidy-imports
+select = [
+    "F",      # Pyflakes (including unused imports)
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "I",      # isort (import sorting)
+    "UP",     # pyupgrade (modern Python syntax)
+    "TID",    # flake8-tidy-imports
+    "TRY",    # tryceratops (exception handling)
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    # "RUF",    # Ruff-specific rules
+    # To be enabled soon, step by step
+    # "PTH",    # flake8-use-pathlib
+    # "SIM",    # flake8-simplify
+    # "B",      # flake8-bugbear
+]
+ignore = [
+    "E501",    # Line too long (handled by formatter)
+    "TRY003",  # Avoid specifying long messages outside exception class
+    "TRY300",  # Consider else block
+    "TRY400",  # Use logging.exception instead of logging.error
+
+]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "logging.getLogger".msg = "Use get_logger() from src.utils.logging instead of logging.getLogger()"

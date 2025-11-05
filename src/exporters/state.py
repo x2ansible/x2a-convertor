@@ -6,10 +6,8 @@ through its various phases.
 
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Optional
 
 from src.types import AnsibleModule, Checklist, DocumentFile, MigrationStateInterface
-
 
 # Constants
 ANSIBLE_PATH_TEMPLATE = "ansible/{module}"
@@ -60,7 +58,7 @@ class ChefState(MigrationStateInterface):
     validation_attempt_counter: int
     validation_report: str
     last_output: str
-    checklist: Optional[Checklist] = None
+    checklist: Checklist | None = None
     failed: bool = False
     failure_reason: str = ""
 

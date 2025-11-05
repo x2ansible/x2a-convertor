@@ -2,8 +2,6 @@
 
 from unittest.mock import Mock
 
-import pytest
-
 from src.validation.validators import AnsibleLintValidator, RoleStructureValidator
 from tools.ansible_lint import ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 

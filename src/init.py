@@ -1,9 +1,8 @@
-import click
 import os
-
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
+import click
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
@@ -12,10 +11,9 @@ from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
-
 from prompts.get_prompt import get_prompt
-from src.model import get_model, get_runnable_config
 from src.const import MIGRATION_PLAN_FILE
+from src.model import get_model, get_runnable_config
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -109,5 +107,5 @@ def init_project(user_requirements, source_dir: str = "."):
         return result
 
     except Exception as e:
-        click.echo(f"❌ Error during migration planning: {str(e)}")
+        click.echo(f"❌ Error during migration planning: {e!s}")
         raise

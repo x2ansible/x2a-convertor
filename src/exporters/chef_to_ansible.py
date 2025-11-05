@@ -1,8 +1,7 @@
 from enum import Enum
-from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 
 from src.exporters.planning_agent import PlanningAgent
 from src.exporters.state import ChefState
@@ -43,7 +42,7 @@ class ChefToAnsibleSubagent:
     ensuring agents remain stateless and derive their tools from the state object.
     """
 
-    def __init__(self, model=None, module: Optional[AnsibleModule] = None) -> None:
+    def __init__(self, model=None, module: AnsibleModule | None = None) -> None:
         self.model = model or get_model()
         if module is None:
             raise ValueError("module parameter is required")
@@ -183,10 +182,10 @@ class ChefToAnsibleSubagent:
             summary_lines = [
                 f"❌ MIGRATION FAILED for {state.module}",
                 "",
-                f"Failure Reason:",
+                "Failure Reason:",
                 f"  {state.failure_reason}",
                 "",
-                f"Migration Summary:",
+                "Migration Summary:",
                 f"  Total items: {stats['total']}",
                 f"  Completed: {stats['complete']}",
                 f"  Pending: {stats['pending']}",
