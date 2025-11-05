@@ -1,19 +1,22 @@
 from dataclasses import dataclass
-from typing import List, Optional
 
-from langgraph.graph import StateGraph, END
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
+from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import create_react_agent
 
-from src.model import get_model, get_last_ai_message, get_runnable_config
-from src.inputs.chef_dependency_fetcher import ChefDependencyManager
 from prompts.get_prompt import get_prompt
+from src.inputs.chef_dependency_fetcher import ChefDependencyManager
 from src.inputs.tree_analysis import TreeSitterAnalyzer
+from src.model import get_last_ai_message, get_model, get_runnable_config
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class ChefAgentError(Exception):
+    """Raised when Chef agent returns invalid response."""
 
 
 @dataclass
@@ -21,8 +24,8 @@ class ChefState:
     path: str
     user_message: str
     specification: str
-    dependency_paths: List[str]
-    export_path: Optional[str]
+    dependency_paths: list[str]
+    export_path: str | None
 
 
 class ChefSubagent:
@@ -30,7 +33,7 @@ class ChefSubagent:
         self.model = model or get_model()
         self.agent = self._create_agent()
         self._workflow = self._create_workflow()
-        self._dependency_fetcher: Optional[ChefDependencyManager] = None
+        self._dependency_fetcher: ChefDependencyManager | None = None
         logger.debug(self._workflow.get_graph().draw_mermaid())
 
     def _create_agent(self):
@@ -75,7 +78,7 @@ class ChefSubagent:
 
         return workflow.compile()
 
-    def list_files(self, paths: List[str]) -> List[str]:
+    def list_files(self, paths: list[str]) -> list[str]:
         """Search multiple paths for cookbook files"""
         search_tool = FileSearchTool()
         all_files = []
@@ -233,7 +236,7 @@ class ChefSubagent:
         return state
 
     def _write_report(self, state: ChefState) -> ChefState:
-        logger.info(f"Writing Chef report for {str(state)}")
+        logger.info(f"Writing Chef report for {state!s}")
         data_list = "\n".join(self.list_files([state.path] + state.dependency_paths))
         # Generate tree-sitter analysis report
         analyzer = TreeSitterAnalyzer()
@@ -264,7 +267,7 @@ class ChefSubagent:
         )
         messages = result.get("messages", [])
         if len(messages) < 2:
-            raise Exception("Invalid response from Chef agent")
+            raise ChefAgentError("Invalid response from Chef agent")
 
         state.specification = messages[-1].content
         return state

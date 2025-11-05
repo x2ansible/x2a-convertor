@@ -70,7 +70,7 @@ class TestAnsibleModule:
 
         module = AnsibleModule("test")
         with pytest.raises(FrozenInstanceError):
-            setattr(module, "sanitized_name", "changed")
+            module.sanitized_name = "changed"  # pyrefly: ignore
 
     def test_str_returns_sanitized_name(self):
         """Test that str() returns the sanitized name."""

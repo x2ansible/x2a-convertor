@@ -1,6 +1,6 @@
 import difflib
 import os
-from typing import Any, Optional
+from typing import Any
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 class DiffFileInput(BaseModel):
     source_path: str = Field(description="Path to the source file")
     destination_path: str = Field(description="Path to the destination file")
-    context_lines: Optional[int] = Field(
+    context_lines: int | None = Field(
         default=3, description="Number of context lines to show around differences"
     )
 
@@ -37,13 +37,13 @@ class DiffFileTool(BaseTool):
             with open(source_path, encoding="utf-8") as f:
                 source_lines = f.readlines()
         except Exception as e:
-            return f"Error reading source file {source_path}: {str(e)}"
+            return f"Error reading source file {source_path}: {e!s}"
 
         try:
             with open(destination_path, encoding="utf-8") as f:
                 dest_lines = f.readlines()
         except Exception as e:
-            return f"Error reading destination file {destination_path}: {str(e)}"
+            return f"Error reading destination file {destination_path}: {e!s}"
 
         diff = difflib.unified_diff(
             source_lines,

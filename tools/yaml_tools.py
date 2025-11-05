@@ -1,4 +1,5 @@
 from typing import Any
+
 import yaml
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -44,9 +45,9 @@ class YamlValidateTool(BaseTool):
             # pyrefly: ignore
             return linted
         except yaml.YAMLError as e:
-            return f"YAML validation error: {str(e)}"
+            return f"YAML validation error: {e!s}"
         except Exception as e:
-            return f"Error validating YAML: {str(e)}"
+            return f"Error validating YAML: {e!s}"
 
 
 class YamlLintTool(BaseTool):
@@ -80,4 +81,4 @@ class YamlLintTool(BaseTool):
                 f"ERROR: YAML parsing failed with following error:\n```{error_msg}```"
             )
         except Exception as e:
-            return f"ERROR: linting failed on provided YAML content with following error:\n```{str(e)}```."
+            return f"ERROR: linting failed on provided YAML content with following error:\n```{e!s}```."

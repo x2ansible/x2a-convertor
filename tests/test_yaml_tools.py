@@ -1,4 +1,4 @@
-from tools.yaml_tools import YamlValidateTool, YamlLintTool
+from tools.yaml_tools import YamlLintTool, YamlValidateTool
 
 SUCCESS_MESSAGE = "Success, the provided yaml content is valid."
 

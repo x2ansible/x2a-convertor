@@ -1,19 +1,18 @@
-import re
 import shutil
 import tempfile
-import yaml
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
+import yaml
 from ansible.errors import AnsibleError
 from ansible.parsing.dataloader import DataLoader
 from ansible.parsing.yaml.dumper import AnsibleDumper
 from ansible_risk_insight import ARIScanner, Config
 from ansible_risk_insight.scanner import LoadType
-from dataclasses import dataclass
 from langchain_community.tools.file_management.write import WriteFileTool
 from langchain_core.tools import BaseTool
-from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import Any, Optional, List, Tuple
 
 from src.utils.logging import get_logger
 
@@ -31,10 +30,10 @@ class AnsibleYAMLValidationError:
     file_path: str
     error_message: str
     yaml_content: str
-    line_number: Optional[int] = None
-    column_number: Optional[int] = None
-    problem: Optional[str] = None
-    problematic_line: Optional[str] = None
+    line_number: int | None = None
+    column_number: int | None = None
+    problem: str | None = None
+    problematic_line: str | None = None
 
     @classmethod
     def from_ansible_error(
@@ -157,7 +156,7 @@ class TaskfileValidator:
             success, message = validator.validate("tasks.yml")
     """
 
-    def __init__(self, rules: Optional[List[str]] = None):
+    def __init__(self, rules: list[str] | None = None):
         """
         Initialize validator with specific rules.
 
@@ -209,7 +208,7 @@ class TaskfileValidator:
                 # Ignore cleanup errors
                 pass
 
-    def validate(self, taskfile_path: str) -> Tuple[bool, str]:
+    def validate(self, taskfile_path: str) -> tuple[bool, str]:
         """
         Validate a taskfile and return simple pass/fail with error messages.
 
@@ -246,7 +245,7 @@ class TaskfileValidator:
                 taskfile_only=True,
             )
         except Exception as e:
-            return False, f"ERROR: Validation failed: {str(e)}"
+            return False, f"ERROR: Validation failed: {e!s}"
 
         # Get scanner data to access task objects with line numbers
         scandata = self.scanner.get_last_scandata()
@@ -392,7 +391,7 @@ class AnsibleWriteTool(BaseTool):
         path = Path(file_path)
         return path.parent.name == "tasks" and path.suffix in (".yml", ".yaml")
 
-    def _validate_not_empty(self, parsed_yaml: Any, yaml_content: str) -> Optional[str]:
+    def _validate_not_empty(self, parsed_yaml: Any, yaml_content: str) -> str | None:
         """Validate that YAML content is not empty.
 
         Returns:
@@ -419,7 +418,7 @@ class AnsibleWriteTool(BaseTool):
 
         return None
 
-    def _validate_not_json(self, yaml_content: str) -> Optional[str]:
+    def _validate_not_json(self, yaml_content: str) -> str | None:
         """Validate that content is not JSON.
 
         Returns:
@@ -473,7 +472,7 @@ class AnsibleWriteTool(BaseTool):
 
     def _validate_no_playbook_wrapper(
         self, parsed_yaml: Any, file_path: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Validate that task files don't have playbook wrappers.
 
         Returns:
@@ -572,7 +571,7 @@ class AnsibleWriteTool(BaseTool):
             )
             return f"ERROR: YAML validation failed. The file was not written.\n\n{structured_error.to_xml_string()}"
         except Exception as e:
-            return f"ERROR: when writing Ansible YAML file, the file was not written. Fix following error and try again:\n```{str(e)}```."
+            return f"ERROR: when writing Ansible YAML file, the file was not written. Fix following error and try again:\n```{e!s}```."
 
     # pyrefly: ignore
     def _run(self, file_path: str, yaml_content: str) -> str:
@@ -593,9 +592,9 @@ class AnsibleWriteTool(BaseTool):
             return f"ERROR: YAML parsing failed. The file was not written.\n\n{structured_error.to_xml_string()}"
         except Exception as e:
             slog.debug(
-                f"Failed on generic parsing error: {str(e)}\nContent: {yaml_content}"
+                f"Failed on generic parsing error: {e!s}\nContent: {yaml_content}"
             )
-            return f"ERROR: when parsing YAML content, the file was not written. Fix following error and try again:\n```{str(e)}```."
+            return f"ERROR: when parsing YAML content, the file was not written. Fix following error and try again:\n```{e!s}```."
 
         # Run validations
         if error := self._validate_not_empty(parsed_yaml, yaml_content):
@@ -630,11 +629,9 @@ class AnsibleWriteTool(BaseTool):
                         return f"WARNING: File was written but has validation issues:\n\n{structured_error}"
                     slog.debug("ARI validation passed")
                 except Exception as e:
-                    slog.warning(f"ARI validation failed with exception: {str(e)}")
+                    slog.warning(f"ARI validation failed with exception: {e!s}")
                     # Don't fail the write operation if ARI validation has an error
-                    return (
-                        f"{result}\n\nNote: ARI validation could not be run: {str(e)}"
-                    )
+                    return f"{result}\n\nNote: ARI validation could not be run: {e!s}"
         else:
             slog.info(f"Failed to write Ansible yaml for '{file_path}'")
 

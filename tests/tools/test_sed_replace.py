@@ -3,10 +3,10 @@ import shutil
 import tempfile
 
 from tools.sed_replace import (
-    SedTool,
+    MAX_LINE_LENGTH,
     MAX_PATTERN_LENGTH,
     MAX_REPLACEMENT_LENGTH,
-    MAX_LINE_LENGTH,
+    SedTool,
 )
 
 

@@ -4,10 +4,7 @@ These tests verify that the refactored validation architecture works correctly
 in realistic scenarios, ensuring feature parity with the old implementation.
 """
 
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -176,7 +173,7 @@ class TestValidationIntegration:
 
         # Verify frozen dataclass prevents modification
         with pytest.raises(FrozenInstanceError):
-            setattr(result, "success", False)
+            result.success = False  # pyrefly: ignore
 
     def test_multiple_validators_can_be_added(self):
         """Test that the architecture supports adding new validators easily."""

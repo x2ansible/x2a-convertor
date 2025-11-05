@@ -9,9 +9,8 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Optional, Tuple
 
-from src.inputs.policy_lock_parser import PolicyLockParser, CookbookDependency
+from src.inputs.policy_lock_parser import CookbookDependency, PolicyLockParser
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -32,7 +31,7 @@ class ChefDependencyManager:
             cookbook_path: Path to cookbook directory containing Policyfile.lock.json
         """
         self._cookbook_path = Path(cookbook_path)
-        self.export_dir: Optional[Path] = None
+        self.export_dir: Path | None = None
 
         log = logger.bind(cookbook_path=cookbook_path)
         log.info("Initializing ChefDependencyManager")
@@ -60,7 +59,7 @@ class ChefDependencyManager:
         else:
             log.warning("Could not detect cookbook name")
 
-    def _find_policy_lock(self) -> Optional[Path]:
+    def _find_policy_lock(self) -> Path | None:
         """Find Policyfile.lock.json in current directory or up to 3 levels up"""
         logger.debug(
             f"Searching for Policyfile.lock.json starting from {self.cookbook_path}"
@@ -80,7 +79,7 @@ class ChefDependencyManager:
         )
         return None
 
-    def _detect_cookbook_name(self) -> Optional[str]:
+    def _detect_cookbook_name(self) -> str | None:
         """Detect cookbook name by matching path against policy lock"""
         log = logger.bind(path=str(self.cookbook_path))
         log.debug("Detecting cookbook name")
@@ -92,7 +91,7 @@ class ChefDependencyManager:
         log.info(f"Detected cookbook '{cookbook.name}' (version {cookbook.version})")
         return cookbook.name
 
-    def has_dependencies(self) -> Tuple[bool, List[CookbookDependency]]:
+    def has_dependencies(self) -> tuple[bool, list[CookbookDependency]]:
         """
         Check if cookbook has dependencies
 
@@ -174,7 +173,7 @@ class ChefDependencyManager:
                 log.debug(f"Cleaning up temporary directory: {temp_export_dir}")
                 shutil.rmtree(temp_export_dir)
 
-    def get_dependencies_paths(self, deps: List[CookbookDependency]) -> List[str]:
+    def get_dependencies_paths(self, deps: list[CookbookDependency]) -> list[str]:
         """
         Get paths to downloaded dependency cookbooks
 

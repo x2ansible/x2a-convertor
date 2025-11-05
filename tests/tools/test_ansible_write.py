@@ -40,7 +40,7 @@ class TestAnsibleWriteTool:
         assert os.path.exists(file_path)
 
         # Verify the file content preserves Jinja2 templates
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
 
         # Check that Jinja2 template is preserved
@@ -69,7 +69,7 @@ class TestAnsibleWriteTool:
         assert "Successfully wrote" in result
         assert os.path.exists(file_path)
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
 
         # All Jinja2 variables should be preserved
@@ -113,7 +113,7 @@ class TestAnsibleWriteTool:
         assert "Successfully wrote" in result
         assert os.path.exists(file_path)
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
 
         assert "ansible.builtin.package" in content
@@ -187,7 +187,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "Successfully wrote" in result
         assert os.path.exists(file_path)
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
 
         # Jinja2 filters should be preserved (quotes might be normalized)
@@ -213,7 +213,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "Successfully wrote" in result
         assert os.path.exists(file_path)
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
 
         # Output should be properly formatted (not JSON-like)
@@ -236,7 +236,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "Successfully wrote valid Ansible YAML" in result
         assert os.path.exists(file_path)
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
             # AnsibleDumper strips the --- separator
             assert not content.startswith("---")
@@ -269,7 +269,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
 
         assert "Successfully wrote valid Ansible YAML" in result
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
             # Comments are removed by AnsibleDumper
             assert "# This is a comment" not in content
@@ -314,7 +314,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "Successfully wrote" in result
         assert os.path.exists(file_path)
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
 
         # Should not have any Jinja2 templates
@@ -496,7 +496,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "Successfully wrote" in result
         assert os.path.exists(file_path)
 
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             content = f.read()
 
         # Should have the tasks

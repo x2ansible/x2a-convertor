@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 
-import click
 import os
+
+import click
 from dotenv import load_dotenv
 
-from src.init import init_project
 from src.exporters.migrate import migrate_module
+from src.init import init_project
+from src.inputs.analyze import analyze_project
 from src.utils.logging import setup_logging
 from src.validate import validate_module
-from src.inputs.analyze import analyze_project
 
 
 def change_dir_callback(ctx, param, value):

@@ -3,7 +3,6 @@
 import json
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -13,10 +12,10 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 __all__ = [
-    "ChecklistStatus",
-    "ChecklistItem",
-    "Checklist",
     "SUMMARY_SUCCESS_MESSAGE",
+    "Checklist",
+    "ChecklistItem",
+    "ChecklistStatus",
 ]
 
 SUMMARY_SUCCESS_MESSAGE = "All migration tasks have been completed successfully"
@@ -176,7 +175,7 @@ class Checklist:
         logger.warning(f"Task not found: {source_path} → {target_path}")
         return False
 
-    def find_task(self, source_path: str, target_path: str) -> Optional[ChecklistItem]:
+    def find_task(self, source_path: str, target_path: str) -> ChecklistItem | None:
         """Find a specific task by source and target paths
 
         Returns:
@@ -387,7 +386,7 @@ class Checklist:
         if not filepath.exists():
             raise FileNotFoundError(f"Checklist file not found: {filepath}")
 
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             content = f.read()
             checklist = cls.from_json(content, category_enum)
 
@@ -454,7 +453,7 @@ class Checklist:
                 )
                 return f"Added task: {source_path} → {target_path} ({status})"
             except Exception as e:
-                return f"Error adding task: {str(e)}"
+                return f"Error adding task: {e!s}"
 
         @tool("update_checklist_task")
         def update_task_tool(
@@ -477,7 +476,7 @@ class Checklist:
                     return f"Updated task: {source_path} → {target_path} to {status}"
                 return f"Task not found: {source_path} → {target_path}"
             except Exception as e:
-                return f"Error updating task: {str(e)}"
+                return f"Error updating task: {e!s}"
 
         @tool("list_checklist_tasks")
         def list_tasks_tool() -> str:
@@ -492,7 +491,7 @@ class Checklist:
 
                 return self.to_markdown()
             except Exception as e:
-                return f"Error listing tasks: {str(e)}"
+                return f"Error listing tasks: {e!s}"
 
         @tool("get_checklist_summary")
         def checklist_summary_tool() -> str:

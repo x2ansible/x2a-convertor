@@ -1,6 +1,8 @@
 import os
 import tempfile
+
 import pytest
+
 from tools.diff_file import DiffFileTool
 
 

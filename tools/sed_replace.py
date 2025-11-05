@@ -114,5 +114,5 @@ class SedTool(BaseTool):
             )
 
         except Exception as e:
-            slog.error(f"Failed to perform sed replacement: {str(e)}")
-            return f"ERROR: {str(e)}"
+            slog.error(f"Failed to perform sed replacement: {e!s}")
+            return f"ERROR: {e!s}"
