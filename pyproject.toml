@@ -20,6 +20,8 @@ dependencies = [
     "tree-sitter-json>=0.23.0",
     "ansible-lint>=25.9.2",
     "ansible-risk-insight>=0.2.10",
+    "boto3>=1.40.66",
+    "langchain-aws>=1.0.0",
 ]
 
 [tool.pyrefly]
