@@ -24,7 +24,7 @@ from src.utils.config import get_config_int
 from src.utils.logging import get_logger
 from prompts.get_prompt import get_prompt
 
-# from tools.ansible_lint import AnsibleLintTool
+from tools.ansible_lint import AnsibleLintTool
 from tools.ansible_write import AnsibleWriteTool
 from tools.copy_file import CopyFileWithMkdirTool
 from tools.validated_write import ValidatedWriteTool
@@ -54,7 +54,7 @@ class WriteAgent(BaseAgent):
         lambda: ValidatedWriteTool(),  # Auto-routes YAML to ansible_write
         lambda: CopyFileWithMkdirTool(),
         lambda: AnsibleWriteTool(),
-        # lambda: AnsibleLintTool(),
+        lambda: AnsibleLintTool(),
     ]
 
     SYSTEM_PROMPT_NAME = "export_ansible_write_system"
@@ -75,19 +75,21 @@ class WriteAgent(BaseAgent):
         """Build the internal StateGraph for write workflow.
 
         Graph structure:
-        START → write_standard_files → write_files → check_files → evaluate → END
-                                                                        ↓
-                                                                  (loop back if incomplete)
+        START → write_standard_files → write_files → check_files → lint_files → evaluate → END
+                                                                                      ↓
+                                                                                (loop back if incomplete)
         """
         workflow = StateGraph(WriteAgentState)
         workflow.add_node("write_standard_files", self._write_standard_files_node)
         workflow.add_node("write_files", self._write_files_node)
         workflow.add_node("check_files", self._check_files_node)
+        workflow.add_node("lint_files", self._lint_files_node)
 
         workflow.add_edge(START, "write_standard_files")
         workflow.add_edge("write_standard_files", "write_files")
         workflow.add_edge("write_files", "check_files")
-        workflow.add_conditional_edges("check_files", self._evaluate_write_node)
+        workflow.add_edge("check_files", "lint_files")
+        workflow.add_conditional_edges("lint_files", self._evaluate_write_node)
 
         return workflow.compile()
 
@@ -186,7 +188,7 @@ galaxy_info:
             module=chef_state.module,
             chef_path=chef_state.path,
             ansible_path=ansible_path,
-            high_level_migration_plan=chef_state.high_level_migration_plan.to_document(),
+            high_level_migration_plan=chef_state.high_level_migration_plan,
             migration_plan=chef_state.module_migration_plan.to_document(),
             checklist=chef_state.checklist.to_markdown()
             if chef_state.checklist
@@ -202,7 +204,6 @@ galaxy_info:
             },
             config=get_runnable_config(),
         )
-
         slog.info(f"Write agent tools: {report_tool_calls(result).to_string()}")
         chef_state.checklist.save(chef_state.get_checklist_path())
 
@@ -262,6 +263,36 @@ galaxy_info:
             write_attempt_counter=chef_state.write_attempt_counter + 1
         )
         state.chef_state = chef_state
+
+        return state
+
+    def _lint_files_node(self, state: WriteAgentState) -> WriteAgentState:
+        """Node: Run ansible-lint with autofix on generated files.
+
+        Args:
+            state: Internal agent state
+
+        Returns:
+            Updated agent state after linting
+        """
+        chef_state = state.chef_state
+        slog = logger.bind(phase="lint_files", attempt=state.attempt)
+
+        # Skip linting if files are missing
+        if state.missing_files:
+            slog.info("Skipping lint - files are missing")
+            return state
+
+        slog.info("Running ansible-lint with autofix on generated files")
+        # The main reason to do this, is to fix issues getting into the validation phase.
+        ansible_path = chef_state.get_ansible_path()
+        lint_tool = AnsibleLintTool()
+
+        try:
+            result = lint_tool._run(ansible_path=ansible_path, autofix=True)
+            slog.info(f"Ansible-lint result: {result}")
+        except Exception as e:
+            slog.error(f"Error running ansible-lint: {e}")
 
         return state
 

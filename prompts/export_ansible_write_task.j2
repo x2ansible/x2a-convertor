@@ -1,108 +1,60 @@
-Write ALL files for module: {{ module }}
+# Context
 
-CHEF SOURCE PATH: {{ chef_path }}
-ANSIBLE OUTPUT PATH: {{ ansible_path }}
+**Module:** {{ module }}
+**Ansible Output:** {{ ansible_path }}
 
-HIGH-LEVEL MIGRATION PLAN:
-{{ high_level_migration_plan }}
+## Migration Plans
 
-MODULE MIGRATION PLAN:
+A high-level migration plan describing all cookbooks in the repository is available at: {{ high_level_migration_plan.path }}
+(Read this file if you need context about how this module relates to other cookbooks in the migration)
+
+**Module Plan:**
 {{ migration_plan }}
 
-CHECKLIST:
-<document>
+## Current Checklist
+
+<checklist>
 {{ checklist }}
-</document>
+</checklist>
 
-Your task: Process ONLY items marked as "pending" or "missing".
+# Workflow
 
-CRITICAL: NEVER write or overwrite files marked as "complete" in the checklist. Complete files are already done and should not be touched.
+CRITICAL INSTRUCTIONS:
+- Process ALL items marked "pending" or "missing" in the checklist
+- NEVER write or overwrite files marked "complete"
+- Work autonomously without asking for user input
+- Do NOT stop after listing items - immediately begin processing them
 
-Before writing each file:
-1. First check the checklist status - if "complete", skip to next item
-2. Then check if the target file exists - if yes, skip to next item
+## Step 1: Get All Pending Tasks
 
-## LINTING RULES
+Call list_checklist_tasks to identify all pending/missing items.
 
-Your generated files will be validated with ansible-lint. Follow these rules to pass validation:
+## Step 2: Process ALL Pending Items Immediately
 
-**FQCN (Fully Qualified Collection Names):**
-- CORRECT: ansible.builtin.apt, ansible.builtin.service, ansible.builtin.template
-- WRONG: apt, service, template
-- For UFW: community.general.ufw (not just ufw)
+Process every item that is NOT marked "complete". For EACH pending item, execute these steps in sequence:
 
-**File paths:**
-- Extract full paths from error messages (everything before first `:`)
-- Example: `ansible/module/tasks/main.yml:7` → use `ansible/module/tasks/main.yml`
+1. **Verify status**: If checklist shows "complete", skip to next item
+2. **Check existence**: If target file exists, skip to next item
+3. **Read source**: Call read_file with source path (skip if source is "N/A")
+4. **Convert content**: Apply conversion rules from system prompt
+5. **Write file**: Call appropriate tool:
+   - `ansible_write`: For tasks, handlers, defaults, vars, meta (YAML files)
+   - `write_file`: For templates (.j2) and other non-YAML files
+   - `copy_file`: For static files from files/ directory
+6. **Handle errors**: If ansible_write returns ERROR, fix YAML and retry (do NOT use write_file as fallback)
+7. **Update checklist**: Call update_checklist_task with exact paths, status "complete", and notes
 
-**No-changed-when:**
-- Commands must have `changed_when` or `creates` parameter
-- Example: command: echo test → Add: changed_when: false
+**IMPORTANT**: Do NOT ask which item to process. Process ALL pending items automatically.
 
-**Arguments:**
-- Remove invalid parameters for modules
-- Example: file module doesn't accept `notify:` parameter
+## Step 3: Validate (Optional)
 
-**File module for symlinks:**
-- Use: state: link, src: /source, dest: /target
-- Don't use: notify with file module
+After all files are written, run ansible_lint on output directory to catch syntax issues.
 
-These rules prevent validation failures later.
+## Step 4: Report Summary
 
-Process order (skip any files already marked "complete" in checklist):
-1. Structure files:
-   - meta/main.yml: Skip if already complete, otherwise read metadata.rb and convert to Ansible Galaxy format
-   - handlers/main.yml: Create with common handlers (restart/reload services)
-2. Attributes/variables (defaults/main.yml, vars/main.yml)
-3. Static files (copy from files/)
-4. Templates (convert .erb to .j2):
-   CRITICAL: For EACH template file:
-   a. Read the source .erb file using read_file
-   b. Convert ERB syntax to Jinja2 (see system prompt for conversion rules)
-   c. Write the FULL CONVERTED CONTENT using write_file
-   d. DO NOT write placeholder variables like {% raw %}{{ template_content }}{% endraw %} - this is wrong!
-5. Recipes/tasks (convert .rb to .yml)
+After processing all items, provide final report:
+- **COMPLETED**: List all successfully migrated files
+- **SKIPPED**: List files skipped (already exists/complete)
+- **ISSUES**: List any errors encountered
 
-For each item in the checklist:
-1. Check checklist status - if "complete", skip to next item immediately
-2. Check if target file exists - if yes, skip to next item
-3. Read the Chef source file using read_file (skip if source is "N/A")
-4. Convert to Ansible format following conversion rules:
-
-   FOR TEMPLATES (.erb → .j2):
-   - Read the entire ERB file content
-   - Convert <%= @var %> to {% raw %}{{ var }}{% endraw %} (remove @ prefix)
-   - Convert <% if @condition %> to {% raw %}{% if condition %}{% endraw %}
-   - Convert <% @array.each do |item| %> to {% raw %}{% for item in array %}{% endraw %}
-   - Convert <% end %> to {% raw %}{% endfor %}{% endraw %} or {% raw %}{% endif %}{% endraw %}
-   - Write the FULL CONVERTED CONTENT (not a placeholder variable!)
-
-   FOR RECIPES (.rb → .yml):
-   - Analyze Chef resources and convert to Ansible tasks with FQCN
-
-   FOR ATTRIBUTES (.rb → .yml):
-   - Convert Ruby hash syntax to YAML key-value pairs
-
-5. Write to target path using:
-   - ansible_write for YAML files (tasks, handlers, defaults, vars, meta)
-   - write_file for templates (.j2) and other files
-   - copy_file for static files
-6. IF ansible_write returns ERROR:
-   - Read the error (has line number and problematic content)
-   - Fix the specific YAML issue
-   - Call ansible_write AGAIN with corrected content
-   - DO NOT use write_file as fallback
-7. Update checklist using update_checklist_task with:
-   - source_path: EXACT path from checklist
-   - target_path: EXACT path from checklist
-   - status: "complete"
-   - notes: Brief description of what was created
-
-Continue until ALL pending/missing items are complete.
-
-OPTIONAL: After all files are written, you can run ansible_lint on the output directory to catch any syntax issues early.
-
-Report format:
-For each completed file: "COMPLETED: source → target"
-For each skipped file: "SKIPPED: source → target (already exists)"
-For any issues: "ISSUE: source → target - reason"
+Work through the ENTIRE checklist systematically until all pending/missing items are complete.
