@@ -11,7 +11,6 @@ from langchain_community.tools.file_management.write import WriteFileTool
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
-from langgraph.prebuilt.chat_agent_executor import AgentStatePydantic
 
 
 from prompts.get_prompt import get_prompt
@@ -22,7 +21,7 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def create_migration_agent() -> CompiledStateGraph[AgentStatePydantic]:
+def create_migration_agent() -> CompiledStateGraph:
     """Create a LangGraph agent with file management tools for migration planning"""
     logger.info("Creating migration agent")
 
@@ -47,7 +46,6 @@ def create_migration_agent() -> CompiledStateGraph[AgentStatePydantic]:
         model=model,
         tools=tools,
         prompt=system_prompt,
-        state_schema=AgentStatePydantic,
     )
     return agent
 
