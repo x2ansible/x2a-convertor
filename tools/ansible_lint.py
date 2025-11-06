@@ -8,7 +8,8 @@ from typing import Any
 import ansiblelint
 from ansiblelint.__main__ import fix
 from ansiblelint.config import Options
-from ansiblelint.rules import RulesCollection
+from ansiblelint.errors import MatchError
+from ansiblelint.rules import BaseRule, RulesCollection
 from ansiblelint.runner import LintResult, get_matches
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -66,7 +67,7 @@ class IssueFormatter:
     """Formats ansible-lint issues into human-readable strings."""
 
     @staticmethod
-    def format_issue(match: Any, base_path: str) -> str:
+    def format_issue(match: MatchError, base_path: str) -> str:
         """Format a single lint match into a string."""
         full_path = (
             os.path.join(base_path, match.filename) if base_path else match.filename
@@ -74,7 +75,7 @@ class IssueFormatter:
         return f"[{match.rule.severity}] {full_path}:{match.lineno or 0} [{match.rule.id}] {match.message} ({match.details})"
 
     @staticmethod
-    def format_rule_help(rule: Any) -> str:
+    def format_rule_help(rule: BaseRule) -> str:
         """Format help information for a rule."""
         # Try to load custom concise help from tools/lint/{rule_id}.md
         # Convert hyphens to underscores for filename
@@ -113,7 +114,9 @@ class IssueFormatter:
         return unique_rules
 
     @classmethod
-    def format_issues(cls, matches: list, prefix: str = "", base_path: str = "") -> str:
+    def format_issues(
+        cls, matches: list[MatchError], prefix: str = "", base_path: str = ""
+    ) -> str:
         """Format ansible-lint matches into a human-readable string with rule hints."""
         issues = [cls.format_issue(match, base_path) for match in matches]
 
