@@ -23,7 +23,6 @@ from src.model import (
 from src.types import ChecklistStatus
 from src.utils.config import get_config_int
 from src.utils.logging import get_logger
-
 from tools.ansible_lint import AnsibleLintTool
 from tools.ansible_write import AnsibleWriteTool
 from tools.copy_file import CopyFileWithMkdirTool
