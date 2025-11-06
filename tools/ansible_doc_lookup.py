@@ -1,11 +1,11 @@
 import importlib
-import yaml
-
 from dataclasses import dataclass, field
-from langchain_core.tools import BaseTool
 from pathlib import Path
+from typing import Any
+
+import yaml
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
-from typing import Any, Optional, Union
 
 from src.utils.logging import get_logger
 
@@ -21,10 +21,10 @@ class ModuleParameter:
 
     name: str
     description: str
-    param_type: Optional[str] = None
+    param_type: str | None = None
     required: bool = False
-    default: Optional[Any] = None
-    choices: Optional[list[str]] = None
+    default: Any | None = None
+    choices: list[str] | None = None
 
     @classmethod
     def from_dict(cls, name: str, param_dict: dict[str, Any]) -> "ModuleParameter":
@@ -49,7 +49,7 @@ class ReturnValue:
 
     name: str
     description: str
-    return_type: Optional[str] = None
+    return_type: str | None = None
 
     @classmethod
     def from_dict(cls, name: str, return_dict: dict[str, Any]) -> "ReturnValue":
@@ -72,9 +72,9 @@ class ModuleInfo:
     name: str
     fqcn: str
     short_description: str
-    description: Optional[str] = None
+    description: str | None = None
     parameters: list[ModuleParameter] = field(default_factory=list)
-    examples: Optional[str] = None
+    examples: str | None = None
     return_values: list[ReturnValue] = field(default_factory=list)
 
     @classmethod
@@ -82,8 +82,8 @@ class ModuleInfo:
         cls,
         base_name: str,
         doc_dict: dict[str, Any],
-        examples: Optional[str] = None,
-        return_dict: Optional[dict[str, Any]] = None,
+        examples: str | None = None,
+        return_dict: dict[str, Any] | None = None,
     ) -> "ModuleInfo":
         """Factory method to create ModuleInfo from parsed Ansible documentation."""
         description = doc_dict.get("description")
@@ -123,7 +123,7 @@ class ModuleDocumentationFormatter:
         return [f"# {info.fqcn}", "", info.short_description, ""]
 
     @staticmethod
-    def format_description(description: Optional[str]) -> list[str]:
+    def format_description(description: str | None) -> list[str]:
         """Format module description section."""
         if not description:
             return []
@@ -160,7 +160,7 @@ class ModuleDocumentationFormatter:
         return lines
 
     @staticmethod
-    def format_examples(examples: Optional[str]) -> list[str]:
+    def format_examples(examples: str | None) -> list[str]:
         """Format examples section."""
         if not examples:
             return []
@@ -201,7 +201,7 @@ class ModuleDiscoveryService:
     """Infrastructure service for discovering and loading Ansible modules."""
 
     def __init__(self):
-        self._modules_list: Optional[list[str]] = None
+        self._modules_list: list[str] | None = None
 
     def discover_builtin_modules(self) -> list[str]:
         """Discover all builtin Ansible modules from filesystem."""
@@ -227,7 +227,7 @@ class ModuleDiscoveryService:
             logger.error(f"Failed to discover builtin modules: {e}")
             return []
 
-    def load_module_documentation(self, base_name: str) -> Optional[ModuleInfo]:
+    def load_module_documentation(self, base_name: str) -> ModuleInfo | None:
         """Load documentation for a specific module."""
         try:
             mod = importlib.import_module(f"ansible.modules.{base_name}")
@@ -249,7 +249,7 @@ class ModuleDiscoveryService:
             return None
 
     @staticmethod
-    def _parse_return_values(mod: Any) -> Optional[dict[str, Any]]:
+    def _parse_return_values(mod: Any) -> dict[str, Any] | None:
         """Parse return values from module, handling malformed YAML."""
         if not hasattr(mod, "RETURN"):
             return None
@@ -279,11 +279,11 @@ class ModuleNameNormalizer:
 class AnsibleDocLookupInput(BaseModel):
     """Input schema for Ansible documentation lookup."""
 
-    module_name: Optional[str] = Field(
+    module_name: str | None = Field(
         default=None,
         description="Module name to get documentation for (e.g., 'ansible.builtin.apt', 'apt', 'template'). Leave empty to list all available modules.",
     )
-    list_filter: Optional[str] = Field(
+    list_filter: str | None = Field(
         default=None,
         description="Filter pattern when listing modules (e.g., 'apt', 'file', 'template'). Only used when module_name is not provided.",
     )
@@ -296,7 +296,7 @@ class ModuleListFormatter:
         self._discovery_service = discovery_service
 
     def format_module_list(
-        self, modules: list[str], filter_pattern: Optional[str] = None
+        self, modules: list[str], filter_pattern: str | None = None
     ) -> str:
         """Format a list of modules with descriptions."""
         if not modules:
@@ -330,7 +330,7 @@ class AnsibleDocLookupTool(BaseTool):
         "Returns formatted documentation for understanding module usage and parameters."
     )
 
-    args_schema: Union[type[BaseModel], dict[str, Any], None] = AnsibleDocLookupInput
+    args_schema: type[BaseModel] | dict[str, Any] | None = AnsibleDocLookupInput
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -338,13 +338,13 @@ class AnsibleDocLookupTool(BaseTool):
         self._doc_formatter = ModuleDocumentationFormatter()
         self._list_formatter = ModuleListFormatter(self._discovery_service)
 
-    def _load_module(self, module_name: str) -> Optional[ModuleInfo]:
+    def _load_module(self, module_name: str) -> ModuleInfo | None:
         """Load module documentation."""
         base_name = ModuleNameNormalizer.normalize(module_name)
         return self._discovery_service.load_module_documentation(base_name)
 
     def _filter_modules(
-        self, modules: list[str], filter_pattern: Optional[str]
+        self, modules: list[str], filter_pattern: str | None
     ) -> list[str]:
         """Filter module list by pattern."""
         if not filter_pattern:
@@ -366,7 +366,7 @@ class AnsibleDocLookupTool(BaseTool):
 
         return self._doc_formatter.format_module_documentation(info)
 
-    def _handle_module_list(self, filter_pattern: Optional[str]) -> str:
+    def _handle_module_list(self, filter_pattern: str | None) -> str:
         """Handle module listing."""
         logger.debug(f"Listing modules with filter: {filter_pattern}")
         all_modules = self._discovery_service.discover_builtin_modules()
