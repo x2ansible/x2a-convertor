@@ -2,10 +2,6 @@ import os
 from collections import Counter
 from typing import Any
 
-from langchain_aws import ChatBedrockConverse
-from langchain_aws import ChatBedrock
-import boto3
-
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -98,52 +94,42 @@ def get_model() -> BaseChatModel:
     """Initialize and return the configured language model"""
     model_name = os.getenv("LLM_MODEL", "claude-3-5-sonnet-20241022")
     logger.info(f"Initializing model: {model_name}")
-    logger.debug(f"MAX_TOKENS: {os.getenv('MAX_TOKENS')}")
-    logger.debug(f"TEMPERATURE: {os.getenv('TEMPERATURE')}")
 
-    max_tokens = int(os.getenv("MAX_TOKENS", "8192"))
-    temperature = float(os.getenv("TEMPERATURE", "0.1"))
+    kwargs: dict[str, Any] = {
+        "max_tokens": int(os.getenv("MAX_TOKENS", "8192")),
+        "temperature": float(os.getenv("TEMPERATURE", "0.1")),
+    }
+
     reasoning_effort = os.getenv("REASONING_EFFORT", None)
-    kwargs: dict[str, Any] = {}
     if reasoning_effort:
         kwargs["reasoning_effort"] = reasoning_effort
 
-    logger.debug(f"MAX_TOKENS: {max_tokens}")
-    logger.debug(f"TEMPERATURE: {temperature}")
-    logger.debug(f"REASONING_EFFORT: {reasoning_effort}")
+    logger.debug(f"Model parameters: {kwargs}")
 
-    # Handle AWS Bedrock
+    # Default
+    provider = "openai"
+
+    # If AWS_BEARER_TOKEN_BEDROCK is set, use the AWS Bedrock
     if os.getenv("AWS_BEARER_TOKEN_BEDROCK"):
-        logger.info("Using AWS Bedrock")
+        provider = "bedrock_converse"
         region_name = os.getenv("AWS_REGION", "eu-west-2")
+        kwargs["region_name"] = region_name
         logger.debug(f"AWS_REGION: {region_name}")
 
-        bedrock_client = boto3.client(
-            "bedrock-runtime",
-            region_name=region_name,
-        )
-        aws_model = ChatBedrockConverse(
-            model=model_name,
-            client=bedrock_client,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            **kwargs,
-        )
-        return aws_model
+    # If the provider is OpenAI, use the specific OpenAI endpoint information
+    if provider == "openai":
+        kwargs["base_url"] = os.getenv("OPENAI_API_BASE")
+        kwargs["api_key"] = os.getenv("OPENAI_API_KEY", "not-needed")
+        if not kwargs["base_url"]:
+            logger.warning("OPENAI_API_BASE is not set")
+        logger.debug(f"OPENAI_API_BASE: {kwargs['base_url']}")
 
-    # Handle OpenAI-compatible local APIs
-    if os.getenv("OPENAI_API_BASE"):
-        logger.info("Using OpenAI-compatible API")
-        logger.debug(f"OPENAI_API_BASE: {os.getenv('OPENAI_API_BASE')}")
+    kwargs["model_provider"] = provider
+    logger.info(
+        f"Using the '{provider}' provider with the '{model_name}' model for accessing LLM"
+    )
 
-        return init_chat_model(
-            model_name,
-            base_url=os.getenv("OPENAI_API_BASE"),
-            model_provider="openai",
-            api_key=os.getenv("OPENAI_API_KEY", "not-needed"),
-            max_tokens=max_tokens,
-            temperature=temperature,
-            **kwargs,
-        )
-
-    return init_chat_model(model_name)
+    return init_chat_model(
+        model_name,
+        **kwargs,
+    )
