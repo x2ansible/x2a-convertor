@@ -125,6 +125,12 @@ galaxy_info:
       versions:
         - bionic
         - focal
+    - name: EL
+      versions:
+        - "7"
+        - "8"
+        - "9"
+        - "10"
   galaxy_tags: []
 """
 

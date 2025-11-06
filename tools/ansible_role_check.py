@@ -9,6 +9,7 @@ from ansible.inventory.manager import InventoryManager
 from ansible.module_utils.common.collections import ImmutableDict
 from ansible.parsing.dataloader import DataLoader
 from ansible.playbook.play import Play
+from ansible.plugins.loader import init_plugin_loader
 from ansible.vars.manager import VariableManager
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -133,6 +134,9 @@ class AnsibleRoleCheckTool(BaseTool):
                 become_user=None,
                 collections_path=[],  # Use default collections paths
             )
+
+            # Initialize plugin loader with proper CLIARGS
+            init_plugin_loader()
 
             # Initialize Ansible components for context (no execution)
             loader = DataLoader()
