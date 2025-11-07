@@ -77,7 +77,7 @@ class WriteAgent(BaseAgent):
         """Build the internal StateGraph for write workflow.
 
         Graph structure:
-        START → write_standard_files → write_files → check_files → lint_files → evaluate → END
+        START → write_standard_files → write_files → check_files → lint_files → evaluate → END / mark_failed
                                                                                       ↓
                                                                                 (loop back if incomplete)
         """
@@ -86,12 +86,14 @@ class WriteAgent(BaseAgent):
         workflow.add_node("write_files", self._write_files_node)
         workflow.add_node("check_files", self._check_files_node)
         workflow.add_node("lint_files", self._lint_files_node)
+        workflow.add_node("mark_failed", self._mark_failed_node)
 
         workflow.add_edge(START, "write_standard_files")
         workflow.add_edge("write_standard_files", "write_files")
         workflow.add_edge("write_files", "check_files")
         workflow.add_edge("check_files", "lint_files")
         workflow.add_conditional_edges("lint_files", self._evaluate_write_node)
+        workflow.add_edge("mark_failed", "__end__")
 
         return workflow.compile()
 
@@ -304,9 +306,43 @@ galaxy_info:
 
         return state
 
+    def _mark_failed_node(self, state: WriteAgentState) -> WriteAgentState:
+        """Node: Mark the migration as failed due to write errors.
+
+        This node is reached when max write attempts are exceeded.
+        It updates the chef_state to mark the migration as failed.
+
+        Args:
+            state: Internal agent state
+
+        Returns:
+            Updated state with failed chef_state
+        """
+        slog = logger.bind(phase="mark_failed", attempt=state.attempt)
+        slog.error(
+            f"Max write attempts ({state.max_attempts}) reached, marking migration as failed"
+        )
+
+        # Build failure message
+        assert state.missing_files is not None, (
+            "missing_files must be set after file check"
+        )
+        missing_file_list = ", ".join(state.missing_files[:5])
+        if len(state.missing_files) > 5:
+            missing_file_list += f" ... and {len(state.missing_files) - 5} more"
+
+        # Mark migration as failed
+        chef_state = state.chef_state.mark_failed(
+            f"Failed to create {len(state.missing_files)} files after {state.max_attempts} attempts. "
+            f"Missing files: {missing_file_list}"
+        )
+        state.chef_state = chef_state
+
+        return state
+
     def _evaluate_write_node(
         self, state: WriteAgentState
-    ) -> Literal["write_files", "__end__"]:
+    ) -> Literal["write_files", "mark_failed", "__end__"]:
         """Conditional edge: Decide whether to retry or finish.
 
         Args:
@@ -322,23 +358,7 @@ galaxy_info:
             return "__end__"
 
         if state.attempt >= state.max_attempts:
-            slog.error(
-                f"Max write attempts ({state.max_attempts}) reached, marking migration as failed"
-            )
-            # Mark migration as failed
-            assert state.missing_files is not None, (
-                "missing_files must be set after file check"
-            )
-            missing_file_list = ", ".join(state.missing_files[:5])
-            if len(state.missing_files) > 5:
-                missing_file_list += f" ... and {len(state.missing_files) - 5} more"
-
-            chef_state = state.chef_state.mark_failed(
-                f"Failed to create {len(state.missing_files)} files after {state.max_attempts} attempts. "
-                f"Missing files: {missing_file_list}"
-            )
-            state.chef_state = chef_state
-            return "__end__"
+            return "mark_failed"
 
         slog.info(
             f"Retrying write phase (attempt {state.attempt + 1}/{state.max_attempts})"
