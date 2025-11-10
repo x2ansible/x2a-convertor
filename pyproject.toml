@@ -60,7 +60,7 @@ select = [
     "TRY",    # tryceratops (exception handling)
     "C4",     # flake8-comprehensions
     "PIE",    # flake8-pie
-    # "RUF",    # Ruff-specific rules
+    "RUF",    # Ruff-specific rules
     # To be enabled soon, step by step
     # "PTH",    # flake8-use-pathlib
     # "SIM",    # flake8-simplify

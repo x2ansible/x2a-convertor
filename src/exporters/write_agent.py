@@ -3,12 +3,14 @@
 Creates all migration files from the checklist.
 """
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
+from langchain_core.tools import BaseTool
 from langgraph.graph import START, StateGraph
 
 from prompts.get_prompt import get_prompt
@@ -46,7 +48,8 @@ class WriteAgent(BaseAgent):
     """
 
     # Base tools that this agent always has access to
-    BASE_TOOLS = [
+
+    BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),
         lambda: ListDirectoryTool(),
         lambda: ReadFileTool(),

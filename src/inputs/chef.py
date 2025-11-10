@@ -131,7 +131,7 @@ class ChefSubagent:
 
     def _check_files(self, state: ChefState) -> ChefState:
         """Validate and improve migration plan by analyzing each file"""
-        files = self.list_files([state.path] + state.dependency_paths)
+        files = self.list_files([state.path, *state.dependency_paths])
         read_tool = ReadFileTool()
         slog = logger.bind(phase="check_files")
         slog.info(f"Validating migration plan against {len(files)} files")
@@ -237,7 +237,7 @@ class ChefSubagent:
 
     def _write_report(self, state: ChefState) -> ChefState:
         logger.info(f"Writing Chef report for {state!s}")
-        data_list = "\n".join(self.list_files([state.path] + state.dependency_paths))
+        data_list = "\n".join(self.list_files([state.path, *state.dependency_paths]))
         # Generate tree-sitter analysis report
         analyzer = TreeSitterAnalyzer()
         try:
