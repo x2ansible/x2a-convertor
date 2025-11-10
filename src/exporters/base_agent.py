@@ -3,9 +3,6 @@
 Provides common functionality for all migration agents.
 """
 
-
-
-
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import TYPE_CHECKING, ClassVar
@@ -38,6 +35,18 @@ class BaseAgent(ABC):
 
     # Subclasses should override this with their specific tools
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = []
+
+    @abstractmethod
+    def __call__(self, state: ChefState) -> ChefState:
+        """Process the state through this agent.
+
+        Args:
+            state: ChefState to process
+
+        Returns:
+            Updated ChefState
+        """
+        ...
 
     def __init__(self, model: "BaseLanguageModel | None" = None):
         """Initialize agent with optional model.

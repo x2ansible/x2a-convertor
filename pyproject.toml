@@ -64,7 +64,7 @@ select = [
     # To be enabled soon, step by step
     # "PTH",    # flake8-use-pathlib
     "SIM",    # flake8-simplify
-    # "B",      # flake8-bugbear
+    "B",      # flake8-bugbear
 ]
 ignore = [
     "E501",    # Line too long (handled by formatter)
