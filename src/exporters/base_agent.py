@@ -3,9 +3,14 @@
 Provides common functionality for all migration agents.
 """
 
-from abc import ABC
-from typing import TYPE_CHECKING
 
+
+
+from abc import ABC, abstractmethod
+from collections.abc import Callable
+from typing import TYPE_CHECKING, ClassVar
+
+from langchain_core.tools import BaseTool
 from langgraph.prebuilt import create_react_agent
 
 from src.exporters.state import ChefState
@@ -32,7 +37,7 @@ class BaseAgent(ABC):
     """
 
     # Subclasses should override this with their specific tools
-    BASE_TOOLS = []
+    BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = []
 
     def __init__(self, model: "BaseLanguageModel | None" = None):
         """Initialize agent with optional model.

@@ -3,9 +3,13 @@
 Analyzes migration plans and creates detailed checklists.
 """
 
+from collections.abc import Callable
+from typing import ClassVar
+
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
+from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
 from src.exporters.base_agent import BaseAgent
@@ -27,7 +31,7 @@ class PlanningAgent(BaseAgent):
     """
 
     # Base tools that this agent always has access to
-    BASE_TOOLS = [
+    BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ListDirectoryTool(),
         lambda: ReadFileTool(),
         lambda: FileSearchTool(),
