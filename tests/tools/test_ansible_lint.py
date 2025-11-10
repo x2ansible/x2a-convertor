@@ -1,6 +1,6 @@
-import os
 import shutil
 import tempfile
+from pathlib import Path
 
 from tools.ansible_lint import ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE, AnsibleLintTool
 
@@ -15,14 +15,14 @@ class TestAnsibleLintTool:
 
     def teardown_method(self) -> None:
         """Clean up test fixtures."""
-        if os.path.exists(self.temp_dir):
+        if Path(self.temp_dir).exists():
             shutil.rmtree(self.temp_dir)
 
     def test_lint_error_gets_fixed_with_autofix(self) -> None:
         """Test that ansible-lint detects errors and fixes them automatically when autofix=True."""
         # Create a subdirectory for this test
-        subdir = os.path.join(self.temp_dir, "playbook_dir")
-        os.makedirs(subdir)
+        subdir = Path(self.temp_dir) / "playbook_dir"
+        Path(subdir).mkdir(parents=True)
 
         # Create a playbook with intentional linting errors
         # This uses 'yes' instead of 'true' which ansible-lint should fix
@@ -36,33 +36,33 @@ class TestAnsibleLintTool:
         name: nginx
         state: present
 """
-        file_path = os.path.join(subdir, "playbook_with_errors.yml")
+        file_path = Path(subdir) / "playbook_with_errors.yml"
 
         # Write the file with errors
-        with open(file_path, "w") as f:
+        with Path(file_path).open("w") as f:
             f.write(yaml_content)
 
         # Run ansible-lint tool on the directory with autofix=True (default)
-        result = self.tool._run(subdir, autofix=True)
+        result = self.tool._run(str(subdir), autofix=True)
 
         # The tool should return a string result (either success or issues)
         assert isinstance(result, str)
         assert len(result) > 0
 
         # Read the file to verify it exists and was processed
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             fixed_content = f.read()
 
         # The file should exist and contain valid YAML
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
         assert "hosts: all" in fixed_content
         assert "ansible.builtin.package" in fixed_content
 
     def test_lint_error_not_fixed_with_autofix_false(self) -> None:
         """Test that ansible-lint detects errors but does not fix them when autofix=False."""
         # Create a subdirectory for this test
-        subdir = os.path.join(self.temp_dir, "playbook_dir_nofix")
-        os.makedirs(subdir)
+        subdir = Path(self.temp_dir) / "playbook_dir_nofix"
+        Path(subdir).mkdir(parents=True)
 
         # Create a playbook with intentional linting errors
         # This uses 'yes' instead of 'true'
@@ -76,21 +76,21 @@ class TestAnsibleLintTool:
         name: nginx
         state: present
 """
-        file_path = os.path.join(subdir, "playbook_with_errors.yml")
+        file_path = Path(subdir) / "playbook_with_errors.yml"
 
         # Write the file with errors
-        with open(file_path, "w") as f:
+        with Path(file_path).open("w") as f:
             f.write(yaml_content)
 
         # Run ansible-lint tool on the directory with autofix=False
-        result = self.tool._run(subdir, autofix=False)
+        result = self.tool._run(str(subdir), autofix=False)
 
         # The tool should return error messages
         assert isinstance(result, str)
         assert "ansible-lint issue" in result
 
         # Read the file to verify it was NOT modified
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content_after = f.read()
 
         # The file should still have 'yes' (not fixed)
@@ -99,8 +99,8 @@ class TestAnsibleLintTool:
     def test_valid_playbook_passes_lint(self) -> None:
         """Test that a valid playbook passes linting checks."""
         # Create a subdirectory for this test
-        subdir = os.path.join(self.temp_dir, "valid_playbooks")
-        os.makedirs(subdir)
+        subdir = Path(self.temp_dir) / "valid_playbooks"
+        Path(subdir).mkdir(parents=True)
 
         yaml_content = """---
 - name: Test valid playbook
@@ -112,12 +112,12 @@ class TestAnsibleLintTool:
         name: nginx
         state: present
 """
-        file_path = os.path.join(subdir, "valid_playbook.yml")
+        file_path = Path(subdir) / "valid_playbook.yml"
 
-        with open(file_path, "w") as f:
+        with Path(file_path).open("w") as f:
             f.write(yaml_content)
 
-        result = self.tool._run(subdir)
+        result = self.tool._run(str(subdir))
 
         assert ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE in result
 
@@ -142,12 +142,12 @@ class TestAnsibleLintTool:
       ansible.builtin.debug:
         msg: test
 """
-        file_path = os.path.join(self.temp_dir, "single_file.yml")
+        file_path = Path(self.temp_dir) / "single_file.yml"
 
-        with open(file_path, "w") as f:
+        with Path(file_path).open("w") as f:
             f.write(yaml_content)
 
-        result = self.tool._run(file_path)
+        result = self.tool._run(str(file_path))
 
         assert "ERROR" in result
         assert "must be a directory" in result
@@ -155,8 +155,8 @@ class TestAnsibleLintTool:
     def test_directory_with_multiple_files(self) -> None:
         """Test linting a directory containing multiple playbooks."""
         # Create a subdirectory with multiple files
-        subdir = os.path.join(self.temp_dir, "playbooks")
-        os.makedirs(subdir)
+        subdir = Path(self.temp_dir) / "playbooks"
+        Path(subdir).mkdir(parents=True)
 
         # Create first playbook with errors
         playbook1 = """---
@@ -168,7 +168,7 @@ class TestAnsibleLintTool:
       ansible.builtin.debug:
         msg: hello
 """
-        with open(os.path.join(subdir, "playbook1.yml"), "w") as f:
+        with (Path(subdir) / "playbook1.yml").open("w") as f:
             f.write(playbook1)
 
         # Create second valid playbook
@@ -181,10 +181,10 @@ class TestAnsibleLintTool:
       ansible.builtin.debug:
         msg: world
 """
-        with open(os.path.join(subdir, "playbook2.yml"), "w") as f:
+        with (Path(subdir) / "playbook2.yml").open("w") as f:
             f.write(playbook2)
 
-        result = self.tool._run(subdir)
+        result = self.tool._run(str(subdir))
 
         # Should either fix all issues or report remaining issues
         assert isinstance(result, str)
@@ -193,9 +193,9 @@ class TestAnsibleLintTool:
     def test_syntax_error_reports_filename_and_line(self) -> None:
         """Test that YAML syntax errors report the filename and line number."""
         # Create a subdirectory with a role structure
-        subdir = os.path.join(self.temp_dir, "test_role")
-        tasks_dir = os.path.join(subdir, "tasks")
-        os.makedirs(tasks_dir)
+        subdir = Path(self.temp_dir) / "test_role"
+        tasks_dir = Path(subdir) / "tasks"
+        Path(tasks_dir).mkdir(parents=True)
 
         # Create a task file with YAML syntax error (invalid Jinja2 expression)
         # This mimics the real-world error: mapping values not allowed
@@ -209,11 +209,11 @@ class TestAnsibleLintTool:
   ansible.builtin.command: ufw default deny
   when: fw_status is not search("Default: deny")
 """
-        file_path = os.path.join(tasks_dir, "security.yml")
-        with open(file_path, "w") as f:
+        file_path = Path(tasks_dir) / "security.yml"
+        with Path(file_path).open("w") as f:
             f.write(yaml_with_syntax_error)
 
-        result = self.tool._run(subdir)
+        result = self.tool._run(str(subdir))
 
         # Verify the result contains the error information
         assert isinstance(result, str)
@@ -234,9 +234,9 @@ class TestAnsibleLintTool:
         - [literal-compare]: Comparing to literal True/False
         """
         # Create a subdirectory with a role structure
-        subdir = os.path.join(self.temp_dir, "nginx_multisite")
-        tasks_dir = os.path.join(subdir, "tasks")
-        os.makedirs(tasks_dir)
+        subdir = Path(self.temp_dir) / "nginx_multisite"
+        tasks_dir = Path(subdir) / "tasks"
+        Path(tasks_dir).mkdir(parents=True)
 
         # Create a task file with issues that ansible-lint cannot auto-fix
         # Based on real nginx_multisite/tasks/security.yml
@@ -261,12 +261,12 @@ class TestAnsibleLintTool:
   when: security_ssh_password_auth is defined and security_ssh_password_auth == false
   notify: restart ssh
 """
-        file_path = os.path.join(tasks_dir, "security.yml")
-        with open(file_path, "w") as f:
+        file_path = Path(tasks_dir) / "security.yml"
+        with Path(file_path).open("w") as f:
             f.write(yaml_with_unfixable_issues)
 
         # Run ansible-lint with autofix=True
-        result = self.tool._run(subdir, autofix=True)
+        result = self.tool._run(str(subdir), autofix=True)
 
         # Verify the issues persist because they cannot be auto-fixed
         assert isinstance(result, str)

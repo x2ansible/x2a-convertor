@@ -1,5 +1,5 @@
 import difflib
-import os
+from pathlib import Path
 from typing import Any
 
 from langchain_core.tools import BaseTool
@@ -27,20 +27,20 @@ class DiffFileTool(BaseTool):
     def _run(
         self, source_path: str, destination_path: str, context_lines: int = 3
     ) -> str:
-        if not os.path.exists(source_path):
+        if not Path(source_path).exists():
             return f"Error: Source file not found: {source_path}"
 
-        if not os.path.exists(destination_path):
+        if not Path(destination_path).exists():
             return f"Error: Destination file not found: {destination_path}"
 
         try:
-            with open(source_path, encoding="utf-8") as f:
+            with Path(source_path).open(encoding="utf-8") as f:
                 source_lines = f.readlines()
         except Exception as e:
             return f"Error reading source file {source_path}: {e!s}"
 
         try:
-            with open(destination_path, encoding="utf-8") as f:
+            with Path(destination_path).open(encoding="utf-8") as f:
                 dest_lines = f.readlines()
         except Exception as e:
             return f"Error reading destination file {destination_path}: {e!s}"

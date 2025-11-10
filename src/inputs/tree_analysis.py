@@ -378,7 +378,7 @@ class BaseTreeSitterParser(ABC):
             Dictionary containing parsed structure or error information
         """
         try:
-            with open(file_path, "rb") as f:
+            with Path(file_path).open("rb") as f:
                 content = f.read()
 
             tree = self.parser.parse(content)

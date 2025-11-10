@@ -158,7 +158,9 @@ class Checklist:
                 status_enum = ChecklistStatus(status)
             except ValueError as e:
                 valid = [s.value for s in ChecklistStatus]
-                raise ValueError(f"Invalid status '{status}'. Must be one of: {valid}") from e
+                raise ValueError(
+                    f"Invalid status '{status}'. Must be one of: {valid}"
+                ) from e
         else:
             status_enum = status
 
@@ -356,7 +358,7 @@ class Checklist:
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(filepath, "w", encoding="utf-8") as f:
+        with filepath.open("w", encoding="utf-8") as f:
             f.write(self.to_json())
 
         logger.info(f"Saved checklist to {filepath}")
@@ -386,7 +388,7 @@ class Checklist:
         if not filepath.exists():
             raise FileNotFoundError(f"Checklist file not found: {filepath}")
 
-        with open(filepath, encoding="utf-8") as f:
+        with filepath.open(encoding="utf-8") as f:
             content = f.read()
             checklist = cls.from_json(content, category_enum)
 

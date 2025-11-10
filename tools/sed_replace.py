@@ -74,7 +74,7 @@ class SedTool(BaseTool):
                 return f"ERROR: File '{file_path}' does not exist."
 
             # Read the file
-            with open(path, encoding="utf-8") as f:
+            with path.open(encoding="utf-8") as f:
                 lines = f.readlines()
 
             # Validate line number
@@ -105,7 +105,7 @@ class SedTool(BaseTool):
             lines[idx] = new_line
 
             # Write back to file
-            with open(path, "w", encoding="utf-8") as f:
+            with path.open("w", encoding="utf-8") as f:
                 f.writelines(lines)
 
             slog.info(f"Replaced text on line {line_number} in {file_path}")

@@ -231,7 +231,7 @@ class TaskfileValidator:
             return False, f"ERROR: File not found: {taskfile_path}"
 
         # Read the taskfile
-        with open(path_obj) as f:
+        with path_obj.open() as f:
             taskfile_yaml_content = f.read()
 
         # Run ARI validation
