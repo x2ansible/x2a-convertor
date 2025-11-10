@@ -1,3 +1,4 @@
+import contextlib
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -202,11 +203,8 @@ class TaskfileValidator:
     def cleanup(self):
         """Clean up temporary ARI data directory."""
         if hasattr(self, "data_dir") and self.data_dir and self.data_dir.exists():
-            try:
+            with contextlib.suppress(Exception):
                 shutil.rmtree(self.data_dir)
-            except Exception:
-                # Ignore cleanup errors
-                pass
 
     def validate(self, taskfile_path: str) -> tuple[bool, str]:
         """
