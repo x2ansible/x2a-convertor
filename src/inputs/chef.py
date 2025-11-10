@@ -138,7 +138,7 @@ class ChefSubagent:
 
         # TODO: Rethink following.
         # Maybe run this in parallel, there can be many files and it takes forever to finish on a more complex example
-        for i, fp in enumerate(files):
+        for fp in files:
             try:
                 # Read the file content
                 file_content = read_tool.run({"file_path": fp})

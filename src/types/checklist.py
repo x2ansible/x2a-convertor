@@ -156,9 +156,9 @@ class Checklist:
         if isinstance(status, str):
             try:
                 status_enum = ChecklistStatus(status)
-            except ValueError:
+            except ValueError as e:
                 valid = [s.value for s in ChecklistStatus]
-                raise ValueError(f"Invalid status '{status}'. Must be one of: {valid}")
+                raise ValueError(f"Invalid status '{status}'. Must be one of: {valid}") from e
         else:
             status_enum = status
 
@@ -321,7 +321,7 @@ class Checklist:
                 ChecklistItem(**item_data) for item_data in data["items"]
             ]
         except (TypeError, ValueError) as e:
-            raise ValueError(f"Invalid checklist item data: {e}")
+            raise ValueError(f"Invalid checklist item data: {e}") from e
 
         return checklist
 

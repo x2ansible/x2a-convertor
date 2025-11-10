@@ -313,7 +313,7 @@ class ChefReporting:
 
         report_lines.extend(["**Cookbook Metadata**", ""])
 
-        for file_path, file_data in metadata_files.items():
+        for file_path, _file_data in metadata_files.items():
             report_lines.append(f"**{file_path}:**")
             report_lines.append(
                 "Contains cookbook metadata (name, version, dependencies, etc.)"
