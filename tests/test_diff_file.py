@@ -1,5 +1,5 @@
-import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -30,8 +30,8 @@ class TestDiffFileTool:
             assert "line 2" in result
             assert "modified line 2" in result
         finally:
-            os.unlink(source_path)
-            os.unlink(dest_path)
+            Path(source_path).unlink()
+            Path(dest_path).unlink()
 
     def test_diff_with_identical_files(self, tool) -> None:
         content = "test content\nline 2\n"
@@ -49,8 +49,8 @@ class TestDiffFileTool:
             result = tool._run(f1_path, f2_path)
             assert "No differences found" in result
         finally:
-            os.unlink(f1_path)
-            os.unlink(f2_path)
+            Path(f1_path).unlink()
+            Path(f2_path).unlink()
 
     def test_source_file_not_found(self, tool) -> None:
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as dest:
@@ -60,7 +60,7 @@ class TestDiffFileTool:
             result = tool._run("/nonexistent/source.txt", dest_path)
             assert "Error: Source file not found" in result
         finally:
-            os.unlink(dest_path)
+            Path(dest_path).unlink()
 
     def test_destination_file_not_found(self, tool) -> None:
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as source:
@@ -70,4 +70,4 @@ class TestDiffFileTool:
             result = tool._run(source_path, "/nonexistent/dest.txt")
             assert "Error: Destination file not found" in result
         finally:
-            os.unlink(source_path)
+            Path(source_path).unlink()

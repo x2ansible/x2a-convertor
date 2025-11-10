@@ -1,6 +1,6 @@
-import os
 import shutil
 import tempfile
+from pathlib import Path
 
 from tools.ansible_write import AnsibleWriteTool
 
@@ -15,7 +15,7 @@ class TestAnsibleWriteTool:
 
     def teardown_method(self) -> None:
         """Clean up test fixtures."""
-        if os.path.exists(self.temp_dir):
+        if Path(self.temp_dir).exists():
             shutil.rmtree(self.temp_dir)
 
     def test_write_yaml_with_jinja2_templates(self) -> None:
@@ -30,17 +30,17 @@ class TestAnsibleWriteTool:
     - testuser1
     - testuser2
 """
-        file_path = os.path.join(self.temp_dir, "users.yml")
+        file_path = Path(self.temp_dir) / "users.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         # Should succeed
         assert "Successfully wrote" in result
-        assert file_path in result
-        assert os.path.exists(file_path)
+        assert str(file_path) in result
+        assert Path(file_path).exists()
 
         # Verify the file content preserves Jinja2 templates
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content = f.read()
 
         # Check that Jinja2 template is preserved
@@ -62,14 +62,14 @@ class TestAnsibleWriteTool:
     group: "{{ app_group }}"
     mode: "0644"
 """
-        file_path = os.path.join(self.temp_dir, "configure.yml")
+        file_path = Path(self.temp_dir) / "configure.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content = f.read()
 
         # All Jinja2 variables should be preserved
@@ -82,15 +82,15 @@ class TestAnsibleWriteTool:
     def test_reject_json_input(self) -> None:
         """Test that JSON input is rejected."""
         json_content = """{"tasks": [{"name": "test", "debug": {"msg": "hello"}}]}"""
-        file_path = os.path.join(self.temp_dir, "test.yml")
+        file_path = Path(self.temp_dir) / "test.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=json_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=json_content)
 
         # Should fail with JSON error
         assert "ERROR" in result
         assert "JSON input is not allowed" in result
         # File should not be created
-        assert not os.path.exists(file_path)
+        assert not Path(file_path).exists()
 
     def test_write_valid_ansible_tasks(self) -> None:
         """Test writing a valid Ansible tasks file."""
@@ -106,14 +106,14 @@ class TestAnsibleWriteTool:
     state: started
     enabled: true
 """
-        file_path = os.path.join(self.temp_dir, "tasks.yml")
+        file_path = Path(self.temp_dir) / "tasks.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content = f.read()
 
         assert "ansible.builtin.package" in content
@@ -127,9 +127,9 @@ class TestAnsibleWriteTool:
   tasks:
     key: value: another_value
 """
-        file_path = os.path.join(self.temp_dir, "invalid.yml")
+        file_path = Path(self.temp_dir) / "invalid.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=invalid_yaml)
+        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_yaml)
 
         # Should fail with YAML validation error
         assert "ERROR" in result
@@ -137,7 +137,7 @@ class TestAnsibleWriteTool:
         # Should now have XML format
         assert "<ansible_yaml_error>" in result
         # File should not be created
-        assert not os.path.exists(file_path)
+        assert not Path(file_path).exists()
 
     def test_write_empty_vars_file_with_comments(self) -> None:
         """Test writing an empty vars file with only comments."""
@@ -145,13 +145,13 @@ class TestAnsibleWriteTool:
 # Variables for the application
 # Currently no variables defined
 """
-        file_path = os.path.join(self.temp_dir, "vars.yml")
+        file_path = Path(self.temp_dir) / "vars.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         # Should succeed
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
     def test_write_handlers_file(self) -> None:
         """Test writing an Ansible handlers file."""
@@ -165,12 +165,12 @@ class TestAnsibleWriteTool:
   ansible.builtin.systemd:
     daemon_reload: true
 """
-        file_path = os.path.join(self.temp_dir, "handlers.yml")
+        file_path = Path(self.temp_dir) / "handlers.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
     def test_write_defaults_with_jinja2_filters(self) -> None:
         """Test writing defaults file with Jinja2 filters."""
@@ -180,14 +180,14 @@ app_port: 8080
 app_config_path: "/etc/{{ app_name | default('myapp') }}"
 app_log_level: "{{ log_level | default('INFO') | upper }}"
 """
-        file_path = os.path.join(self.temp_dir, "defaults.yml")
+        file_path = Path(self.temp_dir) / "defaults.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content = f.read()
 
         # Jinja2 filters should be preserved (quotes might be normalized)
@@ -206,14 +206,14 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     msg:   'hello'
   vars:   {foo:  bar,  baz:  qux}
 """
-        file_path = os.path.join(self.temp_dir, "formatted.yml")
+        file_path = Path(self.temp_dir) / "formatted.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content = f.read()
 
         # Output should be properly formatted (not JSON-like)
@@ -230,13 +230,13 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     name: nginx
     state: present
 """
-        file_path = os.path.join(self.temp_dir, "test.yml")
-        result = self.tool._run(file_path, yaml_content)
+        file_path = Path(self.temp_dir) / "test.yml"
+        result = self.tool._run(str(file_path), yaml_content)
 
         assert "Successfully wrote valid Ansible YAML" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content = f.read()
             # AnsibleDumper strips the --- separator
             assert not content.startswith("---")
@@ -264,12 +264,12 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     name: nginx
     state: started
 """
-        file_path = os.path.join(self.temp_dir, "formatted.yml")
-        result = self.tool._run(file_path, yaml_content)
+        file_path = Path(self.temp_dir) / "formatted.yml"
+        result = self.tool._run(str(file_path), yaml_content)
 
         assert "Successfully wrote valid Ansible YAML" in result
 
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content = f.read()
             # Comments are removed by AnsibleDumper
             assert "# This is a comment" not in content
@@ -284,12 +284,12 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     def test_write_truly_empty_yaml(self) -> None:
         """Test writing completely empty YAML (just ---)."""
         yaml_content = "---\n"
-        file_path = os.path.join(self.temp_dir, "empty.yml")
+        file_path = Path(self.temp_dir) / "empty.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
     def test_write_yaml_without_jinja2_variables(self) -> None:
         """Test writing valid Ansible YAML without any Jinja2 variables."""
@@ -307,14 +307,14 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     state: directory
     mode: '0755'
 """
-        file_path = os.path.join(self.temp_dir, "no_vars.yml")
+        file_path = Path(self.temp_dir) / "no_vars.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content = f.read()
 
         # Should not have any Jinja2 templates
@@ -327,13 +327,13 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     def test_write_whitespace_only_yaml(self) -> None:
         """Test writing YAML with only whitespace (should succeed as empty)."""
         yaml_content = "   \n   \n  "
-        file_path = os.path.join(self.temp_dir, "whitespace.yml")
+        file_path = Path(self.temp_dir) / "whitespace.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=yaml_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
         # Should succeed - whitespace-only is treated as empty
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
     def test_yaml_syntax_error_returns_xml_with_line_info(self) -> None:
         """Test that YAML syntax errors return XML-formatted error with line/column info."""
@@ -348,9 +348,9 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
   ansible.builtin.command: ufw default deny
   when: fw_status is not search('Default: deny')
 """
-        file_path = os.path.join(self.temp_dir, "syntax_error.yml")
+        file_path = Path(self.temp_dir) / "syntax_error.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=invalid_yaml)
+        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_yaml)
 
         # Should return an error
         assert "ERROR" in result
@@ -360,7 +360,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "<ansible_yaml_error>" in result
         assert "</ansible_yaml_error>" in result
         assert "<file_path>" in result
-        assert file_path in result
+        assert str(file_path) in result
 
         # Should have error details
         assert "<error_details>" in result
@@ -378,7 +378,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "fw_status is not search" in result
 
         # File should not be created
-        assert not os.path.exists(file_path)
+        assert not Path(file_path).exists()
 
     def test_yaml_syntax_error_includes_line_number(self) -> None:
         """Test that syntax errors include the specific line number where error occurred."""
@@ -387,9 +387,9 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
 - name: Test task
   when: var is not search('value: test')
 """
-        file_path = os.path.join(self.temp_dir, "line_error.yml")
+        file_path = Path(self.temp_dir) / "line_error.yml"
 
-        result = self.tool._run(file_path=file_path, yaml_content=invalid_yaml)
+        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_yaml)
 
         assert "ERROR" in result
         # Should contain line number in XML
@@ -409,10 +409,10 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         state: present
 """
         # File path includes /tasks/ directory
-        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+        result = self.tool._run(file_path=str(file_path), yaml_content=playbook_yaml)
 
         # Should fail with playbook wrapper error
         assert "ERROR" in result
@@ -422,7 +422,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "<fix_workflow>" in result
         assert "REMOVE the playbook wrapper" in result
         # File should not be created
-        assert not os.path.exists(file_path)
+        assert not Path(file_path).exists()
 
     def test_reject_playbook_wrapper_with_tasks_key_in_task_file(self) -> None:
         """Test that task files with 'tasks:' wrapper are rejected."""
@@ -438,10 +438,10 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         name: nginx
         state: started
 """
-        file_path = os.path.join(self.temp_dir, "tasks", "webserver.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "webserver.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+        result = self.tool._run(file_path=str(file_path), yaml_content=playbook_yaml)
 
         # Should fail with playbook wrapper error
         assert "ERROR" in result
@@ -449,7 +449,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "tasks" in result
         assert "<correct_format>" in result
         # File should not be created
-        assert not os.path.exists(file_path)
+        assert not Path(file_path).exists()
 
     def test_reject_playbook_wrapper_with_import_playbook_in_task_file(self) -> None:
         """Test that task files with 'import_playbook' are rejected."""
@@ -457,15 +457,15 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
 - import_playbook: common.yml
 - import_playbook: webserver.yml
 """
-        file_path = os.path.join(self.temp_dir, "tasks", "site.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "site.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+        result = self.tool._run(file_path=str(file_path), yaml_content=playbook_yaml)
 
         # Should fail with playbook wrapper error
         assert "ERROR" in result
         assert "Playbook wrapper detected" in result
-        assert not os.path.exists(file_path)
+        assert not Path(file_path).exists()
 
     def test_accept_valid_flat_task_list_in_task_file(self) -> None:
         """Test that valid flat task lists in /tasks/ directory are accepted."""
@@ -487,16 +487,16 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     state: directory
     mode: '0755'
 """
-        file_path = os.path.join(self.temp_dir, "tasks", "nginx.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "nginx.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=valid_tasks)
+        result = self.tool._run(file_path=str(file_path), yaml_content=valid_tasks)
 
         # Should succeed
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
-        with open(file_path) as f:
+        with Path(file_path).open() as f:
             content = f.read()
 
         # Should have the tasks
@@ -516,14 +516,14 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         state: present
 """
         # File NOT in tasks directory
-        file_path = os.path.join(self.temp_dir, "playbooks", "site.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "playbooks" / "site.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+        result = self.tool._run(file_path=str(file_path), yaml_content=playbook_yaml)
 
         # Should succeed - playbooks are allowed outside /tasks/
         assert "Successfully wrote" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
     def test_ari_validation_passes_for_valid_taskfile(self) -> None:
         """Test that ARI validation passes for valid taskfile with FQCN."""
@@ -538,15 +538,15 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     name: nginx
     state: started
 """
-        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=valid_tasks)
+        result = self.tool._run(file_path=str(file_path), yaml_content=valid_tasks)
 
         # Should succeed with no warnings
         assert "Successfully wrote" in result
         assert "WARNING" not in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
     def test_ari_validation_detects_missing_fqcn(self) -> None:
         """Test that ARI validation detects tasks without FQCN."""
@@ -556,15 +556,15 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     name: nginx
     state: present
 """
-        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=invalid_tasks)
+        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_tasks)
 
         # Should write file but return warning
         assert "WARNING" in result
         assert "validation issues" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
         # Should have structured error format
         assert "<ansible_lint_errors>" in result
@@ -583,15 +583,15 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     name: nginx
     state: present
 """
-        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=invalid_tasks)
+        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_tasks)
 
         # Should write file but return warning
         assert "WARNING" in result
         assert "validation issues" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
         # Should have structured error format
         assert "<ansible_lint_errors>" in result
@@ -610,15 +610,15 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     name: nginx
     state: started
 """
-        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=invalid_tasks)
+        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_tasks)
 
         # Should write file but return warning
         assert "WARNING" in result
         assert "validation issues" in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
         # Should detect both issues
         assert "R301" in result or "R303" in result  # At least one rule violation
@@ -636,16 +636,16 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         name: nginx
         state: present
 """
-        file_path = os.path.join(self.temp_dir, "playbooks", "site.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "playbooks" / "site.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=playbook_yaml)
+        result = self.tool._run(file_path=str(file_path), yaml_content=playbook_yaml)
 
         # Should succeed without ARI validation warnings
         assert "Successfully wrote" in result
         assert "WARNING" not in result
         assert "<ansible_lint_errors>" not in result
-        assert os.path.exists(file_path)
+        assert Path(file_path).exists()
 
     def test_ari_validation_skips_non_yaml_extensions(self) -> None:
         """Test that ARI validation only runs on .yml/.yaml files."""
@@ -655,10 +655,10 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
   apt:
     name: nginx
 """
-        file_path = os.path.join(self.temp_dir, "tasks", "main.txt")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "main.txt"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=tasks_content)
+        result = self.tool._run(file_path=str(file_path), yaml_content=tasks_content)
 
         # Should succeed without ARI validation
         assert (
@@ -676,10 +676,10 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
     name: nginx
     state: present
 """
-        file_path = os.path.join(self.temp_dir, "tasks", "main.yml")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
-        result = self.tool._run(file_path=file_path, yaml_content=invalid_tasks)
+        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_tasks)
 
         # Should include line numbers in error messages
         assert "WARNING" in result

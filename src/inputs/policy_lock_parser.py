@@ -74,7 +74,7 @@ class PolicyLockParser:
 
         logger.debug(f"Reading policy lock file: {self.lock_file_path}")
         try:
-            with open(self.lock_file_path) as f:
+            with self.lock_file_path.open() as f:
                 self.data = json.load(f)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON from {lock_file_path}: {e}")

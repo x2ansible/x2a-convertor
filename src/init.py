@@ -1,4 +1,3 @@
-import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -95,7 +94,7 @@ def init_project(user_requirements, source_dir: str = "."):
             user_requirements.pretty_print()
 
         # Check if the migration plan was actually created
-        if os.path.exists(MIGRATION_PLAN_FILE):
+        if Path(MIGRATION_PLAN_FILE).exists():
             click.echo("✅ Migration plan generated successfully!")
             click.echo(
                 f"📄 Check '{MIGRATION_PLAN_FILE}' for the detailed migration analysis."

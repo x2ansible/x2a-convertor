@@ -52,7 +52,7 @@ class LintConfiguration:
     @classmethod
     def create(cls) -> "LintConfiguration":
         """Create fresh Options and RulesCollection objects."""
-        rules_dir = os.path.join(os.path.dirname(ansiblelint.__file__), "rules")
+        rules_dir = Path(ansiblelint.__file__).parent / "rules"
         options = Options(
             offline=True,
             lintables=["."],
@@ -70,7 +70,7 @@ class IssueFormatter:
     def format_issue(match: MatchError, base_path: str) -> str:
         """Format a single lint match into a string."""
         full_path = (
-            os.path.join(base_path, match.filename) if base_path else match.filename
+            str(Path(base_path) / match.filename) if base_path else match.filename
         )
         return f"[{match.rule.severity}] {full_path}:{match.lineno or 0} [{match.rule.id}] {match.message} ({match.details})"
 
@@ -161,7 +161,7 @@ class PathValidator:
 @contextmanager
 def change_directory(path: Path) -> Iterator[None]:
     """Context manager to temporarily change working directory."""
-    original_cwd = os.getcwd()
+    original_cwd = Path.cwd()
     try:
         os.chdir(path)
         logger.debug(f"Changed directory to {path} for ansible-lint execution")
