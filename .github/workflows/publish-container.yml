@@ -23,13 +23,13 @@ jobs:
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
-        password: ${{ secrets.QUAY_PASSWORD }}
+        password: ${{ secrets.QUAY_TOKEN }}
 
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: quay.io/${{ secrets.QUAY_NAMESPACE }}
+        images: quay.io/${{ secrets.QUAY_NAMESPACE }}/x2a-convertor
         tags: |
           type=ref,event=tag
           type=raw,value=latest,enable={{is_default_branch}}
