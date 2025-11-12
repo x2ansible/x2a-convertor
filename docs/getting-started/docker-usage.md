@@ -494,6 +494,6 @@ trivy image x2a-convertor:latest
 
 ## Next Steps
 
-- [Configuration](configuration.md): Detailed environment variable reference
-- [Quick Start](quick-start.md): Run your first migration
-- [Nginx Walkthrough](nginx-walkthrough.md): Real-world example
+- [Configuration](configuration.html): Detailed environment variable reference
+- [Quick Start](quick-start.html): Run your first migration
+- [Nginx Walkthrough](nginx-walkthrough.html): Real-world example

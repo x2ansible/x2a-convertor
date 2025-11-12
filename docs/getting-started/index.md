@@ -17,8 +17,8 @@ Get X2A Convertor running and migrate your first cookbook.
 
 ## Quick Start
 
-1. **Install**: See [Installation](installation.md)
-2. **Configure**: See [Configuration](configuration.md)
+1. **Install**: See [Installation](installation.html)
+2. **Configure**: See [Configuration](configuration.html)
 3. **Run**: Four commands to migrate a cookbook
 
 ```bash
@@ -42,9 +42,9 @@ uv run app.py validate "nginx"
 
 ## Guides
 
-- [Installation](installation.md) - Docker or local setup
-- [Docker Usage](docker-usage.md) - Container configuration
-- [Configuration](configuration.md) - Environment variables and LLM setup
+- [Installation](installation.html) - Docker or local setup
+- [Docker Usage](docker-usage.html) - Container configuration
+- [Configuration](configuration.html) - Environment variables and LLM setup
 
 ## Need Help?
 
