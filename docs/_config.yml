@@ -1,8 +1,9 @@
 # X2A Convertor Documentation
 title: X2A Convertor
 description: AI-powered infrastructure migration from Chef/Puppet/Salt to Ansible
-baseurl: "/"
+baseurl: ""
 url: "https://x2ansible.github.io"
+repository: x2ansible/x2a-convertor
 
 # Theme
 theme: just-the-docs
