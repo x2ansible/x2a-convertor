@@ -10,7 +10,7 @@ AI-powered infrastructure migration tool that converts Chef, Puppet, and Salt co
 
 ## Quick Navigation
 
-### [Project Goals](goals.md)
+### [Project Goals](goals.html)
 Understand the enterprise value proposition and migration benefits.
 
 ### [Concepts](concepts/)
