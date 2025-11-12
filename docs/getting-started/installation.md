@@ -155,7 +155,7 @@ AWS_BEARER_TOKEN_BEDROCK=your-bedrock-token
 LOG_LEVEL=INFO
 ```
 
-See [Configuration](configuration.md) for all options.
+See [Configuration](configuration.html) for all options.
 
 ## Verify Installation
 
@@ -177,5 +177,5 @@ uv run app.py --help
 
 ## Next Steps
 
-- [Configuration](configuration.md) - Set up LLM providers
-- [Docker Usage](docker-usage.md) - Advanced container options
+- [Configuration](configuration.html) - Set up LLM providers
+- [Docker Usage](docker-usage.html) - Advanced container options

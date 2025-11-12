@@ -331,5 +331,5 @@ LLM_MODEL=gpt-4o                      # Incorrect
 ## Next Steps
 
 - [Quick Start](quick-start.md): Run your first migration
-- [Nginx Walkthrough](nginx-walkthrough.md): Detailed example
-- [AI Integration](../concepts/ai-integration.md): Deep dive into LLM usage
+- [Nginx Walkthrough](nginx-walkthrough.html): Detailed example
+- [AI Integration](../concepts/ai-integration.html): Deep dive into LLM usage
