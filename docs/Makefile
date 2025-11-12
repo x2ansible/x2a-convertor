@@ -5,5 +5,5 @@ build:
 	$(JEKYLL_CMD) "bundle install && bundle exec jekyll build"
 
 serve:
-	$(JEKYLL_CMD) "bundle install && bundle exec jekyll build --watch"
+	$(JEKYLL_CMD) "bundle install && bundle exec jekyll serve --baseurl '' --watch -H 0.0.0.0"
 
