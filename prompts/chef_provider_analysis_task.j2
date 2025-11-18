@@ -1,0 +1,14 @@
+FILE PATH: {{ file_path }}
+
+FILE CONTENT:
+```ruby
+{{ file_content }}
+```
+
+Analyze the provider and return JSON:
+```json
+{% raw %}{
+  "unconditional_templates": [],
+  "conditionals": []
+}{% endraw %}
+```
