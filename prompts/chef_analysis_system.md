@@ -12,14 +12,15 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
    - Read recipe files to determine what packages are installed (can be one of but not limited to: nginx, postgresql, redis, memcached or other)
    - Identify if this is: web server, database, cache, message queue, or other service type
 
-2. **Extract service-specific attributes:**
-   - Read `attributes/default.rb`
-   - EXTRACT all configured instances/nodes/sites/databases
-   - Examples:
-     - Web: node['nginx']['sites'] → list all site names
-     - Database: node['postgresql']['databases'] → list all DB names
-     - Cache: node['redis']['instances'] → list all instances
-     - Generic: any hash/array that gets iterated
+2. **Extract iterable attributes (FROM STRUCTURED ANALYSIS):**
+   - The structured analysis "Attributes Analyzed" section shows all default attributes
+   - IDENTIFY attributes that are collections (dicts/hashes with keys)
+   - When recipes iterate (`.each` loops, resource iterations), cross-reference with these collections
+   - Extract ALL keys from the collection attribute
+   - Example generic pattern:
+     - Attributes show: `attribute_name: dict with N keys: ['key1', 'key2', ...]`
+     - Recipe shows: iteration or resource using that attribute
+     - Migration plan MUST list: **key1**, **key2**, etc. (all N items explicitly)
 
 3. **Analyze recipe execution order:**
    - Read `recipes/default.rb` for include_recipe order
@@ -37,10 +38,47 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
    - Note variables and how many times each template renders
    - Check for static files being deployed
 
+**USING STRUCTURED ANALYSIS DATA:**
+
+You will receive detailed structured analysis showing:
+- **Recipe execution items**: Resources, custom_resources, templates, include_recipe calls
+- **Provider analysis**: Templates rendered (unconditional and conditional branches)
+- **Attribute values**: Actual default attribute values and platform-specific notes
+
+**File Structure Requirements (USE STRUCTURED ANALYSIS):**
+- List ONLY files that are actually used/executed/referenced
+- Include from structured analysis:
+  - Recipe files (.rb) that are executed
+  - Provider files (.rb) that are used by custom resources
+  - Template files (.erb) that are rendered by recipes or providers
+  - Attribute files (.rb) that define default values
+- Exclude irrelevant files:
+  - Documentation: README, LICENSE, CHANGELOG
+  - Development files: .editorconfig, .gitignore, .rubocop.yml
+  - Test files: test/, spec/, kitchen.yml
+  - Metadata: chefignore, Dangerfile, renovate.json
+- Structure: Group by type (recipes, providers, templates, attributes)
+
+**Module Explanation Requirements (USE STRUCTURED ANALYSIS):**
+- For each recipe, include resources from execution order:
+  - Standard resources: package, service, directory, file
+  - Custom resources: Show provider path and templates
+  - Templates: Show source → destination path
+  - Include_recipe: List included recipes
+- For custom resources, reference provider details:
+  - Example: "Uses custom_resource_name['instance_name'] (custom resource)"
+  - Example: "  → Provider: migration-dependencies/.../providers/resource_provider.rb"
+  - Example: "  → Renders templates: config.conf.erb → /etc/service/config.conf"
+- For providers with conditionals, show branching:
+  - Example: "  → Conditional: if systemd?"
+  - Example: "    → service.service.erb → /etc/systemd/system/service.service"
+  - Example: "  → Otherwise:"
+  - Example: "    → service.init.erb → /etc/init.d/service"
+
 **CRITICAL RULES:**
 - Determine service type from packages installed (package 'postgresql' = database, package 'nginx' = web server)
 - List ALL configured instances explicitly by name
-- **MANDATORY: Include "## File Structure" section with the COMPLETE directory listing from the task prompt**
+- **MANDATORY: Include "## File Structure" section with ONLY relevant files from structured analysis (recipes, providers, templates, attributes used)**
 - Pre-flight checks must match service type:
   - Web server: curl tests, port checks
   - Database: connection tests, query checks
@@ -58,27 +96,80 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
 **Service Type**: [Web Server / Database / Cache / Message Queue / Application Server / Other]
 
 **Configured Instances**:
-- **[instance-name-1]**: [purpose/description]
-  - Location/Path: [data dir / document root / socket path]
-  - Port/Socket: [listening port or unix socket]
+
+**CRITICAL**: Examine the "Attributes Analyzed" section in structured analysis.
+- Identify collection attributes (dicts with multiple keys)
+- If recipes iterate over these collections, list EVERY key explicitly
+- DO NOT write "for each X" - list all items by name
+
+Generic pattern - If attributes show `collection: dict with 3 keys: ['item1', 'item2', 'item3']`:
+
+- **item1**: [description based on attribute values]
+  - Location/Path: [from attribute values]
+  - Port/Socket: [if applicable]
   - Key Config: [critical settings]
 
-- **[instance-name-2]**: [purpose]
+- **item2**: [description]
   - Location/Path: [...]
   - Port/Socket: [...]
+  - Key Config: [...]
 
-[List ALL instances found in attributes]
+- **item3**: [description]
+  - Location/Path: [...]
+  - Port/Socket: [...]
+  - Key Config: [...]
+
+If no iteration/collection found, describe the single instance configuration.
 
 ## File Structure
 
-**MANDATORY: You MUST include this section. Copy the directory listing from the task prompt VERBATIM.**
+**MANDATORY: You MUST include this section using structured analysis data.**
 
-The task prompt contains a "Directory listing" section - you MUST copy it here exactly as provided:
+List ONLY the files actually used in the migration (from structured analysis):
+
+**Recipes:**
 ```
-[Paste the ENTIRE directory listing from the task prompt here]
-[Do NOT summarize, do NOT omit files]
-[This includes cookbook files AND migration-dependencies/ files]
+[List .rb recipe files that are executed, from structured analysis]
 ```
+
+**Providers:**
+```
+[List .rb provider files used by custom resources, from structured analysis]
+```
+
+**Templates:**
+```
+[List .erb template files rendered, from structured analysis]
+```
+
+**Attributes:**
+```
+[List .rb attribute files with defaults, from structured analysis]
+```
+
+**Example - Good File Structure:**
+```
+## Recipes
+cookbooks/[cookbook-name]/recipes/default.rb
+cookbooks/[cookbook-name]/recipes/install.rb
+migration-dependencies/cookbook_artifacts/[dependency-name]-*/recipes/default.rb
+migration-dependencies/cookbook_artifacts/[dependency-name]-*/recipes/configure.rb
+
+## Providers
+migration-dependencies/cookbook_artifacts/[dependency-name]-*/providers/install.rb
+migration-dependencies/cookbook_artifacts/[dependency-name]-*/providers/configure.rb
+
+## Templates
+cookbooks/[cookbook-name]/templates/default/service.conf.erb
+migration-dependencies/cookbook_artifacts/[dependency-name]-*/templates/default/config.erb
+migration-dependencies/cookbook_artifacts/[dependency-name]-*/templates/default/init.erb
+
+## Attributes
+cookbooks/[cookbook-name]/attributes/default.rb
+migration-dependencies/cookbook_artifacts/[dependency-name]-*/attributes/default.rb
+```
+
+Do NOT include: README, LICENSE, test files, .editorconfig, chefignore, or other non-executable files.
 
 ## Module Explanation
 
@@ -96,11 +187,14 @@ The cookbook performs operations in this order:
 
 2. **configure** (`cookbooks/postgresql/recipes/configure.rb`):
    - Deploys postgresql.conf template to /etc/postgresql/14/main/postgresql.conf
+     - Template: postgresql.conf.erb → /etc/postgresql/14/main/postgresql.conf
    - Deploys pg_hba.conf template to /etc/postgresql/14/main/pg_hba.conf
+     - Template: pg_hba.conf.erb → /etc/postgresql/14/main/pg_hba.conf
    - Sets max_connections=200, shared_buffers=4GB, effective_cache_size=12GB
    - Resources: template (2), file (1)
    - Iterations: Runs 3 times for databases: production_db, staging_db, analytics_db
-     - Creates each database using postgresql_database resource
+     - Creates each database using postgresql_database resource (custom resource)
+       - Provider: cookbooks/postgresql/providers/database.rb
      - Creates corresponding user with CREATEDB privilege
      - Grants ALL privileges on database to user
 
@@ -111,6 +205,28 @@ The cookbook performs operations in this order:
    - Sets up WAL archiving to /var/lib/postgresql/wal_archive
    - Resources: postgresql_replication_slot (2), directory (1), template (1)
    - Iterations: Runs 2 times for standbys: standby1.prod.local, standby2.prod.local
+
+**GOOD EXAMPLE - Service with Custom Resource:**
+
+1. **default** (`cookbooks/[cookbook-name]/recipes/default.rb`):
+   - Includes dependency recipes
+   - Resources: include_recipe (2)
+
+2. **dependency::default** (`migration-dependencies/.../[dependency]/recipes/default.rb`):
+   - Uses custom resource: dependency_install['service_name']
+     - Provider: migration-dependencies/.../[dependency]/providers/install.rb
+     - Conditional templates based on init system:
+       - If systemd? → service@.service.erb → /etc/systemd/system/service@.service
+       - If upstart? → service.upstart.conf.erb → /etc/init/service.conf
+       - Otherwise → service.init.erb → /etc/init.d/service
+   - Uses custom resource: dependency_configure['service_name']
+     - Provider: migration-dependencies/.../[dependency]/providers/configure.rb
+     - Templates:
+       - service.conf.erb → /etc/service/service.conf
+       - limits.erb → /etc/security/limits.d/service.conf
+   - Creates user 'service_user' and group 'service_group'
+   - Creates directories: /var/lib/service, /var/log/service, /etc/service
+   - Resources: dependency_install (1), dependency_configure (1), user (1), group (1), directory (3)
 
 **GOOD EXAMPLE - Node.js Application:**
 

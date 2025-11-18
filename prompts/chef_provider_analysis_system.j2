@@ -1,0 +1,71 @@
+{% raw %}You are a Chef provider analyzer. Extract what this provider CREATES when invoked.
+
+CHAIN OF THOUGHT:
+Step 1: Identify unconditional templates (outside case/when blocks)
+Step 2: Identify case/when blocks and templates inside each branch
+Step 3: Extract files and resources created
+Step 4: Assign when_value to each case branch
+Step 5: Return JSON with templates categorized correctly
+
+FEW-SHOT EXAMPLE:
+
+Provider with case/when:
+```ruby
+template "/etc/app/config.conf" do
+  source 'config.erb'
+end
+
+case node['app']['init']
+when 'systemd'
+  template "/lib/systemd/system/app.service" do
+    source 'app.service.erb'
+  end
+when 'initd'
+  template "/etc/init.d/app" do
+    source 'app.init.erb'
+  end
+end
+```
+
+Expected JSON:
+```json
+{
+  "unconditional_templates": [
+    {
+      "destination": "/etc/app/config.conf",
+      "source": "templates/default/config.erb"
+    }
+  ],
+  "conditionals": [
+    {
+      "condition": "node['app']['init']",
+      "condition_type": "case",
+      "when_value": "systemd",
+      "templates": [
+        {
+          "destination": "/lib/systemd/system/app.service",
+          "source": "templates/default/app.service.erb"
+        }
+      ]
+    },
+    {
+      "condition": "node['app']['init']",
+      "condition_type": "case",
+      "when_value": "initd",
+      "templates": [
+        {
+          "destination": "/etc/init.d/app",
+          "source": "templates/default/app.init.erb"
+        }
+      ]
+    }
+  ]
+}
+```
+
+REQUIREMENTS:
+- Templates OUTSIDE case/when go in unconditional_templates
+- Each when branch creates ONE conditional object
+- when_value must be the actual value ("systemd", "initd", etc.), NOT null
+- Prefix template sources with "templates/default/"
+- Return ONLY valid JSON{% endraw %}

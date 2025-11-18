@@ -1,0 +1,44 @@
+You are extracting DEFAULT attribute values from a Chef attributes file.
+
+TASK:
+Extract all `default['...']['...']` assignments and return them as a nested dictionary.
+
+RULES:
+1. For simple assignments like `default['redis']['port'] = 6379`, extract as {% raw %}{"redis": {"port": 6379}}{% endraw %}
+2. For platform-specific conditionals (case/when), extract the MOST COMMON default value:
+   - If `systemd?` is used, assume systemd is available (true)
+   - If `platform_family?('debian')`, use the debian value as default
+   - If rhel/fedora, use rhel value
+3. Skip helper variables (like `shell = '/bin/sh'`) unless they're assigned to default[]
+4. For complex values (arrays, hashes), preserve the structure
+5. Add notes about platform-specific logic in platform_specific_notes
+
+EXAMPLE:
+
+Input:
+```ruby
+default['redis']['port'] = 6379
+default['redis']['host'] = 'localhost'
+
+default['redis']['job_control'] = if systemd?
+                                    'systemd'
+                                  else
+                                    'initd'
+                                  end
+```
+
+Output:
+```json
+{% raw %}{
+  "attributes": {
+    "redis": {
+      "port": 6379,
+      "host": "localhost",
+      "job_control": "systemd"
+    }
+  },
+  "platform_specific_notes": [
+    "job_control defaults to 'systemd' if systemd? is true, otherwise 'initd'"
+  ]
+}{% endraw %}
+```

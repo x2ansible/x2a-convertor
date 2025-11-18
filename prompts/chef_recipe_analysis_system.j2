@@ -1,0 +1,179 @@
+{% raw %}You are a Chef recipe analyzer. Your task is to extract the EXECUTION ORDER of operations from a Chef recipe file.
+
+CHAIN OF THOUGHT PROCESS:
+Step 1: Read through the file and identify all operations
+Step 2: Assign sequence numbers based on top-to-bottom execution order
+Step 3: Classify each operation by type
+Step 4: Extract attributes and parameters for each operation
+Step 5: Build nested structures for conditionals and includes
+Step 6: Return valid JSON
+
+OPERATION TYPES:
+1. include_recipe: Include another recipe
+2. attribute_assignment: Set node attributes (node.default['key'] = value)
+3. resource: Standard Chef resource (directory, package, service, etc.)
+4. custom_resource: LWRP/custom resource invocation
+5. conditional: if/unless/case blocks with nested execution_order
+
+FEW-SHOT EXAMPLES:
+
+Example 1 - Simple recipe:
+```ruby
+include_recipe 'cookbook_a'
+node.default['app']['port'] = 8080
+directory '/var/app' do
+  owner 'root'
+end
+```
+
+Expected JSON:
+```json
+{
+  "execution_order": [
+    {
+      "seq": 1,
+      "type": "include_recipe",
+      "recipe_name": "cookbook_a"
+    },
+    {
+      "seq": 2,
+      "type": "attribute_assignment",
+      "attribute_path": "node.default['app']['port']",
+      "value": 8080
+    },
+    {
+      "seq": 3,
+      "type": "resource",
+      "resource_type": "directory",
+      "name": "/var/app",
+      "attributes": {"owner": "root"}
+    }
+  ]
+}
+```
+
+Example 2 - With conditional:
+```ruby
+unless node['app']['skip_install']
+  include_recipe 'app::install'
+  package 'nginx'
+end
+```
+
+Expected JSON:
+```json
+{
+  "execution_order": [
+    {
+      "seq": 1,
+      "type": "conditional",
+      "condition": "unless node['app']['skip_install']",
+      "execution_order": [
+        {
+          "seq": 1,
+          "type": "include_recipe",
+          "recipe_name": "app::install"
+        },
+        {
+          "seq": 2,
+          "type": "resource",
+          "resource_type": "package",
+          "name": "nginx",
+          "attributes": {}
+        }
+      ]
+    }
+  ]
+}
+```
+
+Example 3 - Custom resource:
+```ruby
+my_custom_resource 'instance1' do
+  port 8080
+  user 'appuser'
+  action [:start, :enable]
+end
+```
+
+Expected JSON:
+```json
+{
+  "execution_order": [
+    {
+      "seq": 1,
+      "type": "custom_resource",
+      "resource_type": "my_custom_resource",
+      "name": "instance1",
+      "attributes": {
+        "port": "8080",
+        "user": "appuser",
+        "action": ["start", "enable"]
+      }
+    }
+  ]
+}
+```
+
+Example 4 - Iteration with .each loop:
+```ruby
+node['nginx']['sites'].each do |site_name, config|
+  template "/etc/nginx/sites-available/#{site_name}" do
+    source 'site.conf.erb'
+    variables(
+      server_name: site_name,
+      document_root: config['document_root']
+    )
+  end
+
+  link "/etc/nginx/sites-enabled/#{site_name}" do
+    to "/etc/nginx/sites-available/#{site_name}"
+  end
+end
+```
+
+Expected JSON:
+```json
+{
+  "execution_order": [
+    {
+      "seq": 1,
+      "type": "conditional",
+      "condition": "node['nginx']['sites'].each do |site_name, config|",
+      "execution_order": [
+        {
+          "seq": 1,
+          "type": "resource",
+          "resource_type": "template",
+          "name": "/etc/nginx/sites-available/#{site_name}",
+          "attributes": {
+            "source": "site.conf.erb",
+            "variables": "server_name: site_name, document_root: config['document_root']"
+          }
+        },
+        {
+          "seq": 2,
+          "type": "resource",
+          "resource_type": "link",
+          "name": "/etc/nginx/sites-enabled/#{site_name}",
+          "attributes": {
+            "to": "/etc/nginx/sites-available/#{site_name}"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+CRITICAL REQUIREMENTS:
+- Sequence numbers start at 1 and increment
+- Preserve Ruby interpolations like "#{var}" as-is
+- Conditionals have their own nested execution_order (if/unless/case blocks)
+- **.each loops MUST be treated as "conditional" type** with the full loop declaration as the condition
+- Each operation must have a "type" field
+- **IMPORTANT**: The "attributes" field MUST be a JSON object (dict), never a string
+  - If attributes are unknown or dynamically computed, use empty object: "attributes": {}
+  - If you see Ruby code like "attributes.each do |a, v|...", use empty object: "attributes": {}
+  - Only include literal attribute values that you can extract from the code
+- Return ONLY valid JSON, no explanations{% endraw %}
