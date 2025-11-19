@@ -114,11 +114,51 @@ class ChefDependencyManager:
         return (True, deps)
 
     def fetch_dependencies(self) -> None:
-        """Download dependencies using chef-cli export"""
+        """Download dependencies using chef-cli install and export"""
         log = logger.bind(cookbook=self.cookbook_name)
-        log.info("Fetching dependencies using chef-cli export")
+        log.info("Fetching dependencies using chef-cli install and export")
 
-        # Use a temp directory for chef-cli export to avoid path conflicts
+        # Step 1: Verify policy lock exists
+        if not self.policy_lock_path:
+            log.error("No Policyfile.lock.json found")
+            raise RuntimeError(
+                "Policyfile.lock.json not found. Cannot fetch dependencies."
+            )
+
+        # Step 2: Run chef install to resolve dependencies
+        policyfile_path = self.policy_lock_path.parent / "Policyfile.rb"
+        if not policyfile_path.exists():
+            log.error(f"Policyfile.rb not found at {policyfile_path}")
+            raise RuntimeError(
+                "Policyfile.rb not found. Cannot install dependencies without Policyfile.rb"
+            )
+
+        install_cmd = ["chef-cli", "install", str(policyfile_path)]
+        log.info(f"Running chef-cli install: {' '.join(install_cmd)}")
+
+        install_result = subprocess.run(
+            install_cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=str(self.cookbook_path),
+        )
+
+        if install_result.returncode != 0:
+            log.error(
+                f"chef-cli install failed with return code {install_result.returncode}"
+            )
+            log.error(f"stderr: {install_result.stderr.strip()}")
+            if install_result.stdout:
+                log.debug(f"stdout: {install_result.stdout.strip()}")
+            raise RuntimeError(
+                f"chef-cli install failed: {install_result.stderr.strip()}"
+            )
+
+        log.info("chef-cli install completed successfully")
+        log.debug(f"chef-cli install output: {install_result.stdout.strip()}")
+
+        # Step 2: Use a temp directory for chef-cli export to avoid path conflicts
         temp_export_dir = Path(tempfile.mkdtemp(prefix="chef-export-"))
         log.info(f"Created temporary export directory: {temp_export_dir}")
 
@@ -130,7 +170,7 @@ class ChefDependencyManager:
                 str(temp_export_dir),
             ]
 
-            log.info(f"Running chef-cli command: {' '.join(cmd)}")
+            log.info(f"Running chef-cli export: {' '.join(cmd)}")
             log.debug(f"Working directory: {self.cookbook_path}")
 
             result = subprocess.run(
