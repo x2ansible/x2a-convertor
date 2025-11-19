@@ -1,0 +1,35 @@
+---
+# Kustomize configuration for easy deployment
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: x2a-convertor
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - pvc.yaml
+  - serviceaccount.yaml
+  # Uncomment the jobs you want to deploy
+  # - job-init.yaml
+  # - job-analyze.yaml
+  # - job-migrate.yaml
+  # - job-validate.yaml
+
+commonLabels:
+  app: x2a-convertor
+  managed-by: kustomize
+
+# Example: Override image tag
+images:
+  - name: quay.io/x2ansible/x2a-convertor
+    newTag: latest
+
+# Example: Add common annotations
+commonAnnotations:
+  description: "X2Ansible Infrastructure Migration Tool"
+
+# Example: Configure namespace
+# namespace: my-custom-namespace
+

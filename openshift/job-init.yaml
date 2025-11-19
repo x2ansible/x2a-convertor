@@ -1,0 +1,87 @@
+---
+# Job for initializing a migration project
+# This performs high-level analysis and creates MIGRATION-PLAN.md
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: x2a-init-job
+  namespace: x2a-convertor
+  labels:
+    app: x2a-convertor
+    job-type: init
+spec:
+  # Keep completed jobs for 1 hour for log review
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: x2a-convertor
+        job-type: init
+    spec:
+      serviceAccountName: x2a-convertor
+      restartPolicy: OnFailure
+      
+      # Security context for OpenShift
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      
+      containers:
+        - name: x2a-convertor
+          image: quay.io/x2ansible/x2a-convertor:latest
+          imagePullPolicy: Always
+          
+          # Security context for container
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          
+          # Command to run: init command
+          # Customize the user_requirements argument below
+          args:
+            - "init"
+            - "I want to migrate this Chef repository to Ansible"
+            - "--source-dir"
+            - "/data/source"
+          
+          # Environment variables from ConfigMap
+          env:
+            - name: UV_CACHE_DIR
+              value: /tmp/.uv-cache
+            - name: HOME
+              value: /tmp
+          envFrom:
+            - configMapRef:
+                name: x2a-config
+            - secretRef:
+                name: x2a-secrets
+          
+          # Volume mounts
+          volumeMounts:
+            - name: source-data
+              mountPath: /data/source
+            - name: output-data
+              mountPath: /data/output
+          
+          # Resource limits
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+      
+      volumes:
+        - name: source-data
+          persistentVolumeClaim:
+            claimName: x2a-source-data
+        - name: output-data
+          persistentVolumeClaim:
+            claimName: x2a-output-data
+

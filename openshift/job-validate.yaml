@@ -1,0 +1,86 @@
+---
+# Job for validating migrated modules
+# This compares original config vs generated Ansible playbooks
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: x2a-validate-job
+  namespace: x2a-convertor
+  labels:
+    app: x2a-convertor
+    job-type: validate
+spec:
+  # Keep completed jobs for 1 hour for log review
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: x2a-convertor
+        job-type: validate
+    spec:
+      serviceAccountName: x2a-convertor
+      restartPolicy: OnFailure
+      
+      # Security context for OpenShift
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      
+      containers:
+        - name: x2a-convertor
+          image: quay.io/x2ansible/x2a-convertor:latest
+          imagePullPolicy: Always
+          
+          # Security context for container
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          
+          # Command to run: validate command
+          # Customize the module_name argument below
+          args:
+            - "validate"
+            - "nginx"
+          
+          # Environment variables from ConfigMap
+          env:
+            - name: UV_CACHE_DIR
+              value: /tmp/.uv-cache
+            - name: HOME
+              value: /tmp
+          envFrom:
+            - configMapRef:
+                name: x2a-config
+            - secretRef:
+                name: x2a-secrets
+          
+          # Volume mounts
+          volumeMounts:
+            - name: source-data
+              mountPath: /data/source
+              readOnly: true
+            - name: output-data
+              mountPath: /data/output
+          
+          # Resource limits
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+      
+      volumes:
+        - name: source-data
+          persistentVolumeClaim:
+            claimName: x2a-source-data
+        - name: output-data
+          persistentVolumeClaim:
+            claimName: x2a-output-data
+

@@ -1,0 +1,36 @@
+---
+# PVC for source code repositories (input)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: x2a-source-data
+  namespace: x2a-convertor
+  labels:
+    app: x2a-convertor
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # Optional: Specify storage class for your OpenShift cluster
+  # storageClassName: gp3-csi
+
+---
+# PVC for output Ansible playbooks and migration artifacts
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: x2a-output-data
+  namespace: x2a-convertor
+  labels:
+    app: x2a-convertor
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # Optional: Specify storage class for your OpenShift cluster
+  # storageClassName: gp3-csi
+
