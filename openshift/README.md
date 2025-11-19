@@ -38,21 +38,49 @@ Create a helper pod to copy files:
 oc run upload --image=registry.access.redhat.com/ubi9/ubi-minimal \
   --restart=Never -n x2a-convertor -- sleep 3600
 
+# Wait for pod to be ready
+oc wait --for=condition=ready pod/upload -n x2a-convertor --timeout=60s
+
 oc exec upload -n x2a-convertor -- microdnf install -y tar
 
-# Upload your cookbooks
-oc rsync ./my-nginx-cookbook/ upload:/data/nginx/ -n x2a-convertor
-oc rsync ./my-apache-cookbook/ upload:/data/apache/ -n x2a-convertor
+# Upload your cookbook (it will be at /data/source in the job)
+oc rsync ./my-chef-cookbook/ upload:/data/ -n x2a-convertor
 
 oc delete pod upload -n x2a-convertor
 ```
 
+**Important for Chef cookbooks**: The analyze step requires `Policyfile.lock.json` in your cookbook directory. If your cookbook doesn't have one, create it with your cookbook dependencies. See the `examples/hello_world/Policyfile.lock.json` for a minimal example.
+
+Note: The jobs are configured to use `/data/source` as the source directory, so upload your cookbook files directly to `/data/`.
+
 ### 3. Run Migrations
+
+**Option A: Using the helper script (Recommended)**
 
 ```bash
 cd openshift
 
-# Run the migration workflow
+# Run the complete workflow for your cookbook
+./run-job.sh /data/source init "Migrate to Ansible"
+./run-job.sh /data/source analyze "Analyze cookbook"
+./run-job.sh /data/source migrate "Migrate"
+./run-job.sh /data/source validate "chef_to_ansible"
+
+# For multiple cookbooks, just change the path
+./run-job.sh /data/nginx init "Migrate to Ansible"
+./run-job.sh /data/nginx analyze "Analyze nginx cookbook"
+./run-job.sh /data/nginx migrate "Migrate nginx"
+```
+
+**Option B: Using Makefile (uses hardcoded job YAMLs)**
+
+```bash
+cd openshift
+
+# Edit job YAML files first to customize paths
+vim job-init.yaml  # Update --source-dir if needed
+
+# Run the workflow
 make run-init      # Creates high-level migration plan
 make run-analyze   # Analyzes modules in detail
 make run-migrate   # Generates Ansible playbooks
@@ -61,8 +89,6 @@ make run-validate  # Validates the migration
 # Check status anytime
 make status
 ```
-
-To migrate multiple cookbooks, edit the job YAML files to point to different `--source-dir` paths before running.
 
 ## Configuration
 
@@ -93,12 +119,14 @@ oc create secret generic x2a-secrets \
 **OpenShift AI / RHOAI Model Serving:**
 ```bash
 oc patch configmap x2a-config -n x2a-convertor --type merge \
-  -p '{"data":{"LLM_MODEL":"llama-3-8b","OPENAI_API_BASE":"https://llama-endpoint.apps.cluster.example.com/v1"}}'
+  -p '{"data":{"LLM_MODEL":"llama-3-2-3b","OPENAI_API_BASE":"https://your-llama-endpoint.apps.cluster.example.com:443/v1"}}'
 
 oc create secret generic x2a-secrets \
-  --from-literal=OPENAI_API_KEY='your-token' \
+  --from-literal=OPENAI_API_KEY='your-api-key' \
   -n x2a-convertor --dry-run=client -o yaml | oc apply -f -
 ```
+
+Replace `llama-3-2-3b` with your actual model name and update the endpoint URL to match your RHOAI deployment.
 
 ### Adjust Resources
 
@@ -114,9 +142,47 @@ resources:
     cpu: "4000m"
 ```
 
+## Helper Script Reference
+
+The `run-job.sh` script simplifies running migrations by generating job manifests dynamically:
+
+```bash
+./run-job.sh <cookbook-path> <stage> [message]
+```
+
+**Stages:**
+- `init` - Create high-level migration plan
+- `analyze` - Detailed module analysis  
+- `migrate` - Generate Ansible playbooks
+- `validate` - Validate migration output
+
+**Examples (matching official Docker usage):**
+```bash
+# Init (generic message)
+./run-job.sh /data/source init "Migrate to Ansible"
+
+# Analyze (specific cookbook name if known)
+./run-job.sh /data/nginx analyze "Analyze nginx cookbook"
+
+# Migrate (specific module)
+./run-job.sh /data/nginx migrate "Migrate nginx"
+
+# Validate (module name)
+./run-job.sh /data/nginx validate "nginx"
+
+# Follow logs automatically
+FOLLOW_LOGS=true ./run-job.sh /data/source init "Migrate"
+```
+
+The script:
+- Creates uniquely named jobs (no need to delete old ones)
+- Uses the same ConfigMap and Secret configuration
+- Supports all four migration stages
+- Automatically shows the command to view logs
+
 ## Running Bulk Migrations
 
-For migrating multiple cookbooks, use this pattern:
+For migrating multiple cookbooks, use the helper script:
 
 ### 1. Organize Source Data
 
@@ -133,16 +199,25 @@ For migrating multiple cookbooks, use this pattern:
       └── ...
 ```
 
-### 2. Create Job Definitions
+### 2. Run Migrations in Parallel
 
 ```bash
-# Helper script to generate job YAML
+# Run init for all cookbooks
 for cookbook in nginx apache mysql; do
-  sed "s|/data/source|/data/cookbook-${cookbook}|g" openshift/job-init.yaml | \
-  sed "s/x2a-init-job/x2a-init-${cookbook}/g" > /tmp/job-init-${cookbook}.yaml
-  
-  oc apply -f /tmp/job-init-${cookbook}.yaml
+  ./run-job.sh /data/cookbook-${cookbook} init "Migrate to Ansible" &
 done
+wait
+
+echo "All init jobs started!"
+
+# Then analyze (after init completes)
+for cookbook in nginx apache mysql; do
+  ./run-job.sh /data/cookbook-${cookbook} analyze "Analyze ${cookbook} cookbook" &
+done
+wait
+
+# Monitor all jobs
+oc get jobs -n x2a-convertor -l stage=init
 ```
 
 ### 3. Monitor Progress

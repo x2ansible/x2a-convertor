@@ -45,7 +45,7 @@ spec:
           # Customize the user_requirements argument below
           args:
             - "analyze"
-            - "Analyze this Chef cookbook and create detailed migration plans"
+            - "Analyze cookbook"
             - "--source-dir"
             - "/data/source"
           

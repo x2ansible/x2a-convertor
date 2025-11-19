@@ -45,7 +45,7 @@ spec:
           # Customize these arguments for your specific module
           args:
             - "migrate"
-            - "Migrate this module to Ansible following best practices"
+            - "Migrate"
             - "--source-dir"
             - "/data/source"
             - "--source-technology"
