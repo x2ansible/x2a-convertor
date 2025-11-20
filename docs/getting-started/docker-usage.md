@@ -481,19 +481,3 @@ docker run --rm \
   -v ./input:/app/input \
   x2a-convertor:latest ...
 ```
-
-### 4. Scan Image for Vulnerabilities
-
-```bash
-# Using Docker Scout
-docker scout cves x2a-convertor:latest
-
-# Using Trivy
-trivy image x2a-convertor:latest
-```
-
-## Next Steps
-
-- [Configuration](configuration.html): Detailed environment variable reference
-- [Quick Start](quick-start.html): Run your first migration
-- [Nginx Walkthrough](nginx-walkthrough.html): Real-world example
