@@ -60,7 +60,7 @@ class ChefDependencyManager:
             log.warning("Could not detect cookbook name")
 
     def _find_policy_lock(self) -> Path | None:
-        """Find Policyfile.lock.json in current directory or up to 3 levels up"""
+        """Find Policyfile.lock.json in current directory or up to 5 levels up"""
         logger.debug(
             f"Searching for Policyfile.lock.json starting from {self.cookbook_path}"
         )
