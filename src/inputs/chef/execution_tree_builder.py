@@ -190,8 +190,6 @@ class ExecutionTreeBuilder:
 
                 nodes.append(conditional_node)
 
-            # Skip AttributeAssignment items - they don't appear in execution tree
-
         return nodes
 
     def _expand_loops_in_recipe(
