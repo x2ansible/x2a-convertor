@@ -1,0 +1,33 @@
+name: Documentation Lint Check
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'docs/**'
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: ./docs
+
+      - name: Build with Jekyll (no baseurl for link checking)
+        run: bundle exec jekyll build --baseurl ''
+        working-directory: ./docs
+
+      - name: Check links
+        run: |
+          docker run --rm -v $(pwd)/docs/_site:/src \
+            klakegg/html-proofer:3.19.2 \
+            --allow-hash-href \
+            --empty-alt-ignore \
+            --disable-external

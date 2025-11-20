@@ -36,6 +36,24 @@ jobs:
         env:
           JEKYLL_ENV: production
 
+      - name: Build without baseurl for link checking
+        run: bundle exec jekyll build --baseurl ''
+        working-directory: ./docs
+
+      - name: Check links
+        run: |
+          docker run --rm -v $(pwd)/docs/_site:/src \
+            klakegg/html-proofer:3.19.2 \
+            --allow-hash-href \
+            --empty-alt-ignore \
+            --disable-external
+
+      - name: Rebuild with baseurl for deployment
+        run: bundle exec jekyll build
+        working-directory: ./docs
+        env:
+          JEKYLL_ENV: production
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
