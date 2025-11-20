@@ -1,0 +1,25 @@
+{
+  "revision_id": "hello_world_v1",
+  "name": "hello_world",
+  "run_list": [
+    "recipe[hello_world::default]"
+  ],
+  "cookbook_locks": {
+    "hello_world": {
+      "version": "1.0.0",
+      "identifier": "local",
+      "source": ".",
+      "cache_key": null,
+      "source_options": {
+        "path": "."
+      }
+    }
+  },
+  "default_attributes": {},
+  "override_attributes": {},
+  "solution_dependencies": {
+    "Policyfile": [],
+    "dependencies": {}
+  }
+}
+
