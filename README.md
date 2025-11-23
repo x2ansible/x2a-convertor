@@ -62,8 +62,14 @@ uv run app.py migrate --source-dir ./chef-repo \
   --high-level-migration-plan migration-plan.md \
   --module-migration-plan migration-plan-nginx-multisite.md \
   "Convert nginx-multisite"
-```
 
+# 4. Publish Role to GitHub
+uv run app.py publish nginx_multisite \
+    --source-path ../chef-examples/ansible/nginx_multisite \
+    --github-repository-url https://github.com/elai-shalev/x2a-convertor.git \
+    --github-branch main
+    
+```
 ---
 
 ## Technical Details

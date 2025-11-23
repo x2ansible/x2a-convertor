@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from src.exporters.migrate import migrate_module
 from src.init import init_project
 from src.inputs.analyze import analyze_project
+from src.publishers.publish import publish_role
 from src.utils.logging import setup_logging
 from src.validate import validate_module
 
@@ -75,12 +76,21 @@ def analyze(user_requirements, source_dir) -> None:
 @click.option(
     "--module-migration-plan",
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
-    help="Module migration plan file produced by the analyze command. Must be in the format: migration-plan-<module_name>.md. Path is relative to the --source-dir. Example: migration-plan-nginx.md",
+    help=(
+        "Module migration plan file produced by the analyze command. "
+        "Must be in the format: migration-plan-<module_name>.md. "
+        "Path is relative to the --source-dir. "
+        "Example: migration-plan-nginx.md"
+    ),
 )
 @click.option(
     "--high-level-migration-plan",
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
-    help="High level migration plan file produced by the init command. Path is relative to the --source-dir. Example: migration-plan.md",
+    help=(
+        "High level migration plan file produced by the init command. "
+        "Path is relative to the --source-dir. "
+        "Example: migration-plan.md"
+    ),
 )
 def migrate(
     user_requirements,
@@ -89,7 +99,7 @@ def migrate(
     module_migration_plan,
     high_level_migration_plan,
 ) -> None:
-    """Based on the migration plan produced within analysis, migrate the project"""
+    """Migrate project based on migration plan from analysis"""
     migrate_module(
         user_requirements,
         source_technology,
@@ -104,6 +114,36 @@ def migrate(
 def validate(module_name) -> None:
     """Validate migrated module against original configuration"""
     validate_module(module_name)
+
+
+@cli.command()
+@click.argument("module_name")
+@click.option(
+    "--source-path",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    required=True,
+    help=(
+        "Path to the migrated Ansible role directory "
+        "(e.g., ./ansible/my_role)"
+    ),
+)
+@click.option(
+    "--github-repository-url",
+    required=True,
+    help="GitHub repository URL where the role will be published",
+)
+@click.option(
+    "--github-branch",
+    default="main",
+    help="GitHub branch to create PR against (default: main)",
+)
+def publish(
+    module_name, source_path, github_repository_url, github_branch
+) -> None:
+    """Publish migrated Ansible role to GitHub using GitOps approach"""
+    publish_role(
+        module_name, source_path, github_repository_url, github_branch
+    )
 
 
 if __name__ == "__main__":
