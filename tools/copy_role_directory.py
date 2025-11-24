@@ -39,11 +39,7 @@ class CopyRoleDirectoryTool(BaseTool):
     )
     args_schema: dict[str, Any] | type[BaseModel] | None = CopyRoleDirectoryInput
 
-    def _run(
-        self,
-        source_role_path: str,
-        destination_path: str,
-    ) -> str:
+    def _run(self, *args: Any, **kwargs: Any) -> str:
         """Copy role directory.
 
         Args:
@@ -53,6 +49,8 @@ class CopyRoleDirectoryTool(BaseTool):
         Returns:
             Success or error message
         """
+        source_role_path = kwargs.get("source_role_path", "")
+        destination_path = kwargs.get("destination_path", "")
         logger.info(f"Copying role from {source_role_path} to {destination_path}")
 
         source_path_obj = Path(source_role_path)

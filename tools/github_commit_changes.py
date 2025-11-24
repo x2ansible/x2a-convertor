@@ -61,13 +61,7 @@ class GitHubCommitChangesTool(BaseTool):
     )
     args_schema: dict[str, Any] | type[BaseModel] | None = GitHubCommitChangesInput
 
-    def _run(
-        self,
-        repository_url: str = "",
-        directory: str = "publish_results",
-        commit_message: str = "",
-        branch: str = "",
-    ) -> str:
+    def _run(self, *args: Any, **kwargs: Any) -> str:
         """Commit changes to git repository.
 
         Args:
@@ -79,6 +73,10 @@ class GitHubCommitChangesTool(BaseTool):
         Returns:
             Success message or error message
         """
+        repository_url = kwargs.get("repository_url", "")
+        directory = kwargs.get("directory", "publish_results")
+        commit_message = kwargs.get("commit_message", "")
+        branch = kwargs.get("branch", "")
         if not repository_url:
             return "ERROR: repository_url is required"
 
@@ -151,7 +149,7 @@ class GitHubCommitChangesTool(BaseTool):
                 else:
                     shutil.copy2(item, target_item)
                 # Track the relative path for staging
-                copied_items.append(item.name)
+                copied_items.append(item.name)  # pyrefly: ignore[bad-argument-type]
 
             logger.info(
                 f"Copied contents from {source_dir} to {repo_path}: "

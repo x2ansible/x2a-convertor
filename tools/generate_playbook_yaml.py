@@ -36,16 +36,15 @@ class GeneratePlaybookYAMLTool(BaseTool):
         super().__init__(**kwargs)
         self._ansible_write = AnsibleWriteTool()
 
-    def _run(
-        self,
-        file_path: str,
-        name: str,
-        role_name: str,
-        hosts: str = "all",
-        become: bool = False,
-        vars: dict[str, Any] | None = None,
-    ) -> str:
+    def _run(self, *args: Any, **kwargs: Any) -> str:
         """Generate playbook YAML file."""
+        file_path = kwargs.get("file_path", "")
+        name = kwargs.get("name", "")
+        role_name = kwargs.get("role_name", "")
+        hosts = kwargs.get("hosts", "all")
+        become = kwargs.get("become", False)
+        vars = kwargs.get("vars")
+
         logger.info(f"Generating playbook YAML: {name}")
 
         if vars is None:

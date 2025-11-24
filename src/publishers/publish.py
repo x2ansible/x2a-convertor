@@ -207,21 +207,29 @@ class PublishAgent:
             f"Use the tools available to complete each step. "
             f"Report any errors clearly.\n\n"
             f"CRITICAL: You MUST complete ALL 10 steps. "
-            f"Do NOT stop until you have successfully created the PR (step 10). "
-            f"The task is NOT complete until you have a PR URL."
+            f"Do NOT stop until you have successfully created the PR "
+            f"(step 10). The task is NOT complete until you have a PR URL."
         )
 
+        # Convert system_prompt to string if it's a JinjaTemplate
+        system_prompt_content = (
+            system_prompt if isinstance(system_prompt, str) else str(system_prompt)
+        )
         messages = [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": system_prompt_content},
             {"role": "user", "content": user_prompt},
         ]
 
         try:
             slog.info(f"PublishAgent starting for role: {role_name}")
             # Calculate total message size (approximate)
-            total_size = len(system_prompt) + len(user_prompt) + tool_desc_size
+            # Convert to string if it's a JinjaTemplate
+            system_prompt_str = (
+                system_prompt if isinstance(system_prompt, str) else str(system_prompt)
+            )
+            total_size = len(system_prompt_str) + len(user_prompt) + tool_desc_size
             slog.debug(
-                f"System prompt: {len(system_prompt)} chars, "
+                f"System prompt: {len(system_prompt_str)} chars, "
                 f"User prompt: {len(user_prompt)} chars, "
                 f"Total message size: ~{total_size} chars"
             )

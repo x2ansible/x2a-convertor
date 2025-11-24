@@ -75,13 +75,7 @@ class GitHubPushBranchTool(BaseTool):
         temp_base = Path(tempfile.gettempdir()) / "x2a_publish"
         return temp_base / f"{repo_name}_{url_hash}"
 
-    def _run(
-        self,
-        repository_url: str = "",
-        branch: str = "",
-        remote: str = "origin",
-        force: bool = False,
-    ) -> str:
+    def _run(self, *args: Any, **kwargs: Any) -> str:
         """Push branch to remote repository.
 
         Args:
@@ -93,6 +87,10 @@ class GitHubPushBranchTool(BaseTool):
         Returns:
             Success message or error message
         """
+        repository_url = kwargs.get("repository_url", "")
+        branch = kwargs.get("branch", "")
+        remote = kwargs.get("remote", "origin")
+        force = kwargs.get("force", False)
         if not repository_url:
             return "ERROR: repository_url is required"
 

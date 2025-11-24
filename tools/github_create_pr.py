@@ -47,17 +47,15 @@ class GitHubCreatePRTool(BaseTool):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-    def _run(
-        self,
-        repository_url: str,
-        title: str,
-        body: str,
-        head: str,
-        base: str = "main",
-    ) -> str:
+    def _run(self, *args: Any, **kwargs: Any) -> str:
         """Create GitHub Pull Request.
         # ... (docstring unchanged) ...
         """
+        repository_url = kwargs.get("repository_url", "")
+        title = kwargs.get("title", "")
+        body = kwargs.get("body", "")
+        head = kwargs.get("head", "")
+        base = kwargs.get("base", "main")
         logger.info(f"Creating PR from {head} to {base} in {repository_url}")
 
         github_token = os.environ.get("GITHUB_TOKEN", "")
@@ -98,6 +96,7 @@ class GitHubCreatePRTool(BaseTool):
 
         logger.info(f"Sending POST request to {api_url}")
 
+        response: requests.Response | None = None
         try:
             response = requests.post(api_url, headers=headers, data=json.dumps(payload))
             response.raise_for_status()
@@ -113,24 +112,28 @@ class GitHubCreatePRTool(BaseTool):
             return success_message
 
         except requests.exceptions.HTTPError as e:
-            error_message = (
-                f"GitHub API Error ({response.status_code}) when creating PR: {e}"
-            )
-            logger.error(error_message)
+            if response is not None:
+                error_message = (
+                    f"GitHub API Error ({response.status_code}) when creating PR: {e}"
+                )
+                logger.error(error_message)
 
-            error_message += f"\nResponse Content: {response.text}"
+                error_message += f"\nResponse Content: {response.text}"
 
-            try:
-                error_details = response.json()
-                if "message" in error_details:
-                    error_message += f"\nAPI Message: {error_details['message']}"
-                if "errors" in error_details:
-                    error_message += f"\nValidation Errors: {error_details['errors']}"
-            except json.JSONDecodeError:
-                # Fallback handled by response.text above
-                pass
+                try:
+                    error_details = response.json()
+                    if "message" in error_details:
+                        error_message += f"\nAPI Message: {error_details['message']}"
+                    if "errors" in error_details:
+                        error_message += (
+                            f"\nValidation Errors: {error_details['errors']}"
+                        )
+                except json.JSONDecodeError:
+                    # Fallback handled by response.text above
+                    pass
 
-            return error_message
+                return error_message
+            return f"GitHub API Error when creating PR: {e}"
 
         except requests.exceptions.RequestException as e:
             error_message = (

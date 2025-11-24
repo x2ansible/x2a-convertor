@@ -34,17 +34,16 @@ class GenerateJobTemplateYAMLTool(BaseTool):
     )
     args_schema: dict[str, Any] | type[BaseModel] | None = GenerateJobTemplateYAMLInput
 
-    def _run(
-        self,
-        file_path: str,
-        name: str,
-        playbook_path: str,
-        inventory: str,
-        role_name: str = "",
-        description: str = "",
-        extra_vars: str = "",
-    ) -> str:
+    def _run(self, *args: Any, **kwargs: Any) -> str:
         """Generate job template YAML file."""
+        file_path = kwargs.get("file_path", "")
+        name = kwargs.get("name", "")
+        playbook_path = kwargs.get("playbook_path", "")
+        inventory = kwargs.get("inventory", "")
+        role_name = kwargs.get("role_name", "")
+        description = kwargs.get("description", "")
+        extra_vars = kwargs.get("extra_vars", "")
+
         logger.info(f"Generating job template YAML: {name}")
 
         if not playbook_path:
@@ -53,7 +52,7 @@ class GenerateJobTemplateYAMLTool(BaseTool):
             return "ERROR: inventory is required for job_template generation"
 
         try:
-            job_template = {
+            job_template: dict[str, Any] = {
                 "apiVersion": "tower.ansible.com/v1beta1",
                 "kind": "JobTemplate",
                 "metadata": {"name": name},

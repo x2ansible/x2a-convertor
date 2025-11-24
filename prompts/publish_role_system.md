@@ -218,7 +218,7 @@ This entire `publish_results/` directory will be pushed to GitHub as the PR cont
 
 ## Output
 
-After completing all steps, provide a summary:
+After completing all steps, provide a summary in your response (DO NOT create any summary files):
 
 - Role name and source path
 - Repository structure created
@@ -227,3 +227,5 @@ After completing all steps, provide a summary:
 - GitHub repository URL and branch
 - Pull Request URL (if created)
 - Next steps: PR will be reviewed and merged, then GitHub Actions workflow will sync to AAP
+
+**IMPORTANT: Do NOT create any summary or markdown files. Only provide the summary in your text response.**

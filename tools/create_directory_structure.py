@@ -40,11 +40,7 @@ class CreateDirectoryStructureTool(BaseTool):
     )
     args_schema: dict[str, Any] | type[BaseModel] | None = CreateDirectoryStructureInput
 
-    def _run(
-        self,
-        base_path: str,
-        structure: list[str],
-    ) -> str:
+    def _run(self, *args: Any, **kwargs: Any) -> str:
         """Create directory structure.
 
         Args:
@@ -54,6 +50,8 @@ class CreateDirectoryStructureTool(BaseTool):
         Returns:
             Success message with created directories or error message
         """
+        base_path = kwargs.get("base_path", "")
+        structure = kwargs.get("structure", [])
         logger.info(f"Creating directory structure at {base_path}")
 
         base_path_obj = Path(base_path)
@@ -66,7 +64,9 @@ class CreateDirectoryStructureTool(BaseTool):
             try:
                 full_path = base_path_obj / dir_path
                 full_path.mkdir(parents=True, exist_ok=True)
-                created_dirs.append(str(full_path))
+                # Convert Path to string for list storage
+                full_path_str: str = str(full_path)
+                created_dirs.append(full_path_str)  # pyrefly: ignore[bad-argument-type]
                 logger.debug(f"Created directory: {full_path}")
             except Exception as e:
                 error_msg = f"Failed to create {dir_path}: {e}"

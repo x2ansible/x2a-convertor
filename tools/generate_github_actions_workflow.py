@@ -33,13 +33,12 @@ class GenerateGitHubActionsWorkflowTool(BaseTool):
         GenerateGitHubActionsWorkflowInput
     )
 
-    def _run(
-        self,
-        file_path: str,
-        collection_namespace: str = "",
-        collection_name: str = "",
-    ) -> str:
+    def _run(self, *args: Any, **kwargs: Any) -> str:
         """Generate GitHub Actions workflow file."""
+        file_path = kwargs.get("file_path", "")
+        # collection_namespace and collection_name are available but not used yet
+        _collection_namespace = kwargs.get("collection_namespace", "")
+        _collection_name = kwargs.get("collection_name", "")
         logger.info(f"Generating GitHub Actions workflow at {file_path}")
 
         try:
