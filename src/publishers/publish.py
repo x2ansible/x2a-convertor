@@ -56,6 +56,7 @@ class PublishState:
     repo_path: str = ""
     pr_base_branch: str = "main"
     pr_head_branch: str = ""
+    publish_dir: str = ""
 
 
 class PublishWorkflow:
@@ -76,8 +77,9 @@ class PublishWorkflow:
     def __init__(self) -> None:
         """Initialize the publish workflow."""
         self._graph = self._build_workflow()
-        mermaid_graph = self._graph.get_graph().draw_mermaid()
-        logger.debug("Publish workflow: " + mermaid_graph)
+        logger.debug(
+            f"Publish workflow graph: {self._graph.get_graph().draw_mermaid()}"
+        )
 
     def _build_workflow(self) -> StateGraph:
         """Build the LangGraph workflow for publishing."""
@@ -116,12 +118,12 @@ class PublishWorkflow:
         slog = logger.bind(phase="create_structure")
         slog.info("Creating directory structure")
 
-        base_path = "publish_results"
+        base_path = state.publish_dir
         structure = [
             "roles",
             "playbooks",
             "aap-config/job-templates",
-            ".github/workflows",
+            ".github/aap-workflow",
         ]
 
         result = create_directory_structure(
@@ -138,13 +140,13 @@ class PublishWorkflow:
         return state
 
     def _copy_role_node(self, state: PublishState) -> PublishState:
-        """Node: Copy role directory to publish_results."""
+        """Node: Copy role directory to publish directory."""
         slog = logger.bind(phase="copy_role")
         slog.info(f"Copying role from {state.role_path}")
 
         source_role_path = state.role_path
         destination_path = (
-            f"publish_results/roles/{state.role}"
+            f"{state.publish_dir}/roles/{state.role}"
         )
 
         result = copy_role_directory(
@@ -167,7 +169,7 @@ class PublishWorkflow:
         slog.info("Generating playbook YAML")
 
         file_path = (
-            f"publish_results/playbooks/{state.role}_deploy.yml"
+            f"{state.publish_dir}/playbooks/{state.role}_deploy.yml"
         )
         name = f"Deploy {state.role}"
         role_name = state.role
@@ -193,7 +195,7 @@ class PublishWorkflow:
         slog.info("Generating job template YAML")
 
         file_path = (
-            f"publish_results/aap-config/job-templates/"
+            f"{state.publish_dir}/aap-config/job-templates/"
             f"{state.job_template_name}.yaml"
         )
         name = state.job_template_name
@@ -227,7 +229,7 @@ class PublishWorkflow:
         slog.info("Generating GitHub Actions workflow")
 
         file_path = (
-            "publish_results/.github/workflows/"
+            f"{state.publish_dir}/.github/aap-workflow/"
             "ansible-collection-import.yml"
         )
 
@@ -250,17 +252,17 @@ class PublishWorkflow:
         slog.info("Verifying files exist")
 
         required_files = [
-            f"publish_results/roles/{state.role}",
+            f"{state.publish_dir}/roles/{state.role}",
             (
-                f"publish_results/playbooks/"
+                f"{state.publish_dir}/playbooks/"
                 f"{state.role}_deploy.yml"
             ),
             (
-                f"publish_results/aap-config/job-templates/"
+                f"{state.publish_dir}/aap-config/job-templates/"
                 f"{state.job_template_name}.yaml"
             ),
             (
-                "publish_results/.github/workflows/"
+                f"{state.publish_dir}/.github/aap-workflow/"
                 "ansible-collection-import.yml"
             ),
         ]
@@ -282,7 +284,7 @@ class PublishWorkflow:
         slog.info("Committing changes to git")
 
         repository_url = state.github_repository_url
-        directory = "publish_results"
+        directory = state.publish_dir
         commit_message = (
             f"Add {state.role} role and related configurations"
         )
@@ -444,7 +446,8 @@ class PublishWorkflow:
                     slog.info(
                         f"Publish completed successfully for role "
                         f"{final_state.role}! "
-                        f"(Git steps skipped - files in publish_results/)"
+                        f"(Git steps skipped - files in "
+                        f"{final_state.publish_dir}/)"
                     )
                 else:
                     slog.info(
@@ -487,7 +490,7 @@ def publish_role(
         github_repository_url: GitHub repository URL
         github_branch: Branch name to use for the PR
         skip_git: If True, skip git steps (commit, push, PR).
-                  Files will be created in publish_results/ only.
+                  Files will be created in a role-specific directory.
 
     Returns:
         PublishState with results
@@ -505,6 +508,7 @@ def publish_role(
         github_branch=github_branch,
         job_template_name=f"{role_name}_deploy",
         skip_git=skip_git,
+        publish_dir=f"publish_results_{role_name}",
     )
     result = publish_workflow.invoke(initial_state)
 
