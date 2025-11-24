@@ -1,9 +1,10 @@
 import contextlib
+import re
 import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import yaml
 from ansible.errors import AnsibleError
@@ -11,6 +12,7 @@ from ansible.parsing.dataloader import DataLoader
 from ansible.parsing.yaml.dumper import AnsibleDumper
 from ansible_risk_insight import ARIScanner, Config
 from ansible_risk_insight.scanner import LoadType
+from jinja2 import Environment, FileSystemLoader
 from langchain_community.tools.file_management.write import WriteFileTool
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -19,13 +21,233 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Setup Jinja2 environment
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+jinja_env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
+
+
+# ==============================================================================
+# Configuration & Constants
+# ==============================================================================
+
+
+class TemplateNames:
+    """Central repository for template file names."""
+
+    YAML_VALIDATION_ERROR = "yaml_validation_error.xml.j2"
+    PLAYBOOK_WRAPPER_ERROR = "playbook_wrapper_error.xml.j2"
+    ARI_ERRORS = "ari_errors.xml.j2"
+    MULTIPLE_ERRORS = "multiple_errors.xml.j2"
+
+
+class AnsibleValidationRules:
+    """Configuration for Ansible validation rules and their descriptions."""
+
+    # Default rule IDs to validate
+    DEFAULT_RULES: ClassVar[list[str]] = [
+        "P001",  # Module Name Validation
+        "P002",  # Module Argument Key Validation
+        "P003",  # Module Argument Value Validation
+        "P004",  # Variable Validation
+        "R301",  # Non-FQCN Use
+        "R303",  # Task Without Name
+        "R116",  # Insecure File Permissions
+    ]
+    ## Disclaimer do not add R306, because is normal that fails when checking only one file
+    # R306 removed - Undefined variables are often legitimate
+
+    # Rule ID to fix suggestion mapping
+    RULE_FIXES: ClassVar[dict[str, str]] = {
+        "R301": "Non-FQCN: Replace short module names with FQCN (e.g., 'apt' → 'ansible.builtin.apt')",
+        "R303": "Task Without Name: Add 'name:' field to task",
+        "R306": "These are warnings - you can ignore if variables are defined elsewhere",
+        "P001": "Use correct module name",
+        "P002": "Check module documentation for correct parameter names",
+        "P003": "Check module documentation for correct parameter values",
+        "P004": "Fix variable syntax",
+        "R116": "Use secure file permissions (e.g., mode: '0644' or stricter)",
+    }
+
+    # Playbook wrapper keys that shouldn't appear in taskfiles
+    PLAYBOOK_KEYS: ClassVar[set[str]] = {"hosts", "tasks", "plays", "import_playbook"}
+
+
+# ==============================================================================
+# Domain Services
+# ==============================================================================
+
+
+class ErrorTypeDetector:
+    """Detects the type of YAML validation error for appropriate formatting.
+
+    Uses pattern matching to identify specific error types and provide
+    context for error formatting.
+    """
+
+    @staticmethod
+    def detect(error_message: str, problem: str | None) -> str | None:
+        """Detect the error type from error message and problem description.
+
+        Args:
+            error_message: The main error message
+            problem: Specific problem description from YAML parser
+
+        Returns:
+            Error type identifier or None if no specific type detected
+        """
+        if problem and "unhashable key" in problem.lower():
+            return "unhashable_key"
+
+        if "mapping values" in error_message.lower():
+            return "mapping_values"
+
+        return None
+
+    @staticmethod
+    def fix_unhashable_key(line: str) -> str:
+        """Attempt to fix unhashable key error by quoting Jinja2 variables.
+
+        Args:
+            line: The problematic line
+
+        Returns:
+            Fixed line with quoted Jinja2 variables
+        """
+
+        # Find unquoted {{ }} patterns and quote them
+        # Match patterns like: key: {{ var }}
+        pattern = r"(\s+\w+):\s*({{[^}]+}})"
+
+        def quote_jinja(match):
+            key = match.group(1)
+            jinja = match.group(2)
+            # Check if already quoted
+            if jinja.strip().startswith(('"', "'")):
+                return f"{key}: {jinja}"
+            return f'{key}: "{jinja}"'
+
+        return re.sub(pattern, quote_jinja, line)
+
+
+class ErrorFormattingService:
+    """Service responsible for formatting validation errors using templates.
+
+    Centralizes all error formatting logic, separating presentation from
+    domain logic.
+    """
+
+    @staticmethod
+    def format_yaml_validation_error(error: "AnsibleYAMLValidationError") -> str:
+        """Format YAML validation error as XML for LLM consumption.
+
+        Args:
+            error: The validation error to format
+
+        Returns:
+            XML-formatted error message
+        """
+        # Detect error type
+        error_type = ErrorTypeDetector.detect(error.error_message, error.problem)
+
+        # Get fixed line if applicable
+        fixed_line = None
+        if error_type == "unhashable_key" and error.problematic_line:
+            fixed_line = ErrorTypeDetector.fix_unhashable_key(error.problematic_line)
+
+        # Prepare column pointer
+        column_pointer = None
+        if error.problematic_line is not None and error.column_number is not None:
+            column_pointer = " " * (error.column_number - 1) + "^"
+
+        # Render template
+        template = jinja_env.get_template(TemplateNames.YAML_VALIDATION_ERROR)
+        return template.render(
+            file_path=error.file_path,
+            error_message=error.error_message,
+            line_number=error.line_number,
+            column_number=error.column_number,
+            problem=error.problem,
+            problematic_line=error.problematic_line,
+            column_pointer=column_pointer,
+            error_type=error_type,
+            fixed_line=fixed_line,
+            yaml_content=error.yaml_content,
+        )
+
+    @staticmethod
+    def format_playbook_wrapper_error(file_path: str, detected_keys: list[str]) -> str:
+        """Format playbook wrapper error message.
+
+        Args:
+            file_path: Path to the file
+            detected_keys: Keys detected in the YAML
+
+        Returns:
+            Formatted error message
+        """
+        template = jinja_env.get_template(TemplateNames.PLAYBOOK_WRAPPER_ERROR)
+        return template.render(
+            file_path=file_path,
+            detected_keys=detected_keys,
+        )
+
+    @staticmethod
+    def format_ari_errors(
+        file_path: str,
+        validation_message: str,
+        errors: list["TaskfileValidationError"],
+    ) -> str:
+        """Format ARI validation errors.
+
+        Args:
+            file_path: Path to the file
+            validation_message: Error message from ARI validator
+            errors: List of validation errors
+
+        Returns:
+            Formatted error message
+        """
+        # Generate fix suggestions only for the rules that were actually found
+        unique_rules = {}
+        for error in errors:
+            if error.rule_id not in unique_rules:
+                unique_rules[error.rule_id] = error.get_fix_suggestion()
+
+        template = jinja_env.get_template(TemplateNames.ARI_ERRORS)
+        return template.render(
+            file_path=file_path,
+            validation_message=validation_message,
+            unique_rules=unique_rules,
+        )
+
+    @staticmethod
+    def format_multiple_errors(errors: list[str]) -> str:
+        """Format multiple validation errors.
+
+        Args:
+            errors: List of error messages
+
+        Returns:
+            Formatted error message
+        """
+        template = jinja_env.get_template(TemplateNames.MULTIPLE_ERRORS)
+        return template.render(
+            error_count=len(errors),
+            errors=errors,
+        )
+
+
+# ==============================================================================
+# Value Objects & Data Classes
+# ==============================================================================
+
 
 @dataclass
 class AnsibleYAMLValidationError:
     """Structured error information for Ansible YAML validation failures.
 
-    This class extracts detailed error information from AnsibleError exceptions
-    and formats it in an XML structure that's easy for LLMs to parse and fix.
+    Pure value object - contains only data extracted from exceptions.
+    Formatting is handled by ErrorFormattingService.
     """
 
     file_path: str
@@ -80,73 +302,52 @@ class AnsibleYAMLValidationError:
             problematic_line=problematic_line,
         )
 
-    def to_xml_string(self) -> str:
-        """Format the error as an XML structure for LLM consumption.
+
+@dataclass
+class TaskfileValidationError:
+    """Structured error information for ARI taskfile validation failures.
+
+    Pure value object - contains only data, no formatting logic.
+    """
+
+    filename: str
+    line_num: str | int
+    rule_id: str
+    task_name: str
+    rule_description: str
+    detail: dict[str, Any] | None = None
+
+    def to_string(self) -> str:
+        """Format the error as a string message.
 
         Returns:
-            XML-formatted error message with all available details
+            Formatted error message with line number, rule ID, and details
         """
-        output = []
+        error_msg = f"{self.filename}:{self.line_num} [{self.rule_id}] Task '{self.task_name}' has the following issue: '{self.rule_description}'"
 
-        output.append("<ansible_yaml_error>")
-        output.append(f"<file_path>{self.file_path}</file_path>")
-        output.append("")
-        output.append("<error_details>")
-        output.append(f"<message>{self.error_message}</message>")
+        if self.detail:
+            # Add specific details if available
+            if "module" in self.detail and "fqcn" in self.detail:
+                error_msg += f" - {self.detail['module']} → {self.detail['fqcn']}"
+            elif "undefined_variables" in self.detail:
+                vars_list = ", ".join(self.detail["undefined_variables"])
+                error_msg += f" - Variables: {vars_list}"
 
-        if self.line_number is not None:
-            output.append(f"<line_number>{self.line_number}</line_number>")
+        return error_msg
 
-        if self.column_number is not None:
-            output.append(f"<column_number>{self.column_number}</column_number>")
+    def get_fix_suggestion(self) -> str:
+        """Get the fix suggestion for this rule.
 
-        if self.problem:
-            output.append(f"<problem>{self.problem}</problem>")
-
-        output.append("</error_details>")
-
-        # Show the problematic line with pointer
-        if self.problematic_line is not None and self.column_number is not None:
-            output.append("")
-            output.append("<problematic_location>")
-            output.append(f"<line_number>{self.line_number}</line_number>")
-            output.append(f"<line_content>{self.problematic_line}</line_content>")
-            pointer = " " * (self.column_number - 1) + "^"
-            output.append(f"<column_pointer>{pointer}</column_pointer>")
-            output.append("</problematic_location>")
-
-        # Include the full YAML content for context
-        output.append("")
-        output.append("<yaml_content>")
-        output.append(self.yaml_content)
-        output.append("</yaml_content>")
-
-        output.append("")
-        output.append("<fix_workflow>")
-        output.append("1. Read the error message and problematic line above")
-        output.append("2. Identify error type:")
-        output.append("   - 'unhashable key' → Add quotes around Jinja2 variables")
-        output.append(
-            "   - 'mapping values not allowed' → Check for unquoted colons in strings"
+        Returns:
+            Fix instruction string for this rule ID
+        """
+        return AnsibleValidationRules.RULE_FIXES.get(
+            self.rule_id, "Review and fix the issue"
         )
-        output.append(
-            "   - Indentation error → Align list items 2 spaces under parameter"
-        )
-        output.append(
-            "   - 'conflicting action statements' → Split into separate tasks (one module per task)"
-        )
-        output.append("3. Fix the yaml_content with the specific correction")
-        output.append("4. Call ansible_write again with corrected yaml_content")
-        output.append("5. Repeat until you get success message")
-        output.append("</fix_workflow>")
-
-        output.append("</ansible_yaml_error>")
-
-        return "\n".join(output)
 
     def __str__(self) -> str:
-        """Default string representation uses XML format for LLM compatibility."""
-        return self.to_xml_string()
+        """Default string representation."""
+        return self.to_string()
 
 
 class TaskfileValidator:
@@ -165,16 +366,7 @@ class TaskfileValidator:
             rules: List of rule IDs to check. If None, uses default set.
         """
         if rules is None:
-            rules = [
-                "P001",  # Module Name Validation
-                "P002",  # Module Argument Key Validation
-                "P003",  # Module Argument Value Validation
-                "P004",  # Variable Validation
-                "R301",  # Non-FQCN Use
-                "R303",  # Task Without Name
-                "R306",  # Undefined Variables
-                "R116",  # Insecure File Permissions
-            ]
+            rules = AnsibleValidationRules.DEFAULT_RULES
 
         # Use system temp directory for ARI data
         ari_tmp = Path(tempfile.gettempdir()) / "x2a-convertor" / "ari-data"
@@ -186,6 +378,7 @@ class TaskfileValidator:
             rules=rules,
         )
         self.scanner = ARIScanner(self.config, silent=True)
+        self.last_errors: list[TaskfileValidationError] = []
 
     def __enter__(self):
         """Context manager entry."""
@@ -205,6 +398,136 @@ class TaskfileValidator:
         if hasattr(self, "data_dir") and self.data_dir and self.data_dir.exists():
             with contextlib.suppress(Exception):
                 shutil.rmtree(self.data_dir)
+
+    def _check_task_loading_errors(self, taskfile_spec: Any) -> str | None:
+        """Check for task loading errors and return error message if found.
+
+        Args:
+            taskfile_spec: The taskfile specification object
+
+        Returns:
+            Error message if loading errors found, None otherwise
+        """
+        if not taskfile_spec or not hasattr(taskfile_spec, "task_loading"):
+            return None
+
+        task_loading = taskfile_spec.task_loading
+        if task_loading.get("failure", 0) > 0:
+            error_lines = [f"ERROR: {task_loading['failure']} task(s) failed to load:"]
+            for error in task_loading.get("errors", []):
+                error_lines.append(f"  - {error}")
+            return "\n".join(error_lines)
+
+        return None
+
+    def _has_actual_issue(self, rule_result: Any) -> bool:
+        """Determine if a rule result represents an actual issue.
+
+        Args:
+            rule_result: The rule result object from ARI
+
+        Returns:
+            True if there's an actual issue, False otherwise
+        """
+        if not rule_result.matched:
+            return False
+
+        rule = rule_result.rule
+        detail = rule_result.detail or {}
+
+        # For R301 (FQCN), only flag if module name differs from FQCN
+        if (
+            rule.rule_id == "R301"
+            and detail
+            and "module" in detail
+            and "fqcn" in detail
+        ):
+            return detail["module"] != detail["fqcn"]
+
+        # verdict=True usually means issue found for error-detection rules
+        if rule_result.verdict:
+            return True
+
+        # If there's detail content, it's likely an issue
+        return bool(rule_result.detail)
+
+    def _extract_task_info(
+        self, node: Any, task_map: dict[str, Any]
+    ) -> tuple[str, str | int]:
+        """Extract task name and line number from a node.
+
+        Args:
+            node: The ARI node to extract info from
+            task_map: Map of task keys to task objects
+
+        Returns:
+            Tuple of (task_name, line_num)
+        """
+        task_name = "unknown task"
+        line_num: str | int = "?"
+
+        node_spec = getattr(node.node, "spec", None)
+        if not node_spec or not hasattr(node_spec, "key"):
+            return task_name, line_num
+
+        task_key = node_spec.key
+
+        # Try to get from task_map first
+        if task_key in task_map:
+            task = task_map[task_key]
+            task_name = task.name or "unnamed task"
+            if task.line_num_in_file:
+                line_num = task.line_num_in_file[0]
+        # Fall back to getting info from spec directly
+        elif hasattr(node_spec, "name"):
+            task_name = node_spec.name or "unnamed task"
+            if hasattr(node_spec, "line_num_in_file") and node_spec.line_num_in_file:
+                line_num = node_spec.line_num_in_file[0]
+
+        return task_name, line_num
+
+    def _collect_rule_violations(
+        self, target: Any, task_map: dict[str, Any], filename: str
+    ) -> list[TaskfileValidationError]:
+        """Collect all rule violations from validation target.
+
+        Args:
+            target: The ARI validation target
+            task_map: Map of task keys to task objects
+            filename: Name of the file being validated
+
+        Returns:
+            List of validation errors
+        """
+        errors: list[TaskfileValidationError] = []
+
+        for node in target.nodes:
+            if not hasattr(node, "rules"):
+                continue
+
+            for rule_result in node.rules:
+                if not self._has_actual_issue(rule_result):
+                    continue
+
+                # Extract task information
+                task_name, line_num = self._extract_task_info(node, task_map)
+
+                # Create structured error
+                rule = rule_result.rule
+                detail = rule_result.detail or {}
+
+                validation_error = TaskfileValidationError(
+                    filename=filename,
+                    line_num=line_num,
+                    rule_id=rule.rule_id,
+                    task_name=task_name,
+                    rule_description=rule.description,
+                    detail=detail,
+                )
+
+                errors.append(validation_error)
+
+        return errors
 
     def validate(self, taskfile_path: str) -> tuple[bool, str]:
         """
@@ -262,92 +585,26 @@ class TaskfileValidator:
                 taskfile_spec = node.node.spec
 
         # Check task loading errors first
-        if taskfile_spec and hasattr(taskfile_spec, "task_loading"):
-            task_loading = taskfile_spec.task_loading
-            if task_loading.get("failure", 0) > 0:
-                error_lines = [
-                    f"ERROR: {task_loading['failure']} task(s) failed to load:"
-                ]
-                for error in task_loading.get("errors", []):
-                    error_lines.append(f"  - {error}")
-                return False, "\n".join(error_lines)
+        if error_msg := self._check_task_loading_errors(taskfile_spec):
+            return False, error_msg
 
         # Get task definitions with line numbers
         tasks = scandata.root_definitions.get("definitions", {}).get("tasks", [])
         task_map = {task.key: task for task in tasks}
 
-        # Collect errors
-        errors = []
+        # Collect rule violations
+        errors = self._collect_rule_violations(target, task_map, path_obj.name)
 
-        for node in target.nodes:
-            if not hasattr(node, "rules"):
-                continue
-
-            for rule_result in node.rules:
-                # Check if rule matched AND found an issue
-                if not rule_result.matched:
-                    continue
-
-                # Determine if there's an actual issue based on the rule type
-                has_issue = False
-                rule = rule_result.rule
-                detail = rule_result.detail or {}
-
-                # For R301 (FQCN), only flag if module name differs from FQCN
-                if rule.rule_id == "R301" and detail:
-                    if "module" in detail and "fqcn" in detail:
-                        has_issue = detail["module"] != detail["fqcn"]
-                elif rule_result.verdict:
-                    # verdict=True usually means issue found for error-detection rules
-                    has_issue = True
-                elif rule_result.detail:
-                    # If there's detail content, it's likely an issue
-                    has_issue = True
-
-                if not has_issue:
-                    continue
-
-                # Get task information from the node
-                task_name = "unknown task"
-                line_num = "?"
-
-                # Try to get task from node spec
-                node_spec = getattr(node.node, "spec", None)
-                if node_spec and hasattr(node_spec, "key"):
-                    task_key = node_spec.key
-                    if task_key in task_map:
-                        task = task_map[task_key]
-                        task_name = task.name or "unnamed task"
-                        if task.line_num_in_file:
-                            line_num = task.line_num_in_file[0]
-                    # For nodes without task_map entry, try to get info from spec directly
-                    elif hasattr(node_spec, "name"):
-                        task_name = node_spec.name or "unnamed task"
-                        if (
-                            hasattr(node_spec, "line_num_in_file")
-                            and node_spec.line_num_in_file
-                        ):
-                            line_num = node_spec.line_num_in_file[0]
-
-                # Format error message
-                error_msg = f"{path_obj.name}:{line_num} [{rule.rule_id}] Task '{task_name}' has the following issue: '{rule.description}'"
-
-                if detail:
-                    # Add specific details if available
-                    if "module" in detail and "fqcn" in detail:
-                        error_msg += f" - {detail['module']} → {detail['fqcn']}"
-                    elif "undefined_variables" in detail:
-                        vars_list = ", ".join(detail["undefined_variables"])
-                        error_msg += f" - Variables: {vars_list}"
-
-                errors.append(error_msg)
+        # Store errors for external access
+        self.last_errors = errors
 
         # Return results
         if not errors:
             return True, "All checks passed"
 
         error_count = len(errors)
-        error_message = f"Found {error_count} issue(s):\n" + "\n".join(errors)
+        error_strings = [str(e) for e in errors]
+        error_message = f"Found {error_count} issue(s):\n" + "\n".join(error_strings)
         return False, error_message
 
 
@@ -432,42 +689,6 @@ class AnsibleWriteTool(BaseTool):
 
         return None
 
-    def _build_playbook_wrapper_error(
-        self, file_path: str, detected_keys: list[str]
-    ) -> str:
-        """Build detailed error message for playbook wrapper detection."""
-        return (
-            f"ERROR: Task files must be FLAT lists, not playbooks.\n\n"
-            f"<ansible_yaml_error>\n"
-            f"<file_path>{file_path}</file_path>\n"
-            f"<error_details>\n"
-            f"<message>Playbook wrapper detected in task file</message>\n"
-            f"<problem>Task files (.yml in tasks/ directory) must start with --- and immediately list tasks. "
-            f"They cannot have playbook wrappers like 'hosts:', 'become:', or 'tasks:' keys.</problem>\n"
-            f"</error_details>\n\n"
-            f"<detected_structure>\n"
-            f"Your YAML has: {', '.join(detected_keys)}\n"
-            f"This is a PLAYBOOK structure.\n"
-            f"</detected_structure>\n\n"
-            f"<fix_workflow>\n"
-            f"1. REMOVE the playbook wrapper (hosts, become, tasks)\n"
-            f"2. Start with ---\n"
-            f"3. Immediately list tasks with - name:\n"
-            f"4. Each task starts at the root level (not nested under 'tasks:')\n"
-            f"5. Call ansible_write again with corrected FLAT task list\n"
-            f"</fix_workflow>\n\n"
-            f"<correct_format>\n"
-            f"---\n"
-            f"- name: First task\n"
-            f"  ansible.builtin.module:\n"
-            f"    param: value\n"
-            f"- name: Second task\n"
-            f"  ansible.builtin.module:\n"
-            f"    param: value\n"
-            f"</correct_format>\n"
-            f"</ansible_yaml_error>"
-        )
-
     def _validate_no_playbook_wrapper(
         self, parsed_yaml: Any, file_path: str
     ) -> str | None:
@@ -486,55 +707,16 @@ class AnsibleWriteTool(BaseTool):
         if not isinstance(first_item, dict):
             return None
 
-        playbook_keys = {"hosts", "tasks", "plays", "import_playbook"}
-        detected_keys = [key for key in playbook_keys if key in first_item]
+        detected_keys = [
+            key for key in AnsibleValidationRules.PLAYBOOK_KEYS if key in first_item
+        ]
 
         if detected_keys:
-            return self._build_playbook_wrapper_error(
+            return ErrorFormattingService.format_playbook_wrapper_error(
                 file_path, list(first_item.keys())
             )
 
         return None
-
-    def _format_ari_errors(self, file_path: str, validation_message: str) -> str:
-        """Format ARI validation errors in XML structure for LLM consumption.
-
-        Args:
-            file_path: Path to the file that was validated
-            validation_message: Error message from ARI validator
-
-        Returns:
-            XML-formatted error message with fix workflow
-        """
-        output = []
-        output.append("<ansible_lint_errors>")
-        output.append(f"<file_path>{file_path}</file_path>")
-        output.append("")
-        output.append("<validation_errors>")
-        output.append(validation_message)
-        output.append("</validation_errors>")
-        output.append("")
-        output.append("<fix_workflow>")
-        output.append("1. Review each error with its line number and rule ID")
-        output.append("2. Common fixes:")
-        output.append("   - [R301] Non-FQCN → Replace 'apt' with 'ansible.builtin.apt'")
-        output.append("   - [R303] Task Without Name → Add 'name:' field to task")
-        output.append(
-            "   - [R306] Undefined Variables → Check variable names and define them"
-        )
-        output.append("   - [P001] Invalid Module → Use correct module name")
-        output.append(
-            "   - [P002] Invalid Argument → Check module documentation for correct parameter names"
-        )
-        output.append("   - [R116] Insecure Permissions → Use mode: '0644' or stricter")
-        output.append("3. Read the current file content to see the full context")
-        output.append("4. Fix the specific issues at the reported line numbers")
-        output.append("5. Call ansible_write again with the corrected yaml_content")
-        output.append("6. Repeat until all validation checks pass")
-        output.append("</fix_workflow>")
-        output.append("</ansible_lint_errors>")
-
-        return "\n".join(output)
 
     def _format_and_write_yaml(
         self, parsed_yaml: Any, file_path: str, yaml_content: str
@@ -567,9 +749,104 @@ class AnsibleWriteTool(BaseTool):
             structured_error = AnsibleYAMLValidationError.from_ansible_error(
                 error=e, file_path=file_path, yaml_content=yaml_content
             )
-            return f"ERROR: YAML validation failed. The file was not written.\n\n{structured_error.to_xml_string()}"
+            formatted_error = ErrorFormattingService.format_yaml_validation_error(
+                structured_error
+            )
+            return f"ERROR: YAML validation failed. The file was not written.\n\n{formatted_error}"
         except Exception as e:
             return f"ERROR: when writing Ansible YAML file, the file was not written. Fix following error and try again:\n```{e!s}```."
+
+    def _collect_blocking_errors(
+        self, file_path: str, yaml_content: str, parsed_yaml: Any
+    ) -> list[str]:
+        """Collect blocking validation errors (not including ARI warnings).
+
+        This allows the LLM to fix all issues at once instead of one at a time.
+        ARI validation is run separately after file write and returns warnings.
+
+        Returns:
+            List of error messages (empty if no errors)
+        """
+        errors = []
+
+        # Check for playbook wrapper
+        if error := self._validate_no_playbook_wrapper(parsed_yaml, file_path):
+            errors.append(error)
+
+        # Try to write and check for formatting errors
+        # We do this even if there are other errors to catch all issues
+        try:
+            if parsed_yaml is not None:
+                _ = yaml.dump(
+                    parsed_yaml,
+                    Dumper=AnsibleDumper,
+                    default_flow_style=False,
+                    allow_unicode=True,
+                    sort_keys=False,
+                    width=160,
+                )
+        except AnsibleError as e:
+            structured_error = AnsibleYAMLValidationError.from_ansible_error(
+                error=e, file_path=file_path, yaml_content=yaml_content
+            )
+            formatted_error = ErrorFormattingService.format_yaml_validation_error(
+                structured_error
+            )
+            errors.append(f"YAML Formatting Error:\n{formatted_error}")
+
+        return errors
+
+    def _run_ari_validation_warnings(
+        self, file_path: str, yaml_content: str
+    ) -> str | None:
+        """Run ARI validation and return warnings if issues found.
+
+        This runs AFTER the file has been written and returns non-blocking warnings.
+
+        Args:
+            file_path: Path to the file that was written
+            yaml_content: The YAML content that was written
+
+        Returns:
+            Warning message if issues found, None if validation passed
+        """
+        if not self._is_taskfile(file_path):
+            return None
+
+        # Write to temp file for validation
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as tmp:
+            tmp.write(yaml_content)
+            tmp_path = tmp.name
+
+        try:
+            success, validation_message = self._validator.validate(tmp_path)
+            if not success:
+                # Get the structured error objects and fix filenames
+                validation_errors = self._validator.last_errors
+
+                # Replace temp filename with actual filename in error objects
+                tmp_filename = Path(tmp_path).name
+                actual_filename = Path(file_path).name
+                for error in validation_errors:
+                    error.filename = actual_filename
+
+                # Replace temp filename in validation message
+                validation_message = validation_message.replace(
+                    tmp_filename, actual_filename
+                )
+
+                formatted_error = ErrorFormattingService.format_ari_errors(
+                    file_path, validation_message, validation_errors
+                )
+                return f"WARNING: File written but found {len(validation_errors)} validation issues:\n\n{formatted_error}"
+        except Exception:
+            pass  # Don't fail on ARI validation errors
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
+        return None
 
     # pyrefly: ignore
     def _run(self, file_path: str, yaml_content: str) -> str:
@@ -579,22 +856,22 @@ class AnsibleWriteTool(BaseTool):
 
         yaml_content = yaml_content.replace("\\n", "\n")
 
+        # STEP 1: Parse YAML (fatal error - can't continue if this fails)
         try:
             parsed_yaml = self._loader.load(data=yaml_content, json_only=False)
         except AnsibleError as e:
-            slog.info(f"Failed to parse YAML for '{file_path}'")
+            slog.info(f"Failed to parse YAML for '{file_path}': {str(e)[:100]}")
             structured_error = AnsibleYAMLValidationError.from_ansible_error(
                 error=e, file_path=file_path, yaml_content=yaml_content
             )
-            slog.debug(f"Failed on YAML parsing: {structured_error.to_xml_string()}")
-            return f"ERROR: YAML parsing failed. The file was not written.\n\n{structured_error.to_xml_string()}"
+            return ErrorFormattingService.format_yaml_validation_error(structured_error)
         except Exception as e:
             slog.debug(
                 f"Failed on generic parsing error: {e!s}\nContent: {yaml_content}"
             )
             return f"ERROR: when parsing YAML content, the file was not written. Fix following error and try again:\n```{e!s}```."
 
-        # Run validations
+        # STEP 2: Basic validations
         if error := self._validate_not_empty(parsed_yaml, yaml_content):
             slog.debug("Failed on empty content")
             return error
@@ -603,33 +880,28 @@ class AnsibleWriteTool(BaseTool):
             slog.debug("Failed on JSON instead of YAML")
             return error
 
-        if error := self._validate_no_playbook_wrapper(parsed_yaml, file_path):
-            slog.debug("Failed: detected playbook wrapper in task file")
-            return error
+        # STEP 3: Collect blocking errors (playbook wrapper, formatting issues)
+        blocking_errors = self._collect_blocking_errors(
+            file_path, yaml_content, parsed_yaml
+        )
 
-        # Format and write the file (handles its own errors)
+        if blocking_errors:
+            slog.info(f"Found {len(blocking_errors)} blocking validation issues")
+            # Return ALL blocking errors at once using template
+            return ErrorFormattingService.format_multiple_errors(blocking_errors)
+
+        # STEP 4: No blocking errors - write the file!
         result = self._format_and_write_yaml(parsed_yaml, file_path, yaml_content)
 
         if result.startswith("Successfully"):
             slog.info("Successfully wrote valid Ansible YAML")
+            slog.debug("All validations passed")
 
-            # Run ARI validation if this is a taskfile
-            if self._is_taskfile(file_path):
-                slog.debug("Running ARI validation on taskfile")
-                try:
-                    success, validation_message = self._validator.validate(file_path)
-                    if not success:
-                        slog.info(f"ARI validation failed for '{file_path}'")
-                        # Format ARI errors in XML structure for LLM
-                        structured_error = self._format_ari_errors(
-                            file_path, validation_message
-                        )
-                        return f"WARNING: File was written but has validation issues:\n\n{structured_error}"
-                    slog.debug("ARI validation passed")
-                except Exception as e:
-                    slog.warning(f"ARI validation failed with exception: {e!s}")
-                    # Don't fail the write operation if ARI validation has an error
-                    return f"{result}\n\nNote: ARI validation could not be run: {e!s}"
+            # STEP 5: Run ARI validation warnings (non-blocking)
+            ari_warnings = self._run_ari_validation_warnings(file_path, yaml_content)
+            if ari_warnings:
+                slog.info("ARI validation found warnings")
+                return ari_warnings
         else:
             slog.info(f"Failed to write Ansible yaml for '{file_path}'")
 

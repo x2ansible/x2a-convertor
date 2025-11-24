@@ -35,7 +35,7 @@ jobs:
       run: uv run pyrefly check
 
     - name: Run pytest
-      run: uv run pytest
+      run: uv run pytest -m "not eval"
 
   build-container:
     runs-on: ubuntu-latest

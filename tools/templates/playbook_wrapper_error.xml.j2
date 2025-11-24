@@ -1,0 +1,32 @@
+ERROR: Task files must be FLAT lists, not playbooks.
+
+<ansible_yaml_error>
+<file_path>{{ file_path }}</file_path>
+<error_details>
+<message>Playbook wrapper detected in task file</message>
+<problem>Task files (.yml in tasks/ directory) must start with --- and immediately list tasks. They cannot have playbook wrappers like 'hosts:', 'become:', or 'tasks:' keys.</problem>
+</error_details>
+
+<detected_structure>
+Your YAML has: {{ detected_keys | join(', ') }}
+This is a PLAYBOOK structure.
+</detected_structure>
+
+<fix_workflow>
+1. REMOVE the playbook wrapper (hosts, become, tasks)
+2. Start with ---
+3. Immediately list tasks with - name:
+4. Each task starts at the root level (not nested under 'tasks:')
+5. Call ansible_write again with corrected FLAT task list
+</fix_workflow>
+
+<correct_format>
+---
+- name: First task
+  ansible.builtin.module:
+    param: value
+- name: Second task
+  ansible.builtin.module:
+    param: value
+</correct_format>
+</ansible_yaml_error>
