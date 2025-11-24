@@ -19,9 +19,7 @@ class GeneratePlaybookYAMLInput(BaseModel):
     role_name: str = Field(description="Role name to use")
     hosts: str = Field(default="all", description="Target hosts")
     become: bool = Field(default=False, description="Use privilege escalation")
-    vars: dict[str, Any] = Field(
-        default_factory=dict, description="Variables for role"
-    )
+    vars: dict[str, Any] = Field(default_factory=dict, description="Variables for role")
 
 
 class GeneratePlaybookYAMLTool(BaseTool):
@@ -32,9 +30,7 @@ class GeneratePlaybookYAMLTool(BaseTool):
         "Generate Ansible playbook YAML that uses a role. "
         "Creates a playbook file with the specified role."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = (
-        GeneratePlaybookYAMLInput
-    )
+    args_schema: dict[str, Any] | type[BaseModel] | None = GeneratePlaybookYAMLInput
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -98,4 +94,3 @@ class GeneratePlaybookYAMLTool(BaseTool):
             error_msg = f"ERROR: Failed to generate playbook YAML: {e}"
             logger.error(error_msg)
             return error_msg
-

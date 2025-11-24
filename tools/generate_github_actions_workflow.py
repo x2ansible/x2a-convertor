@@ -18,9 +18,7 @@ class GenerateGitHubActionsWorkflowInput(BaseModel):
     collection_namespace: str = Field(
         default="", description="Collection namespace (optional)"
     )
-    collection_name: str = Field(
-        default="", description="Collection name (optional)"
-    )
+    collection_name: str = Field(default="", description="Collection name (optional)")
 
 
 class GenerateGitHubActionsWorkflowTool(BaseTool):
@@ -75,17 +73,10 @@ jobs:
             with file_path_obj.open("w") as f:
                 f.write(workflow_content)
 
-            logger.info(
-                f"Successfully generated GitHub Actions workflow: {file_path}"
-            )
-            return (
-                f"Successfully generated GitHub Actions workflow at {file_path}"
-            )
+            logger.info(f"Successfully generated GitHub Actions workflow: {file_path}")
+            return f"Successfully generated GitHub Actions workflow at {file_path}"
 
         except Exception as e:
-            error_msg = (
-                f"ERROR: Failed to generate GitHub Actions workflow: {e}"
-            )
+            error_msg = f"ERROR: Failed to generate GitHub Actions workflow: {e}"
             logger.error(error_msg)
             return error_msg
-

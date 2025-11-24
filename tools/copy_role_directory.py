@@ -37,9 +37,7 @@ class CopyRoleDirectoryTool(BaseTool):
         "templates/, etc.) preserving the complete role structure. "
         "Creates parent directories if needed."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = (
-        CopyRoleDirectoryInput
-    )
+    args_schema: dict[str, Any] | type[BaseModel] | None = CopyRoleDirectoryInput
 
     def _run(
         self,
@@ -55,9 +53,7 @@ class CopyRoleDirectoryTool(BaseTool):
         Returns:
             Success or error message
         """
-        logger.info(
-            f"Copying role from {source_role_path} to {destination_path}"
-        )
+        logger.info(f"Copying role from {source_role_path} to {destination_path}")
 
         source_path_obj = Path(source_role_path)
         dest_path_obj = Path(destination_path)
@@ -66,15 +62,11 @@ class CopyRoleDirectoryTool(BaseTool):
             return f"ERROR: Source role path does not exist: {source_role_path}"
 
         if not source_path_obj.is_dir():
-            return (
-                f"ERROR: Source path is not a directory: {source_role_path}"
-            )
+            return f"ERROR: Source path is not a directory: {source_role_path}"
 
         # Check if it looks like an Ansible role
         required_dirs = ["tasks", "meta"]
-        has_role_structure = any(
-            (source_path_obj / d).exists() for d in required_dirs
-        )
+        has_role_structure = any((source_path_obj / d).exists() for d in required_dirs)
         if not has_role_structure:
             logger.warning(
                 f"Source path may not be a valid Ansible role "
@@ -113,4 +105,3 @@ class CopyRoleDirectoryTool(BaseTool):
             error_msg = f"ERROR: Unexpected error copying role: {e}"
             logger.error(error_msg)
             return error_msg
-

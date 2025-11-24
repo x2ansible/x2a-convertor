@@ -32,9 +32,7 @@ class GenerateJobTemplateYAMLTool(BaseTool):
         "Generate AAP job template YAML configuration. "
         "Creates a job template that references a playbook."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = (
-        GenerateJobTemplateYAMLInput
-    )
+    args_schema: dict[str, Any] | type[BaseModel] | None = GenerateJobTemplateYAMLInput
 
     def _run(
         self,
@@ -104,4 +102,3 @@ class GenerateJobTemplateYAMLTool(BaseTool):
             error_msg = f"ERROR: Failed to generate job template YAML: {e}"
             logger.error(error_msg)
             return error_msg
-

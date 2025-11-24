@@ -122,10 +122,7 @@ def validate(module_name) -> None:
     "--source-path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
     required=True,
-    help=(
-        "Path to the migrated Ansible role directory "
-        "(e.g., ./ansible/my_role)"
-    ),
+    help=("Path to the migrated Ansible role directory (e.g., ./ansible/my_role)"),
 )
 @click.option(
     "--github-repository-url",
@@ -137,13 +134,9 @@ def validate(module_name) -> None:
     default="main",
     help="GitHub branch to create PR against (default: main)",
 )
-def publish(
-    module_name, source_path, github_repository_url, github_branch
-) -> None:
+def publish(module_name, source_path, github_repository_url, github_branch) -> None:
     """Publish migrated Ansible role to GitHub using GitOps approach"""
-    publish_role(
-        module_name, source_path, github_repository_url, github_branch
-    )
+    publish_role(module_name, source_path, github_repository_url, github_branch)
 
 
 if __name__ == "__main__":

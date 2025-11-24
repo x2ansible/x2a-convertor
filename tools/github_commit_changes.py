@@ -31,16 +31,11 @@ class GitHubCommitChangesInput(BaseModel):
             "Directory path to commit (relative to current repository root). "
             "Default: 'publish_results'. "
             "This directory will be copied to the target repository."
-        )
+        ),
     )
-    commit_message: str = Field(
-        description="Git commit message for the changes"
-    )
+    commit_message: str = Field(description="Git commit message for the changes")
     branch: str = Field(
-        description=(
-            "Branch name to commit to "
-            "(will be created if it doesn't exist)"
-        )
+        description=("Branch name to commit to (will be created if it doesn't exist)")
     )
 
 
@@ -64,9 +59,7 @@ class GitHubCommitChangesTool(BaseTool):
         "no other working directory changes included."
         "Use this before pushing changes and creating a PR."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = (
-        GitHubCommitChangesInput
-    )
+    args_schema: dict[str, Any] | type[BaseModel] | None = GitHubCommitChangesInput
 
     def _run(
         self,
@@ -104,8 +97,7 @@ class GitHubCommitChangesTool(BaseTool):
         dir_path = Path(directory)
         if not dir_path.exists():
             return (
-                f"ERROR: Directory '{directory}' does not exist "
-                "in current repository"
+                f"ERROR: Directory '{directory}' does not exist in current repository"
             )
 
         # Get predictable path for cloned repository
@@ -113,9 +105,9 @@ class GitHubCommitChangesTool(BaseTool):
             """Get a predictable path for the cloned repository."""
             url_hash = hashlib.md5(repo_url.encode()).hexdigest()[:8]
             parsed = urlparse(repo_url)
-            path_parts = [p for p in parsed.path.split('/') if p]
+            path_parts = [p for p in parsed.path.split("/") if p]
             if len(path_parts) >= 2:
-                repo_name = path_parts[-1].replace('.git', '')
+                repo_name = path_parts[-1].replace(".git", "")
             else:
                 repo_name = "repo"
             temp_base = Path(tempfile.gettempdir()) / "x2a_publish"
@@ -171,6 +163,7 @@ class GitHubCommitChangesTool(BaseTool):
 
             try:
                 import os
+
                 os.chdir(repo_path)
 
                 # Get current branch
@@ -207,7 +200,7 @@ class GitHubCommitChangesTool(BaseTool):
 
                 # Stage ONLY the files we copied from publish_results/
                 # This ensures we don't accidentally include other changes
-                items_str = ', '.join(copied_items)
+                items_str = ", ".join(copied_items)
                 logger.info(f"Staging only copied items: {items_str}")
                 for item_name in copied_items:
                     result = subprocess.run(

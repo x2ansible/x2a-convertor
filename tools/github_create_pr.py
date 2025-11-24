@@ -18,22 +18,14 @@ class GitHubCreatePRInput(BaseModel):
     """Input schema for creating a GitHub PR."""
 
     repository_url: str = Field(
-        description=(
-            "GitHub repository URL "
-            "(e.g., 'https://github.com/user/repo')"
-        )
+        description=("GitHub repository URL (e.g., 'https://github.com/user/repo')")
     )
     title: str = Field(description="PR title")
     body: str = Field(description="PR description/body")
-    head: str = Field(
-        description="Branch name containing the changes (source branch)"
-    )
+    head: str = Field(description="Branch name containing the changes (source branch)")
     base: str = Field(
         default="main",
-        description=(
-            "Branch name to merge into "
-            "(target branch, default: 'main')"
-        ),
+        description=("Branch name to merge into (target branch, default: 'main')"),
     )
 
 
@@ -66,24 +58,19 @@ class GitHubCreatePRTool(BaseTool):
         """Create GitHub Pull Request.
         # ... (docstring unchanged) ...
         """
-        logger.info(
-            f"Creating PR from {head} to {base} in {repository_url}"
-        )
+        logger.info(f"Creating PR from {head} to {base} in {repository_url}")
 
         github_token = os.environ.get("GITHUB_TOKEN", "")
 
         if not github_token:
-            return (
-                "ERROR: GITHUB_TOKEN environment variable not set. "
-                "Cannot create PR."
-            )
+            return "ERROR: GITHUB_TOKEN environment variable not set. Cannot create PR."
 
         # Extract owner and repo from URL (IMPROVED SECTION)
         try:
             cleaned_url = repository_url.replace(".git", "")
             parsed_url = urlparse(cleaned_url)
             # Filter out empty strings from path split
-            path_segments = [p for p in parsed_url.path.split('/') if p]
+            path_segments = [p for p in parsed_url.path.split("/") if p]
 
             if len(path_segments) < 2:
                 return (
@@ -95,9 +82,7 @@ class GitHubCreatePRTool(BaseTool):
             repo = path_segments[-1]
 
         except Exception as e:
-            return (
-                f"ERROR: Failed to parse repository URL {repository_url}: {e}"
-            )
+            return f"ERROR: Failed to parse repository URL {repository_url}: {e}"
 
         # GITHUB API CALL TO CREATE PR
 
@@ -106,22 +91,15 @@ class GitHubCreatePRTool(BaseTool):
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "Authorization": f"Bearer {github_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
-        payload = {
-            "title": title,
-            "body": body,
-            "head": head,
-            "base": base
-        }
+        payload = {"title": title, "body": body, "head": head, "base": base}
 
         logger.info(f"Sending POST request to {api_url}")
 
         try:
-            response = requests.post(
-                api_url, headers=headers, data=json.dumps(payload)
-            )
+            response = requests.post(api_url, headers=headers, data=json.dumps(payload))
             response.raise_for_status()
 
             pr_data = response.json()
@@ -129,16 +107,14 @@ class GitHubCreatePRTool(BaseTool):
             pr_number = pr_data.get("number")
 
             success_message = (
-                f"✅ Pull Request #{pr_number} created successfully! "
-                f"URL: {pr_url}"
+                f"✅ Pull Request #{pr_number} created successfully! URL: {pr_url}"
             )
             logger.info(success_message)
             return success_message
 
         except requests.exceptions.HTTPError as e:
             error_message = (
-                f"GitHub API Error ({response.status_code}) "
-                f"when creating PR: {e}"
+                f"GitHub API Error ({response.status_code}) when creating PR: {e}"
             )
             logger.error(error_message)
 
@@ -146,14 +122,10 @@ class GitHubCreatePRTool(BaseTool):
 
             try:
                 error_details = response.json()
-                if 'message' in error_details:
-                    error_message += (
-                        f"\nAPI Message: {error_details['message']}"
-                    )
-                if 'errors' in error_details:
-                    error_message += (
-                        f"\nValidation Errors: {error_details['errors']}"
-                    )
+                if "message" in error_details:
+                    error_message += f"\nAPI Message: {error_details['message']}"
+                if "errors" in error_details:
+                    error_message += f"\nValidation Errors: {error_details['errors']}"
             except json.JSONDecodeError:
                 # Fallback handled by response.text above
                 pass

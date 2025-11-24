@@ -38,9 +38,7 @@ class CreateDirectoryStructureTool(BaseTool):
         "Creates all specified directories, creating parent directories as needed. "
         "Useful for setting up the repository structure before copying files."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = (
-        CreateDirectoryStructureInput
-    )
+    args_schema: dict[str, Any] | type[BaseModel] | None = CreateDirectoryStructureInput
 
     def _run(
         self,
@@ -83,8 +81,6 @@ class CreateDirectoryStructureTool(BaseTool):
                 + "\n".join(created_dirs)
             )
 
-        return (
-            f"Successfully created {len(created_dirs)} directories:\n"
-            + "\n".join(f"  - {d}" for d in created_dirs)
+        return f"Successfully created {len(created_dirs)} directories:\n" + "\n".join(
+            f"  - {d}" for d in created_dirs
         )
-

@@ -118,9 +118,7 @@ class PublishAgent:
         logger.debug(f"Number of tools: {len(tools)}")
         logger.debug(f"Total tool description size: ~{tool_desc_size} chars")
 
-        return create_react_agent(
-            model=self.model, tools=tools
-        )  # pyrefly: ignore
+        return create_react_agent(model=self.model, tools=tools)  # pyrefly: ignore
 
     def invoke(self, initial_state: PublishState) -> PublishState:
         """Execute publish workflow using react agent.
@@ -165,9 +163,7 @@ class PublishAgent:
         tool_names = [
             tool.name if hasattr(tool, "name") else "unknown" for tool in tools
         ]
-        slog.debug(
-            f"Tools before agent creation: {len(tools)} tools - {tool_names}"
-        )
+        slog.debug(f"Tools before agent creation: {len(tools)} tools - {tool_names}")
 
         agent = self._create_react_agent(initial_state)
         # Make paths explicit and emphasize they MUST be created
@@ -234,13 +230,9 @@ class PublishAgent:
             slog.debug(f"First message type: {type(messages[0])}")
             config = get_runnable_config()
             slog.debug(f"Config: {config}")
-            result = agent.invoke(
-                {"messages": messages}, config=config
-            )
+            result = agent.invoke({"messages": messages}, config=config)
 
-            slog.info(
-                f"Publish agent tools: {report_tool_calls(result).to_string()}"
-            )
+            slog.info(f"Publish agent tools: {report_tool_calls(result).to_string()}")
 
             # Extract the final message from the agent response
             final_message = result.get("messages", [])[-1]
@@ -264,11 +256,11 @@ class PublishAgent:
             error_str = str(e)
             slog.error(f"Error in PublishAgent: {error_str}")
             slog.error(
-                f"Error type: {type(e).__name__}, "
-                f"Role: {role_name}, Path: {role_path}"
+                f"Error type: {type(e).__name__}, Role: {role_name}, Path: {role_path}"
             )
             # Log full exception details for debugging
             import traceback
+
             slog.debug(f"Full traceback: {traceback.format_exc()}")
             exception_args = e.args if hasattr(e, "args") else "N/A"
             slog.debug(f"Exception args: {exception_args}")
@@ -280,9 +272,7 @@ class PublishAgent:
             initial_state["failed"] = True
             # Extract main error message if it's a complex error
             main_error = error_str.split(" - ")[0] if " - " in error_str else error_str
-            initial_state["failure_reason"] = (
-                f"Publish agent error: {main_error}"
-            )
+            initial_state["failure_reason"] = f"Publish agent error: {main_error}"
             initial_state["publish_output"] = (
                 f"ERROR: LLM API error occurred. "
                 f"This may be a temporary issue with the model provider. "
