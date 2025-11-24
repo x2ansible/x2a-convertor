@@ -1,7 +1,4 @@
-"""Deterministic tools for publishing workflow.
-
-These are direct function calls extracted from the LangChain tools.
-"""
+"""Deterministic tools for publishing workflow."""
 
 import hashlib
 import json
@@ -68,7 +65,7 @@ def create_directory_structure(base_path: str, structure: list[str]) -> str:
 def copy_role_directory(source_role_path: str, destination_path: str) -> str:
     """Copy an entire Ansible role directory to a new location.
 
-    Excludes export-output.md and .checklist.json files.
+    Excludes export-output.md, .checklist.json, and .ansible cache directory.
 
     Args:
         source_role_path: Source role directory path
@@ -281,17 +278,11 @@ def generate_job_template_yaml(
         return error_msg
 
 
-def generate_github_actions_workflow(
-    file_path: str,
-    collection_namespace: str = "",
-    collection_name: str = "",
-) -> str:
+def generate_github_actions_workflow(file_path: str) -> str:
     """Generate GitHub Actions workflow file.
 
     Args:
         file_path: Output file path
-        collection_namespace: Collection namespace (optional)
-        collection_name: Collection name (optional)
 
     Returns:
         Success or error message
@@ -367,7 +358,7 @@ def _get_repo_path(repository_url: str) -> Path:
 
 def github_commit_changes(
     repository_url: str,
-    directory: str = "publish_results",
+    directory: str,
     commit_message: str = "",
     branch: str = "",
 ) -> str:
@@ -428,7 +419,7 @@ def github_commit_changes(
         # Copy the directory contents to the cloned repository root
         source_dir = Path(directory)
 
-        # Copy all contents from publish_results/ to the repo root
+        # Copy all contents from the directory to the repo root
         copied_items = []
         for item in source_dir.iterdir():
             target_item = repo_path / item.name
@@ -481,7 +472,7 @@ def github_commit_changes(
                     check=True,
                 )
 
-        # Stage ONLY the files we copied from publish_results/
+        # Stage ONLY the files we copied from the directory
         items_str = ", ".join(copied_items)
         logger.info(f"Staging only copied items: {items_str}")
         for item_name in copied_items:
