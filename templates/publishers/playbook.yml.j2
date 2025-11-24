@@ -1,0 +1,19 @@
+---
+- name: {{ name }}
+  hosts: {{ hosts }}
+{% if become %}
+  become: true
+{% endif %}
+{% if vars %}
+  vars:
+{% for key, value in vars.items() %}
+{% if value is string %}
+    {{ key }}: '{{ value }}'
+{% else %}
+    {{ key }}: {{ value | tojson }}
+{% endif %}
+{% endfor %}
+{% endif %}
+  roles:
+    - {{ role_name }}
+
