@@ -15,7 +15,10 @@ ci-check:
 	uv run ruff check . --output-format=github
 	uv run ruff format --check
 	uv run pyrefly check
-	uv run pytest
+	uv run pytest -m "not eval"
+
+evals:
+	uv run pytest -m "eval"
 
 install:
 	uv sync
@@ -56,5 +59,5 @@ run-migrate:
 	  "Convert the hello_world cookbook"
 
 
-.PHONY: check format ci-check install clean run-init run-analyze run-migrate build run-container clean-container
+.PHONY: check format ci-check evals install clean run-init run-analyze run-migrate build run-container clean-container
 

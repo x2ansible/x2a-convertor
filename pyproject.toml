@@ -43,6 +43,7 @@ dev = [
 [tool.pytest.ini_options]
 markers = [
     "libyaml: marks tests that require libyaml",
+    "eval: marks tests as evaluation tests (slow, requires LLM API, non-deterministic)",
 ]
 
 [tool.ruff]

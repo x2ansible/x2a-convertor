@@ -374,7 +374,7 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "<column_pointer>" in result
 
         # Should include the original YAML content
-        assert "<yaml_content>" in result
+        assert "<original_yaml_content>" in result
         assert "fw_status is not search" in result
 
         # File should not be created

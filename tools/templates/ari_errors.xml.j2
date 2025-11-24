@@ -1,0 +1,18 @@
+<ansible_lint_errors>
+<file_path>{{ file_path }}</file_path>
+
+<validation_errors>
+{{ validation_message }}
+</validation_errors>
+
+<fix_workflow>
+1. Review each error with its line number and rule ID above
+2. Apply fixes for the specific issues found:
+{%- for rule_id, fix_suggestion in unique_rules.items() | sort %}
+   - [{{ rule_id }}] {{ fix_suggestion }}
+{%- endfor %}
+3. Fix ALL the issues listed above in your yaml_content
+4. Call ansible_write AGAIN with the corrected yaml_content
+5. DO NOT RE-READ FILES - just fix and retry with ansible_write
+</fix_workflow>
+</ansible_lint_errors>

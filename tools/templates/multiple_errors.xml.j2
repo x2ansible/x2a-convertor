@@ -1,0 +1,19 @@
+MULTIPLE VALIDATION ERRORS FOUND
+
+Found {{ error_count }} issue(s) that must be fixed:
+
+{% for error in errors %}
+================================================================================
+ERROR #{{ loop.index }}:
+================================================================================
+{{ error }}
+
+{% endfor %}
+================================================================================
+REQUIRED ACTION:
+1. Apply the fixes described above to your YAML content
+2. Call ansible_write AGAIN with the corrected yaml_content
+3. DO NOT use any other tools - just fix the YAML and retry ansible_write
+
+The file was NOT written - you MUST retry now.
+================================================================================

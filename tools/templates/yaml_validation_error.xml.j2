@@ -1,0 +1,66 @@
+YAML VALIDATION FAILED - FILE NOT WRITTEN
+
+<ansible_yaml_error>
+<file_path>{{ file_path }}</file_path>
+<status>ERROR - Must fix and retry</status>
+
+<error_details>
+<message>{{ error_message }}</message>
+{%- if line_number %}
+<line_number>{{ line_number }}</line_number>
+{%- endif %}
+{%- if column_number %}
+<column_number>{{ column_number }}</column_number>
+{%- endif %}
+{%- if problem %}
+<problem>{{ problem }}</problem>
+{%- endif %}
+</error_details>
+{% if problematic_line and column_number %}
+
+<problematic_location>
+<line_number>{{ line_number }}</line_number>
+<line_content>{{ problematic_line }}</line_content>
+<column_pointer>{{ column_pointer }}</column_pointer>
+</problematic_location>
+{%- endif %}
+
+<how_to_fix>
+{% if error_type == 'unhashable_key' %}
+<error_type>Unquoted Jinja2 Variable</error_type>
+<fix>Add quotes around Jinja2 variables with {{ '{{' }} {{ '}}' }}</fix>
+
+<example>
+{% if fixed_line %}
+WRONG:   {{ problematic_line.strip() }}
+CORRECT: {{ fixed_line.strip() }}
+{% else %}
+WRONG:   msg: {{ '{{' }} item {{ '}}' }}
+CORRECT: msg: "{{ '{{' }} item {{ '}}' }}"
+{% endif %}
+</example>
+{% elif error_type == 'mapping_values' %}
+<error_type>Unquoted Colon in String</error_type>
+<fix>Quote the entire value when it contains colons</fix>
+
+<example>
+WRONG:   when: status is search('error: found')
+CORRECT: when: "status is search('error: found')"
+</example>
+{% else %}
+<error_type>YAML Syntax Error</error_type>
+<fix>Check indentation, quotes, and YAML structure</fix>
+{% endif %}
+</how_to_fix>
+
+<original_yaml_content>
+{{ yaml_content }}
+</original_yaml_content>
+
+REQUIRED ACTION:
+1. Apply the fix shown in <how_to_fix> to your YAML
+2. Call ansible_write AGAIN with the corrected yaml_content
+3. DO NOT STOP until you get 'Successfully wrote' response
+
+YOU MUST RETRY NOW - The file was NOT created.
+</ansible_yaml_error>
