@@ -7,15 +7,21 @@ RUN dnf install -y \
     git \
     wget \
     gcc \
+    gcc-c++ \
     make \
+    ruby \
+    ruby-devel \
     && dnf clean all
 
 # Uv is not part of ubi.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Chef CLI is needed for chef agent
-RUN curl -L https://omnitruck.chef.io/install.sh | bash -s -- -P chef-workstation
+# Chef CLI is needed for chef agent (installed via gem for multi-arch support)
+RUN gem install chef-cli --no-document
+
+# Accept Chef licenses non-interactively
+ENV CHEF_LICENSE=accept-no-persist
 
 
 WORKDIR /app
