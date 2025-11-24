@@ -12,3 +12,4 @@ wheels/
 .env
 .vscode
 
+publish_results/

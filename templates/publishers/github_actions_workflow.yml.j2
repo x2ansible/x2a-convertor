@@ -1,0 +1,24 @@
+name: Ansible Collection Import to AAP
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  import-collection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Import Ansible Collection to AAP
+        uses: ansible/ansible-automation-platform-collection-import-action@v1
+        with:
+{% raw %}
+          controller_url: ${{ secrets.AAP_CONTROLLER_URL }}
+          controller_username: ${{ secrets.AAP_USERNAME }}
+          controller_password: ${{ secrets.AAP_PASSWORD }}
+{% endraw %}
+

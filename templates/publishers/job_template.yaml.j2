@@ -1,0 +1,19 @@
+apiVersion: tower.ansible.com/v1beta1
+kind: JobTemplate
+metadata:
+  name: {{ name }}
+spec:
+  name: {{ name }}
+  job_type: run
+  playbook: {{ playbook_path }}
+  inventory: {{ inventory }}
+{% if description %}
+  description: {{ description }}
+{% endif %}
+{% if role_name %}
+  role_name: {{ role_name }}
+{% endif %}
+{% if extra_vars %}
+  extra_vars: {{ extra_vars | tojson }}
+{% endif %}
+
