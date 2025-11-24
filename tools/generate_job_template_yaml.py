@@ -1,9 +1,9 @@
 """Tool for generating AAP job template YAML files."""
 
-import yaml
 from pathlib import Path
 from typing import Any
 
+import yaml
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 

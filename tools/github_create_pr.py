@@ -1,15 +1,15 @@
 """Tool for creating a GitHub Pull Request."""
 
-import os
-import requests
 import json
+import os
 from typing import Any
+from urllib.parse import urlparse
 
+import requests
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
-from urllib.parse import urlparse
 
 logger = get_logger(__name__)
 
@@ -156,7 +156,7 @@ class GitHubCreatePRTool(BaseTool):
                     )
             except json.JSONDecodeError:
                 # Fallback handled by response.text above
-                pass 
+                pass
 
             return error_message
 

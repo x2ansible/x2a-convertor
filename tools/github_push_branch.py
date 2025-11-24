@@ -1,9 +1,9 @@
 """Tool for pushing a git branch to remote repository."""
 
+import hashlib
 import os
 import subprocess
 import tempfile
-import hashlib
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -185,7 +185,7 @@ class GitHubPushBranchTool(BaseTool):
                 f"Remote: {remote}\n"
                 f"Commits ahead: {commits_ahead}\n"
                 "Branch is now ready for PR creation"
-            )  # noqa: E501
+            )
             logger.info(success_message)
             return success_message
 

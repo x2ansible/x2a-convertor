@@ -1,9 +1,9 @@
 """Tool for committing changes to git repository."""
 
+import hashlib
+import shutil
 import subprocess
 import tempfile
-import shutil
-import hashlib
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -98,7 +98,7 @@ class GitHubCommitChangesTool(BaseTool):
         logger.info(
             f"Committing {directory} to branch {branch} in {repository_url} "
             f"with message: {commit_message}"
-        )  # noqa: E501
+        )
 
         # Check if directory exists in current location
         dir_path = Path(directory)
@@ -263,99 +263,6 @@ class GitHubCommitChangesTool(BaseTool):
 
             finally:
                 os.chdir(original_cwd)
-
-        except subprocess.CalledProcessError as e:
-            error_message = (
-                f"ERROR: Git command failed: {e}\n"
-                f"Command output: {e.stderr if e.stderr else e.stdout}"
-            )
-            logger.error(error_message)
-            return error_message
-
-        except Exception as e:
-            error_message = f"ERROR: Unexpected error during git commit: {e}"
-            logger.error(error_message)
-            return error_message
-            # Get current branch
-            result = subprocess.run(
-                ["git", "branch", "--show-current"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            current_branch = result.stdout.strip()
-
-            # Create or checkout branch if needed
-            if current_branch != branch:
-                logger.info(f"Switching to branch: {branch}")
-                # Check if branch exists
-                result = subprocess.run(
-                    ["git", "branch", "--list", branch],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-                if result.stdout.strip():
-                    # Branch exists, checkout
-                    subprocess.run(
-                        ["git", "checkout", branch],
-                        check=True,
-                    )
-                else:
-                    # Branch doesn't exist, create and checkout
-                    subprocess.run(
-                        ["git", "checkout", "-b", branch],
-                        check=True,
-                    )
-
-            # Stage the directory
-            logger.info(f"Staging directory: {directory}")
-            result = subprocess.run(
-                ["git", "add", directory],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            # Check if there are any changes to commit
-            result = subprocess.run(
-                ["git", "diff", "--cached", "--quiet"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                return (
-                    f"INFO: No changes to commit in '{directory}'. "
-                    "Files may already be committed or unchanged."
-                )
-
-            # Commit the changes
-            logger.info(f"Committing with message: {commit_message}")
-            result = subprocess.run(
-                ["git", "commit", "-m", commit_message],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            # Get commit hash
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            commit_hash = result.stdout.strip()[:7]
-
-            success_message = (
-                f"✅ Successfully committed changes to branch '{branch}'\n"
-                f"Commit: {commit_hash}\n"
-                f"Message: {commit_message}\n"
-                f"Directory: {directory}"
-            )
-            logger.info(success_message)
-            return success_message
 
         except subprocess.CalledProcessError as e:
             error_message = (

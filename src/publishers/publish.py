@@ -279,10 +279,7 @@ class PublishAgent:
 
             initial_state["failed"] = True
             # Extract main error message if it's a complex error
-            if " - " in error_str:
-                main_error = error_str.split(" - ")[0]
-            else:
-                main_error = error_str
+            main_error = error_str.split(" - ")[0] if " - " in error_str else error_str
             initial_state["failure_reason"] = (
                 f"Publish agent error: {main_error}"
             )

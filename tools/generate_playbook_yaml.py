@@ -47,7 +47,7 @@ class GeneratePlaybookYAMLTool(BaseTool):
         role_name: str,
         hosts: str = "all",
         become: bool = False,
-        vars: dict[str, Any] = None,
+        vars: dict[str, Any] | None = None,
     ) -> str:
         """Generate playbook YAML file."""
         logger.info(f"Generating playbook YAML: {name}")

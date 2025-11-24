@@ -77,9 +77,9 @@ class CreateDirectoryStructureTool(BaseTool):
 
         if errors:
             return (
-                f"ERROR: Some directories failed to create:\n"
+                "ERROR: Some directories failed to create:\n"
                 + "\n".join(errors)
-                + f"\n\nSuccessfully created:\n"
+                + "\n\nSuccessfully created:\n"
                 + "\n".join(created_dirs)
             )
 
