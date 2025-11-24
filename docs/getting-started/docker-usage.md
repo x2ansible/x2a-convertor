@@ -43,7 +43,7 @@ podman run --rm -ti \
   -e AWS_REGION=$AWS_REGION \
   -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
   quay.io/x2ansible/x2a-convertor:latest \
-  analyze "please make a detailed plan for cache"  --source-dir /app/source/
+  analyze "please make a detailed plan for nginx-multisite"  --source-dir /app/source/
 ```
 
 This will make a blueprint of what the model understands about the migration of that cookbook. In this case, it will create a **migration-plan-nginx-multisite.md**
@@ -57,7 +57,7 @@ podman run --rm -ti \
   -e AWS_REGION=$AWS_REGION \
   -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
   quay.io/x2ansible/x2a-convertor:latest \
-  uv run app.py migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the 'nginx-multisite' module"
+  migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the 'nginx-multisite' module"
 ```
 
 This will generate real Ansible code, primarily in `ansible/nginx-multisite` with all details
