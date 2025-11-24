@@ -1,5 +1,6 @@
 """Deterministic tools for publishing workflow."""
 
+import contextlib
 import hashlib
 import json
 import os
@@ -34,8 +35,8 @@ def create_directory_structure(base_path: str, structure: list[str]) -> str:
     base_path_obj = Path(base_path)
     base_path_obj.mkdir(parents=True, exist_ok=True)
 
-    created_dirs = []
-    errors = []
+    created_dirs: list[str] = []
+    errors: list[str] = []
 
     for dir_path in structure:
         try:
@@ -56,9 +57,8 @@ def create_directory_structure(base_path: str, structure: list[str]) -> str:
             + "\n".join(created_dirs)
         )
 
-    return (
-        f"Successfully created {len(created_dirs)} directories:\n"
-        + "\n".join(f"  - {d}" for d in created_dirs)
+    return f"Successfully created {len(created_dirs)} directories:\n" + "\n".join(
+        f"  - {d}" for d in created_dirs
     )
 
 
@@ -87,9 +87,7 @@ def copy_role_directory(source_role_path: str, destination_path: str) -> str:
 
     # Check if it looks like an Ansible role
     required_dirs = ["tasks", "meta"]
-    has_role_structure = any(
-        (source_path_obj / d).exists() for d in required_dirs
-    )
+    has_role_structure = any((source_path_obj / d).exists() for d in required_dirs)
     if not has_role_structure:
         logger.warning(
             f"Source path may not be a valid Ansible role "
@@ -132,10 +130,7 @@ def copy_role_directory(source_role_path: str, destination_path: str) -> str:
         )
 
         logger.info(f"Successfully copied role to {destination_path}")
-        return (
-            f"Successfully copied role from {source_role_path} "
-            f"to {destination_path}"
-        )
+        return f"Successfully copied role from {source_role_path} to {destination_path}"
 
     except shutil.Error as e:
         error_msg = f"ERROR: Failed to copy role directory: {e}"
@@ -299,13 +294,8 @@ def generate_github_actions_workflow(file_path: str) -> str:
         with file_path_obj.open("w") as f:
             f.write(workflow_content)
 
-        logger.info(
-            f"Successfully generated GitHub Actions workflow: {file_path}"
-        )
-        return (
-            f"Successfully generated GitHub Actions workflow "
-            f"at {file_path}"
-        )
+        logger.info(f"Successfully generated GitHub Actions workflow: {file_path}")
+        return f"Successfully generated GitHub Actions workflow at {file_path}"
 
     except Exception as e:
         error_msg = f"ERROR: Failed to generate GitHub Actions workflow: {e}"
@@ -331,9 +321,8 @@ def verify_files_exist(file_paths: list[str]) -> str:
             missing_files.append(file_path)
 
     if missing_files:
-        error_msg = (
-            f"ERROR: {len(missing_files)} files are missing:\n"
-            + "\n".join(f"  - {f}" for f in missing_files)
+        error_msg = f"ERROR: {len(missing_files)} files are missing:\n" + "\n".join(
+            f"  - {f}" for f in missing_files
         )
         logger.error(error_msg)
         return error_msg
@@ -343,14 +332,15 @@ def verify_files_exist(file_paths: list[str]) -> str:
 
 
 def _get_repo_path(repository_url: str) -> Path:
-    """Get a predictable path for the cloned repository."""
+    """Generate a deterministic temporary path for cloning a repository.
+
+    Same URL always maps to same path, enabling safe reuse. Used by
+    github_commit_changes() and publish workflow.
+    """
     url_hash = hashlib.md5(repository_url.encode()).hexdigest()[:8]
     parsed = urlparse(repository_url)
     path_parts = [p for p in parsed.path.split("/") if p]
-    if len(path_parts) >= 2:
-        repo_name = path_parts[-1].replace(".git", "")
-    else:
-        repo_name = "repo"
+    repo_name = path_parts[-1].replace(".git", "") if len(path_parts) >= 2 else "repo"
 
     temp_base = Path(tempfile.gettempdir()) / "x2a_publish"
     return temp_base / f"{repo_name}_{url_hash}"
@@ -390,10 +380,7 @@ def github_commit_changes(
     # Check if directory exists in current location
     dir_path = Path(directory)
     if not dir_path.exists():
-        return (
-            f"ERROR: Directory '{directory}' does not exist "
-            f"in current repository"
-        )
+        return f"ERROR: Directory '{directory}' does not exist in current repository"
 
     repo_path = _get_repo_path(repository_url)
 
@@ -420,7 +407,7 @@ def github_commit_changes(
         source_dir = Path(directory)
 
         # Copy all contents from the directory to the repo root
-        copied_items = []
+        copied_items: list[str] = []
         for item in source_dir.iterdir():
             target_item = repo_path / item.name
             if item.is_dir():
@@ -573,8 +560,7 @@ def github_push_branch(
     # Repo path must be provided (from commit_changes)
     if repo_path is None:
         return (
-            "ERROR: repo_path is required. "
-            "This should be set by github_commit_changes."
+            "ERROR: repo_path is required. This should be set by github_commit_changes."
         )
 
     # Check if repository exists (should have been cloned by commit tool)
@@ -644,9 +630,7 @@ def github_push_branch(
                 text=True,
                 check=False,
             )
-            commits_ahead = (
-                result.stdout.strip() if result.returncode == 0 else "0"
-            )
+            commits_ahead = result.stdout.strip() if result.returncode == 0 else "0"
         else:
             # New branch - count commits ahead of base branch
             result = subprocess.run(
@@ -748,10 +732,7 @@ def github_create_pr(
     github_token = os.environ.get("GITHUB_TOKEN", "")
 
     if not github_token:
-        return (
-            "ERROR: GITHUB_TOKEN environment variable not set. "
-            "Cannot create PR."
-        )
+        return "ERROR: GITHUB_TOKEN environment variable not set. Cannot create PR."
 
     # Extract owner and repo from URL
     try:
@@ -769,10 +750,7 @@ def github_create_pr(
         repo = path_segments[-1]
 
     except Exception as e:
-        return (
-            f"ERROR: Failed to parse repository URL "
-            f"{repository_url}: {e}"
-        )
+        return f"ERROR: Failed to parse repository URL {repository_url}: {e}"
 
     # Verify branches are different
     if head == base:
@@ -783,9 +761,7 @@ def github_create_pr(
         )
 
     # Verify that head branch has commits ahead of base using GitHub API
-    compare_url = (
-        f"https://api.github.com/repos/{owner}/{repo}/compare/{base}...{head}"
-    )
+    compare_url = f"https://api.github.com/repos/{owner}/{repo}/compare/{base}...{head}"
     compare_headers = {
         "Accept": "application/vnd.github.v3+json",
         "Authorization": f"Bearer {github_token}",
@@ -820,8 +796,7 @@ def github_create_pr(
         )
     except Exception as e:
         logger.warning(
-            f"Error checking branch comparison: {e}. "
-            "Continuing with PR creation..."
+            f"Error checking branch comparison: {e}. Continuing with PR creation..."
         )
 
     # GitHub API call to create PR
@@ -837,10 +812,9 @@ def github_create_pr(
 
     logger.info(f"Sending POST request to {api_url}")
 
+    response: requests.Response | None = None
     try:
-        response = requests.post(
-            api_url, headers=headers, data=json.dumps(payload)
-        )
+        response = requests.post(api_url, headers=headers, data=json.dumps(payload))
         response.raise_for_status()
 
         pr_data = response.json()
@@ -854,29 +828,27 @@ def github_create_pr(
         return success_message
 
     except requests.exceptions.HTTPError as e:
-        error_message = (
-            f"ERROR: GitHub API Error ({response.status_code}) "
-            f"when creating PR: {e}"
-        )
+        if response is None:
+            error_message = f"ERROR: GitHub API Error when creating PR: {e}"
+        else:
+            error_message = (
+                f"ERROR: GitHub API Error ({response.status_code}) "
+                f"when creating PR: {e}"
+            )
+            error_message += f"\nResponse Content: {response.text}"
+
+            # Parse error details from JSON response (inline, no nesting)
+            error_details = None
+            with contextlib.suppress(json.JSONDecodeError):
+                error_details = response.json()
+
+            if error_details:
+                if "message" in error_details:
+                    error_message += f"\nAPI Message: {error_details['message']}"
+                if "errors" in error_details:
+                    error_message += f"\nValidation Errors: {error_details['errors']}"
+
         logger.error(error_message)
-
-        error_message += f"\nResponse Content: {response.text}"
-
-        # Parse error details from JSON response (inline, no nesting)
-        error_details = None
-        try:
-            error_details = response.json()
-        except json.JSONDecodeError:
-            pass
-
-        if error_details:
-            if "message" in error_details:
-                error_message += f"\nAPI Message: {error_details['message']}"
-            if "errors" in error_details:
-                error_message += (
-                    f"\nValidation Errors: {error_details['errors']}"
-                )
-
         return error_message
 
     except requests.exceptions.RequestException as e:

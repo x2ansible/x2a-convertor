@@ -6,19 +6,20 @@ from pathlib import Path
 from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from src.model import get_runnable_config
 from src.publishers.tools import (
     _get_repo_path,
-    create_directory_structure,
     copy_role_directory,
-    generate_playbook_yaml,
-    generate_job_template_yaml,
+    create_directory_structure,
     generate_github_actions_workflow,
-    verify_files_exist,
+    generate_job_template_yaml,
+    generate_playbook_yaml,
     github_commit_changes,
-    github_push_branch,
     github_create_pr,
+    github_push_branch,
+    verify_files_exist,
 )
 from src.utils.logging import get_logger
 
@@ -74,6 +75,7 @@ class PublishWorkflow:
     8. Push branch
     9. Create PR
     """
+
     def __init__(self) -> None:
         """Initialize the publish workflow."""
         self._graph = self._build_workflow()
@@ -81,15 +83,13 @@ class PublishWorkflow:
             f"Publish workflow graph: {self._graph.get_graph().draw_mermaid()}"
         )
 
-    def _build_workflow(self) -> StateGraph:
+    def _build_workflow(self) -> CompiledStateGraph:
         """Build the LangGraph workflow for publishing."""
         workflow = StateGraph(PublishState)
         workflow.add_node("create_structure", self._create_structure_node)
         workflow.add_node("copy_role", self._copy_role_node)
         workflow.add_node("generate_playbook", self._generate_playbook_node)
-        workflow.add_node(
-            "generate_job_template", self._generate_job_template_node
-        )
+        workflow.add_node("generate_job_template", self._generate_job_template_node)
         workflow.add_node("generate_workflow", self._generate_workflow_node)
         workflow.add_node("verify_files", self._verify_files_node)
         workflow.add_node("commit_changes", self._commit_changes_node)
@@ -103,9 +103,7 @@ class PublishWorkflow:
         workflow.add_edge("generate_playbook", "generate_job_template")
         workflow.add_edge("generate_job_template", "generate_workflow")
         workflow.add_edge("generate_workflow", "verify_files")
-        workflow.add_conditional_edges(
-            "verify_files", self._check_verification
-        )
+        workflow.add_conditional_edges("verify_files", self._check_verification)
         workflow.add_edge("commit_changes", "push_branch")
         workflow.add_edge("push_branch", "create_pr")
         workflow.add_conditional_edges("create_pr", self._check_git_complete)
@@ -126,9 +124,7 @@ class PublishWorkflow:
             ".github/aap-workflow",
         ]
 
-        result = create_directory_structure(
-            base_path=base_path, structure=structure
-        )
+        result = create_directory_structure(base_path=base_path, structure=structure)
         if result.startswith("ERROR"):
             state.failed = True
             state.failure_reason = result
@@ -145,9 +141,7 @@ class PublishWorkflow:
         slog.info(f"Copying role from {state.role_path}")
 
         source_role_path = state.role_path
-        destination_path = (
-            f"{state.publish_dir}/roles/{state.role}"
-        )
+        destination_path = f"{state.publish_dir}/roles/{state.role}"
 
         result = copy_role_directory(
             source_role_path=source_role_path,
@@ -168,9 +162,7 @@ class PublishWorkflow:
         slog = logger.bind(phase="generate_playbook")
         slog.info("Generating playbook YAML")
 
-        file_path = (
-            f"{state.publish_dir}/playbooks/{state.role}_deploy.yml"
-        )
+        file_path = f"{state.publish_dir}/playbooks/{state.role}_deploy.yml"
         name = f"Deploy {state.role}"
         role_name = state.role
 
@@ -229,13 +221,10 @@ class PublishWorkflow:
         slog.info("Generating GitHub Actions workflow")
 
         file_path = (
-            f"{state.publish_dir}/.github/aap-workflow/"
-            "ansible-collection-import.yml"
+            f"{state.publish_dir}/.github/aap-workflow/ansible-collection-import.yml"
         )
 
-        result = generate_github_actions_workflow(
-            file_path=file_path
-        )
+        result = generate_github_actions_workflow(file_path=file_path)
         if result.startswith("ERROR"):
             state.failed = True
             state.failure_reason = result
@@ -253,18 +242,12 @@ class PublishWorkflow:
 
         required_files = [
             f"{state.publish_dir}/roles/{state.role}",
-            (
-                f"{state.publish_dir}/playbooks/"
-                f"{state.role}_deploy.yml"
-            ),
+            (f"{state.publish_dir}/playbooks/{state.role}_deploy.yml"),
             (
                 f"{state.publish_dir}/aap-config/job-templates/"
                 f"{state.job_template_name}.yaml"
             ),
-            (
-                f"{state.publish_dir}/.github/aap-workflow/"
-                "ansible-collection-import.yml"
-            ),
+            (f"{state.publish_dir}/.github/aap-workflow/ansible-collection-import.yml"),
         ]
 
         result = verify_files_exist(file_paths=required_files)
@@ -285,9 +268,7 @@ class PublishWorkflow:
 
         repository_url = state.github_repository_url
         directory = state.publish_dir
-        commit_message = (
-            f"Add {state.role} role and related configurations"
-        )
+        commit_message = f"Add {state.role} role and related configurations"
 
         # Determine branch to use for commit/PR
         # If github_branch is the same as base branch, create a feature branch
@@ -431,9 +412,7 @@ class PublishWorkflow:
         slog.info("Starting publish workflow")
 
         try:
-            result = self._graph.invoke(
-                initial_state, config=get_runnable_config()
-            )
+            result = self._graph.invoke(initial_state, config=get_runnable_config())
             final_state = PublishState(**result)
 
             if final_state.failed:
@@ -451,8 +430,7 @@ class PublishWorkflow:
                     )
                 else:
                     slog.info(
-                        f"Publish completed successfully for role "
-                        f"{final_state.role}!"
+                        f"Publish completed successfully for role {final_state.role}!"
                     )
                     if final_state.pr_url:
                         slog.info(f"PR URL: {final_state.pr_url}")
@@ -465,12 +443,9 @@ class PublishWorkflow:
             slog.debug(f"Full traceback: {traceback.format_exc()}")
 
             initial_state.failed = True
-            initial_state.failure_reason = (
-                f"Publish workflow error: {error_str}"
-            )
+            initial_state.failure_reason = f"Publish workflow error: {error_str}"
             initial_state.publish_output = (
-                f"ERROR: Unexpected error occurred. "
-                f"Error details: {error_str}"
+                f"ERROR: Unexpected error occurred. Error details: {error_str}"
             )
             return initial_state
 
