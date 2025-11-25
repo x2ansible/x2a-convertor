@@ -183,11 +183,14 @@ flowchart TB
 
 | Variable                   | Description                                                                 | Example Values                                                                                           | Required                  |
 | -------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------- |
-| `LLM_MODEL`                | Language model to use                                                       | `claude-3-5-sonnet-20241022`<br>`openai:gpt-4o`<br>`google_vertexai:gemini-2.5-pro`<br>`openai:qwen3:4b` | Yes                       |
+| `LLM_MODEL`                | Language model to use                                                       | `claude-3-5-sonnet-20241022`<br>`openai:gpt-4o`<br>`google_vertexai:gemini-2.5-pro`<br>`openai:qwen3:4b`<br>`us.anthropic.claude-3-7-sonnet-20250219-v1:0` (Bedrock) | Yes                       |
 | `OPENAI_API_BASE`          | Custom API endpoint for OpenAI-compatible APIs                              | `http://localhost:11434/v1`<br>`http://192.168.1.100:8000/v1`                                            | No                        |
 | `OPENAI_API_KEY`           | API key for OpenAI or compatible services                                   | `sk-...` or `not-needed` for local                                                                       | No                        |
-| `AWS_BEARER_TOKEN_BEDROCK` | AWS Bedrock API key. If present, the AWS LLM endpoint is used.              | sort of `ABSKQmVkcm9j.......`                                                                            | No                        |
-| `AWS_REGION`               | The AWS region with the model. Relevant with AWS_BEARER_TOKEN_BEDROCK only. | `us-east-1`,...                                                                                          | No (default: `eu-west-2`) |
+| `AWS_ACCESS_KEY_ID`        | AWS IAM access key for Bedrock authentication                               | `AKIA...` (20 characters)                                                                                | For Bedrock with IAM      |
+| `AWS_SECRET_ACCESS_KEY`    | AWS IAM secret key for Bedrock authentication                               | `***` (40 characters)                                                                                    | For Bedrock with IAM      |
+| `AWS_SESSION_TOKEN`        | AWS session token for temporary credentials                                 | `***` (for temporary credentials only)                                                                   | No (for temp creds only)  |
+| `AWS_BEARER_TOKEN_BEDROCK` | AWS Bedrock API key. Alternative to IAM credentials.                        | `ABSKQmVkcm9j.......`                                                                                    | For Bedrock with API key  |
+| `AWS_REGION`               | AWS region for Bedrock                                                      | `us-east-1`, `us-east-2`, `us-west-2`, `eu-west-2`                                                      | No (default: `eu-west-2`) |
 | `LOG_LEVEL`                | Logging verbosity for x2convertor namespace                                 | `INFO`, `DEBUG`, `ERROR`                                                                                 | No (default: INFO)        |
 | `DEBUG_ALL`                | Enable DEBUG logging for all libraries                                      | `true`, `false`                                                                                          | No (default: false)       |
 | `LANGCHAIN_DEBUG`          | Enable LangChain debug mode                                                 | `true`, `false`                                                                                          | No                        |
@@ -200,6 +203,27 @@ flowchart TB
 | `RECURSION_LIMIT`          | Maximum recursion limit to be used by the langchain                         | `100`, `200`                                                                                             | No (default: 100)         |
 | `MAX_EXPORT_ATTEMPTS`      | Maximum number of attempts to export the playbook                           | `5`, `10`                                                                                                | No (default: 5)           |
 | `REASONING_EFFORT`         | Reasoning effort when using a LLM model                                     | `low`, `medium`, `high`                                                                                  | No (default: None)        |
+
+#### AWS Bedrock Authentication
+
+AWS Bedrock supports two authentication methods (use one, not both):
+
+**Option 1: IAM Credentials (Recommended)**
+```bash
+export LLM_MODEL="us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+export AWS_REGION="us-east-2"
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+```
+
+**Option 2: Bearer Token (API Key)**
+```bash
+export LLM_MODEL="us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+export AWS_REGION="us-east-2"
+export AWS_BEARER_TOKEN_BEDROCK="ABSKQmVkcm9j..."
+```
+
+**Important:** Do NOT set `AWS_BEARER_TOKEN_BEDROCK` if using IAM credentials, as bearer tokens take precedence.
 
 Optionally, a `.env` file with these settings for development purposes can be created.
 
