@@ -7,6 +7,7 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
+from pydantic import SecretStr
 
 from src.utils.config import get_config_int
 from src.utils.logging import get_logger
@@ -110,11 +111,48 @@ def get_model() -> BaseChatModel:
     provider = "openai"
 
     # If AWS_BEARER_TOKEN_BEDROCK is set, use the AWS Bedrock
-    if os.getenv("AWS_BEARER_TOKEN_BEDROCK"):
+    if os.getenv("AWS_BEARER_TOKEN_BEDROCK") or os.getenv("AWS_ACCESS_KEY_ID"):
         provider = "bedrock_converse"
         region_name = os.getenv("AWS_REGION", "eu-west-2")
         kwargs["region_name"] = region_name
         logger.debug(f"AWS_REGION: {region_name}")
+
+    elif os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"):
+        # Pass AWS credentials as SecretStr type (required by ChatBedrockConverse)
+        provider = "bedrock_converse"
+        region_name = os.getenv("AWS_REGION", "eu-west-2")
+
+        # Get credentials from environment
+        access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+        secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+        assert access_key_id is not None, "AWS_ACCESS_KEY_ID should not be None"
+        assert secret_access_key is not None, "AWS_SECRET_ACCESS_KEY should not be None"
+
+        # Debug logging to verify credentials are loaded
+        logger.debug(f"AWS_REGION: {region_name}")
+        logger.debug(
+            f"AWS_ACCESS_KEY_ID length: {len(access_key_id) if access_key_id else 0}"
+        )
+        logger.debug(
+            f"AWS_SECRET_ACCESS_KEY length: {len(secret_access_key) if secret_access_key else 0}"
+        )
+        logger.debug(
+            f"AWS_ACCESS_KEY_ID starts with: {access_key_id[:4] if access_key_id and len(access_key_id) >= 4 else 'N/A'}"
+        )
+
+        # Wrap credentials in SecretStr as required by ChatBedrockConverse
+        kwargs["region_name"] = region_name
+        kwargs["aws_access_key_id"] = SecretStr(access_key_id)
+        kwargs["aws_secret_access_key"] = SecretStr(secret_access_key)
+
+        # Include session token if present (for temporary credentials)
+        aws_session_token = os.getenv("AWS_SESSION_TOKEN")
+        if aws_session_token:
+            kwargs["aws_session_token"] = SecretStr(aws_session_token)
+            logger.debug(f"AWS_SESSION_TOKEN length: {len(aws_session_token)}")
+
+        logger.info("Using AWS credentials from environment with Bedrock provider")
 
     # If the provider is OpenAI, use the specific OpenAI endpoint information
     if provider == "openai":
