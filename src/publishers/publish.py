@@ -439,9 +439,7 @@ class PublishWorkflow:
             state.publish_output = str(e)
         return state
 
-    def _check_verification(
-        self, state: PublishState
-    ) -> str:
+    def _check_verification(self, state: PublishState) -> str:
         """Conditional edge: Check if verification passed.
 
         Returns:
@@ -453,9 +451,7 @@ class PublishWorkflow:
             return END
         return self.NODE_COMMIT_CHANGES
 
-    def _check_git_complete(
-        self, state: PublishState
-    ) -> str:
+    def _check_git_complete(self, state: PublishState) -> str:
         """Conditional edge: Check if git steps completed successfully.
 
         Returns:
@@ -493,20 +489,20 @@ class PublishWorkflow:
                     f"Publish failed for role {final_state.role}: "
                     f"{final_state.failure_reason or 'Unknown error'}"
                 )
-            else:
-                if final_state.skip_git:
-                    slog.info(
-                        f"Publish completed successfully for role "
-                        f"{final_state.role}! "
-                        f"(Git steps skipped - files in "
-                        f"{final_state.publish_dir}/)"
-                    )
-                else:
-                    slog.info(
-                        f"Publish completed successfully for role {final_state.role}!"
-                    )
-                    if final_state.pr_url:
-                        slog.info(f"PR URL: {final_state.pr_url}")
+                return final_state
+
+            if final_state.skip_git:
+                slog.info(
+                    f"Publish completed successfully for role "
+                    f"{final_state.role}! "
+                    f"(Git steps skipped - files in "
+                    f"{final_state.publish_dir}/)"
+                )
+                return final_state
+
+            slog.info(f"Publish completed successfully for role {final_state.role}!")
+            if final_state.pr_url:
+                slog.info(f"PR URL: {final_state.pr_url}")
 
             return final_state
 
@@ -563,7 +559,7 @@ def publish_role(
     if result.failed:
         failure_reason = result.failure_reason or "Unknown error"
         logger.error(f"Publish failed for role {role_name}: {failure_reason}")
-    else:
-        logger.info(f"Publish completed successfully for role {role_name}!")
+        return result
 
+    logger.info(f"Publish completed successfully for role {role_name}!")
     return result
