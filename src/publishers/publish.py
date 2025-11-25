@@ -1,10 +1,11 @@
 """Publisher for Ansible roles to GitHub using GitOps approach."""
 
+import subprocess
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
+import requests
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -76,6 +77,10 @@ class PublishWorkflow:
     9. Create PR
     """
 
+    # Node names for conditional edges
+    NODE_COMMIT_CHANGES = "commit_changes"
+    NODE_MARK_FAILED = "mark_failed"
+
     def __init__(self) -> None:
         """Initialize the publish workflow."""
         self._graph = self._build_workflow()
@@ -124,15 +129,14 @@ class PublishWorkflow:
             ".github/aap-workflow",
         ]
 
-        result = create_directory_structure(base_path=base_path, structure=structure)
-        if result.startswith("ERROR"):
+        try:
+            create_directory_structure(base_path=base_path, structure=structure)
+            state.directory_structure_created = True
+            slog.info("Directory structure created successfully")
+        except OSError as e:
             state.failed = True
-            state.failure_reason = result
-            state.publish_output = result
-            return state
-
-        state.directory_structure_created = True
-        slog.info("Directory structure created successfully")
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
         return state
 
     def _copy_role_node(self, state: PublishState) -> PublishState:
@@ -143,18 +147,17 @@ class PublishWorkflow:
         source_role_path = state.role_path
         destination_path = f"{state.publish_dir}/roles/{state.role}"
 
-        result = copy_role_directory(
-            source_role_path=source_role_path,
-            destination_path=destination_path,
-        )
-        if result.startswith("ERROR"):
+        try:
+            copy_role_directory(
+                source_role_path=source_role_path,
+                destination_path=destination_path,
+            )
+            state.role_copied = True
+            slog.info("Role copied successfully")
+        except (ValueError, FileNotFoundError, OSError, RuntimeError) as e:
             state.failed = True
-            state.failure_reason = result
-            state.publish_output = result
-            return state
-
-        state.role_copied = True
-        slog.info("Role copied successfully")
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
         return state
 
     def _generate_playbook_node(self, state: PublishState) -> PublishState:
@@ -166,19 +169,18 @@ class PublishWorkflow:
         name = f"Deploy {state.role}"
         role_name = state.role
 
-        result = generate_playbook_yaml(
-            file_path=file_path,
-            name=name,
-            role_name=role_name,
-        )
-        if result.startswith("ERROR"):
+        try:
+            generate_playbook_yaml(
+                file_path=file_path,
+                name=name,
+                role_name=role_name,
+            )
+            state.playbook_generated = True
+            slog.info("Playbook generated successfully")
+        except (ValueError, OSError) as e:
             state.failed = True
-            state.failure_reason = result
-            state.publish_output = result
-            return state
-
-        state.playbook_generated = True
-        slog.info("Playbook generated successfully")
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
         return state
 
     def _generate_job_template_node(self, state: PublishState) -> PublishState:
@@ -196,23 +198,22 @@ class PublishWorkflow:
         role_name = state.role
         description = f"Deploy {state.role} role"
 
-        result = generate_job_template_yaml(
-            file_path=file_path,
-            name=name,
-            playbook_path=playbook_path,
-            inventory=inventory,
-            role_name=role_name,
-            description=description,
-        )
-        if result.startswith("ERROR"):
+        try:
+            generate_job_template_yaml(
+                file_path=file_path,
+                name=name,
+                playbook_path=playbook_path,
+                inventory=inventory,
+                role_name=role_name,
+                description=description,
+            )
+            state.job_template_generated = True
+            state.job_template_created = True
+            slog.info("Job template generated successfully")
+        except (ValueError, OSError) as e:
             state.failed = True
-            state.failure_reason = result
-            state.publish_output = result
-            return state
-
-        state.job_template_generated = True
-        state.job_template_created = True
-        slog.info("Job template generated successfully")
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
         return state
 
     def _generate_workflow_node(self, state: PublishState) -> PublishState:
@@ -224,41 +225,52 @@ class PublishWorkflow:
             f"{state.publish_dir}/.github/aap-workflow/ansible-collection-import.yml"
         )
 
-        result = generate_github_actions_workflow(file_path=file_path)
-        if result.startswith("ERROR"):
+        try:
+            generate_github_actions_workflow(file_path=file_path)
+            state.workflow_generated = True
+            slog.info("GitHub Actions workflow generated successfully")
+        except OSError as e:
             state.failed = True
-            state.failure_reason = result
-            state.publish_output = result
-            return state
-
-        state.workflow_generated = True
-        slog.info("GitHub Actions workflow generated successfully")
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
         return state
+
+    def _get_required_files(self, state: PublishState) -> list[str]:
+        """Get list of required files to verify.
+
+        This method can be overridden to customize which files are required.
+
+        Args:
+            state: Current publish state
+
+        Returns:
+            List of file paths to verify
+        """
+        return [
+            f"{state.publish_dir}/roles/{state.role}",
+            f"{state.publish_dir}/playbooks/{state.role}_deploy.yml",
+            (
+                f"{state.publish_dir}/aap-config/job-templates/"
+                f"{state.job_template_name}.yaml"
+            ),
+            f"{state.publish_dir}/.github/aap-workflow/ansible-collection-import.yml",
+        ]
 
     def _verify_files_node(self, state: PublishState) -> PublishState:
         """Node: Verify all required files exist."""
         slog = logger.bind(phase="verify_files")
         slog.info("Verifying files exist")
 
-        required_files = [
-            f"{state.publish_dir}/roles/{state.role}",
-            (f"{state.publish_dir}/playbooks/{state.role}_deploy.yml"),
-            (
-                f"{state.publish_dir}/aap-config/job-templates/"
-                f"{state.job_template_name}.yaml"
-            ),
-            (f"{state.publish_dir}/.github/aap-workflow/ansible-collection-import.yml"),
-        ]
+        required_files = self._get_required_files(state)
 
-        result = verify_files_exist(file_paths=required_files)
-        if result.startswith("ERROR"):
+        try:
+            verify_files_exist(file_paths=required_files)
+            state.files_verified = True
+            slog.info("All files verified successfully")
+        except FileNotFoundError as e:
             state.failed = True
-            state.failure_reason = result
-            state.publish_output = result
-            return state
-
-        state.files_verified = True
-        slog.info("All files verified successfully")
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
         return state
 
     def _commit_changes_node(self, state: PublishState) -> PublishState:
@@ -290,20 +302,39 @@ class PublishWorkflow:
         repo_path = _get_repo_path(repository_url)
         state.repo_path = str(repo_path)
 
-        result = github_commit_changes(
-            repository_url=repository_url,
-            directory=directory,
-            commit_message=commit_message,
-            branch=branch,
-        )
-        if result.startswith("ERROR"):
+        try:
+            commit_hash = github_commit_changes(
+                repository_url=repository_url,
+                directory=directory,
+                commit_message=commit_message,
+                branch=branch,
+            )
+            state.changes_committed = True
+            slog.info(f"Changes committed successfully. Commit: {commit_hash}")
+        except ValueError as e:
+            # Validation errors are user input issues - provide clear feedback
             state.failed = True
-            state.failure_reason = result
-            state.publish_output = result
-            return state
-
-        state.changes_committed = True
-        slog.info("Changes committed successfully")
+            state.failure_reason = f"Validation failed: {e}"
+            state.publish_output = (
+                f"Invalid configuration: {e}. "
+                "Please check your repository URL, branch, and directory."
+            )
+        except FileNotFoundError as e:
+            state.failed = True
+            state.failure_reason = f"Directory not found: {e}"
+            state.publish_output = str(e)
+        except subprocess.CalledProcessError as e:
+            # Git errors might be retryable or need different handling
+            state.failed = True
+            state.failure_reason = f"Git operation failed: {e}"
+            state.publish_output = (
+                f"Git operation failed: {e}. "
+                "This might be a temporary issue - you can try again."
+            )
+        except RuntimeError as e:
+            state.failed = True
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
         return state
 
     def _push_branch_node(self, state: PublishState) -> PublishState:
@@ -315,21 +346,40 @@ class PublishWorkflow:
         branch = state.pr_head_branch
         repo_path = Path(state.repo_path) if state.repo_path else None
 
-        result = github_push_branch(
-            repository_url=repository_url,
-            branch=branch,
-            repo_path=repo_path,
-            remote="origin",
-            force=False,
-        )
-        if result.startswith("ERROR"):
+        try:
+            github_push_branch(
+                repository_url=repository_url,
+                branch=branch,
+                repo_path=repo_path,
+                remote="origin",
+                force=False,
+            )
+            state.branch_pushed = True
+            slog.info("Branch pushed successfully")
+        except ValueError as e:
+            # Missing repo_path or branch - configuration issue
             state.failed = True
-            state.failure_reason = result
-            state.publish_output = result
-            return state
-
-        state.branch_pushed = True
-        slog.info("Branch pushed successfully")
+            state.failure_reason = f"Configuration error: {e}"
+            state.publish_output = (
+                f"Configuration error: {e}. "
+                "This should not happen if previous steps succeeded."
+            )
+        except FileNotFoundError as e:
+            state.failed = True
+            state.failure_reason = f"Repository not found: {e}"
+            state.publish_output = str(e)
+        except subprocess.CalledProcessError as e:
+            # Git push failures - might be auth, network, or conflict issues
+            state.failed = True
+            state.failure_reason = f"Failed to push branch: {e}"
+            state.publish_output = (
+                f"Failed to push branch: {e}. "
+                "Check your authentication and network connection."
+            )
+        except RuntimeError as e:
+            state.failed = True
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
         return state
 
     def _create_pr_node(self, state: PublishState) -> PublishState:
@@ -351,46 +401,69 @@ class PublishWorkflow:
         head = state.pr_head_branch
         base = state.pr_base_branch
 
-        result = github_create_pr(
-            repository_url=repository_url,
-            title=title,
-            body=body,
-            head=head,
-            base=base,
-        )
-        if result.startswith("ERROR"):
-            state.failed = True
-            state.failure_reason = result
-            state.publish_output = result
-            return state
-
-        # Extract PR URL from result if available
-        if "URL:" in result:
-            pr_url = result.split("URL:")[-1].strip()
+        try:
+            pr_url = github_create_pr(
+                repository_url=repository_url,
+                title=title,
+                body=body,
+                head=head,
+                base=base,
+            )
             state.pr_url = pr_url
-
-        state.pr_created = True
-        state.publish_output = result
-        slog.info("Pull Request created successfully")
+            state.pr_created = True
+            state.publish_output = pr_url
+            slog.info(f"Pull Request created successfully. URL: {pr_url}")
+        except ValueError as e:
+            # Missing token, invalid branches, etc.
+            state.failed = True
+            state.failure_reason = f"PR validation failed: {e}"
+            state.publish_output = (
+                f"Cannot create PR: {e}. "
+                "Check your GITHUB_TOKEN and branch configuration."
+            )
+        except requests.exceptions.HTTPError as e:
+            # API errors - rate limits, permissions, etc.
+            state.failed = True
+            state.failure_reason = f"GitHub API error: {e}"
+            state.publish_output = (
+                f"GitHub API error: {e}. "
+                "This might be a rate limit or permission issue."
+            )
+        except requests.exceptions.RequestException as e:
+            state.failed = True
+            state.failure_reason = f"GitHub API request failed: {e}"
+            state.publish_output = str(e)
+        except RuntimeError as e:
+            state.failed = True
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
         return state
 
     def _check_verification(
         self, state: PublishState
-    ) -> Literal["commit_changes", "mark_failed", "__end__"]:
-        """Conditional edge: Check if verification passed."""
+    ) -> str:
+        """Conditional edge: Check if verification passed.
+
+        Returns:
+            Node name to transition to, or END to terminate workflow.
+        """
         if state.failed:
-            return "mark_failed"
+            return self.NODE_MARK_FAILED
         if state.skip_git:
-            return "__end__"
-        return "commit_changes"
+            return END
+        return self.NODE_COMMIT_CHANGES
 
     def _check_git_complete(
         self, state: PublishState
-    ) -> Literal["__end__", "mark_failed"]:
-        """Conditional edge: Check if git steps completed successfully."""
+    ) -> str:
+        """Conditional edge: Check if git steps completed successfully.
+
+        Returns:
+            Node name to transition to, or END to terminate workflow.
+        """
         if state.failed:
-            return "mark_failed"
-        return "__end__"
+            return self.NODE_MARK_FAILED
+        return END
 
     def _mark_failed_node(self, state: PublishState) -> PublishState:
         """Node: Mark workflow as failed."""
@@ -445,7 +518,7 @@ class PublishWorkflow:
             initial_state.failed = True
             initial_state.failure_reason = f"Publish workflow error: {error_str}"
             initial_state.publish_output = (
-                f"ERROR: Unexpected error occurred. Error details: {error_str}"
+                f"Unexpected error occurred. Error details: {error_str}"
             )
             return initial_state
 

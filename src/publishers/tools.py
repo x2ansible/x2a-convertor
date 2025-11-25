@@ -20,15 +20,15 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def create_directory_structure(base_path: str, structure: list[str]) -> str:
+def create_directory_structure(base_path: str, structure: list[str]) -> None:
     """Create directory structure for GitOps publishing.
 
     Args:
         base_path: Base path where directories should be created
         structure: List of directory paths to create
 
-    Returns:
-        Success message or error message
+    Raises:
+        OSError: If directory creation fails
     """
     logger.info(f"Creating directory structure at {base_path}")
 
@@ -50,19 +50,19 @@ def create_directory_structure(base_path: str, structure: list[str]) -> str:
             logger.error(error_msg)
 
     if errors:
-        return (
-            "ERROR: Some directories failed to create:\n"
+        error_details = (
+            "Some directories failed to create:\n"
             + "\n".join(errors)
             + "\n\nSuccessfully created:\n"
             + "\n".join(created_dirs)
         )
+        logger.error(error_details)
+        raise OSError(error_details)
 
-    return f"Successfully created {len(created_dirs)} directories:\n" + "\n".join(
-        f"  - {d}" for d in created_dirs
-    )
+    logger.info(f"Successfully created {len(created_dirs)} directories")
 
 
-def copy_role_directory(source_role_path: str, destination_path: str) -> str:
+def copy_role_directory(source_role_path: str, destination_path: str) -> None:
     """Copy an entire Ansible role directory to a new location.
 
     Excludes export-output.md, .checklist.json, and .ansible cache directory.
@@ -71,8 +71,10 @@ def copy_role_directory(source_role_path: str, destination_path: str) -> str:
         source_role_path: Source role directory path
         destination_path: Destination path for the role
 
-    Returns:
-        Success or error message
+    Raises:
+        ValueError: If source path is invalid
+        FileNotFoundError: If source path does not exist
+        OSError: If copy operation fails
     """
     logger.info(f"Copying role from {source_role_path} to {destination_path}")
 
@@ -80,10 +82,14 @@ def copy_role_directory(source_role_path: str, destination_path: str) -> str:
     dest_path_obj = Path(destination_path)
 
     if not source_path_obj.exists():
-        return f"ERROR: Source role path does not exist: {source_role_path}"
+        error_msg = f"Source role path does not exist: {source_role_path}"
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
 
     if not source_path_obj.is_dir():
-        return f"ERROR: Source path is not a directory: {source_role_path}"
+        error_msg = f"Source path is not a directory: {source_role_path}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     # Check if it looks like an Ansible role
     required_dirs = ["tasks", "meta"]
@@ -130,16 +136,15 @@ def copy_role_directory(source_role_path: str, destination_path: str) -> str:
         )
 
         logger.info(f"Successfully copied role to {destination_path}")
-        return f"Successfully copied role from {source_role_path} to {destination_path}"
 
     except shutil.Error as e:
-        error_msg = f"ERROR: Failed to copy role directory: {e}"
+        error_msg = f"Failed to copy role directory: {e}"
         logger.error(error_msg)
-        return error_msg
+        raise OSError(error_msg) from e
     except Exception as e:
-        error_msg = f"ERROR: Unexpected error copying role: {e}"
+        error_msg = f"Unexpected error copying role: {e}"
         logger.error(error_msg)
-        return error_msg
+        raise RuntimeError(error_msg) from e
 
 
 def generate_playbook_yaml(
@@ -149,7 +154,7 @@ def generate_playbook_yaml(
     hosts: str = "all",
     become: bool = False,
     vars: dict[str, Any] | None = None,
-) -> str:
+) -> None:
     """Generate Ansible playbook YAML file.
 
     Args:
@@ -160,8 +165,9 @@ def generate_playbook_yaml(
         become: Use privilege escalation (default: False)
         vars: Variables for role (default: None)
 
-    Returns:
-        Success or error message
+    Raises:
+        ValueError: If role_name is missing
+        OSError: If file generation fails
     """
     logger.info(f"Generating playbook YAML: {name}")
 
@@ -169,7 +175,9 @@ def generate_playbook_yaml(
         vars = {}
 
     if not role_name:
-        return "ERROR: role_name is required for playbook generation"
+        error_msg = "role_name is required for playbook generation"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     try:
         template = get_template("playbook.yml")
@@ -188,17 +196,11 @@ def generate_playbook_yaml(
             f.write(playbook_content)
 
         logger.info(f"Successfully generated playbook YAML: {file_path}")
-        return (
-            f"Successfully generated playbook YAML at {file_path}\n"
-            f"Playbook: {name}\n"
-            f"Role: {role_name}\n"
-            f"Hosts: {hosts}"
-        )
 
     except Exception as e:
-        error_msg = f"ERROR: Failed to generate playbook YAML: {e}"
+        error_msg = f"Failed to generate playbook YAML: {e}"
         logger.error(error_msg)
-        return error_msg
+        raise OSError(error_msg) from e
 
 
 def generate_job_template_yaml(
@@ -209,7 +211,7 @@ def generate_job_template_yaml(
     role_name: str = "",
     description: str = "",
     extra_vars: str = "",
-) -> str:
+) -> None:
     """Generate AAP job template YAML file.
 
     Args:
@@ -221,15 +223,20 @@ def generate_job_template_yaml(
         description: Description (optional)
         extra_vars: Extra vars YAML (optional)
 
-    Returns:
-        Success or error message
+    Raises:
+        ValueError: If required parameters are missing
+        OSError: If file generation fails
     """
     logger.info(f"Generating job template YAML: {name}")
 
     if not playbook_path:
-        return "ERROR: playbook_path is required for job_template generation"
+        error_msg = "playbook_path is required for job_template generation"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
     if not inventory:
-        return "ERROR: inventory is required for job_template generation"
+        error_msg = "inventory is required for job_template generation"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     # Parse extra_vars before main try block to avoid nesting
     parsed_extra_vars = None
@@ -260,27 +267,21 @@ def generate_job_template_yaml(
             f.write(job_template_content)
 
         logger.info(f"Successfully generated job template YAML: {file_path}")
-        return (
-            f"Successfully generated job template YAML at {file_path}\n"
-            f"Job template: {name}\n"
-            f"Playbook: {playbook_path}\n"
-            f"Inventory: {inventory}"
-        )
 
     except Exception as e:
-        error_msg = f"ERROR: Failed to generate job template YAML: {e}"
+        error_msg = f"Failed to generate job template YAML: {e}"
         logger.error(error_msg)
-        return error_msg
+        raise OSError(error_msg) from e
 
 
-def generate_github_actions_workflow(file_path: str) -> str:
+def generate_github_actions_workflow(file_path: str) -> None:
     """Generate GitHub Actions workflow file.
 
     Args:
         file_path: Output file path
 
-    Returns:
-        Success or error message
+    Raises:
+        OSError: If file generation fails
     """
     logger.info(f"Generating GitHub Actions workflow at {file_path}")
 
@@ -295,22 +296,21 @@ def generate_github_actions_workflow(file_path: str) -> str:
             f.write(workflow_content)
 
         logger.info(f"Successfully generated GitHub Actions workflow: {file_path}")
-        return f"Successfully generated GitHub Actions workflow at {file_path}"
 
     except Exception as e:
-        error_msg = f"ERROR: Failed to generate GitHub Actions workflow: {e}"
+        error_msg = f"Failed to generate GitHub Actions workflow: {e}"
         logger.error(error_msg)
-        return error_msg
+        raise OSError(error_msg) from e
 
 
-def verify_files_exist(file_paths: list[str]) -> str:
+def verify_files_exist(file_paths: list[str]) -> None:
     """Verify that all required files exist.
 
     Args:
         file_paths: List of file/directory paths to verify
 
-    Returns:
-        Success or error message
+    Raises:
+        FileNotFoundError: If any files are missing
     """
     logger.info(f"Verifying {len(file_paths)} files exist")
 
@@ -321,14 +321,13 @@ def verify_files_exist(file_paths: list[str]) -> str:
             missing_files.append(file_path)
 
     if missing_files:
-        error_msg = f"ERROR: {len(missing_files)} files are missing:\n" + "\n".join(
+        error_msg = f"{len(missing_files)} files are missing:\n" + "\n".join(
             f"  - {f}" for f in missing_files
         )
         logger.error(error_msg)
-        return error_msg
+        raise FileNotFoundError(error_msg)
 
     logger.info("All files verified successfully")
-    return f"Successfully verified {len(file_paths)} files exist"
 
 
 def _get_repo_path(repository_url: str) -> Path:
@@ -361,16 +360,28 @@ def github_commit_changes(
         branch: Branch name to commit to
 
     Returns:
-        Success message or error message
+        Commit hash
+
+    Raises:
+        ValueError: If required parameters are missing
+        FileNotFoundError: If directory does not exist
+        subprocess.CalledProcessError: If git commands fail
+        RuntimeError: If unexpected errors occur
     """
     if not repository_url:
-        return "ERROR: repository_url is required"
+        error_msg = "repository_url is required"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     if not commit_message:
-        return "ERROR: commit_message is required"
+        error_msg = "commit_message is required"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     if not branch:
-        return "ERROR: branch is required"
+        error_msg = "branch is required"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     logger.info(
         f"Committing {directory} to branch {branch} in {repository_url} "
@@ -380,7 +391,9 @@ def github_commit_changes(
     # Check if directory exists in current location
     dir_path = Path(directory)
     if not dir_path.exists():
-        return f"ERROR: Directory '{directory}' does not exist in current repository"
+        error_msg = f"Directory '{directory}' does not exist in current repository"
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
 
     repo_path = _get_repo_path(repository_url)
 
@@ -391,6 +404,9 @@ def github_commit_changes(
     if repo_path.exists():
         logger.info(f"Removing existing clone at {repo_path}")
         shutil.rmtree(repo_path)
+
+    # Store original working directory before changing it
+    original_cwd = Path.cwd()
 
     try:
         logger.info(f"Cloning target repository to {repo_path}")
@@ -424,7 +440,6 @@ def github_commit_changes(
         )
 
         # Change to the cloned repository directory
-        original_cwd = Path.cwd()
         os.chdir(repo_path)
 
         # Get current branch
@@ -479,11 +494,14 @@ def github_commit_changes(
         )
         if result.returncode == 0:
             os.chdir(original_cwd)
-            return (
-                "ERROR: No changes to commit. "
+            error_msg = (
+                "No changes to commit. "
                 "Files may already be committed or unchanged. "
                 "Cannot create PR without new commits."
             )
+            logger.error(error_msg)
+            # Must raise here: validation requires being in repo directory
+            raise RuntimeError(error_msg)  # noqa: TRY301
 
         # Commit the changes
         logger.info(f"Committing with message: {commit_message}")
@@ -503,32 +521,28 @@ def github_commit_changes(
         )
         commit_hash = result.stdout.strip()[:7]
 
-        success_message = (
-            f"✅ Successfully committed changes to branch '{branch}' "
-            f"in {repository_url}\n"
-            f"Commit: {commit_hash}\n"
-            f"Message: {commit_message}\n"
-            f"Files committed: {', '.join(copied_items)}\n"
-            f"Repository location: {repo_path}\n"
-            f"Note: Only files from '{directory}' were committed, "
-            "no other working directory changes included"
+        logger.info(
+            f"Successfully committed changes to branch '{branch}' "
+            f"in {repository_url}. Commit: {commit_hash}. "
+            f"Files committed: {', '.join(copied_items)}"
         )
-        logger.info(success_message)
         os.chdir(original_cwd)
-        return success_message
+        return commit_hash
 
     except subprocess.CalledProcessError as e:
         error_message = (
-            f"ERROR: Git command failed: {e}\n"
+            f"Git command failed: {e}\n"
             f"Command output: {e.stderr if e.stderr else e.stdout}"
         )
         logger.error(error_message)
-        return error_message
+        os.chdir(original_cwd)
+        raise
 
     except Exception as e:
-        error_message = f"ERROR: Unexpected error during git commit: {e}"
+        error_message = f"Unexpected error during git commit: {e}"
         logger.error(error_message)
-        return error_message
+        os.chdir(original_cwd)
+        raise RuntimeError(error_message) from e
 
 
 def github_push_branch(
@@ -537,7 +551,7 @@ def github_push_branch(
     repo_path: Path | None = None,
     remote: str = "origin",
     force: bool = False,
-) -> str:
+) -> None:
     """Push a git branch to remote repository.
 
     Args:
@@ -546,35 +560,45 @@ def github_push_branch(
         remote: Remote name (default: 'origin')
         force: Whether to force push (default: False)
 
-    Returns:
-        Success message or error message
+    Raises:
+        ValueError: If required parameters are missing
+        subprocess.CalledProcessError: If git commands fail
+        RuntimeError: If unexpected errors occur
     """
     if not repository_url:
-        return "ERROR: repository_url is required"
+        error_msg = "repository_url is required"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     if not branch:
-        return "ERROR: branch is required"
+        error_msg = "branch is required"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     logger.info(f"Pushing branch '{branch}' to {repository_url}")
 
     # Repo path must be provided (from commit_changes)
     if repo_path is None:
-        return (
-            "ERROR: repo_path is required. This should be set by github_commit_changes."
+        error_msg = (
+            "repo_path is required. This should be set by github_commit_changes."
         )
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     # Check if repository exists (should have been cloned by commit tool)
     if not repo_path.exists() or not (repo_path / ".git").exists():
-        return (
-            f"ERROR: Repository not found at {repo_path}. "
+        error_msg = (
+            f"Repository not found at {repo_path}. "
             "Please run github_commit_changes first to clone "
             "and commit the repository."
         )
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
 
     original_cwd = Path.cwd()
-    try:
-        os.chdir(repo_path)
+    os.chdir(repo_path)
 
+    try:
         # Check if remote exists
         result = subprocess.run(
             ["git", "remote", "get-url", remote],
@@ -583,10 +607,14 @@ def github_push_branch(
             check=False,
         )
         if result.returncode != 0:
-            return (
-                f"ERROR: Remote '{remote}' not found. "
+            os.chdir(original_cwd)
+            error_msg = (
+                f"Remote '{remote}' not found. "
                 f"Available remotes can be checked with 'git remote -v'"
             )
+            logger.error(error_msg)
+            # Must raise here: validation requires being in repo directory
+            raise RuntimeError(error_msg)  # noqa: TRY301
 
         remote_url = result.stdout.strip()
         logger.info(f"Remote URL: {remote_url}")
@@ -608,10 +636,14 @@ def github_push_branch(
             check=True,
         )
         if not result.stdout.strip():
-            return (
-                f"ERROR: Branch '{branch}' does not exist locally. "
+            os.chdir(original_cwd)
+            error_msg = (
+                f"Branch '{branch}' does not exist locally. "
                 "Please commit changes first using github_commit_changes."
             )
+            logger.error(error_msg)
+            # Must raise here: validation requires being in repo directory
+            raise RuntimeError(error_msg)  # noqa: TRY301
 
         # Check if branch exists on remote
         result = subprocess.run(
@@ -663,19 +695,15 @@ def github_push_branch(
             check=True,
         )
 
-        success_message = (
-            f"✅ Successfully pushed branch '{branch}' "
-            f"to {repository_url}\n"
-            f"Remote: {remote}\n"
-            f"Commits ahead: {commits_ahead}\n"
+        logger.info(
+            f"Successfully pushed branch '{branch}' to {repository_url}. "
+            f"Remote: {remote}. Commits ahead: {commits_ahead}. "
             "Branch is now ready for PR creation"
         )
-        logger.info(success_message)
-        return success_message
 
     except subprocess.CalledProcessError as e:
         error_message = (
-            f"ERROR: Git push failed: {e}\n"
+            f"Git push failed: {e}\n"
             f"Command output: {e.stderr if e.stderr else e.stdout}"
         )
 
@@ -697,12 +725,14 @@ def github_push_branch(
             )
 
         logger.error(error_message)
-        return error_message
+        os.chdir(original_cwd)
+        raise
 
     except Exception as e:
-        error_message = f"ERROR: Unexpected error during git push: {e}"
+        error_message = f"Unexpected error during git push: {e}"
         logger.error(error_message)
-        return error_message
+        os.chdir(original_cwd)
+        raise RuntimeError(error_message) from e
 
     finally:
         os.chdir(original_cwd)
@@ -725,40 +755,47 @@ def github_create_pr(
         base: Branch name to merge into (target branch, default: 'main')
 
     Returns:
-        Success message with PR URL or error message
+        PR URL
+
+    Raises:
+        ValueError: If required parameters are missing or invalid
+        requests.exceptions.HTTPError: If GitHub API operations fail
+        RuntimeError: If unexpected errors occur
     """
     logger.info(f"Creating PR from {head} to {base} in {repository_url}")
 
     github_token = os.environ.get("GITHUB_TOKEN", "")
 
     if not github_token:
-        return "ERROR: GITHUB_TOKEN environment variable not set. Cannot create PR."
+        error_msg = "GITHUB_TOKEN environment variable not set. Cannot create PR."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     # Extract owner and repo from URL
-    try:
-        cleaned_url = repository_url.replace(".git", "")
-        parsed_url = urlparse(cleaned_url)
-        path_segments = [p for p in parsed_url.path.split("/") if p]
+    cleaned_url = repository_url.replace(".git", "")
+    parsed_url = urlparse(cleaned_url)
+    path_segments = [p for p in parsed_url.path.split("/") if p]
 
-        if len(path_segments) < 2:
-            return (
-                f"ERROR: Could not extract owner/repo from URL: "
-                f"{repository_url}. Expected format: /owner/repo"
-            )
+    if len(path_segments) < 2:
+        error_msg = (
+            f"Could not extract owner/repo from URL: "
+            f"{repository_url}. Expected format: /owner/repo"
+        )
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
-        owner = path_segments[-2]
-        repo = path_segments[-1]
-
-    except Exception as e:
-        return f"ERROR: Failed to parse repository URL {repository_url}: {e}"
+    owner = path_segments[-2]
+    repo = path_segments[-1]
 
     # Verify branches are different
     if head == base:
-        return (
-            f"ERROR: Cannot create PR: head branch '{head}' "
+        error_msg = (
+            f"Cannot create PR: head branch '{head}' "
             f"cannot be the same as base branch '{base}'. "
             f"Please use a feature branch for the PR."
         )
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     # Verify that head branch has commits ahead of base using GitHub API
     compare_url = f"https://api.github.com/repos/{owner}/{repo}/compare/{base}...{head}"
@@ -780,24 +817,28 @@ def github_create_pr(
             f"Branch {head} is {commits_ahead} commits ahead "
             f"and {commits_behind} commits behind {base}"
         )
-
-        if commits_ahead == 0:
-            return (
-                f"ERROR: Cannot create PR: Branch '{head}' has no commits "
-                f"ahead of '{base}'. The branches are at the same commit. "
-                f"This usually means the files are already in the base branch."
-            )
-
     except requests.exceptions.HTTPError as e:
         # If comparison fails, log but continue (might be a new branch)
         logger.warning(
             f"Could not compare branches {base} and {head}: {e}. "
             "Continuing with PR creation..."
         )
+        commits_ahead = None
     except Exception as e:
         logger.warning(
             f"Error checking branch comparison: {e}. Continuing with PR creation..."
         )
+        commits_ahead = None
+
+    # Check if commits_ahead is 0 (only if we successfully got the data)
+    if commits_ahead == 0:
+        error_msg = (
+            f"Cannot create PR: Branch '{head}' has no commits "
+            f"ahead of '{base}'. The branches are at the same commit. "
+            f"This usually means the files are already in the base branch."
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
     # GitHub API call to create PR
     api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
@@ -821,19 +862,15 @@ def github_create_pr(
         pr_url = pr_data.get("html_url")
         pr_number = pr_data.get("number")
 
-        success_message = (
-            f"✅ Pull Request #{pr_number} created successfully! URL: {pr_url}"
-        )
-        logger.info(success_message)
-        return success_message
+        logger.info(f"Pull Request #{pr_number} created successfully! URL: {pr_url}")
+        return pr_url
 
     except requests.exceptions.HTTPError as e:
         if response is None:
-            error_message = f"ERROR: GitHub API Error when creating PR: {e}"
+            error_message = f"GitHub API Error when creating PR: {e}"
         else:
             error_message = (
-                f"ERROR: GitHub API Error ({response.status_code}) "
-                f"when creating PR: {e}"
+                f"GitHub API Error ({response.status_code}) when creating PR: {e}"
             )
             error_message += f"\nResponse Content: {response.text}"
 
@@ -849,11 +886,9 @@ def github_create_pr(
                     error_message += f"\nValidation Errors: {error_details['errors']}"
 
         logger.error(error_message)
-        return error_message
+        raise
 
     except requests.exceptions.RequestException as e:
-        error_message = (
-            f"ERROR: An error occurred during the request to GitHub API: {e}"
-        )
+        error_message = f"An error occurred during the request to GitHub API: {e}"
         logger.error(error_message)
-        return error_message
+        raise
