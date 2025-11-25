@@ -14,6 +14,7 @@ Complete end-to-end process for migrating infrastructure code from Chef/Puppet/S
 X2A Convertor follows a four-phase workflow with human review checkpoints at each stage:
 
 {% raw %}
+
 ```mermaid
 flowchart TB
     Start([Chef Repository]) --> P1
@@ -84,6 +85,7 @@ flowchart TB
     style P3 fill:#f3e5f5
     style P4 fill:#fce4ec
 ```
+
 {% endraw %}
 
 ## Phase 1: Init
@@ -121,6 +123,7 @@ sequenceDiagram
 **File**: `migration-plan.md`
 
 Contains:
+
 - Repository structure overview
 - List of all identified modules/cookbooks
 - Dependency graph
@@ -188,6 +191,7 @@ stateDiagram-v2
 **File**: `migration-plan-<module-name>.md`
 
 Contains:
+
 - Module-specific overview
 - File-by-file mapping
 - Template list
@@ -278,9 +282,10 @@ sequenceDiagram
 
 ### Outputs
 
-**Directory**: `ansible/<module-name>/`
+**Directory**: `ansible/roles/<module-name>/`
 
 Structure:
+
 ```
 ansible/nginx-multisite/
 ├── defaults/
@@ -336,6 +341,7 @@ flowchart TB
 ### Outputs
 
 **Console**: Validation report with:
+
 - ansible-lint results
 - Logic comparison summary
 - Potential discrepancies
@@ -348,7 +354,6 @@ flowchart TB
 - [ ] Edge cases handled correctly
 - [ ] Idempotency verified
 - [ ] Ready for test environment deployment
-
 
 ## Parallel Workflows
 
@@ -383,12 +388,15 @@ This reduces total time from 105 minutes (sequential) to 30 minutes (parallel).
 ### Common Failure Points
 
 1. **Init fails to identify modules**
+
    - TBC
 
 2. **Analyze cannot resolve dependencies**
+
    - TBC
 
 3. **Migrate exceeds retry limit**
+
    - TBC
 
 4. **Validate detects logic differences**

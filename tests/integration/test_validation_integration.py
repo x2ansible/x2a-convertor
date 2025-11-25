@@ -42,9 +42,11 @@ class TestValidationIntegration:
         state.current_phase = MigrationPhase.VALIDATING
         state.validation_report = ""
         state.validation_attempt_counter = 0
-        state.get_ansible_path.return_value = str(tmp_path / "ansible" / "test_module")
+        state.get_ansible_path.return_value = str(
+            tmp_path / "ansible" / "roles" / "test_module"
+        )
         state.get_checklist_path.return_value = str(
-            tmp_path / "ansible" / "test_module" / ".checklist.json"
+            tmp_path / "ansible" / "roles" / "test_module" / ".checklist.json"
         )
         return state
 
@@ -69,7 +71,7 @@ class TestValidationIntegration:
 
         # Initialize service with mock validators
         service = ValidationService([mock_validator1, mock_validator2])
-        ansible_path = str(tmp_path / "ansible" / "test_role")
+        ansible_path = str(tmp_path / "ansible" / "roles" / "test_role")
 
         # Run validation
         results = service.validate_all(ansible_path)
