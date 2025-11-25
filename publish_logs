@@ -1,0 +1,49 @@
+/home/eshalev/git_repos/x2a/x2a-convertor/.venv/lib64/python3.13/site-packages/ansible_risk_insight/loader.py:20: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+INFO:x2convertor.src.publishers.publish: Publishing: nginx_multisite
+INFO:x2convertor.src.model: Initializing model: meta/llama-3.3-70b-instruct-maas
+DEBUG:x2convertor.src.model: Model parameters: {'max_tokens': 8192, 'temperature': 0.1}
+DEBUG:x2convertor.src.model: OPENAI_API_BASE: https://us-central1-aiplatform.googleapis.com/v1/projects/rhdh-orchestrator-ai/locations/us-central1/endpoints/openapi
+DEBUG:x2convertor.src.model: OPENAI_API_KEY present: True, length: 261
+INFO:x2convertor.src.model: Using the 'openai' provider with the 'meta/llama-3.3-70b-instruct-maas' model for accessing LLM
+INFO:x2convertor.src.publishers.publish: Publishing role using GitOps approach [phase=publish_role]
+INFO:x2convertor.src.publishers.publish: Creating PublishAgent react agent
+DEBUG:x2convertor.src.publishers.publish: Number of tools: 9
+DEBUG:x2convertor.src.publishers.publish: Total tool description size: ~2034 chars
+INFO:x2convertor.src.publishers.publish: PublishAgent starting for role: nginx_multisite [phase=publish_role]
+DEBUG:x2convertor.src.publishers.publish: System prompt: 7713 chars, User prompt: 977 chars, Total message size: ~17380 chars [phase=publish_role]
+DEBUG:x2convertor.src.publishers.publish: Invoking react agent... [phase=publish_role]
+DEBUG:x2convertor.src.model: Tool Started [tool_name=list_directory input={'dir_path': '../chef-examples/ansible/nginx_multisite'}]
+INFO:x2convertor.src.model: Tool Ended [tool_name=list_directory output=content='.checklist.json\nmeta]
+DEBUG:x2convertor.src.model: Tool Started [tool_name=create_directory_structure input={'base_path': '.', 'structure': ['roles/nginx_multisite', 'playbooks', 'aap-config/job-templates', '.github/workflows']}]
+INFO:x2convertor.tools.create_directory_structure: Creating directory structure at .
+DEBUG:x2convertor.tools.create_directory_structure: Created directory: roles/nginx_multisite
+DEBUG:x2convertor.tools.create_directory_structure: Created directory: playbooks
+DEBUG:x2convertor.tools.create_directory_structure: Created directory: aap-config/job-templates
+DEBUG:x2convertor.tools.create_directory_structure: Created directory: .github/workflows
+INFO:x2convertor.src.model: Tool Ended [tool_name=create_directory_structure output=content='Successfully created ]
+DEBUG:x2convertor.src.model: Tool Started [tool_name=copy_role_directory input={'destination_path': 'roles/nginx_multisite', 'source_role_path': '../chef-examples/ansible/nginx_multisite'}]
+INFO:x2convertor.tools.copy_role_directory: Copying role from ../chef-examples/ansible/nginx_multisite to roles/nginx_multisite
+INFO:x2convertor.tools.copy_role_directory: Successfully copied role to roles/nginx_multisite
+INFO:x2convertor.src.model: Tool Ended [tool_name=copy_role_directory output=content='Successfully copied r]
+DEBUG:x2convertor.src.model: Tool Started [tool_name=generate_playbook_yaml input={'become': 'true', 'file_path': 'playbooks/nginx_multisite_deploy.yml', 'hosts': 'all', 'name': 'Deploy Nginx Multisite', 'role_name': 'nginx_multisite', 'vars': {}}]
+INFO:x2convertor.tools.generate_playbook_yaml: Generating playbook YAML: Deploy Nginx Multisite
+DEBUG:x2convertor.tools.ansible_write: AnsibleWriteTool called on playbooks/nginx_multisite_deploy.yml [phase=AnsibleWriteTool file_path=playbooks/nginx_multisite_deploy.yml]
+DEBUG:x2convertor.src.model: Tool Started [tool_name=write_file input={'file_path': 'playbooks/nginx_multisite_deploy.yml', 'text': '- name: Deploy Nginx Multisite\n  hosts: all\n  become: true\n  roles:\n  - nginx_multisite\n'}]
+INFO:x2convertor.src.model: Tool Ended [tool_name=write_file output=File written successfully to p]
+INFO:x2convertor.tools.ansible_write: Successfully wrote valid Ansible YAML [phase=AnsibleWriteTool file_path=playbooks/nginx_multisite_deploy.yml]
+INFO:x2convertor.tools.generate_playbook_yaml: Successfully generated playbook YAML: playbooks/nginx_multisite_deploy.yml
+INFO:x2convertor.src.model: Tool Ended [tool_name=generate_playbook_yaml output=content='Successfully generate]
+DEBUG:x2convertor.src.model: Tool Started [tool_name=generate_job_template_yaml input={'description': 'Deploy Nginx Multisite', 'extra_vars': '', 'file_path': 'aap-config/job-templates/nginx_multisite_deploy.yaml', 'inventory': 'webservers-production', 'name': 'nginx_multisite_deploy', 'playbook_path': 'playbooks/nginx_multisite_deploy.yml', 'role_name': 'nginx_multisite'}]
+INFO:x2convertor.tools.generate_job_template_yaml: Generating job template YAML: nginx_multisite_deploy
+INFO:x2convertor.tools.generate_job_template_yaml: Successfully generated job template YAML: aap-config/job-templates/nginx_multisite_deploy.yaml
+INFO:x2convertor.src.model: Tool Ended [tool_name=generate_job_template_yaml output=content='Successfully generate]
+DEBUG:x2convertor.src.model: Tool Started [tool_name=generate_github_actions_workflow input={'collection_name': '', 'collection_namespace': '', 'file_path': '.github/workflows/ansible-collection-import.yml'}]
+INFO:x2convertor.tools.generate_github_actions_workflow: Generating GitHub Actions workflow at .github/workflows/ansible-collection-import.yml
+INFO:x2convertor.tools.generate_github_actions_workflow: Successfully generated GitHub Actions workflow: .github/workflows/ansible-collection-import.yml
+INFO:x2convertor.src.model: Tool Ended [tool_name=generate_github_actions_workflow output=content='Successfully generate]
+DEBUG:x2convertor.src.model: Tool Started [tool_name=list_directory input={'dir_path': '.'}]
+INFO:x2convertor.src.model: Tool Ended [tool_name=list_directory output=content='.git\n.github\n.gitig]
+INFO:x2convertor.src.publishers.publish: Publish agent tools: list_directory: 2 calls, create_directory_structure: 1 calls, copy_role_directory: 1 calls, generate_playbook_yaml: 1 calls, generate_job_template_yaml: 1 calls, generate_github_actions_workflow: 1 calls [phase=publish_role]
+INFO:x2convertor.src.publishers.publish: PublishAgent completed for role: nginx_multisite [phase=publish_role]
+INFO:x2convertor.src.publishers.publish: Publish completed successfully for role nginx_multisite!
