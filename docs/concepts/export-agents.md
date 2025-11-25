@@ -72,10 +72,12 @@ stateDiagram-v2
 **Goal**: Load and parse migration plans
 
 **Inputs**:
+
 - `migration-plan.md` (high-level plan)
 - `migration-plan-<module>.md` (module specification)
 
 **Extraction**:
+
 - Source technology (Chef/Puppet/Salt)
 - Source directory path
 - Module name
@@ -126,28 +128,30 @@ flowchart TB
 Converts resource mappings to Ansible tasks:
 
 **Input (from specification)**:
+
 ```markdown
-| Chef Resource | Ansible Module | Notes |
-|---------------|----------------|-------|
-| package 'nginx' | package: name=nginx state=present | Direct |
+| Chef Resource   | Ansible Module                                | Notes  |
+| --------------- | --------------------------------------------- | ------ |
+| package 'nginx' | package: name=nginx state=present             | Direct |
 | service 'nginx' | service: name=nginx state=started enabled=yes | Direct |
 ```
 
 **Output (Ansible task)**:
+
 ```yaml
 ---
 - name: Install nginx package
   package:
     name: nginx
     state: present
-  tags: ['packages', 'nginx']
+  tags: ["packages", "nginx"]
 
 - name: Ensure nginx service is running
   service:
     name: nginx
     state: started
     enabled: yes
-  tags: ['services', 'nginx']
+  tags: ["services", "nginx"]
 ```
 
 #### Template Conversion
@@ -155,6 +159,7 @@ Converts resource mappings to Ansible tasks:
 Transforms ERB templates to Jinja2:
 
 **Chef ERB Template**:
+
 ```erb
 worker_processes <%= @worker_processes %>;
 
@@ -168,6 +173,7 @@ ssl_protocols TLSv1.2 TLSv1.3;
 ```
 
 **Ansible Jinja2 Template**:
+
 ```jinja
 worker_processes {{ nginx_worker_processes }};
 
@@ -181,6 +187,7 @@ ssl_protocols TLSv1.2 TLSv1.3;
 ```
 
 **Conversion Rules**:
+
 - `<%= var %>` → `{{ var }}`
 - `<% if condition %>` → `{% raw %}{% if condition %}{% endraw %}`
 - `@instance_var` → `ansible_var` (following naming convention)
@@ -190,6 +197,7 @@ ssl_protocols TLSv1.2 TLSv1.3;
 Creates Ansible defaults from Chef attributes:
 
 **Chef Attributes**:
+
 ```ruby
 default['nginx']['worker_processes'] = 'auto'
 default['nginx']['worker_connections'] = 1024
@@ -197,6 +205,7 @@ default['nginx']['enable_ssl'] = true
 ```
 
 **Ansible Defaults** (`defaults/main.yml`):
+
 ```yaml
 ---
 nginx_worker_processes: auto
@@ -209,6 +218,7 @@ nginx_enable_ssl: true
 Maps Chef notifications to Ansible handlers:
 
 **Chef Notification**:
+
 ```ruby
 template '/etc/nginx/nginx.conf' do
   notifies :reload, 'service[nginx]'
@@ -216,6 +226,7 @@ end
 ```
 
 **Ansible Handler** (`handlers/main.yml`):
+
 ```yaml
 ---
 - name: Reload nginx
@@ -262,7 +273,7 @@ sequenceDiagram
 
 ```bash
 # Executed internally by agent
-ansible-lint ansible/<module>/
+ansible-lint ansible/roles/<module>/
 
 # Example output
 WARNING: Listing 3 violation(s) that are fatal
@@ -287,6 +298,7 @@ handlers/main.yml:3 Task/Handler: reload nginx
 **Example Fix**:
 
 Before (lint error):
+
 ```yaml
 - name: Configure nginx
   template:
@@ -295,6 +307,7 @@ Before (lint error):
 ```
 
 After (auto-fixed):
+
 ```yaml
 - name: Configure nginx
   template:
@@ -302,25 +315,25 @@ After (auto-fixed):
     dest: /etc/nginx/nginx.conf
     owner: root
     group: root
-    mode: '0644'
+    mode: "0644"
 ```
 
 ### Configuration
 
 Control via environment variables:
 
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `MAX_EXPORT_ATTEMPTS` | ansible-lint retry limit | 5 |
-| `RECURSION_LIMIT` | LangGraph recursion depth | 100 |
-| `MAX_TOKENS` | LLM response size | 8192 |
+| Variable              | Purpose                   | Default |
+| --------------------- | ------------------------- | ------- |
+| `MAX_EXPORT_ATTEMPTS` | ansible-lint retry limit  | 5       |
+| `RECURSION_LIMIT`     | LangGraph recursion depth | 100     |
+| `MAX_TOKENS`          | LLM response size         | 8192    |
 
 ### Output Structure
 
 Complete Ansible role:
 
 ```
-ansible/<module-name>/
+ansible/roles/<module-name>/
 ├── defaults/
 │   └── main.yml          # Variables with defaults
 ├── files/
@@ -344,6 +357,7 @@ ansible/<module-name>/
 ### Purpose
 
 Post-migration validation ensures:
+
 - ansible-lint compliance
 - Logic equivalence with source
 - Idempotency
@@ -377,10 +391,11 @@ flowchart TB
 #### 1. ansible-lint Compliance
 
 ```bash
-ansible-lint --force-color --parseable ansible/<module>/
+ansible-lint --force-color --parseable ansible/roles/<module>/
 ```
 
 Checks for:
+
 - Syntax errors
 - Best practice violations
 - Security issues
@@ -389,10 +404,11 @@ Checks for:
 #### 2. Syntax Validation
 
 ```bash
-ansible-playbook --syntax-check ansible/<module>/tasks/main.yml
+ansible-playbook --syntax-check ansible/roles/<module>/tasks/main.yml
 ```
 
 Ensures:
+
 - Valid YAML
 - Valid Jinja2 in templates
 - No undefined variables (with strict mode)
@@ -400,6 +416,7 @@ Ensures:
 #### 3. Logic Equivalence
 
 AI-powered comparison of:
+
 - Resource execution order
 - Conditional logic preservation
 - Variable usage correctness
@@ -408,11 +425,13 @@ AI-powered comparison of:
 **Example Comparison**:
 
 Chef:
+
 ```ruby
 package 'nginx' if node['platform_family'] == 'debian'
 ```
 
 Ansible:
+
 ```yaml
 - name: Install nginx
   package:
@@ -493,7 +512,7 @@ All operations are idempotent:
   file:
     path: /etc/nginx/conf.d
     state: directory
-    mode: '0755'
+    mode: "0755"
 ```
 
 ### 3. Tags
@@ -504,7 +523,7 @@ Tasks tagged for selective execution:
 - name: Install nginx
   package:
     name: nginx
-  tags: ['packages', 'nginx', 'install']
+  tags: ["packages", "nginx", "install"]
 ```
 
 ### 4. Error Handling
@@ -530,5 +549,5 @@ Explicit permissions on sensitive files:
     dest: /etc/nginx/ssl/nginx.crt
     owner: root
     group: root
-    mode: '0600'
+    mode: "0600"
 ```

@@ -179,8 +179,8 @@ Instructions:
 4. Do NOT stop until all pending/missing items are processed
 
 CRITICAL: Use EXACT paths from checklist when calling update_checklist_task.
-Example: If checklist shows "cookbooks/app/recipes/default.rb → ansible/app/tasks/default.yml"
+Example: If checklist shows "cookbooks/app/recipes/default.rb → ansible/roles/app/tasks/default.yml"
 - source_path = "cookbooks/app/recipes/default.rb"
-- target_path = "ansible/app/tasks/default.yml"
+- target_path = "ansible/roles/app/tasks/default.yml"
 
 Work systematically through the entire checklist.

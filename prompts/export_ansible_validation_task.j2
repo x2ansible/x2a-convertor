@@ -72,11 +72,11 @@ path/to/file.yml:LINE_NUMBER [error-id] Error message
 
 **Examples:**
 ```
-ansible/mymodule/tasks/main.yml:7 [fqcn] Use FQCN...
-→ File path: ansible/mymodule/tasks/main.yml
+ansible/roles/mymodule/tasks/main.yml:7 [fqcn] Use FQCN...
+→ File path: ansible/roles/mymodule/tasks/main.yml
 
-ansible/other_role/handlers/main.yml:12 [yaml] Wrong indentation...
-→ File path: ansible/other_role/handlers/main.yml
+ansible/roles/other_role/handlers/main.yml:12 [yaml] Wrong indentation...
+→ File path: ansible/roles/other_role/handlers/main.yml
 ```
 
 **CRITICAL:** When you read or write files, use the EXACT path extracted from the error (everything before the first colon).
@@ -389,7 +389,7 @@ tasks/ssl.yml:25 [no-changed-when] Commands should not change things if nothing 
 ```
 # CORRECT: Use ansible_write for .yml files
 ansible_write(file_path="tasks/ssl.yml", yaml_content=<fixed content>)
-update_checklist_task(source="cookbooks/nginx-multisite/recipes/ssl.rb", target="ansible/nginx_multisite/tasks/ssl.yml", status="complete")
+update_checklist_task(source="cookbooks/nginx-multisite/recipes/ssl.rb", target="ansible/roles/nginx_multisite/tasks/ssl.yml", status="complete")
 
 # WRONG: Never use write_file for .yml files!
 # write_file(file_path="tasks/ssl.yml", text=<fixed content>)  ← This will break YAML!
@@ -451,10 +451,10 @@ The `ansible_lint` tool has an `autofix` parameter:
 **Example:**
 ```python
 # Check for errors without modifying files
-ansible_lint(ansible_path="./ansible/nginx_multisite", autofix=false)
+ansible_lint(ansible_path="./ansible/roles/nginx_multisite", autofix=false)
 
 # Let ansible-lint auto-fix simple issues
-ansible_lint(ansible_path="./ansible/nginx_multisite", autofix=true)
+ansible_lint(ansible_path="./ansible/roles/nginx_multisite", autofix=true)
 ```
 
 **Note:** Some errors like [no-changed-when] and [literal-compare] with `== false` cannot be auto-fixed and require manual intervention using the examples above.

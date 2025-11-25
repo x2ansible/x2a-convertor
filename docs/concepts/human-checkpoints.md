@@ -34,24 +34,29 @@ flowchart LR
 ## Checkpoint 1: Init Plan Review
 
 ### Trigger
+
 After `app.py init` completes
 
 ### Artifact
+
 `migration-plan.md`
 
 ### Review Checklist
 
 #### Repository Structure
+
 - [ ] All expected cookbooks/modules identified
 - [ ] No critical modules missing
 - [ ] External dependencies correctly detected
 
 #### Dependency Analysis
+
 - [ ] Dependency graph accurate
 - [ ] Circular dependencies flagged
 - [ ] External Supermarket cookbooks noted
 
 #### Migration Strategy
+
 - [ ] Recommended order aligns with deployment architecture
 - [ ] Critical infrastructure components prioritized appropriately
 - [ ] Complexity estimates reasonable
@@ -59,6 +64,7 @@ After `app.py init` completes
 ### Decision Points
 
 1. **Adjust migration order**
+
    ```bash
    # Re-run with specific guidance
    uv run app.py init --source-dir ./chef-repo \
@@ -66,6 +72,7 @@ After `app.py init` completes
    ```
 
 2. **Exclude certain modules**
+
    - Document exclusions in plan
    - Handle manually or defer
 
@@ -76,27 +83,30 @@ After `app.py init` completes
 ## Checkpoint 2: Module Specification Review
 
 ### Trigger
+
 After `app.py analyze` completes for each module
 
 ### Artifact
+
 `migration-plan-<module>.md`
 
 ### Review Checklist
 
 #### File Mappings
+
 - [ ] All recipes are described
 - [ ] Templates correctly identified for conversion
 - [ ] Static files (files/) mapped appropriately
 
-
 #### Variable Mapping
+
 - [ ] Node attributes mapped to facts/variables
 - [ ] Secrets and sensitive data flagged
-
 
 ### Decision Points
 
 1. **Request refinement**
+
    ```bash
    # Re-run with clarifications
    uv run app.py analyze --source-dir ./chef-repo \
@@ -104,6 +114,7 @@ After `app.py analyze` completes for each module
    ```
 
 2. **Manual specification adjustments**
+
    - Edit `migration-plan-<module>.md` directly
    - Document custom translation requirements
 
@@ -114,29 +125,35 @@ After `app.py analyze` completes for each module
 ## Checkpoint 3: Generated Code Review
 
 ### Trigger
+
 After `app.py migrate` completes
 
 ### Artifact
-`ansible/<module>/` directory
+
+`ansible/roles/<module>/` directory
 
 ### Review Checklist
 
 #### Structure
+
 - [ ] Role follows Ansible best practices
 - [ ] Files organized in standard directories
 - [ ] Naming conventions consistent
 
 #### Task Logic
+
 - [ ] Task order matches recipe execution
 - [ ] Idempotency maintained
 - [ ] Error handling appropriate
 
 #### Templates
+
 - [ ] Jinja2 syntax correct
 - [ ] Variables match defaults
 - [ ] Conditional blocks translated
 
 #### Lint Status
+
 - [ ] No ansible-lint errors
 - [ ] Warnings addressed or documented
 - [ ] Code passes organization standards
@@ -150,7 +167,7 @@ After `app.py migrate` completes
   package:
     name: nginx
     state: present
-  tags: ['nginx', 'packages']
+  tags: ["nginx", "packages"]
 
 - name: Configure nginx main config
   template:
@@ -158,7 +175,7 @@ After `app.py migrate` completes
     dest: /etc/nginx/nginx.conf
     owner: root
     group: root
-    mode: '0644'
+    mode: "0644"
   notify: Reload nginx
 
 - name: Ensure nginx is running
@@ -166,10 +183,11 @@ After `app.py migrate` completes
     name: nginx
     state: started
     enabled: true
-  tags: ['nginx', 'service']
+  tags: ["nginx", "service"]
 ```
 
 **What to Look For:**
+
 - Does execution order match Chef recipe?
 - Are handlers properly defined and notified?
 - Are tags useful for selective runs?
@@ -196,19 +214,20 @@ ansible-playbook -i test-inventory site.yml --tags nginx
 ### Decision Points
 
 1. **Iterate on generation**
+
    ```bash
    # Adjust and regenerate
    uv run app.py migrate ... "Fix handler naming to match organizational standards"
    ```
 
 2. **Manual fixes**
+
    - Edit generated files directly
    - Document changes for future reference
 
 3. **Approve for validation**
    - Commit generated role
    - Run validate phase
-
 
 ### Audit Trail
 

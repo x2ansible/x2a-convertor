@@ -7,7 +7,7 @@ MODULE MIGRATION PLAN:
 {{module_migration_plan}}
 
 CHEF SOURCE PATH: `{{ path }}`
-ANSIBLE OUTPUT PATH: `./ansible/{{ module }}`
+ANSIBLE OUTPUT PATH: `./ansible/roles/{{ module }}`
 
 {% if existing_checklist != "" %}
 EXISTING CHECKLIST (from previous run):
@@ -45,20 +45,20 @@ For each file in the migration plan:
 
 **IMPORTANT**:
 - source_path: Use EXACT full paths from the File Structure section in the migration plan above
-- target_path: Use full path including ANSIBLE OUTPUT PATH (e.g., "ansible/{{module}}/templates/config.j2")
+- target_path: Use full path including ANSIBLE OUTPUT PATH (e.g., "ansible/roles/{{module}}/templates/config.j2")
 
 The migration plan's File Structure section shows full paths - you MUST use these complete paths for source_path.
 For target_path, combine ANSIBLE OUTPUT PATH with the relative Ansible role path.
 
 Examples:
 - If the File Structure shows "cookbooks/myapp/templates/default/config.erb", use that EXACT path as source_path
-- For target_path, use the ANSIBLE OUTPUT PATH + relative role path (e.g., "ansible/myapp/templates/config.j2")
+- For target_path, use the ANSIBLE OUTPUT PATH + relative role path (e.g., "ansible/roles/myapp/templates/config.j2")
 - For generated Ansible structure files, use source_path="N/A"
 
 Sample calls (replace {{module}} with actual module name from ANSIBLE OUTPUT PATH):
-- add_checklist_task(category="templates", source_path="<full_path_from_file_structure>", target_path="ansible/{{module}}/templates/config.j2", description="Configuration template")
-- add_checklist_task(category="recipes", source_path="<full_path_from_file_structure>", target_path="ansible/{{module}}/tasks/main.yml", description="Main recipe tasks")
-- add_checklist_task(category="structure", source_path="N/A", target_path="ansible/{{module}}/meta/main.yml", description="Role metadata")
+- add_checklist_task(category="templates", source_path="<full_path_from_file_structure>", target_path="ansible/roles/{{module}}/templates/config.j2", description="Configuration template")
+- add_checklist_task(category="recipes", source_path="<full_path_from_file_structure>", target_path="ansible/roles/{{module}}/tasks/main.yml", description="Main recipe tasks")
+- add_checklist_task(category="structure", source_path="N/A", target_path="ansible/roles/{{module}}/meta/main.yml", description="Role metadata")
 
 Your goal: Ensure the checklist contains EVERY file mentioned in the migration plan.
 - If checklist already has items: only add what's missing

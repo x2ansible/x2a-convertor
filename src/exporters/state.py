@@ -10,7 +10,7 @@ from pathlib import Path
 from src.types import AnsibleModule, Checklist, DocumentFile, MigrationStateInterface
 
 # Constants
-ANSIBLE_PATH_TEMPLATE = "ansible/{module}"
+ANSIBLE_PATH_TEMPLATE = "ansible/roles/{module}"
 CHECKLIST_FILENAME = ".checklist.json"
 
 
@@ -66,7 +66,7 @@ class ChefState(MigrationStateInterface):
         """Get the Ansible output path for this module.
 
         Returns:
-            Path string in format ansible/{module}
+            Path string in format ansible/roles/{module}
         """
         return ANSIBLE_PATH_TEMPLATE.format(module=str(self.module))
 

@@ -79,7 +79,7 @@ class TestAnsibleModule:
         assert str(module) == module.sanitized_name
 
     def test_repr_shows_transformation(self):
-        """Test that repr() shows both raw and sanitized names when different."""
+        """Test repr() shows both raw and sanitized names when different."""
         module = AnsibleModule("My-Module")
         repr_str = repr(module)
         assert "My-Module" in repr_str
@@ -130,5 +130,5 @@ class TestAnsibleModule:
     def test_use_in_path_construction(self):
         """Test that module works well in path construction."""
         module = AnsibleModule("My-Module")
-        path = f"./ansible/{module}"
-        assert path == "./ansible/my_module"
+        path = f"./ansible/roles/{module}"
+        assert path == "./ansible/roles/my_module"
