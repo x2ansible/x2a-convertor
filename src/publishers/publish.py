@@ -31,7 +31,6 @@ logger = get_logger(__name__)
 class PublishState:
     """State for the publish workflow."""
 
-    user_message: str
     path: str
     role: str
     role_path: str
@@ -137,7 +136,6 @@ class PublishWorkflow:
         except OSError as e:
             state.failed = True
             state.failure_reason = str(e)
-            state.publish_output = str(e)
         return state
 
     def _copy_role_node(self, state: PublishState) -> PublishState:
@@ -158,7 +156,6 @@ class PublishWorkflow:
         except (ValueError, FileNotFoundError, OSError, RuntimeError) as e:
             state.failed = True
             state.failure_reason = str(e)
-            state.publish_output = str(e)
         return state
 
     def _generate_playbook_node(self, state: PublishState) -> PublishState:
@@ -181,7 +178,6 @@ class PublishWorkflow:
         except (ValueError, OSError) as e:
             state.failed = True
             state.failure_reason = str(e)
-            state.publish_output = str(e)
         return state
 
     def _generate_job_template_node(self, state: PublishState) -> PublishState:
@@ -212,7 +208,6 @@ class PublishWorkflow:
         except (ValueError, OSError) as e:
             state.failed = True
             state.failure_reason = str(e)
-            state.publish_output = str(e)
         return state
 
     def _generate_workflow_node(self, state: PublishState) -> PublishState:
@@ -229,7 +224,6 @@ class PublishWorkflow:
         except OSError as e:
             state.failed = True
             state.failure_reason = str(e)
-            state.publish_output = str(e)
         return state
 
     def _get_required_files(self, state: PublishState) -> list[str]:
@@ -264,7 +258,6 @@ class PublishWorkflow:
         except FileNotFoundError as e:
             state.failed = True
             state.failure_reason = str(e)
-            state.publish_output = str(e)
         return state
 
     def _create_repository_node(self, state: PublishState) -> PublishState:
@@ -288,26 +281,22 @@ class PublishWorkflow:
             slog.info(f"Repository created successfully: {repository_url}")
         except ValueError as e:
             state.failed = True
-            state.failure_reason = f"Repository creation validation failed: {e}"
-            state.publish_output = (
-                f"Cannot create repository: {e}. "
+            state.failure_reason = (
+                f"Repository creation validation failed: {e}. "
                 "Check your GITHUB_TOKEN and owner configuration."
             )
         except requests.exceptions.HTTPError as e:
             state.failed = True
-            state.failure_reason = f"GitHub API error: {e}"
-            state.publish_output = (
+            state.failure_reason = (
                 f"GitHub API error: {e}. "
                 "This might be a rate limit or permission issue."
             )
         except requests.exceptions.RequestException as e:
             state.failed = True
             state.failure_reason = f"GitHub API request failed: {e}"
-            state.publish_output = str(e)
         except RuntimeError as e:
             state.failed = True
             state.failure_reason = str(e)
-            state.publish_output = str(e)
         return state
 
     def _commit_changes_node(self, state: PublishState) -> PublishState:
@@ -340,20 +329,17 @@ class PublishWorkflow:
         except ValueError as e:
             # Validation errors are user input issues - provide clear feedback
             state.failed = True
-            state.failure_reason = f"Validation failed: {e}"
-            state.publish_output = (
-                f"Invalid configuration: {e}. "
+            state.failure_reason = (
+                f"Validation failed: {e}. "
                 "Please check your repository URL, branch, and directory."
             )
         except FileNotFoundError as e:
             state.failed = True
             state.failure_reason = f"Directory not found: {e}"
-            state.publish_output = str(e)
         except subprocess.CalledProcessError as e:
             # Git errors might be retryable or need different handling
             state.failed = True
-            state.failure_reason = f"Git operation failed: {e}"
-            state.publish_output = (
+            state.failure_reason = (
                 f"Git operation failed: {e}. "
                 "This might be a temporary issue - you can try again."
             )
@@ -361,7 +347,6 @@ class PublishWorkflow:
             # All RuntimeErrors are failures
             state.failed = True
             state.failure_reason = str(e)
-            state.publish_output = str(e)
         return state
 
     def _push_branch_node(self, state: PublishState) -> PublishState:
@@ -386,27 +371,23 @@ class PublishWorkflow:
         except ValueError as e:
             # Missing repo_path or branch - configuration issue
             state.failed = True
-            state.failure_reason = f"Configuration error: {e}"
-            state.publish_output = (
+            state.failure_reason = (
                 f"Configuration error: {e}. "
                 "This should not happen if previous steps succeeded."
             )
         except FileNotFoundError as e:
             state.failed = True
             state.failure_reason = f"Repository not found: {e}"
-            state.publish_output = str(e)
         except subprocess.CalledProcessError as e:
             # Git push failures - might be auth, network, or conflict issues
             state.failed = True
-            state.failure_reason = f"Failed to push branch: {e}"
-            state.publish_output = (
+            state.failure_reason = (
                 f"Failed to push branch: {e}. "
                 "Check your authentication and network connection."
             )
         except RuntimeError as e:
             state.failed = True
             state.failure_reason = str(e)
-            state.publish_output = str(e)
         return state
 
     def _check_verification(self, state: PublishState) -> str:
@@ -572,9 +553,9 @@ class PublishWorkflow:
             slog.debug(f"Full traceback: {traceback.format_exc()}")
 
             initial_state.failed = True
-            initial_state.failure_reason = f"Publish workflow error: {error_str}"
-            initial_state.publish_output = (
-                f"Unexpected error occurred. Error details: {error_str}"
+            initial_state.failure_reason = (
+                f"Publish workflow error: {error_str}. "
+                "Unexpected error occurred."
             )
             return initial_state
 
