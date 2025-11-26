@@ -203,6 +203,7 @@ flowchart TB
 | `RECURSION_LIMIT`          | Maximum recursion limit to be used by the langchain                         | `100`, `200`                                                                                             | No (default: 100)         |
 | `MAX_EXPORT_ATTEMPTS`      | Maximum number of attempts to export the playbook                           | `5`, `10`                                                                                                | No (default: 5)           |
 | `REASONING_EFFORT`         | Reasoning effort when using a LLM model                                     | `low`, `medium`, `high`                                                                                  | No (default: None)        |
+| `RATE_LIMIT_REQUESTS`      | Rate limit for API requests (requests per second)                           | `5`, `10`, `20`                                                                                          | No (default: disabled)    |
 
 #### AWS Bedrock Authentication
 

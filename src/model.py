@@ -6,6 +6,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
+from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_core.runnables import RunnableConfig
 from pydantic import SecretStr
 
@@ -104,6 +105,18 @@ def get_model() -> BaseChatModel:
     reasoning_effort = os.getenv("REASONING_EFFORT", None)
     if reasoning_effort:
         kwargs["reasoning_effort"] = reasoning_effort
+
+    # Configure rate limiter if enabled
+    rate_limit_requests = os.getenv("RATE_LIMIT_REQUESTS")
+    if rate_limit_requests:
+        requests_per_second = int(rate_limit_requests)
+        rate_limiter = InMemoryRateLimiter(
+            requests_per_second=requests_per_second,
+            check_every_n_seconds=0.2,
+            max_bucket_size=10,
+        )
+        kwargs["rate_limiter"] = rate_limiter
+        logger.info(f"Rate limiter enabled: {requests_per_second} requests/second")
 
     logger.debug(f"Model parameters: {kwargs}")
 
