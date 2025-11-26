@@ -554,8 +554,7 @@ class PublishWorkflow:
 
             initial_state.failed = True
             initial_state.failure_reason = (
-                f"Publish workflow error: {error_str}. "
-                "Unexpected error occurred."
+                f"Publish workflow error: {error_str}. Unexpected error occurred."
             )
             return initial_state
 
@@ -604,7 +603,6 @@ def publish_role(
     # Run the publish workflow
     publish_workflow = PublishWorkflow()
     initial_state = PublishState(
-        user_message="",
         path=str(base_path_obj),
         role=role_name,
         role_path=role_path,
