@@ -5,17 +5,16 @@ Provides common functionality for all migration agents.
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
+from langchain.agents import create_agent
+from langchain.agents.middleware import SummarizationMiddleware
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import BaseTool
-from langgraph.prebuilt import create_react_agent
 
 from src.exporters.state import ChefState
 from src.model import get_model
 from src.utils.logging import get_logger
-
-if TYPE_CHECKING:
-    from langchain_core.language_models import BaseLanguageModel
 
 logger = get_logger(__name__)
 
@@ -36,6 +35,18 @@ class BaseAgent(ABC):
     # Subclasses should override this with their specific tools
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = []
 
+    def middleware(self) -> list:
+        """
+        A function will return the middleware list of tools that will help to  compact the conversation.
+        """
+        return [
+            SummarizationMiddleware(
+                model=self.model,
+                max_tokens_before_summary=20000,
+                messages_to_keep=20,
+            ),
+        ]
+
     @abstractmethod
     def __call__(self, state: ChefState) -> ChefState:
         """Process the state through this agent.
@@ -48,7 +59,7 @@ class BaseAgent(ABC):
         """
         ...
 
-    def __init__(self, model: "BaseLanguageModel | None" = None):
+    def __init__(self, model: BaseChatModel | None = None):
         """Initialize agent with optional model.
 
         Args:
@@ -75,4 +86,6 @@ class BaseAgent(ABC):
         if chef_state.checklist is not None:
             tools.extend(chef_state.checklist.get_tools())
 
-        return create_react_agent(model=self.model, tools=tools)  # pyrefly: ignore
+        return create_agent(
+            model=self.model, middleware=self.middleware(), tools=tools
+        )  # pyrefly: ignore
