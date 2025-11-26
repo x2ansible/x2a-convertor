@@ -36,7 +36,7 @@ This will create a **migration-plan.md** with a lot of details.
 
 ## Analyze:
 
-```
+```bash
 podman run --rm -ti \
   -v $(pwd)/:/app/source:Z \
   -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
@@ -50,7 +50,7 @@ This will make a blueprint of what the model understands about the migration of 
 
 ## Migrate
 
-```
+```bash
 podman run --rm -ti \
   -v $(pwd)/:/app/source:Z \
   -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
@@ -60,4 +60,4 @@ podman run --rm -ti \
   migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the 'nginx-multisite' module"
 ```
 
-This will generate real Ansible code, primarily in `ansible/nginx-multisite` with all details
+This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details
