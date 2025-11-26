@@ -419,6 +419,54 @@ def github_commit_changes(
             check=True,
         )
 
+        # Change to the cloned repository directory
+        os.chdir(repo_path)
+
+        # Fetch remote branches to check if branch exists
+        subprocess.run(
+            ["git", "fetch", "origin"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        # Check if branch exists on remote
+        result = subprocess.run(
+            ["git", "ls-remote", "--heads", "origin", branch],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        branch_exists_remote = bool(result.stdout.strip())
+
+        # Rule 3: If branch already exists, fail immediately
+        if branch_exists_remote:
+            os.chdir(original_cwd)
+            error_msg = (
+                f"Branch '{branch}' already exists in repository "
+                f"{repository_url}. Cannot create duplicate branch."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)  # noqa: TRY301
+
+        # Branch doesn't exist, create it
+        # Get current branch
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        current_branch = result.stdout.strip()
+
+        # Create new branch
+        if current_branch != branch:
+            logger.info(f"Creating new branch: {branch}")
+            subprocess.run(
+                ["git", "checkout", "-b", branch],
+                check=True,
+            )
+
         # Copy the directory contents to the cloned repository root
         source_dir = Path(directory)
 
@@ -439,44 +487,9 @@ def github_commit_changes(
             f"{', '.join(copied_items)}"
         )
 
-        # Change to the cloned repository directory
-        os.chdir(repo_path)
-
-        # Get current branch
-        result = subprocess.run(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        current_branch = result.stdout.strip()
-
-        # Create or checkout branch if needed
-        if current_branch != branch:
-            logger.info(f"Switching to branch: {branch}")
-            # Check if branch exists
-            result = subprocess.run(
-                ["git", "branch", "--list", branch],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            if result.stdout.strip():
-                # Branch exists, checkout
-                subprocess.run(
-                    ["git", "checkout", branch],
-                    check=True,
-                )
-            else:
-                # Branch doesn't exist, create and checkout
-                subprocess.run(
-                    ["git", "checkout", "-b", branch],
-                    check=True,
-                )
-
-        # Stage ONLY the files we copied from the directory
+        # Stage all copied files
         items_str = ", ".join(copied_items)
-        logger.info(f"Staging only copied items: {items_str}")
+        logger.info(f"Staging copied items: {items_str}")
         for item_name in copied_items:
             subprocess.run(
                 ["git", "add", item_name],
@@ -493,24 +506,27 @@ def github_commit_changes(
             check=False,
         )
         if result.returncode == 0:
-            os.chdir(original_cwd)
-            error_msg = (
-                "No changes to commit. "
-                "Files may already be committed or unchanged. "
-                "Cannot create PR without new commits."
+            # No changes - this can happen if new branch has same content as default branch
+            # Create empty commit to establish the branch
+            logger.info(
+                f"No changes detected on new branch '{branch}'. "
+                "Creating empty commit to establish branch."
             )
-            logger.error(error_msg)
-            # Must raise here: validation requires being in repo directory
-            raise RuntimeError(error_msg)  # noqa: TRY301
-
-        # Commit the changes
-        logger.info(f"Committing with message: {commit_message}")
-        subprocess.run(
-            ["git", "commit", "-m", commit_message],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+            subprocess.run(
+                ["git", "commit", "--allow-empty", "-m", commit_message],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        else:
+            # Commit the changes
+            logger.info(f"Committing with message: {commit_message}")
+            subprocess.run(
+                ["git", "commit", "-m", commit_message],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
 
         # Get commit hash
         result = subprocess.run(
@@ -738,110 +754,89 @@ def github_push_branch(
         os.chdir(original_cwd)
 
 
-def github_create_pr(
-    repository_url: str,
-    title: str,
-    body: str,
-    head: str,
-    base: str = "main",
-) -> str:
-    """Create a GitHub Pull Request.
+def github_get_repository(owner: str, repo_name: str) -> str | None:
+    """Check if a GitHub repository exists and return its URL.
 
     Args:
-        repository_url: GitHub repository URL
-        title: PR title
-        body: PR description/body
-        head: Branch name containing the changes (source branch)
-        base: Branch name to merge into (target branch, default: 'main')
+        owner: GitHub user or organization name
+        repo_name: Name of the repository
 
     Returns:
-        PR URL
-
-    Raises:
-        ValueError: If required parameters are missing or invalid
-        requests.exceptions.HTTPError: If GitHub API operations fail
-        RuntimeError: If unexpected errors occur
+        Repository URL (HTTPS) if it exists, None otherwise
     """
-    logger.info(f"Creating PR from {head} to {base} in {repository_url}")
-
     github_token = os.environ.get("GITHUB_TOKEN", "")
 
     if not github_token:
-        error_msg = "GITHUB_TOKEN environment variable not set. Cannot create PR."
-        logger.error(error_msg)
-        raise ValueError(error_msg)
+        return None
 
-    # Extract owner and repo from URL
-    cleaned_url = repository_url.replace(".git", "")
-    parsed_url = urlparse(cleaned_url)
-    path_segments = [p for p in parsed_url.path.split("/") if p]
-
-    if len(path_segments) < 2:
-        error_msg = (
-            f"Could not extract owner/repo from URL: "
-            f"{repository_url}. Expected format: /owner/repo"
-        )
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-
-    owner = path_segments[-2]
-    repo = path_segments[-1]
-
-    # Verify branches are different
-    if head == base:
-        error_msg = (
-            f"Cannot create PR: head branch '{head}' "
-            f"cannot be the same as base branch '{base}'. "
-            f"Please use a feature branch for the PR."
-        )
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-
-    # Verify that head branch has commits ahead of base using GitHub API
-    compare_url = f"https://api.github.com/repos/{owner}/{repo}/compare/{base}...{head}"
-    compare_headers = {
+    headers = {
         "Accept": "application/vnd.github.v3+json",
         "Authorization": f"Bearer {github_token}",
     }
 
+    api_url = f"https://api.github.com/repos/{owner}/{repo_name}"
+
     try:
-        logger.info(f"Checking commits between {base} and {head}...")
-        compare_response = requests.get(compare_url, headers=compare_headers)
-        compare_response.raise_for_status()
-        compare_data = compare_response.json()
+        response = requests.get(api_url, headers=headers)
+        if response.status_code == 200:
+            repo_data = response.json()
+            return repo_data.get("clone_url")
+        return None
+    except requests.exceptions.RequestException:
+        return None
 
-        commits_ahead = compare_data.get("ahead_by", 0)
-        commits_behind = compare_data.get("behind_by", 0)
 
+def github_create_repository(
+    owner: str,
+    repo_name: str,
+    description: str = "",
+    private: bool = False,
+) -> str:
+    """Create a new GitHub repository.
+
+    Args:
+        owner: GitHub user or organization name
+        repo_name: Name for the new repository
+        description: Repository description (optional)
+        private: Whether the repository should be private (default: False)
+
+    Returns:
+        Repository URL (HTTPS)
+
+    Raises:
+        ValueError: If required parameters are missing or GITHUB_TOKEN not set
+        requests.exceptions.HTTPError: If GitHub API operations fail
+        RuntimeError: If unexpected errors occur
+    """
+    logger.info(f"Creating GitHub repository: {owner}/{repo_name}")
+
+    # Check if repository already exists
+    existing_repo_url = github_get_repository(owner, repo_name)
+    if existing_repo_url:
         logger.info(
-            f"Branch {head} is {commits_ahead} commits ahead "
-            f"and {commits_behind} commits behind {base}"
+            f"Repository {owner}/{repo_name} already exists. "
+            f"Using existing repository: {existing_repo_url}"
         )
-    except requests.exceptions.HTTPError as e:
-        # If comparison fails, log but continue (might be a new branch)
-        logger.warning(
-            f"Could not compare branches {base} and {head}: {e}. "
-            "Continuing with PR creation..."
-        )
-        commits_ahead = None
-    except Exception as e:
-        logger.warning(
-            f"Error checking branch comparison: {e}. Continuing with PR creation..."
-        )
-        commits_ahead = None
+        return existing_repo_url
 
-    # Check if commits_ahead is 0 (only if we successfully got the data)
-    if commits_ahead == 0:
+    github_token = os.environ.get("GITHUB_TOKEN", "")
+
+    if not github_token:
         error_msg = (
-            f"Cannot create PR: Branch '{head}' has no commits "
-            f"ahead of '{base}'. The branches are at the same commit. "
-            f"This usually means the files are already in the base branch."
+            "GITHUB_TOKEN environment variable not set. Cannot create repository."
         )
         logger.error(error_msg)
-        raise RuntimeError(error_msg)
+        raise ValueError(error_msg)
 
-    # GitHub API call to create PR
-    api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+    if not owner:
+        error_msg = "owner is required"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    if not repo_name:
+        error_msg = "repo_name is required"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
     headers = {
         "Accept": "application/vnd.github.v3+json",
@@ -849,32 +844,51 @@ def github_create_pr(
         "Content-Type": "application/json",
     }
 
-    payload = {"title": title, "body": body, "head": head, "base": base}
+    payload = {
+        "name": repo_name,
+        "description": description,
+        "private": private,
+        "auto_init": False,  # Don't initialize with README, we'll push our own content
+    }
 
+    # Try orgs endpoint first (for organizations)
+    api_url = f"https://api.github.com/orgs/{owner}/repos"
     logger.info(f"Sending POST request to {api_url}")
 
     response: requests.Response | None = None
     try:
         response = requests.post(api_url, headers=headers, data=json.dumps(payload))
+        # If 404, try user/repos (for personal accounts)
+        if response.status_code == 404:
+            api_url = "https://api.github.com/user/repos"
+            logger.info(
+                f"Owner not found as organization, trying user endpoint: {api_url}"
+            )
+            response = requests.post(api_url, headers=headers, data=json.dumps(payload))
         response.raise_for_status()
 
-        pr_data = response.json()
-        pr_url = pr_data.get("html_url")
-        pr_number = pr_data.get("number")
+        repo_data = response.json()
+        repo_url = repo_data.get("clone_url")
+        repo_html_url = repo_data.get("html_url")
 
-        logger.info(f"Pull Request #{pr_number} created successfully! URL: {pr_url}")
-        return pr_url
+        if not repo_url:
+            error_msg = "GitHub API did not return repository URL"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        logger.info(
+            f"Repository {owner}/{repo_name} created successfully! URL: {repo_html_url}"
+        )
+        return repo_url
 
     except requests.exceptions.HTTPError as e:
         if response is None:
-            error_message = f"GitHub API Error when creating PR: {e}"
+            error_message = f"GitHub API Error when creating repository: {e}"
         else:
-            error_message = (
-                f"GitHub API Error ({response.status_code}) when creating PR: {e}"
-            )
+            error_message = f"GitHub API Error ({response.status_code}) when creating repository: {e}"
             error_message += f"\nResponse Content: {response.text}"
 
-            # Parse error details from JSON response (inline, no nesting)
+            # Parse error details from JSON response
             error_details = None
             with contextlib.suppress(json.JSONDecodeError):
                 error_details = response.json()
