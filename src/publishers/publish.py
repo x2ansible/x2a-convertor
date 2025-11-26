@@ -18,7 +18,7 @@ from src.publishers.tools import (
     generate_job_template_yaml,
     generate_playbook_yaml,
     github_commit_changes,
-    github_create_pr,
+    github_create_repository,
     github_push_branch,
     verify_files_exist,
 )
@@ -35,11 +35,11 @@ class PublishState:
     path: str
     role: str
     role_path: str
-    github_repository_url: str
+    github_owner: str
     github_branch: str
+    github_repository_url: str = ""  # Set after repository creation
     role_registered: bool = False
     job_template_name: str = ""
-    job_template_created: bool = False
     publish_output: str = ""
     failed: bool = False
     failure_reason: str = ""
@@ -52,12 +52,9 @@ class PublishState:
     files_verified: bool = False
     changes_committed: bool = False
     branch_pushed: bool = False
-    pr_created: bool = False
-    pr_url: str = ""
+    repository_created: bool = False
     skip_git: bool = False
     repo_path: str = ""
-    pr_base_branch: str = "main"
-    pr_head_branch: str = ""
     publish_dir: str = ""
 
 
@@ -72,13 +69,15 @@ class PublishWorkflow:
     4. Generate job template
     5. Generate GitHub Actions workflow
     6. Verify files exist
-    7. Commit changes
-    8. Push branch
-    9. Create PR
+    7. Create GitHub repository (if not skip_git)
+    8. Commit changes (if not skip_git)
+    9. Push branch (if not skip_git)
+    10. Display summary
     """
 
     # Node names for conditional edges
-    NODE_COMMIT_CHANGES = "commit_changes"
+    NODE_CREATE_REPOSITORY = "create_repository"
+    NODE_SUMMARY = "summary"
     NODE_MARK_FAILED = "mark_failed"
 
     def __init__(self) -> None:
@@ -97,9 +96,10 @@ class PublishWorkflow:
         workflow.add_node("generate_job_template", self._generate_job_template_node)
         workflow.add_node("generate_workflow", self._generate_workflow_node)
         workflow.add_node("verify_files", self._verify_files_node)
+        workflow.add_node("create_repository", self._create_repository_node)
         workflow.add_node("commit_changes", self._commit_changes_node)
         workflow.add_node("push_branch", self._push_branch_node)
-        workflow.add_node("create_pr", self._create_pr_node)
+        workflow.add_node("summary", self._summary_node)
         workflow.add_node("mark_failed", self._mark_failed_node)
 
         workflow.add_edge(START, "create_structure")
@@ -109,10 +109,11 @@ class PublishWorkflow:
         workflow.add_edge("generate_job_template", "generate_workflow")
         workflow.add_edge("generate_workflow", "verify_files")
         workflow.add_conditional_edges("verify_files", self._check_verification)
-        workflow.add_edge("commit_changes", "push_branch")
-        workflow.add_edge("push_branch", "create_pr")
-        workflow.add_conditional_edges("create_pr", self._check_git_complete)
-        workflow.add_edge("mark_failed", END)
+        workflow.add_edge("create_repository", "commit_changes")
+        workflow.add_conditional_edges("commit_changes", self._check_commit_result)
+        workflow.add_edge("push_branch", "summary")
+        workflow.add_edge("summary", END)
+        workflow.add_edge("mark_failed", "summary")
 
         return workflow.compile()
 
@@ -126,7 +127,7 @@ class PublishWorkflow:
             "roles",
             "playbooks",
             "aap-config/job-templates",
-            ".github/aap-workflow",
+            ".github/workflows",
         ]
 
         try:
@@ -189,10 +190,9 @@ class PublishWorkflow:
         slog.info("Generating job template YAML")
 
         file_path = (
-            f"{state.publish_dir}/aap-config/job-templates/"
-            f"{state.job_template_name}.yaml"
+            f"{state.publish_dir}/aap-config/job-templates/{state.role}_deploy.yaml"
         )
-        name = state.job_template_name
+        name = f"{state.role}_deploy"
         playbook_path = f"playbooks/{state.role}_deploy.yml"
         inventory = "Default"
         role_name = state.role
@@ -208,7 +208,6 @@ class PublishWorkflow:
                 description=description,
             )
             state.job_template_generated = True
-            state.job_template_created = True
             slog.info("Job template generated successfully")
         except (ValueError, OSError) as e:
             state.failed = True
@@ -221,9 +220,7 @@ class PublishWorkflow:
         slog = logger.bind(phase="generate_workflow")
         slog.info("Generating GitHub Actions workflow")
 
-        file_path = (
-            f"{state.publish_dir}/.github/aap-workflow/ansible-collection-import.yml"
-        )
+        file_path = f"{state.publish_dir}/.github/workflows/deploy.yml"
 
         try:
             generate_github_actions_workflow(file_path=file_path)
@@ -249,11 +246,8 @@ class PublishWorkflow:
         return [
             f"{state.publish_dir}/roles/{state.role}",
             f"{state.publish_dir}/playbooks/{state.role}_deploy.yml",
-            (
-                f"{state.publish_dir}/aap-config/job-templates/"
-                f"{state.job_template_name}.yaml"
-            ),
-            f"{state.publish_dir}/.github/aap-workflow/ansible-collection-import.yml",
+            (f"{state.publish_dir}/aap-config/job-templates/{state.role}_deploy.yaml"),
+            f"{state.publish_dir}/.github/workflows/deploy.yml",
         ]
 
     def _verify_files_node(self, state: PublishState) -> PublishState:
@@ -273,30 +267,62 @@ class PublishWorkflow:
             state.publish_output = str(e)
         return state
 
+    def _create_repository_node(self, state: PublishState) -> PublishState:
+        """Node: Create GitHub repository."""
+        slog = logger.bind(phase="create_repository")
+        slog.info("Creating GitHub repository")
+
+        owner = state.github_owner
+        repo_name = f"{state.role}-gitops"
+        description = f"GitOps repository for {state.role} Ansible role deployment"
+
+        try:
+            repository_url = github_create_repository(
+                owner=owner,
+                repo_name=repo_name,
+                description=description,
+                private=False,
+            )
+            state.github_repository_url = repository_url
+            state.repository_created = True
+            slog.info(f"Repository created successfully: {repository_url}")
+        except ValueError as e:
+            state.failed = True
+            state.failure_reason = f"Repository creation validation failed: {e}"
+            state.publish_output = (
+                f"Cannot create repository: {e}. "
+                "Check your GITHUB_TOKEN and owner configuration."
+            )
+        except requests.exceptions.HTTPError as e:
+            state.failed = True
+            state.failure_reason = f"GitHub API error: {e}"
+            state.publish_output = (
+                f"GitHub API error: {e}. "
+                "This might be a rate limit or permission issue."
+            )
+        except requests.exceptions.RequestException as e:
+            state.failed = True
+            state.failure_reason = f"GitHub API request failed: {e}"
+            state.publish_output = str(e)
+        except RuntimeError as e:
+            state.failed = True
+            state.failure_reason = str(e)
+            state.publish_output = str(e)
+        return state
+
     def _commit_changes_node(self, state: PublishState) -> PublishState:
         """Node: Commit changes to git."""
         slog = logger.bind(phase="commit_changes")
         slog.info("Committing changes to git")
 
         repository_url = state.github_repository_url
-        directory = state.publish_dir
+        # Resolve to absolute path to ensure it's found regardless of cwd
+        directory = str(Path(state.publish_dir).resolve())
+        slog.info(f"Committing deployment directory: {directory}")
         commit_message = f"Add {state.role} role and related configurations"
 
-        # Determine branch to use for commit/PR
-        # If github_branch is the same as base branch, create a feature branch
-        base_branch = state.pr_base_branch
-        if state.github_branch == base_branch:
-            # Create feature branch name
-            feature_branch = f"publish/{state.role}"
-            state.pr_head_branch = feature_branch
-            slog.info(
-                f"Branch '{base_branch}' is same as base. "
-                f"Using feature branch: {feature_branch}"
-            )
-        else:
-            state.pr_head_branch = state.github_branch
-
-        branch = state.pr_head_branch
+        # For new repository, push directly to the specified branch (usually main)
+        branch = state.github_branch
 
         # Calculate repo path before committing (needed for push later)
         repo_path = _get_repo_path(repository_url)
@@ -332,6 +358,7 @@ class PublishWorkflow:
                 "This might be a temporary issue - you can try again."
             )
         except RuntimeError as e:
+            # All RuntimeErrors are failures
             state.failed = True
             state.failure_reason = str(e)
             state.publish_output = str(e)
@@ -343,7 +370,7 @@ class PublishWorkflow:
         slog.info("Pushing branch to remote")
 
         repository_url = state.github_repository_url
-        branch = state.pr_head_branch
+        branch = state.github_branch
         repo_path = Path(state.repo_path) if state.repo_path else None
 
         try:
@@ -382,63 +409,6 @@ class PublishWorkflow:
             state.publish_output = str(e)
         return state
 
-    def _create_pr_node(self, state: PublishState) -> PublishState:
-        """Node: Create Pull Request."""
-        slog = logger.bind(phase="create_pr")
-        slog.info("Creating Pull Request")
-
-        repository_url = state.github_repository_url
-        title = f"Add {state.role} role and GitOps configuration"
-        body = (
-            f"This PR adds the {state.role} Ansible role and related "
-            f"configurations for GitOps deployment to "
-            f"Ansible Automation Platform.\n\n"
-            f"- Role: {state.role}\n"
-            f"- Playbook: {state.role}_deploy.yml\n"
-            f"- Job Template: {state.job_template_name}\n"
-            f"- GitHub Actions workflow for collection import"
-        )
-        head = state.pr_head_branch
-        base = state.pr_base_branch
-
-        try:
-            pr_url = github_create_pr(
-                repository_url=repository_url,
-                title=title,
-                body=body,
-                head=head,
-                base=base,
-            )
-            state.pr_url = pr_url
-            state.pr_created = True
-            state.publish_output = pr_url
-            slog.info(f"Pull Request created successfully. URL: {pr_url}")
-        except ValueError as e:
-            # Missing token, invalid branches, etc.
-            state.failed = True
-            state.failure_reason = f"PR validation failed: {e}"
-            state.publish_output = (
-                f"Cannot create PR: {e}. "
-                "Check your GITHUB_TOKEN and branch configuration."
-            )
-        except requests.exceptions.HTTPError as e:
-            # API errors - rate limits, permissions, etc.
-            state.failed = True
-            state.failure_reason = f"GitHub API error: {e}"
-            state.publish_output = (
-                f"GitHub API error: {e}. "
-                "This might be a rate limit or permission issue."
-            )
-        except requests.exceptions.RequestException as e:
-            state.failed = True
-            state.failure_reason = f"GitHub API request failed: {e}"
-            state.publish_output = str(e)
-        except RuntimeError as e:
-            state.failed = True
-            state.failure_reason = str(e)
-            state.publish_output = str(e)
-        return state
-
     def _check_verification(self, state: PublishState) -> str:
         """Conditional edge: Check if verification passed.
 
@@ -448,24 +418,126 @@ class PublishWorkflow:
         if state.failed:
             return self.NODE_MARK_FAILED
         if state.skip_git:
-            return END
-        return self.NODE_COMMIT_CHANGES
+            return self.NODE_SUMMARY
+        return self.NODE_CREATE_REPOSITORY
 
-    def _check_git_complete(self, state: PublishState) -> str:
-        """Conditional edge: Check if git steps completed successfully.
+    def _check_commit_result(self, state: PublishState) -> str:
+        """Conditional edge: Check if commit completed successfully.
 
         Returns:
-            Node name to transition to, or END to terminate workflow.
+            Node name to transition to.
         """
         if state.failed:
-            return self.NODE_MARK_FAILED
-        return END
+            return self.NODE_SUMMARY  # Go to summary to show what happened
+        return "push_branch"
+
+    def _summary_node(self, state: PublishState) -> PublishState:
+        """Node: Display summary of what was done."""
+        slog = logger.bind(phase="summary")
+
+        summary_lines = []
+        summary_lines.append("\n" + "=" * 80)
+        if state.failed:
+            summary_lines.append("PUBLISH FAILED")
+        else:
+            summary_lines.append("PUBLISH SUMMARY")
+        summary_lines.append("=" * 80)
+
+        # Show failure information if failed
+        if state.failed:
+            summary_lines.append("\nError:")
+            summary_lines.append(f"  {state.failure_reason or 'Unknown error'}")
+            summary_lines.append("\nWhat Happened:")
+            if "already exists in repository" in (state.failure_reason or ""):
+                summary_lines.append(
+                    f"  The branch '{state.github_branch}' already exists "
+                    f"in the repository."
+                )
+                summary_lines.append(
+                    "  Cannot create a duplicate branch. "
+                    "Please use a different branch name."
+                )
+            else:
+                summary_lines.append("  An error occurred during the publish process.")
+                summary_lines.append("  Check the error message above for details.")
+
+        # Files created - always show
+        summary_lines.append("\nFiles Created:")
+        summary_lines.append(f"  - Role: {state.publish_dir}/roles/{state.role}/")
+        summary_lines.append(
+            f"  - Playbook: {state.publish_dir}/playbooks/{state.role}_deploy.yml"
+        )
+        summary_lines.append(
+            f"  - Job Template: "
+            f"{state.publish_dir}/aap-config/job-templates/"
+            f"{state.role}_deploy.yaml"
+        )
+        if state.workflow_generated:
+            summary_lines.append(
+                f"  - GitHub Actions: {state.publish_dir}/.github/workflows/deploy.yml"
+            )
+
+        # Credentials needed - only show if not pushed yet and not failed
+        if not state.repository_created and not state.failed:
+            summary_lines.append("\nGitHub Credentials Required:")
+            summary_lines.append(
+                "  To push to GitHub, you need to set up authentication:"
+            )
+            summary_lines.append(
+                "  1. Create a Personal Access Token (PAT) with 'repo' scope:"
+            )
+            summary_lines.append("     - Go to: https://github.com/settings/tokens")
+            summary_lines.append("     - Click 'Generate new token (classic)'")
+            summary_lines.append("     - Select 'repo' scope")
+            summary_lines.append("     - Copy the token")
+            summary_lines.append("  2. Set the token as an environment variable:")
+            summary_lines.append("     export GITHUB_TOKEN='your_token_here'")
+
+        # Where it will be executed
+        summary_lines.append("\nExecution Location:")
+        if state.repository_created and state.branch_pushed:
+            summary_lines.append(f"  Repository: {state.github_repository_url}")
+            summary_lines.append(f"  Branch: {state.github_branch}")
+            summary_lines.append("  The deployment has been pushed to the repository.")
+            summary_lines.append(
+                "\nPlease configure the AAP secrets in the repository "
+                "to activate the deployment actions:"
+            )
+            summary_lines.append("  - AAP_CONTROLLER_URL")
+            summary_lines.append("  - AAP_USERNAME")
+            summary_lines.append("  - AAP_PASSWORD")
+        else:
+            summary_lines.append(f"  Local directory: {state.publish_dir}")
+            if not state.skip_git and not state.failed:
+                summary_lines.append("  To push to GitHub:")
+                summary_lines.append("    1. Set GITHUB_TOKEN environment variable")
+                summary_lines.append(f"    2. Run: cd {state.publish_dir}")
+                summary_lines.append("    3. Initialize git: git init")
+                summary_lines.append(
+                    "    4. Add remote: git remote add origin <repository-url>"
+                )
+                push_cmd = (
+                    f"    5. Commit and push: git add . && "
+                    f"git commit -m 'Initial commit' && "
+                    f"git push -u origin {state.github_branch}"
+                )
+                summary_lines.append(push_cmd)
+
+        summary_lines.append("\n" + "=" * 80)
+
+        summary_text = "\n".join(summary_lines)
+        state.publish_output = summary_text
+        print(summary_text)
+        slog.info("Summary displayed")
+
+        return state
 
     def _mark_failed_node(self, state: PublishState) -> PublishState:
-        """Node: Mark workflow as failed."""
+        """Node: Mark workflow as failed and proceed to summary."""
         slog = logger.bind(phase="mark_failed")
         failure_reason = state.failure_reason or "Unknown error"
         slog.error(f"Workflow failed: {failure_reason}")
+        # Summary node will display the failure details
         return state
 
     def invoke(self, initial_state: PublishState) -> PublishState:
@@ -491,19 +563,7 @@ class PublishWorkflow:
                 )
                 return final_state
 
-            if final_state.skip_git:
-                slog.info(
-                    f"Publish completed successfully for role "
-                    f"{final_state.role}! "
-                    f"(Git steps skipped - files in "
-                    f"{final_state.publish_dir}/)"
-                )
-                return final_state
-
-            slog.info(f"Publish completed successfully for role {final_state.role}!")
-            if final_state.pr_url:
-                slog.info(f"PR URL: {final_state.pr_url}")
-
+            # Summary is already displayed by the summary node
             return final_state
 
         except Exception as e:
@@ -522,8 +582,9 @@ class PublishWorkflow:
 def publish_role(
     role_name: str,
     role_path: str,
-    github_repository_url: str,
+    github_owner: str,
     github_branch: str,
+    base_path: str | None = None,
     skip_git: bool = False,
 ) -> PublishState:
     """Publish the role to Ansible Automation Platform.
@@ -531,9 +592,12 @@ def publish_role(
     Args:
         role_name: Name of the role to publish
         role_path: Path to the role directory
-        github_repository_url: GitHub repository URL
-        github_branch: Branch name to use for the PR
-        skip_git: If True, skip git steps (commit, push, PR).
+            (e.g., <path>/ansible/roles/{role})
+        github_owner: GitHub user or organization name
+        github_branch: Branch name to push to (default: main)
+        base_path: Base path for constructing deployment path
+            (defaults to parent of role_path's parent)
+        skip_git: If True, skip git steps (create repo, commit, push).
                   Files will be created in a role-specific directory.
 
     Returns:
@@ -541,18 +605,33 @@ def publish_role(
     """
     logger.info(f"Publishing: {role_name}")
 
+    # Determine base path and construct deployment path
+    role_path_obj = Path(role_path)
+    if base_path:
+        base_path_obj = Path(base_path)
+        deployment_path = base_path_obj / "ansible" / "deployments" / role_name
+    else:
+        # Extract ansible path from role_path:
+        # <path>/ansible/roles/{role} -> <path>/ansible
+        # Go up two levels from role_path to get ansible directory
+        # (role -> roles -> ansible)
+        ansible_path = role_path_obj.parent.parent
+        # Construct deployment path at same level as roles/
+        deployment_path = ansible_path / "deployments" / role_name
+        base_path_obj = ansible_path.parent
+
     # Run the publish workflow
     publish_workflow = PublishWorkflow()
     initial_state = PublishState(
         user_message="",
-        path="/",
+        path=str(base_path_obj),
         role=role_name,
         role_path=role_path,
-        github_repository_url=github_repository_url,
+        github_owner=github_owner,
         github_branch=github_branch,
         job_template_name=f"{role_name}_deploy",
         skip_git=skip_git,
-        publish_dir=f"publish_results_{role_name}",
+        publish_dir=str(deployment_path),
     )
     result = publish_workflow.invoke(initial_state)
 
