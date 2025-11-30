@@ -76,7 +76,6 @@ uv run app.py publish <role-name> \
   --source-path <path>/ansible/roles/{role} \
   --github-owner <user-or-org> \
   --github-branch main \
-  [--base-path <path>] \
   [--skip-git]
 ```
 

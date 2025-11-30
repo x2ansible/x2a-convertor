@@ -162,6 +162,15 @@ REASONING_EFFORT=high
 - Increased cost (10x)
 - Better accuracy for complex scenarios
 
+## Publishing Configurations
+
+To publish a migrated cookbook, now Ansible Role, to Github, the github token is required.
+
+```bash
+# Use reasoning model
+GITHUB_TOKEN=<ghp_...> # not-secret
+```
+
 ## Complete Configuration Examples
 
 ### Production (AWS Bedrock)
@@ -177,6 +186,7 @@ MAX_EXPORT_ATTEMPTS=5
 RECURSION_LIMIT=100
 MAX_TOKENS=8192
 TEMPERATURE=0.1
+GITHUB_TOKEN=<ghp_...> # not-secret
 ```
 
 ### Development (OpenAI)
@@ -194,6 +204,7 @@ LANGCHAIN_PROJECT=x2a-dev
 MAX_EXPORT_ATTEMPTS=3
 MAX_TOKENS=8192
 TEMPERATURE=0.1
+GITHUB_TOKEN=<ghp_...> # not-secret
 ```
 
 ### Air-Gapped (Local Ollama)
@@ -232,6 +243,7 @@ TEMPERATURE=0.1
 | `MAX_TOKENS` | integer | `8192` | No | LLM token limit |
 | `TEMPERATURE` | float | `0.1` | No | LLM randomness |
 | `REASONING_EFFORT` | enum | - | No | Reasoning intensity |
+| `GITHUB_TOKEN` | string | - | No | Github token |
 
 ## Security Best Practices
 
