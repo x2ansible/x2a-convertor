@@ -32,3 +32,6 @@ Chef, Puppet, and Salt analysis agents that parse and understand source code.
 
 ### [Export Agents]({% link concepts/export-agents.md %})
 Ansible migration and validation agents that generate production-ready playbooks.
+
+### [Publisher]({% link concepts/publishing.md %})
+Create a GitOps repository for configuring a migrated Ansible role to Ansible Automation Platform, and pushing the deployment to it.

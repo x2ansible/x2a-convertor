@@ -19,7 +19,8 @@ Get X2A Convertor running and migrate your first cookbook.
 
 1. **Install**: See [Installation](installation.html)
 2. **Configure**: See [Configuration](configuration.html)
-3. **Run**: Four commands to migrate a cookbook
+3. **Run**: Five commands to migrate a cookbook
+
 
 ```bash
 # 1. Initialize - scan repository and create migration plan
@@ -38,6 +39,14 @@ uv run app.py migrate \
 
 # 4. Validate - verify output quality
 uv run app.py validate "nginx"
+
+# 5. Publish - publish a migrated cookbook
+uv run app.py publish "nginx" \
+  --source-path ./ansible/roles/nginx \
+  --github-owner <user-or-org> \
+  --github-branch main
+  --base-path ./ansible/deployments # if not provided, derived from source-path
+  --skip-git # To skip the git operations, and only create local deployment directory
 ```
 
 ## Guides
