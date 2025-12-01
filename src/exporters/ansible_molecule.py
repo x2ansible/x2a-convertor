@@ -9,22 +9,22 @@ import os
 import shutil
 import signal
 import uuid
-from contextlib import contextmanager, redirect_stdout, redirect_stderr
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import ClassVar
 
 import structlog
-from molecule.config import Config
 from molecule.command import (
-    dependency,
-    syntax,
-    create,
     converge,
-    idempotence,
-    verify,
+    create,
+    dependency,
     destroy,
+    idempotence,
+    syntax,
+    verify,
 )
+from molecule.config import Config
 
 logger = structlog.get_logger(__name__)
 
@@ -73,7 +73,7 @@ class AnsibleMolecule:
     """
 
     # Test phases: (name, command_class)
-    TEST_PHASES = [
+    TEST_PHASES: ClassVar = [
         ("dependency", dependency.Dependency),
         ("syntax", syntax.Syntax),
         ("create", create.Create),
@@ -86,7 +86,7 @@ class AnsibleMolecule:
     DEFAULT_CONTAINER_IMAGE = "docker.io/geerlingguy/docker-fedora40-ansible:latest"
     DEFAULT_PHASE_TIMEOUT = 600  # 10 minutes per phase
 
-    def __init__(self, container_image: Optional[str] = None, phase_timeout: int = 600):
+    def __init__(self, container_image: str | None = None, phase_timeout: int = 600):
         """Initialize Molecule test executor
 
         Args:
@@ -119,7 +119,7 @@ class AnsibleMolecule:
         """
         return role_path / "molecule" / scenario_name / "molecule.yml"
 
-    def _check_dependencies(self) -> Optional[str]:
+    def _check_dependencies(self) -> str | None:
         """Check if Podman is installed
 
         Returns:
@@ -322,10 +322,10 @@ verifier:
             stderr_text = stderr_capture.getvalue()
             combined_output = stdout_text + stderr_text
 
-            error_msg = f"Phase {phase_name} failed: {str(e)}\n\n"
+            error_msg = f"Phase {phase_name} failed: {e!s}\n\n"
             if combined_output.strip():
                 error_msg += f"Output:\n```{combined_output}```\n\n"
-            error_msg += f"Exception: {type(e).__name__}: {str(e)}"
+            error_msg += f"Exception: {type(e).__name__}: {e!s}"
 
             log.warning(
                 "Molecule phase failed",
@@ -430,7 +430,7 @@ verifier:
     def run(
         cls,
         role_path: str,
-        container_image: Optional[str] = None,
+        container_image: str | None = None,
         phase_timeout: int = 600,
     ) -> MoleculeTestResult:
         """Run Molecule test suite on an Ansible role
