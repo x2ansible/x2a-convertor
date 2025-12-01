@@ -124,6 +124,7 @@ class AnsibleRoleCheckTool(BaseTool):
         try:
             # Initialize Ansible context with minimal configuration
             # This allows builtin modules to be resolved properly
+            # pyrefly: ignore - ImmutableDict is the correct runtime type for CLIARGS
             context.CLIARGS = ImmutableDict(
                 check=False,  # Not executing, just validating
                 verbosity=0,
