@@ -19,6 +19,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 
 # Chef CLI is needed for chef agent (installed via gem for multi-arch support)
 RUN gem install chef-cli --no-document
+RUN gem install berkshelf
 
 # Accept Chef licenses non-interactively
 ENV CHEF_LICENSE=accept-no-persist

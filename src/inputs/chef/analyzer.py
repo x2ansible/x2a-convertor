@@ -142,11 +142,21 @@ class ChefSubagent:
         return workflow.compile()
 
     def _prepare_dependencies(self, state: ChefState) -> ChefState:
-        """Fetch external dependencies using chef-cli."""
+        """Fetch external dependencies using appropriate strategy."""
         slog = logger.bind(phase="prepare_dependencies")
         slog.info(f"Checking for external dependencies for {state.path}")
-        self._dependency_fetcher = ChefDependencyManager(state.path)
 
+        # Initialize dependency manager
+        try:
+            self._dependency_fetcher = ChefDependencyManager(state.path)
+            slog.info(f"Using {self._dependency_fetcher._strategy.__class__.__name__}")
+        except RuntimeError as e:
+            slog.error(f"Failed to initialize dependency manager: {e}")
+            state.dependency_paths = [f"{state.path}/cookbooks"]
+            state.export_path = None
+            return state
+
+        # Check for dependencies
         has_deps, deps = self._dependency_fetcher.has_dependencies()
         if not has_deps:
             slog.info("No external dependencies found, using local cookbooks only")
@@ -154,17 +164,23 @@ class ChefSubagent:
             state.export_path = None
             return state
 
-        slog.info("Found external dependencies, fetching with chef-cli...")
-        self._dependency_fetcher.fetch_dependencies()
+        # Fetch dependencies
+        slog.info(f"Found {len(deps)} external dependencies, fetching...")
         try:
+            self._dependency_fetcher.fetch_dependencies()
             dependency_paths = self._dependency_fetcher.get_dependencies_paths(deps)
+
             if dependency_paths:
                 state.dependency_paths = dependency_paths
                 state.export_path = str(self._dependency_fetcher.export_path)
-        except RuntimeError:
-            slog.warning(
-                "PolicyLock has not been found, so there is no dependency path"
-            )
+                slog.info(f"Successfully fetched {len(dependency_paths)} dependencies")
+            else:
+                slog.warning("No dependency paths returned after fetch")
+                state.dependency_paths = []
+                state.export_path = None
+
+        except RuntimeError as e:
+            slog.warning(f"Failed to fetch dependencies: {e}")
             state.dependency_paths = []
             state.export_path = None
 
