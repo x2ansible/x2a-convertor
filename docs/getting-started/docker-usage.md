@@ -17,6 +17,14 @@ We're using this repository as default test project:
 git clone https://github.com/x2ansible/chef-examples.git
 cd chef-examples
 ```
+## Requirements
+
+This example uses the AWS Bedrock provider. You'll need to configure the following environment variables:
+
+- **AWS_REGION**: The AWS region where the model will run
+- **AWS_BEARER_TOKEN_BEDROCK**: The API key to connect to the LLM
+- **LLM_MODEL**: The model to use (this guide uses `anthropic.claude-3-7-sonnet-20250219-v1:0`). Note: Some regions require the `us.` prefix
+
 
 ## Initialization
 
