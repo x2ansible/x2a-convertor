@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 
 import os
+import sys
+from functools import wraps
 
 import click
 from dotenv import load_dotenv
 
+from src.error_details import get_error_human_message
 from src.exporters.migrate import migrate_module
 from src.init import init_project
 from src.inputs.analyze import analyze_project
 from src.publishers.publish import publish_role
-from src.utils.logging import setup_logging
+from src.utils.logging import get_logger, setup_logging
 from src.validate import validate_module
+
+logger = get_logger(__name__)
 
 
 def change_dir_callback(ctx, param, value):
@@ -18,6 +23,29 @@ def change_dir_callback(ctx, param, value):
     if value:
         os.chdir(value)
     return value
+
+
+def handle_exceptions(func):
+    """
+    Decorator to catch and log exceptions with formatted output.
+
+    Provides nice error messages for all know errors and other exceptions,
+    logging them properly before exiting.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            human_message = get_error_human_message(e)
+            click.echo(
+                "\n\n" + click.style("Error: ", fg="red", bold=True) + human_message,
+                err=True,
+            )
+            sys.exit(1)
+
+    return wrapper
 
 
 @click.group(invoke_without_command=True)
@@ -38,6 +66,7 @@ def cli(ctx) -> None:
     is_eager=True,
     help="Source directory to analyze",
 )
+@handle_exceptions
 def init(user_requirements, source_dir) -> None:
     """Initialize project with interactive message"""
     init_project(user_requirements=user_requirements, source_dir=source_dir)
@@ -53,6 +82,7 @@ def init(user_requirements, source_dir) -> None:
     is_eager=True,
     help="Source directory to analyze",
 )
+@handle_exceptions
 def analyze(user_requirements, source_dir) -> None:
     """Perform detailed analysis and create module migration plans"""
     analyze_project(user_requirements, source_dir)
@@ -92,6 +122,7 @@ def analyze(user_requirements, source_dir) -> None:
         "Example: migration-plan.md"
     ),
 )
+@handle_exceptions
 def migrate(
     user_requirements,
     source_technology,
@@ -111,6 +142,7 @@ def migrate(
 
 @cli.command()
 @click.argument("module_name")
+@handle_exceptions
 def validate(module_name) -> None:
     """Validate migrated module against original configuration"""
     validate_module(module_name)
@@ -149,6 +181,7 @@ def validate(module_name) -> None:
     help="Skip git steps (create repo, commit, push). "
     "Files will be created in <base-path>/ansible/deployments/{module_name}/ only.",
 )
+@handle_exceptions
 def publish(
     module_name,
     source_path,
