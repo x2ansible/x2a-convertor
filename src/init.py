@@ -97,14 +97,12 @@ def init_project(user_requirements, source_dir: str = "."):
         if Path(MIGRATION_PLAN_FILE).exists():
             click.echo("✅ Migration plan generated successfully!")
             click.echo(
-                f"📄 Check '{MIGRATION_PLAN_FILE}' for the detailed migration analysis."
+                f"Check '{MIGRATION_PLAN_FILE}' for the detailed migration analysis."
             )
         else:
-            click.echo(
-                f"⚠️  Agent completed but '{MIGRATION_PLAN_FILE}' was not created."
-            )
+            click.echo(f"Agent completed but '{MIGRATION_PLAN_FILE}' was not created.")
         return result
 
     except Exception as e:
-        click.echo(f"❌ Error during migration planning: {e!s}")
+        click.echo(f"Error during migration planning: {e!s}")
         raise
