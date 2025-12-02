@@ -5,6 +5,18 @@ parent: Concepts
 nav_order: 2
 ---
 
+## Table of contents
+{: .no_toc .text-delta }
+
+<style>
+.toc-h3-only ul li ul{
+    display: none;
+}
+</style>
+
+* TOC
+{:toc .toc-h3-only}
+
 # Migration Workflow
 
 Complete end-to-end process for migrating infrastructure code from Chef/Puppet/Salt to Ansible.
