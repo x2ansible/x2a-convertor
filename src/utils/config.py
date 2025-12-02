@@ -2,7 +2,7 @@ import os
 from typing import Literal
 
 defaults = {
-    "RECURSION_LIMIT": 100,
+    "RECURSION_LIMIT": 500,
     "MAX_WRITE_ATTEMPTS": 10,
     "MAX_VALIDATION_ATTEMPTS": 5,
 }
