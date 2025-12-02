@@ -1,8 +1,10 @@
 import contextlib
 import re
 import shutil
+import sys
 import tempfile
 from dataclasses import dataclass
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -10,6 +12,23 @@ import yaml
 from ansible.errors import AnsibleError
 from ansible.parsing.dataloader import DataLoader
 from ansible.parsing.yaml.dumper import AnsibleDumper
+
+# Monkey-patch pkg_resources to use modern importlib.metadata
+# This fixes the pkg_resources deprecation warning from ansible_risk_insight
+if "pkg_resources" not in sys.modules:
+
+    def _require(package_name):
+        class _Ver:
+            version = version(package_name)
+
+        return [_Ver()]
+
+    # Create a proper module object using the type of an existing module
+    ModuleType = type(sys)
+    fake_pkg_resources = ModuleType("pkg_resources")
+    fake_pkg_resources.require = _require
+    sys.modules["pkg_resources"] = fake_pkg_resources
+
 from ansible_risk_insight import ARIScanner, Config
 from ansible_risk_insight.scanner import LoadType
 from jinja2 import Environment, FileSystemLoader
