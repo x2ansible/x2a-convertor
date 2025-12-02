@@ -65,21 +65,19 @@ flowchart TB
     C3 -->|Iterate| Req3[Manual Fixes]
     Req3 --> P3
 
-    subgraph P4["Phase 4: Validate"]
-        V1[Logic Comparison]
-        V2[Generate Report]
-        V1 --> V2
+    subgraph P4["Phase 4: Publish"]
+        PB1[Create Deployment Structure]
+        PB2[Generate GitOps Config]
+        PB3[Create GitHub Repo]
+        PB4[Push to Remote]
+        PB1 --> PB2 --> PB3 --> PB4
     end
 
-    P4 --> C4{{Checkpoint 4:<br/>Approve for Production}}
-
-    C4 -->|Ready| End([Production Deployment])
-    C4 -->|Issues| Manual[Manual Remediation]
+    P4 --> End([Production Deployment])
 
     style C1 fill:#fff3e0
     style C2 fill:#fff3e0
     style C3 fill:#fff3e0
-    style C4 fill:#fff3e0
     style P1 fill:#e3f2fd
     style P2 fill:#e8f5e9
     style P3 fill:#f3e5f5
@@ -311,49 +309,74 @@ ansible/nginx-multisite/
 - [ ] No ansible-lint errors
 - [ ] Idempotency maintained
 
-## Phase 4: Validate
+## Phase 4: Publish
 
-**Goal**: Verify logic equivalence and production readiness.
-
-### Command
-
-```bash
-uv run app.py validate "nginx-multisite"
-```
+**Goal**: Deploy migrated Ansible role to a GitOps repository for production use.
 
 ### Process
 
+The publisher automates GitOps deployment by creating a production-ready repository structure:
+
 ```mermaid
 flowchart TB
-    Start([Start Validation]) --> Load[Load Original + Generated]
-    Load --> Compare[Compare Resource Logic]
-    Compare --> Lint[Run ansible-lint]
-    Lint --> Syntax[Syntax Check]
-    Syntax --> Logic[Logic Equivalence Check]
-    Logic --> Report[Generate Report]
-    Report --> Done([Validation Complete])
+    Start([Migrated Role]) --> Create[Create Deployment Structure]
+    Create --> Copy[Copy Role to deployments/]
+    Copy --> Gen1[Generate Playbook]
+    Gen1 --> Gen2[Generate Job Template]
+    Gen2 --> Gen3[Generate GitHub Actions]
+    Gen3 --> Verify[Verify All Files]
+    Verify --> Repo{GitHub<br/>Repo Exists?}
 
-    style Compare fill:#e3f2fd
-    style Logic fill:#fff3e0
-    style Report fill:#e8f5e9
+    Repo -->|No| CreateRepo[Create role-gitops]
+    Repo -->|Yes| CheckBranch{Branch<br/>Exists?}
+
+    CreateRepo --> Commit[Commit Changes]
+    CheckBranch -->|No| Commit
+    CheckBranch -->|Yes| Error[Fail: Branch Exists]
+
+    Commit --> Push[Push to Remote]
+    Push --> Summary[Display Summary]
+
+    Summary --> Done([GitOps Deployment Ready])
+
+    style Repo fill:#fff3e0
+    style CheckBranch fill:#fff3e0
+    style Error fill:#ffebee
+    style Done fill:#e8f5e9
 ```
 
-### Outputs
+### Deployment Structure
 
-**Console**: Validation report with:
+The publisher creates a complete GitOps repository at `<path>/ansible/deployments/{role}/`:
 
-- ansible-lint results
-- Logic comparison summary
-- Potential discrepancies
-- Recommendations for manual review
+```
+deployments/{role}/
+├── roles/
+│   └── {role}/                  # Copied role source
+├── playbooks/
+│   └── {role}_deploy.yml        # Entry point playbook
+├── aap-config/job-templates/
+│   └── {role}_deploy.yaml       # Ansible Automation Platform config
+└── .github/workflows/
+    └── deploy.yml               # CI/CD pipeline
+```
+
+### Key Features
+
+- **Template-based generation**: Uses Jinja2 templates for consistent output
+- **Deterministic**: No LLM calls during generation for reproducible results
+- **GitOps-ready**: Automatically creates GitHub repositories
+- **Idempotent**: Handles existing repositories gracefully, fails on existing branches
+- **Summary output**: Displays files created, credentials needed, and repository location
 
 ### What to Review
 
-- [ ] No critical ansible-lint violations
-- [ ] Logic flow matches original Chef recipe
-- [ ] Edge cases handled correctly
-- [ ] Idempotency verified
-- [ ] Ready for test environment deployment
+- [ ] Deployment structure created correctly
+- [ ] Playbook references correct role
+- [ ] Job template configuration valid for AAP
+- [ ] GitHub Actions workflow configured properly
+- [ ] Repository created and pushed successfully
+- [ ] All credentials and execution instructions clear
 
 ## Parallel Workflows
 
@@ -371,17 +394,20 @@ gantt
     section Module A
     Analyze A      :5, 15
     Migrate A      :15, 30
+    Publish A      :30, 35
 
     section Module B
     Analyze B      :5, 15
     Migrate B      :15, 30
+    Publish B      :30, 35
 
     section Module C
     Analyze C      :5, 15
     Migrate C      :15, 30
+    Publish C      :30, 35
 ```
 
-This reduces total time from 105 minutes (sequential) to 30 minutes (parallel).
+This reduces total time from 120 minutes (sequential) to 35 minutes (parallel).
 
 ## Error Handling
 
@@ -399,7 +425,7 @@ This reduces total time from 105 minutes (sequential) to 30 minutes (parallel).
 
    - TBC
 
-4. **Validate detects logic differences**
+4. **Publish fails to create repository**
    - TBC
 
 ### Recovery Strategies

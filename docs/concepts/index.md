@@ -22,7 +22,7 @@ X2A Convertor uses a multi-agent AI architecture built on LangGraph to analyze l
 Complete system architecture with component diagrams and data flow.
 
 ### [Workflow]({% link concepts/workflow.md %})
-End-to-end migration process from initialization through validation.
+End-to-end migration process from initialization through publishing to production.
 
 ### [Human Checkpoints]({% link concepts/human-checkpoints.md %})
 Review points and decision gates throughout the migration lifecycle.
@@ -31,7 +31,4 @@ Review points and decision gates throughout the migration lifecycle.
 Chef, Puppet, and Salt analysis agents that parse and understand source code.
 
 ### [Export Agents]({% link concepts/export-agents.md %})
-Ansible migration and validation agents that generate production-ready playbooks.
-
-### [Publisher]({% link concepts/publishing.md %})
-Create a GitOps repository for configuring a migrated Ansible role to Ansible Automation Platform, and pushing the deployment to it.
+Ansible migration agents that generate production-ready playbooks and GitOps deployments.
