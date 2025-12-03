@@ -225,9 +225,81 @@ ansible-playbook -i test-inventory site.yml --tags nginx
    - Edit generated files directly
    - Document changes for future reference
 
-3. **Approve for validation**
+3. **Approve and proceed to publish**
    - Commit generated role
-   - Run validate phase
+   - Proceed to publish phase
+
+## Checkpoint 4: Published Deployment Review
+
+### Trigger
+
+After `app.py publish` completes
+
+### Artifact
+
+- GitOps repository: `{role}-gitops` on GitHub
+- Local deployment directory: `ansible/deployments/{role}/`
+
+### Review Checklist
+
+#### Deployment Structure
+
+- [ ] All required directories created (`roles/`, `playbooks/`, `aap-config/`, `.github/workflows/`)
+- [ ] Role copied correctly to `roles/{role}/`
+- [ ] Deployment structure follows GitOps conventions
+
+#### Generated Configurations
+
+- [ ] Playbook (`{role}_deploy.yml`) references correct role
+- [ ] Job template (`{role}_deploy.yaml`) configured for Ansible Automation Platform
+- [ ] GitHub Actions workflow (`deploy.yml`) has proper CI/CD steps
+- [ ] All file paths and references are correct
+
+#### Repository Status
+
+- [ ] GitHub repository created successfully
+- [ ] Branch pushed to remote
+- [ ] Repository visibility appropriate (public/private)
+- [ ] Repository name follows convention (`{role}-gitops`)
+
+#### Credentials and Access
+
+- [ ] GitHub credentials working
+- [ ] AAP credentials documented (if needed)
+- [ ] Execution instructions clear in summary
+- [ ] Repository URL accessible
+
+### Example Review
+
+After publishing `nginx_multisite`, verify:
+
+```bash
+# Check local deployment structure
+ls -la ansible/deployments/nginx_multisite/
+
+# Verify GitHub repository
+gh repo view {owner}/nginx_multisite-gitops
+
+# Check branch
+gh api repos/{owner}/nginx_multisite-gitops/branches/main
+```
+
+### Decision Points
+
+1. **Repository issues**
+
+   - Delete and re-run if repository creation failed
+   - Use `--skip-git` to generate files locally only for testing
+
+2. **Configuration adjustments**
+
+   - Edit generated files in deployment directory
+   - Re-run publish if major changes needed
+
+3. **Approve for production**
+   - Repository ready for AAP integration
+   - CI/CD pipeline can be triggered
+   - Document any manual configuration steps needed
 
 ### Audit Trail
 
