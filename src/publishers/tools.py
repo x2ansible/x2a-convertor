@@ -33,7 +33,8 @@ def load_collections_file(
         or None if file doesn't exist
 
     Raises:
-        ValueError: If file format is invalid
+        TypeError: If file format is invalid (wrong type)
+        ValueError: If file format is invalid (parse error)
         OSError: If file cannot be read
     """
     file_path_obj = Path(file_path)
@@ -47,18 +48,6 @@ def load_collections_file(
                 data = yaml.safe_load(f)
             else:
                 data = json.load(f)
-
-        if not isinstance(data, list):
-            error_msg = (
-                f"Collections file must contain a list, "
-                f"got {type(data).__name__}"
-            )
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        logger.info(f"Loaded {len(data)} collections from {file_path}")
-        return data
-
     except (yaml.YAMLError, json.JSONDecodeError) as e:
         error_msg = f"Failed to parse collections file {file_path}: {e}"
         logger.error(error_msg)
@@ -67,6 +56,15 @@ def load_collections_file(
         error_msg = f"Failed to load collections file {file_path}: {e}"
         logger.error(error_msg)
         raise OSError(error_msg) from e
+
+    # Type check after successful loading (outside try block)
+    if not isinstance(data, list):
+        error_msg = f"Collections file must contain a list, got {type(data).__name__}"
+        logger.error(error_msg)
+        raise TypeError(error_msg)
+
+    logger.info(f"Loaded {len(data)} collections from {file_path}")
+    return data
 
 
 def load_inventory_file(file_path: str | Path) -> dict | None:
@@ -79,7 +77,8 @@ def load_inventory_file(file_path: str | Path) -> dict | None:
         Inventory structure as dict, or None if file doesn't exist
 
     Raises:
-        ValueError: If file format is invalid
+        TypeError: If file format is invalid (wrong type)
+        ValueError: If file format is invalid (parse error)
         OSError: If file cannot be read
     """
     file_path_obj = Path(file_path)
@@ -93,18 +92,6 @@ def load_inventory_file(file_path: str | Path) -> dict | None:
                 data = yaml.safe_load(f)
             else:
                 data = json.load(f)
-
-        if not isinstance(data, dict):
-            error_msg = (
-                f"Inventory file must contain a dict, "
-                f"got {type(data).__name__}"
-            )
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        logger.info(f"Loaded inventory from {file_path}")
-        return data
-
     except (yaml.YAMLError, json.JSONDecodeError) as e:
         error_msg = f"Failed to parse inventory file {file_path}: {e}"
         logger.error(error_msg)
@@ -113,6 +100,15 @@ def load_inventory_file(file_path: str | Path) -> dict | None:
         error_msg = f"Failed to load inventory file {file_path}: {e}"
         logger.error(error_msg)
         raise OSError(error_msg) from e
+
+    # Type check after successful loading (outside try block)
+    if not isinstance(data, dict):
+        error_msg = f"Inventory file must contain a dict, got {type(data).__name__}"
+        logger.error(error_msg)
+        raise TypeError(error_msg)
+
+    logger.info(f"Loaded inventory from {file_path}")
+    return data
 
 
 def create_directory_structure(base_path: str, structure: list[str]) -> None:
@@ -452,9 +448,7 @@ def generate_collections_requirements(
         with file_path_obj.open("w") as f:
             f.write(requirements_content)
 
-        logger.info(
-            f"Successfully generated collections/requirements.yml: {file_path}"
-        )
+        logger.info(f"Successfully generated collections/requirements.yml: {file_path}")
 
     except Exception as e:
         error_msg = f"Failed to generate collections/requirements.yml: {e}"
@@ -462,9 +456,7 @@ def generate_collections_requirements(
         raise OSError(error_msg) from e
 
 
-def generate_inventory_file(
-    file_path: str, inventory: dict | None = None
-) -> None:
+def generate_inventory_file(file_path: str, inventory: dict | None = None) -> None:
     """Generate inventory file (hosts.yml).
 
     Args:

@@ -12,8 +12,8 @@ from src.exporters.migrate import migrate_module
 from src.init import init_project
 from src.inputs.analyze import analyze_project
 from src.publishers.publish import publish_role
-from src.utils.logging import get_logger, setup_logging
 from src.publishers.tools import load_collections_file, load_inventory_file
+from src.utils.logging import get_logger, setup_logging
 from src.validate import validate_module
 
 logger = get_logger(__name__)
@@ -196,7 +196,7 @@ def validate(module_name) -> None:
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
     help=(
         "Path to YAML/JSON file containing collections list. "
-        "Format: [{\"name\": \"collection.name\", \"version\": \"1.0.0\"}]"
+        'Format: [{"name": "collection.name", "version": "1.0.0"}]'
     ),
 )
 @click.option(
@@ -204,7 +204,7 @@ def validate(module_name) -> None:
     type=click.Path(exists=True, file_okay=True, dir_okay=False),
     help=(
         "Path to YAML/JSON file containing inventory structure. "
-        "Format: {\"all\": {\"children\": {...}}}"
+        'Format: {"all": {"children": {...}}}'
     ),
 )
 @handle_exceptions
@@ -233,12 +233,8 @@ def publish(
         )
 
     # Load collections and inventory from files if provided
-    collections = (
-        load_collections_file(collections_file) if collections_file else None
-    )
-    inventory = (
-        load_inventory_file(inventory_file) if inventory_file else None
-    )
+    collections = load_collections_file(collections_file) if collections_file else None
+    inventory = load_inventory_file(inventory_file) if inventory_file else None
 
     publish_role(
         module_names,

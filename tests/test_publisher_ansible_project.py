@@ -1,8 +1,7 @@
 """Tests for Ansible project creation in publisher."""
 
-import yaml
-
 import pytest
+import yaml
 
 from src.publishers.tools import (
     copy_role_directory,
@@ -57,9 +56,7 @@ class TestAnsibleProjectCreation:
             "roles",
             "playbooks",
         ]
-        create_directory_structure(
-            base_path=str(temp_project_dir), structure=structure
-        )
+        create_directory_structure(base_path=str(temp_project_dir), structure=structure)
 
         # Check all directories exist
         assert (temp_project_dir / "collections").exists()
@@ -102,9 +99,7 @@ class TestAnsibleProjectCreation:
         assert (roles_dir / "sample_role").exists()
         assert (roles_dir / "sample_role2").exists()
 
-    def test_generate_playbooks_for_roles(
-        self, temp_project_dir, sample_role_dir
-    ):
+    def test_generate_playbooks_for_roles(self, temp_project_dir, sample_role_dir):
         """Test that playbooks are generated for each role."""
         playbooks_dir = temp_project_dir / "playbooks"
         playbooks_dir.mkdir(parents=True)
@@ -176,9 +171,7 @@ class TestAnsibleProjectTools:
             {"name": "test.collection", "version": "1.0.0"},
         ]
         req_path = tmp_path / "requirements.yml"
-        generate_collections_requirements(
-            str(req_path), collections=collections
-        )
+        generate_collections_requirements(str(req_path), collections=collections)
 
         assert req_path.exists()
         content = yaml.safe_load(req_path.read_text())
