@@ -80,9 +80,7 @@ class PublishWorkflow:
     def _build_workflow(self) -> CompiledStateGraph:
         """Build the LangGraph workflow for publishing."""
         workflow = StateGraph(PublishState)
-        workflow.add_node(
-            "create_ansible_project", self._create_ansible_project_node
-        )
+        workflow.add_node("create_ansible_project", self._create_ansible_project_node)
         workflow.add_node("verify_files", self._verify_files_node)
         workflow.add_node("create_repository", self._create_repository_node)
         workflow.add_node("commit_changes", self._commit_changes_node)
@@ -92,22 +90,16 @@ class PublishWorkflow:
 
         workflow.add_edge(START, "create_ansible_project")
         workflow.add_edge("create_ansible_project", "verify_files")
-        workflow.add_conditional_edges(
-            "verify_files", self._check_verification
-        )
+        workflow.add_conditional_edges("verify_files", self._check_verification)
         workflow.add_edge("create_repository", "commit_changes")
-        workflow.add_conditional_edges(
-            "commit_changes", self._check_commit_result
-        )
+        workflow.add_conditional_edges("commit_changes", self._check_commit_result)
         workflow.add_edge("push_branch", "summary")
         workflow.add_edge("summary", END)
         workflow.add_edge("mark_failed", "summary")
 
         return workflow.compile()
 
-    def _create_ansible_project_node(
-        self, state: PublishState
-    ) -> PublishState:
+    def _create_ansible_project_node(self, state: PublishState) -> PublishState:
         """Node: Create complete Ansible project structure.
 
         Creates:
@@ -132,13 +124,11 @@ class PublishWorkflow:
                 "roles",
                 "playbooks",
             ]
-            create_directory_structure(
-                base_path=base_path, structure=structure
-            )
+            create_directory_structure(base_path=base_path, structure=structure)
             slog.info("Directory structure created")
 
             # 2. Copy all role directories
-            for role_name, role_path in zip(state.roles, state.role_paths):
+            for role_name, role_path in zip(state.roles, state.role_paths, strict=True):
                 destination_path = f"{base_path}/roles/{role_name}"
                 slog.info(f"Copying role {role_name} from {role_path}")
                 copy_role_directory(
@@ -201,12 +191,8 @@ class PublishWorkflow:
         ]
         # Add role directories and playbooks for each role
         for role_name in state.roles:
-            required_files.append(
-                f"{state.publish_dir}/roles/{role_name}"
-            )
-            required_files.append(
-                f"{state.publish_dir}/playbooks/run_{role_name}.yml"
-            )
+            required_files.append(f"{state.publish_dir}/roles/{role_name}")
+            required_files.append(f"{state.publish_dir}/playbooks/run_{role_name}.yml")
         return required_files
 
     def _verify_files_node(self, state: PublishState) -> PublishState:
@@ -234,15 +220,13 @@ class PublishWorkflow:
         if len(state.roles) == 1:
             repo_name = f"{state.roles[0]}-gitops"
             description = (
-                f"GitOps repository for {state.roles[0]} "
-                "Ansible role deployment"
+                f"GitOps repository for {state.roles[0]} Ansible role deployment"
             )
         else:
             repo_name = "ansible-project-gitops"
             role_list = ", ".join(state.roles)
             description = (
-                f"GitOps repository for Ansible project "
-                f"with roles: {role_list}"
+                f"GitOps repository for Ansible project with roles: {role_list}"
             )
 
         try:
@@ -285,14 +269,10 @@ class PublishWorkflow:
         directory = str(Path(state.publish_dir).resolve())
         slog.info(f"Committing deployment directory: {directory}")
         if len(state.roles) == 1:
-            commit_message = (
-                f"Add {state.roles[0]} role and related configurations"
-            )
+            commit_message = f"Add {state.roles[0]} role and related configurations"
         else:
             role_list = ", ".join(state.roles)
-            commit_message = (
-                f"Add Ansible project with roles: {role_list}"
-            )
+            commit_message = f"Add Ansible project with roles: {role_list}"
 
         # For new repository, push directly to the specified branch
         # (usually main)
@@ -411,9 +391,7 @@ class PublishWorkflow:
         # Show failure information if failed
         if state.failed:
             summary_lines.append("\nError:")
-            summary_lines.append(
-                f"  {state.failure_reason or 'Unknown error'}"
-            )
+            summary_lines.append(f"  {state.failure_reason or 'Unknown error'}")
             summary_lines.append("\nWhat Happened:")
             if "already exists in repository" in (state.failure_reason or ""):
                 summary_lines.append(
@@ -425,32 +403,21 @@ class PublishWorkflow:
                     "Please use a different branch name."
                 )
             else:
-                summary_lines.append(
-                    "  An error occurred during the publish process."
-                )
-                summary_lines.append(
-                    "  Check the error message above for details."
-                )
+                summary_lines.append("  An error occurred during the publish process.")
+                summary_lines.append("  Check the error message above for details.")
 
         # Files created - always show
         summary_lines.append("\nFiles Created:")
-        summary_lines.append(
-            f"  - ansible.cfg: {state.publish_dir}/ansible.cfg"
-        )
+        summary_lines.append(f"  - ansible.cfg: {state.publish_dir}/ansible.cfg")
         summary_lines.append(
             f"  - Collections requirements: "
             f"{state.publish_dir}/collections/requirements.yml"
         )
-        summary_lines.append(
-            f"  - Inventory: {state.publish_dir}/inventory/hosts.yml"
-        )
+        summary_lines.append(f"  - Inventory: {state.publish_dir}/inventory/hosts.yml")
         for role_name in state.roles:
+            summary_lines.append(f"  - Role: {state.publish_dir}/roles/{role_name}/")
             summary_lines.append(
-                f"  - Role: {state.publish_dir}/roles/{role_name}/"
-            )
-            summary_lines.append(
-                f"  - Playbook: "
-                f"{state.publish_dir}/playbooks/run_{role_name}.yml"
+                f"  - Playbook: {state.publish_dir}/playbooks/run_{role_name}.yml"
             )
 
         # Credentials needed - only show if not pushed yet and not failed
@@ -462,27 +429,19 @@ class PublishWorkflow:
             summary_lines.append(
                 "  1. Create a Personal Access Token (PAT) with 'repo' scope:"
             )
-            summary_lines.append(
-                "     - Go to: https://github.com/settings/tokens"
-            )
+            summary_lines.append("     - Go to: https://github.com/settings/tokens")
             summary_lines.append("     - Click 'Generate new token (classic)'")
             summary_lines.append("     - Select 'repo' scope")
             summary_lines.append("     - Copy the token")
-            summary_lines.append(
-                "  2. Set the token as an environment variable:"
-            )
+            summary_lines.append("  2. Set the token as an environment variable:")
             summary_lines.append("     export GITHUB_TOKEN='your_token_here'")
 
         # Where it will be executed
         summary_lines.append("\nExecution Location:")
         if state.repository_created and state.branch_pushed:
-            summary_lines.append(
-                f"  Repository: {state.github_repository_url}"
-            )
+            summary_lines.append(f"  Repository: {state.github_repository_url}")
             summary_lines.append(f"  Branch: {state.github_branch}")
-            summary_lines.append(
-                "  The deployment has been pushed to the repository."
-            )
+            summary_lines.append("  The deployment has been pushed to the repository.")
             summary_lines.append(
                 "\nPlease configure the AAP secrets in the repository "
                 "to activate the deployment actions:"
@@ -494,9 +453,7 @@ class PublishWorkflow:
             summary_lines.append(f"  Local directory: {state.publish_dir}")
             if not state.skip_git and not state.failed:
                 summary_lines.append("  To push to GitHub:")
-                summary_lines.append(
-                    "    1. Set GITHUB_TOKEN environment variable"
-                )
+                summary_lines.append("    1. Set GITHUB_TOKEN environment variable")
                 summary_lines.append(f"    2. Run: cd {state.publish_dir}")
                 summary_lines.append("    3. Initialize git: git init")
                 summary_lines.append(
@@ -539,9 +496,7 @@ class PublishWorkflow:
         slog.info("Starting publish workflow")
 
         try:
-            result = self._graph.invoke(
-                initial_state, config=get_runnable_config()
-            )
+            result = self._graph.invoke(initial_state, config=get_runnable_config())
             final_state = PublishState(**result)
 
             if final_state.failed:
@@ -562,8 +517,7 @@ class PublishWorkflow:
 
             initial_state.failed = True
             initial_state.failure_reason = (
-                f"Publish workflow error: {error_str}. "
-                "Unexpected error occurred."
+                f"Publish workflow error: {error_str}. Unexpected error occurred."
             )
             return initial_state
 
@@ -600,15 +554,9 @@ def publish_role(
         PublishState with results
     """
     # Normalize to lists
-    if isinstance(role_name, str):
-        role_names = [role_name]
-    else:
-        role_names = role_name
+    role_names = [role_name] if isinstance(role_name, str) else role_name
 
-    if isinstance(role_path, str):
-        role_paths = [role_path]
-    else:
-        role_paths = role_path
+    role_paths = [role_path] if isinstance(role_path, str) else role_path
 
     if len(role_names) != len(role_paths):
         error_msg = (
@@ -618,9 +566,7 @@ def publish_role(
         logger.error(error_msg)
         raise ValueError(error_msg)
 
-    logger.info(
-        f"Publishing {len(role_names)} role(s): {', '.join(role_names)}"
-    )
+    logger.info(f"Publishing {len(role_names)} role(s): {', '.join(role_names)}")
 
     # Determine base path and construct deployment path
     # Use first role path to determine base
@@ -629,9 +575,7 @@ def publish_role(
         base_path_obj = Path(base_path)
         # For multi-role projects, use a generic name
         if len(role_names) == 1:
-            deployment_path = (
-                base_path_obj / "ansible" / "deployments" / role_names[0]
-            )
+            deployment_path = base_path_obj / "ansible" / "deployments" / role_names[0]
         else:
             deployment_path = (
                 base_path_obj / "ansible" / "deployments" / "ansible-project"
@@ -644,9 +588,7 @@ def publish_role(
         if len(role_names) == 1:
             deployment_path = ansible_path / "deployments" / role_names[0]
         else:
-            deployment_path = (
-                ansible_path / "deployments" / "ansible-project"
-            )
+            deployment_path = ansible_path / "deployments" / "ansible-project"
         base_path_obj = ansible_path.parent
 
     # Run the publish workflow
@@ -667,9 +609,7 @@ def publish_role(
     if result.failed:
         failure_reason = result.failure_reason or "Unknown error"
         role_list = ", ".join(role_names)
-        logger.error(
-            f"Publish failed for role(s) {role_list}: {failure_reason}"
-        )
+        logger.error(f"Publish failed for role(s) {role_list}: {failure_reason}")
         return result
 
     role_list = ", ".join(role_names)
