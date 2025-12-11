@@ -21,7 +21,6 @@ Get X2A Convertor running and migrate your first cookbook.
 2. **Configure**: See [Configuration](configuration.html)
 3. **Run**: Five commands to migrate a cookbook
 
-
 ```bash
 # 1. Initialize - scan repository and create migration plan
 uv run app.py init --source-dir ./chef-repo "Migrate to Ansible"
@@ -37,13 +36,30 @@ uv run app.py migrate \
   --module-migration-plan migration-plan-nginx.md \
   "Convert nginx cookbook"
 
-# 4. Publish - publish a migrated cookbook
+# 4. Validate - verify output quality
+uv run app.py validate "nginx"
+
+# 5. Publish - create Ansible project and optionally push to GitHub
+# Single role
 uv run app.py publish "nginx" \
-  --source-path ./ansible/roles/nginx \
+  --source-paths ./ansible/roles/nginx \
   --github-owner <user-or-org> \
   --github-branch main
-  --base-path ./ansible/deployments # if not provided, derived from source-path
-  --skip-git # To skip the git operations, and only create local deployment directory
+
+# Multiple roles
+uv run app.py publish "nginx" "apache" "mysql" \
+  --source-paths ./ansible/roles/nginx \
+  --source-paths ./ansible/roles/apache \
+  --source-paths ./ansible/roles/mysql \
+  --github-owner <user-or-org> \
+  --github-branch main
+
+# With custom collections and inventory (local only)
+uv run app.py publish "nginx" \
+  --source-paths ./ansible/roles/nginx \
+  --collections-file ./collections.yml \
+  --inventory-file ./inventory.yml \
+  --skip-git
 ```
 
 ## Guides
