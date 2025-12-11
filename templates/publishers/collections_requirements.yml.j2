@@ -1,0 +1,14 @@
+---
+# Collections required for this project
+collections:
+{% if collections and collections | length > 0 %}
+{% for collection in collections %}
+  - name: {{ collection.name }}
+{% if collection.version %}    version: "{{ collection.version }}"
+{% endif %}
+{% endfor %}
+{% else %}
+  # No collections required
+  []
+{% endif %}
+

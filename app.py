@@ -13,6 +13,7 @@ from src.init import init_project
 from src.inputs.analyze import analyze_project
 from src.publishers.publish import publish_role
 from src.utils.logging import get_logger, setup_logging
+from src.publishers.tools import load_collections_file, load_inventory_file
 from src.validate import validate_module
 
 logger = get_logger(__name__)
@@ -149,60 +150,105 @@ def validate(module_name) -> None:
 
 
 @cli.command()
-@click.argument("module_name")
+@click.argument("module_names", nargs=-1, required=True)
 @click.option(
-    "--source-path",
+    "--source-paths",
+    multiple=True,
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
     required=True,
     help=(
-        "Path to the migrated Ansible role directory (e.g., ./ansible/roles/my_role)"
+        "Path(s) to the migrated Ansible role directory(ies). "
+        "Can be specified multiple times. "
+        "Example: --source-paths ./ansible/roles/role1 "
+        "--source-paths ./ansible/roles/role2"
     ),
 )
 @click.option(
     "--base-path",
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
-    help="Base path for constructing deployment path. "
-    "If not provided, derived from source-path (parent of ansible/roles).",
+    help=(
+        "Base path for constructing deployment path. "
+        "If not provided, derived from first source-paths "
+        "(parent of ansible/roles)."
+    ),
 )
 @click.option(
     "--github-owner",
-    required=True,
-    help="GitHub user or organization name where the repository will be created",
+    help=(
+        "GitHub user or organization name where the repository "
+        "will be created (required if not using --skip-git)"
+    ),
 )
 @click.option(
     "--github-branch",
     default="main",
-    help="GitHub branch to push to (default: main)",
+    help="GitHub branch to push to (default: main, ignored if --skip-git)",
 )
 @click.option(
     "--skip-git",
     is_flag=True,
     default=False,
     help="Skip git steps (create repo, commit, push). "
-    "Files will be created in <base-path>/ansible/deployments/{module_name}/ only.",
+    "Files will be created in <base-path>/ansible/deployments/ only.",
+)
+@click.option(
+    "--collections-file",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help=(
+        "Path to YAML/JSON file containing collections list. "
+        "Format: [{\"name\": \"collection.name\", \"version\": \"1.0.0\"}]"
+    ),
+)
+@click.option(
+    "--inventory-file",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False),
+    help=(
+        "Path to YAML/JSON file containing inventory structure. "
+        "Format: {\"all\": {\"children\": {...}}}"
+    ),
 )
 @handle_exceptions
 def publish(
-    module_name,
-    source_path,
+    module_names,
+    source_paths,
     base_path,
     github_owner,
     github_branch,
     skip_git,
+    collections_file,
+    inventory_file,
 ) -> None:
-    """Publish migrated Ansible role to GitHub using GitOps approach.
+    """Publish one or more migrated Ansible roles to GitHub.
 
     Creates a new GitOps repository and pushes the deployment to it.
-    Takes role from <base-path>/ansible/roles/{module_name} and creates
-    deployment at <base-path>/ansible/deployments/{module_name}.
+    For single role: creates deployment at
+    <base-path>/ansible/deployments/{module_name}.
+    For multiple roles: creates a consolidated project at
+    <base-path>/ansible/deployments/ansible-project.
     """
+    if not skip_git and not github_owner:
+        raise click.BadParameter(
+            "--github-owner is required when not using --skip-git",
+            param_hint="--github-owner",
+        )
+
+    # Load collections and inventory from files if provided
+    collections = (
+        load_collections_file(collections_file) if collections_file else None
+    )
+    inventory = (
+        load_inventory_file(inventory_file) if inventory_file else None
+    )
+
     publish_role(
-        module_name,
-        source_path,
-        github_owner,
-        github_branch,
+        module_names,
+        source_paths,
+        github_owner or "",
+        github_branch or "main",
         base_path=base_path,
         skip_git=skip_git,
+        collections=collections,
+        inventory=inventory,
     )
 
 
