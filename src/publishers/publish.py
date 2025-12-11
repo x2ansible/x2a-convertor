@@ -14,8 +14,9 @@ from src.publishers.tools import (
     _get_repo_path,
     copy_role_directory,
     create_directory_structure,
-    generate_github_actions_workflow,
-    generate_job_template_yaml,
+    generate_ansible_cfg,
+    generate_collections_requirements,
+    generate_inventory_file,
     generate_playbook_yaml,
     github_commit_changes,
     github_create_repository,
@@ -32,29 +33,22 @@ class PublishState:
     """State for the publish workflow."""
 
     path: str
-    role: str
-    role_path: str
+    roles: list[str]  # List of role names
+    role_paths: list[str]  # List of role paths corresponding to roles
     github_owner: str
     github_branch: str
     github_repository_url: str = ""  # Set after repository creation
-    role_registered: bool = False
-    job_template_name: str = ""
     publish_output: str = ""
     failed: bool = False
     failure_reason: str = ""
-    # Workflow tracking
-    directory_structure_created: bool = False
-    role_copied: bool = False
-    playbook_generated: bool = False
-    job_template_generated: bool = False
-    workflow_generated: bool = False
-    files_verified: bool = False
-    changes_committed: bool = False
+    # Workflow tracking (only flags used in summary/conditionals)
     branch_pushed: bool = False
     repository_created: bool = False
     skip_git: bool = False
     repo_path: str = ""
     publish_dir: str = ""
+    collections: list[dict[str, str]] | None = None
+    inventory: dict | None = None
 
 
 class PublishWorkflow:
@@ -62,16 +56,13 @@ class PublishWorkflow:
     processes and LangGraph.
 
     Steps:
-    1. Create directory structure
-    2. Copy role directory
-    3. Generate playbook
-    4. Generate job template
-    5. Generate GitHub Actions workflow
-    6. Verify files exist
-    7. Create GitHub repository (if not skip_git)
-    8. Commit changes (if not skip_git)
-    9. Push branch (if not skip_git)
-    10. Display summary
+    1. Create ansible project (directory structure, copy roles,
+       generate playbooks, ansible.cfg, collections/requirements.yml)
+    2. Verify files exist
+    3. Create GitHub repository (if not skip_git)
+    4. Commit changes (if not skip_git)
+    5. Push branch (if not skip_git)
+    6. Display summary
     """
 
     # Node names for conditional edges
@@ -89,11 +80,7 @@ class PublishWorkflow:
     def _build_workflow(self) -> CompiledStateGraph:
         """Build the LangGraph workflow for publishing."""
         workflow = StateGraph(PublishState)
-        workflow.add_node("create_structure", self._create_structure_node)
-        workflow.add_node("copy_role", self._copy_role_node)
-        workflow.add_node("generate_playbook", self._generate_playbook_node)
-        workflow.add_node("generate_job_template", self._generate_job_template_node)
-        workflow.add_node("generate_workflow", self._generate_workflow_node)
+        workflow.add_node("create_ansible_project", self._create_ansible_project_node)
         workflow.add_node("verify_files", self._verify_files_node)
         workflow.add_node("create_repository", self._create_repository_node)
         workflow.add_node("commit_changes", self._commit_changes_node)
@@ -101,12 +88,8 @@ class PublishWorkflow:
         workflow.add_node("summary", self._summary_node)
         workflow.add_node("mark_failed", self._mark_failed_node)
 
-        workflow.add_edge(START, "create_structure")
-        workflow.add_edge("create_structure", "copy_role")
-        workflow.add_edge("copy_role", "generate_playbook")
-        workflow.add_edge("generate_playbook", "generate_job_template")
-        workflow.add_edge("generate_job_template", "generate_workflow")
-        workflow.add_edge("generate_workflow", "verify_files")
+        workflow.add_edge(START, "create_ansible_project")
+        workflow.add_edge("create_ansible_project", "verify_files")
         workflow.add_conditional_edges("verify_files", self._check_verification)
         workflow.add_edge("create_repository", "commit_changes")
         workflow.add_conditional_edges("commit_changes", self._check_commit_result)
@@ -116,114 +99,78 @@ class PublishWorkflow:
 
         return workflow.compile()
 
-    def _create_structure_node(self, state: PublishState) -> PublishState:
-        """Node: Create directory structure for PR."""
-        slog = logger.bind(phase="create_structure")
-        slog.info("Creating directory structure")
+    def _create_ansible_project_node(self, state: PublishState) -> PublishState:
+        """Node: Create complete Ansible project structure.
+
+        Creates:
+        - Directory structure (collections/, inventory/, roles/,
+          playbooks/)
+        - Copies all role directories
+        - Generates wrapper playbooks for each role (run_role_X.yml)
+        - Generates ansible.cfg
+        - Generates collections/requirements.yml
+        - Generates inventory/hosts.yml
+        """
+        slog = logger.bind(phase="create_ansible_project")
+        slog.info("Creating Ansible project structure")
 
         base_path = state.publish_dir
-        structure = [
-            "roles",
-            "playbooks",
-            "aap-config/job-templates",
-            ".github/workflows",
-        ]
 
         try:
+            # 1. Create directory structure
+            structure = [
+                "collections",
+                "inventory",
+                "roles",
+                "playbooks",
+            ]
             create_directory_structure(base_path=base_path, structure=structure)
-            state.directory_structure_created = True
-            slog.info("Directory structure created successfully")
-        except OSError as e:
-            state.failed = True
-            state.failure_reason = str(e)
-        return state
+            slog.info("Directory structure created")
 
-    def _copy_role_node(self, state: PublishState) -> PublishState:
-        """Node: Copy role directory to publish directory."""
-        slog = logger.bind(phase="copy_role")
-        slog.info(f"Copying role from {state.role_path}")
+            # 2. Copy all role directories
+            for role_name, role_path in zip(state.roles, state.role_paths, strict=True):
+                destination_path = f"{base_path}/roles/{role_name}"
+                slog.info(f"Copying role {role_name} from {role_path}")
+                copy_role_directory(
+                    source_role_path=role_path,
+                    destination_path=destination_path,
+                )
+            slog.info("All roles copied successfully")
 
-        source_role_path = state.role_path
-        destination_path = f"{state.publish_dir}/roles/{state.role}"
+            # 3. Generate wrapper playbooks for each role
+            for role_name in state.roles:
+                file_path = f"{base_path}/playbooks/run_{role_name}.yml"
+                name = f"Run {role_name}"
+                slog.info(f"Generating playbook for {role_name}")
+                generate_playbook_yaml(
+                    file_path=file_path,
+                    name=name,
+                    role_name=role_name,
+                )
+            slog.info("All playbooks generated successfully")
 
-        try:
-            copy_role_directory(
-                source_role_path=source_role_path,
-                destination_path=destination_path,
+            # 4. Generate ansible.cfg
+            ansible_cfg_path = f"{base_path}/ansible.cfg"
+            slog.info("Generating ansible.cfg")
+            generate_ansible_cfg(ansible_cfg_path)
+
+            # 5. Generate collections/requirements.yml
+            collections_req_path = f"{base_path}/collections/requirements.yml"
+            slog.info("Generating collections/requirements.yml")
+            generate_collections_requirements(
+                collections_req_path, collections=state.collections
             )
-            state.role_copied = True
-            slog.info("Role copied successfully")
+
+            # 6. Generate inventory file
+            inventory_path = f"{base_path}/inventory/hosts.yml"
+            slog.info("Generating inventory file")
+            generate_inventory_file(inventory_path, inventory=state.inventory)
+
+            slog.info("Ansible project created successfully")
         except (ValueError, FileNotFoundError, OSError, RuntimeError) as e:
             state.failed = True
             state.failure_reason = str(e)
-        return state
-
-    def _generate_playbook_node(self, state: PublishState) -> PublishState:
-        """Node: Generate playbook YAML."""
-        slog = logger.bind(phase="generate_playbook")
-        slog.info("Generating playbook YAML")
-
-        file_path = f"{state.publish_dir}/playbooks/{state.role}_deploy.yml"
-        name = f"Deploy {state.role}"
-        role_name = state.role
-
-        try:
-            generate_playbook_yaml(
-                file_path=file_path,
-                name=name,
-                role_name=role_name,
-            )
-            state.playbook_generated = True
-            slog.info("Playbook generated successfully")
-        except (ValueError, OSError) as e:
-            state.failed = True
-            state.failure_reason = str(e)
-        return state
-
-    def _generate_job_template_node(self, state: PublishState) -> PublishState:
-        """Node: Generate job template YAML."""
-        slog = logger.bind(phase="generate_job_template")
-        slog.info("Generating job template YAML")
-
-        file_path = (
-            f"{state.publish_dir}/aap-config/job-templates/{state.role}_deploy.yaml"
-        )
-        name = f"{state.role}_deploy"
-        playbook_path = f"playbooks/{state.role}_deploy.yml"
-        inventory = "Default"
-        role_name = state.role
-        description = f"Deploy {state.role} role"
-
-        try:
-            generate_job_template_yaml(
-                file_path=file_path,
-                name=name,
-                playbook_path=playbook_path,
-                inventory=inventory,
-                role_name=role_name,
-                description=description,
-            )
-            state.job_template_generated = True
-            slog.info("Job template generated successfully")
-        except (ValueError, OSError) as e:
-            state.failed = True
-            state.failure_reason = str(e)
-        return state
-
-    def _generate_workflow_node(self, state: PublishState) -> PublishState:
-        """Node: Generate GitHub Actions workflow."""
-        slog = logger.bind(phase="generate_workflow")
-        slog.info("Generating GitHub Actions workflow")
-
-        file_path = f"{state.publish_dir}/.github/workflows/deploy.yml"
-
-        try:
-            generate_github_actions_workflow(file_path=file_path)
-            state.workflow_generated = True
-            slog.info("GitHub Actions workflow generated successfully")
-        except OSError as e:
-            state.failed = True
-            state.failure_reason = str(e)
+            slog.error(f"Failed to create Ansible project: {e}")
         return state
 
     def _get_required_files(self, state: PublishState) -> list[str]:
@@ -237,12 +184,16 @@ class PublishWorkflow:
         Returns:
             List of file paths to verify
         """
-        return [
-            f"{state.publish_dir}/roles/{state.role}",
-            f"{state.publish_dir}/playbooks/{state.role}_deploy.yml",
-            (f"{state.publish_dir}/aap-config/job-templates/{state.role}_deploy.yaml"),
-            f"{state.publish_dir}/.github/workflows/deploy.yml",
+        required_files = [
+            f"{state.publish_dir}/ansible.cfg",
+            f"{state.publish_dir}/collections/requirements.yml",
+            f"{state.publish_dir}/inventory/hosts.yml",
         ]
+        # Add role directories and playbooks for each role
+        for role_name in state.roles:
+            required_files.append(f"{state.publish_dir}/roles/{role_name}")
+            required_files.append(f"{state.publish_dir}/playbooks/run_{role_name}.yml")
+        return required_files
 
     def _verify_files_node(self, state: PublishState) -> PublishState:
         """Node: Verify all required files exist."""
@@ -253,7 +204,6 @@ class PublishWorkflow:
 
         try:
             verify_files_exist(file_paths=required_files)
-            state.files_verified = True
             slog.info("All files verified successfully")
         except FileNotFoundError as e:
             state.failed = True
@@ -266,8 +216,18 @@ class PublishWorkflow:
         slog.info("Creating GitHub repository")
 
         owner = state.github_owner
-        repo_name = f"{state.role}-gitops"
-        description = f"GitOps repository for {state.role} Ansible role deployment"
+        # Use first role name or a generic name for multi-role projects
+        if len(state.roles) == 1:
+            repo_name = f"{state.roles[0]}-gitops"
+            description = (
+                f"GitOps repository for {state.roles[0]} Ansible role deployment"
+            )
+        else:
+            repo_name = "ansible-project-gitops"
+            role_list = ", ".join(state.roles)
+            description = (
+                f"GitOps repository for Ansible project with roles: {role_list}"
+            )
 
         try:
             repository_url = github_create_repository(
@@ -308,9 +268,14 @@ class PublishWorkflow:
         # Resolve to absolute path to ensure it's found regardless of cwd
         directory = str(Path(state.publish_dir).resolve())
         slog.info(f"Committing deployment directory: {directory}")
-        commit_message = f"Add {state.role} role and related configurations"
+        if len(state.roles) == 1:
+            commit_message = f"Add {state.roles[0]} role and related configurations"
+        else:
+            role_list = ", ".join(state.roles)
+            commit_message = f"Add Ansible project with roles: {role_list}"
 
-        # For new repository, push directly to the specified branch (usually main)
+        # For new repository, push directly to the specified branch
+        # (usually main)
         branch = state.github_branch
 
         # Calculate repo path before committing (needed for push later)
@@ -324,7 +289,6 @@ class PublishWorkflow:
                 commit_message=commit_message,
                 branch=branch,
             )
-            state.changes_committed = True
             slog.info(f"Changes committed successfully. Commit: {commit_hash}")
         except ValueError as e:
             # Validation errors are user input issues - provide clear feedback
@@ -444,18 +408,16 @@ class PublishWorkflow:
 
         # Files created - always show
         summary_lines.append("\nFiles Created:")
-        summary_lines.append(f"  - Role: {state.publish_dir}/roles/{state.role}/")
+        summary_lines.append(f"  - ansible.cfg: {state.publish_dir}/ansible.cfg")
         summary_lines.append(
-            f"  - Playbook: {state.publish_dir}/playbooks/{state.role}_deploy.yml"
+            f"  - Collections requirements: "
+            f"{state.publish_dir}/collections/requirements.yml"
         )
-        summary_lines.append(
-            f"  - Job Template: "
-            f"{state.publish_dir}/aap-config/job-templates/"
-            f"{state.role}_deploy.yaml"
-        )
-        if state.workflow_generated:
+        summary_lines.append(f"  - Inventory: {state.publish_dir}/inventory/hosts.yml")
+        for role_name in state.roles:
+            summary_lines.append(f"  - Role: {state.publish_dir}/roles/{role_name}/")
             summary_lines.append(
-                f"  - GitHub Actions: {state.publish_dir}/.github/workflows/deploy.yml"
+                f"  - Playbook: {state.publish_dir}/playbooks/run_{role_name}.yml"
             )
 
         # Credentials needed - only show if not pushed yet and not failed
@@ -538,8 +500,9 @@ class PublishWorkflow:
             final_state = PublishState(**result)
 
             if final_state.failed:
+                role_list = ", ".join(final_state.roles)
                 slog.error(
-                    f"Publish failed for role {final_state.role}: "
+                    f"Publish failed for roles {role_list}: "
                     f"{final_state.failure_reason or 'Unknown error'}"
                 )
                 return final_state
@@ -560,18 +523,20 @@ class PublishWorkflow:
 
 
 def publish_role(
-    role_name: str,
-    role_path: str,
+    role_name: str | list[str],
+    role_path: str | list[str],
     github_owner: str,
     github_branch: str,
     base_path: str | None = None,
     skip_git: bool = False,
+    collections: list[dict[str, str]] | None = None,
+    inventory: dict | None = None,
 ) -> PublishState:
-    """Publish the role to Ansible Automation Platform.
+    """Publish one or more roles to Ansible Automation Platform.
 
     Args:
-        role_name: Name of the role to publish
-        role_path: Path to the role directory
+        role_name: Name(s) of the role(s) to publish (string or list)
+        role_path: Path(s) to the role directory(ies) (string or list)
             (e.g., <path>/ansible/roles/{role})
         github_owner: GitHub user or organization name
         github_branch: Branch name to push to (default: main)
@@ -579,45 +544,74 @@ def publish_role(
             (defaults to parent of role_path's parent)
         skip_git: If True, skip git steps (create repo, commit, push).
                   Files will be created in a role-specific directory.
+        collections: List of collection dicts with 'name' and optional
+            'version'
+            Example: [{"name": "community.general", "version": ">=1.0.0"}]
+        inventory: Inventory structure as dict. If None, uses sample inventory.
+            Example: {"all": {"children": {"servers": {"hosts": {...}}}}}
 
     Returns:
         PublishState with results
     """
-    logger.info(f"Publishing: {role_name}")
+    # Normalize to lists
+    role_names = [role_name] if isinstance(role_name, str) else role_name
+
+    role_paths = [role_path] if isinstance(role_path, str) else role_path
+
+    if len(role_names) != len(role_paths):
+        error_msg = (
+            f"Number of role names ({len(role_names)}) must match "
+            f"number of role paths ({len(role_paths)})"
+        )
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    logger.info(f"Publishing {len(role_names)} role(s): {', '.join(role_names)}")
 
     # Determine base path and construct deployment path
-    role_path_obj = Path(role_path)
+    # Use first role path to determine base
+    first_role_path_obj = Path(role_paths[0])
     if base_path:
         base_path_obj = Path(base_path)
-        deployment_path = base_path_obj / "ansible" / "deployments" / role_name
+        # For multi-role projects, use a generic name
+        if len(role_names) == 1:
+            deployment_path = base_path_obj / "ansible" / "deployments" / role_names[0]
+        else:
+            deployment_path = (
+                base_path_obj / "ansible" / "deployments" / "ansible-project"
+            )
     else:
         # Extract ansible path from role_path:
         # <path>/ansible/roles/{role} -> <path>/ansible
-        # Go up two levels from role_path to get ansible directory
-        # (role -> roles -> ansible)
-        ansible_path = role_path_obj.parent.parent
+        ansible_path = first_role_path_obj.parent.parent
         # Construct deployment path at same level as roles/
-        deployment_path = ansible_path / "deployments" / role_name
+        if len(role_names) == 1:
+            deployment_path = ansible_path / "deployments" / role_names[0]
+        else:
+            deployment_path = ansible_path / "deployments" / "ansible-project"
         base_path_obj = ansible_path.parent
 
     # Run the publish workflow
     publish_workflow = PublishWorkflow()
     initial_state = PublishState(
         path=str(base_path_obj),
-        role=role_name,
-        role_path=role_path,
+        roles=role_names,
+        role_paths=role_paths,
         github_owner=github_owner,
         github_branch=github_branch,
-        job_template_name=f"{role_name}_deploy",
         skip_git=skip_git,
         publish_dir=str(deployment_path),
+        collections=collections,
+        inventory=inventory,
     )
     result = publish_workflow.invoke(initial_state)
 
     if result.failed:
         failure_reason = result.failure_reason or "Unknown error"
-        logger.error(f"Publish failed for role {role_name}: {failure_reason}")
+        role_list = ", ".join(role_names)
+        logger.error(f"Publish failed for role(s) {role_list}: {failure_reason}")
         return result
 
-    logger.info(f"Publish completed successfully for role {role_name}!")
+    role_list = ", ".join(role_names)
+    logger.info(f"Publish completed successfully for role(s) {role_list}!")
     return result

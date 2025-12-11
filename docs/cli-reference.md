@@ -5,9 +5,11 @@ nav_order: 5
 ---
 
 # CLI Reference
+
 {: .no_toc }
 
 ## Table of contents
+
 {: .no_toc .text-delta }
 
 <style>
@@ -16,8 +18,8 @@ nav_order: 5
 }
 </style>
 
-* TOC
-{:toc .toc-h2-only}
+- TOC
+  {:toc .toc-h2-only}
 
 ---
 
@@ -158,37 +160,104 @@ Options:
 
 Publish migrated Ansible role to GitHub using GitOps approach.
 
-Creates a new GitOps repository and pushes the deployment to it.
-Takes role from <base-path>/ansible/roles/{module_name} and creates
-deployment at <base-path>/ansible/deployments/{module_name}.
-
+Creates a complete Ansible project structure and optionally pushes it to a new GitHub repository.
 
 ### Usage
 
 ```bash
-uv run app.py publish [OPTIONS] MODULE_NAME
+# Single role
+uv run app.py publish <role-name> \
+  --source-paths <path>/ansible/roles/{role} \
+  --github-owner <user-or-org> \
+  [--github-branch main] \
+  [--skip-git] \
+  [--collections-file <path>] \
+  [--inventory-file <path>]
+
+# Multiple roles
+uv run app.py publish <role1> <role2> \
+  --source-paths <path>/ansible/roles/{role1} \
+  --source-paths <path>/ansible/roles/{role2} \
+  --github-owner <user-or-org>
 ```
 
 ### Arguments
 
-- `MODULE_NAME`
+- `module_names`: One or more role names to publish (space-separated)
 
 ### Options
 
-- `--source-path` **[required]** (default: Sentinel.UNSET)
-  Path to the migrated Ansible role directory (e.g., ./ansible/roles/my_role)
+- `--source-paths`: Path(s) to the migrated Ansible role directory(ies). Can be specified multiple times. Number must match the number of module names.
+- `--github-owner`: GitHub user or organization name where the repository will be created (required if not using `--skip-git`)
+- `--github-branch`: Branch name to push to (default: `main`, ignored if `--skip-git`)
+- `--base-path`: Base path for constructing deployment path. If not provided, derived from first source-path (parent of ansible/roles)
+- `--skip-git`: Skip git steps (create repo, commit, push). Files will be created in `<base-path>/ansible/deployments/` only
+- `--collections-file`: Path to YAML/JSON file containing collections list. Format: `[{"name": "collection.name", "version": "1.0.0"}]`
+- `--inventory-file`: Path to YAML/JSON file containing inventory structure. Format: `{"all": {"children": {...}}}`
 
-- `--base-path` (default: Sentinel.UNSET)
-  Base path for constructing deployment path. If not provided, derived from source-path (parent of ansible/roles).
+### What It Does
 
-- `--github-owner` **[required]** (default: Sentinel.UNSET)
-  GitHub user or organization name where the repository will be created
+1. Creates Ansible project structure at `<base-path>/ansible/deployments/{role}/` (or `ansible-project/` for multiple roles)
+2. Copies role directories and generates wrapper playbooks (`run_{role}.yml`)
+3. Generates `ansible.cfg`, `collections/requirements.yml`, and `inventory/hosts.yml`
+4. Optionally creates GitHub repository `{role}-gitops` (or `ansible-project-gitops` for multiple roles) and pushes to specified branch
 
-- `--github-branch` (default: main)
-  GitHub branch to push to (default: main)
+### Project Structure
 
-- `--skip-git`
-  Skip git steps (create repo, commit, push). Files will be created in <base-path>/ansible/deployments/{module_name}/ only.
+```
+<path>/ansible/deployments/{role}/
+├── ansible.cfg
+├── collections/requirements.yml
+├── inventory/hosts.yml
+├── roles/{role}/
+└── playbooks/run_{role}.yml
+```
+
+### Examples
+
+```bash
+# Single role with GitHub push
+uv run app.py publish nginx_multisite \
+  --source-paths ./ansible/roles/nginx_multisite \
+  --github-owner myorg \
+  --github-branch main
+
+# Multiple roles
+uv run app.py publish nginx apache \
+  --source-paths ./ansible/roles/nginx \
+  --source-paths ./ansible/roles/apache \
+  --github-owner myorg
+
+# Local only (skip git)
+uv run app.py publish nginx_multisite \
+  --source-paths ./ansible/roles/nginx_multisite \
+  --collections-file ./collections.yml \
+  --inventory-file ./inventory.yml \
+  --skip-git
+```
+
+### File Formats
+
+**Collections file** (`--collections-file`): YAML or JSON list of collections:
+
+```yaml
+- name: community.general
+  version: ">=1.0.0"
+- name: ansible.posix
+```
+
+**Inventory file** (`--inventory-file`): YAML or JSON inventory structure:
+
+```yaml
+all:
+  children:
+    web_servers:
+      hosts:
+        web1:
+          ansible_host: 10.0.0.1
+```
+
+If not provided, default empty collections and localhost inventory are generated.
 
 ### Full Help
 

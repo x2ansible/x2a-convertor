@@ -1,0 +1,21 @@
+---
+# Inventory file
+# Update with your actual hosts and groups
+{% if inventory %}
+{{ inventory | tojson(indent=2) }}
+{% else %}
+# Default sample inventory
+all:
+  children:
+    servers:
+      hosts:
+        server1:
+          ansible_host: 127.0.0.1
+          ansible_connection: local
+        server2:
+          ansible_host: 127.0.0.1
+          ansible_connection: local
+      vars:
+        ansible_user: ubuntu
+{% endif %}
+
