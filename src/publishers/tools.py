@@ -20,6 +20,101 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def load_collections_file(
+    file_path: str | Path,
+) -> list[dict[str, str]] | None:
+    """Load collections from YAML or JSON file.
+
+    Args:
+        file_path: Path to collections file (YAML or JSON)
+
+    Returns:
+        List of collection dicts with 'name' and optional 'version',
+        or None if file doesn't exist
+
+    Raises:
+        ValueError: If file format is invalid
+        OSError: If file cannot be read
+    """
+    file_path_obj = Path(file_path)
+    if not file_path_obj.exists():
+        logger.warning(f"Collections file not found: {file_path}")
+        return None
+
+    try:
+        with file_path_obj.open() as f:
+            if file_path_obj.suffix in [".yaml", ".yml"]:
+                data = yaml.safe_load(f)
+            else:
+                data = json.load(f)
+
+        if not isinstance(data, list):
+            error_msg = (
+                f"Collections file must contain a list, "
+                f"got {type(data).__name__}"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        logger.info(f"Loaded {len(data)} collections from {file_path}")
+        return data
+
+    except (yaml.YAMLError, json.JSONDecodeError) as e:
+        error_msg = f"Failed to parse collections file {file_path}: {e}"
+        logger.error(error_msg)
+        raise ValueError(error_msg) from e
+    except Exception as e:
+        error_msg = f"Failed to load collections file {file_path}: {e}"
+        logger.error(error_msg)
+        raise OSError(error_msg) from e
+
+
+def load_inventory_file(file_path: str | Path) -> dict | None:
+    """Load inventory from YAML or JSON file.
+
+    Args:
+        file_path: Path to inventory file (YAML or JSON)
+
+    Returns:
+        Inventory structure as dict, or None if file doesn't exist
+
+    Raises:
+        ValueError: If file format is invalid
+        OSError: If file cannot be read
+    """
+    file_path_obj = Path(file_path)
+    if not file_path_obj.exists():
+        logger.warning(f"Inventory file not found: {file_path}")
+        return None
+
+    try:
+        with file_path_obj.open() as f:
+            if file_path_obj.suffix in [".yaml", ".yml"]:
+                data = yaml.safe_load(f)
+            else:
+                data = json.load(f)
+
+        if not isinstance(data, dict):
+            error_msg = (
+                f"Inventory file must contain a dict, "
+                f"got {type(data).__name__}"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        logger.info(f"Loaded inventory from {file_path}")
+        return data
+
+    except (yaml.YAMLError, json.JSONDecodeError) as e:
+        error_msg = f"Failed to parse inventory file {file_path}: {e}"
+        logger.error(error_msg)
+        raise ValueError(error_msg) from e
+    except Exception as e:
+        error_msg = f"Failed to load inventory file {file_path}: {e}"
+        logger.error(error_msg)
+        raise OSError(error_msg) from e
+
+
 def create_directory_structure(base_path: str, structure: list[str]) -> None:
     """Create directory structure for GitOps publishing.
 
@@ -299,6 +394,103 @@ def generate_github_actions_workflow(file_path: str) -> None:
 
     except Exception as e:
         error_msg = f"Failed to generate GitHub Actions workflow: {e}"
+        logger.error(error_msg)
+        raise OSError(error_msg) from e
+
+
+def generate_ansible_cfg(file_path: str) -> None:
+    """Generate ansible.cfg file for the project.
+
+    Args:
+        file_path: Output file path
+
+    Raises:
+        OSError: If file generation fails
+    """
+    logger.info(f"Generating ansible.cfg at {file_path}")
+
+    try:
+        template = get_template("ansible.cfg")
+        ansible_cfg_content = template.render()
+
+        file_path_obj = Path(file_path)
+        file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+        with file_path_obj.open("w") as f:
+            f.write(ansible_cfg_content)
+
+        logger.info(f"Successfully generated ansible.cfg: {file_path}")
+
+    except Exception as e:
+        error_msg = f"Failed to generate ansible.cfg: {e}"
+        logger.error(error_msg)
+        raise OSError(error_msg) from e
+
+
+def generate_collections_requirements(
+    file_path: str, collections: list[dict[str, str]] | None = None
+) -> None:
+    """Generate collections/requirements.yml file.
+
+    Args:
+        file_path: Output file path
+        collections: List of collection dicts with 'name' and optional 'version'
+            Example: [{"name": "community.general", "version": ">=1.0.0"}]
+
+    Raises:
+        OSError: If file generation fails
+    """
+    logger.info(f"Generating collections/requirements.yml at {file_path}")
+
+    try:
+        template = get_template("collections_requirements.yml")
+        requirements_content = template.render(collections=collections)
+
+        file_path_obj = Path(file_path)
+        file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+        with file_path_obj.open("w") as f:
+            f.write(requirements_content)
+
+        logger.info(
+            f"Successfully generated collections/requirements.yml: {file_path}"
+        )
+
+    except Exception as e:
+        error_msg = f"Failed to generate collections/requirements.yml: {e}"
+        logger.error(error_msg)
+        raise OSError(error_msg) from e
+
+
+def generate_inventory_file(
+    file_path: str, inventory: dict | None = None
+) -> None:
+    """Generate inventory file (hosts.yml).
+
+    Args:
+        file_path: Output file path
+        inventory: Inventory structure as dict. If None, uses sample inventory.
+            Example: {"all": {"children": {"servers": {"hosts": {...}}}}}
+
+    Raises:
+        OSError: If file generation fails
+    """
+    logger.info(f"Generating inventory file at {file_path}")
+
+    try:
+        template = get_template("inventory_hosts.yml")
+        inventory_content = template.render(inventory=inventory)
+
+        file_path_obj = Path(file_path)
+        file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+        with file_path_obj.open("w") as f:
+            f.write(inventory_content)
+
+        logger.info(f"Successfully generated inventory file: {file_path}")
+
+    except Exception as e:
+        error_msg = f"Failed to generate inventory file: {e}"
         logger.error(error_msg)
         raise OSError(error_msg) from e
 
