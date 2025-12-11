@@ -38,15 +38,10 @@ class PublishState:
     github_owner: str
     github_branch: str
     github_repository_url: str = ""  # Set after repository creation
-    role_registered: bool = False
-    job_template_name: str = ""
     publish_output: str = ""
     failed: bool = False
     failure_reason: str = ""
-    # Workflow tracking
-    ansible_project_created: bool = False
-    files_verified: bool = False
-    changes_committed: bool = False
+    # Workflow tracking (only flags used in summary/conditionals)
     branch_pushed: bool = False
     repository_created: bool = False
     skip_git: bool = False
@@ -116,7 +111,8 @@ class PublishWorkflow:
         """Node: Create complete Ansible project structure.
 
         Creates:
-        - Directory structure (collections/, inventory/, roles/, playbooks/)
+        - Directory structure (collections/, inventory/, roles/,
+          playbooks/)
         - Copies all role directories
         - Generates wrapper playbooks for each role (run_role_X.yml)
         - Generates ansible.cfg
@@ -180,7 +176,6 @@ class PublishWorkflow:
             slog.info("Generating inventory file")
             generate_inventory_file(inventory_path, inventory=state.inventory)
 
-            state.ansible_project_created = True
             slog.info("Ansible project created successfully")
         except (ValueError, FileNotFoundError, OSError, RuntimeError) as e:
             state.failed = True
@@ -223,7 +218,6 @@ class PublishWorkflow:
 
         try:
             verify_files_exist(file_paths=required_files)
-            state.files_verified = True
             slog.info("All files verified successfully")
         except FileNotFoundError as e:
             state.failed = True
@@ -315,7 +309,6 @@ class PublishWorkflow:
                 commit_message=commit_message,
                 branch=branch,
             )
-            state.changes_committed = True
             slog.info(f"Changes committed successfully. Commit: {commit_hash}")
         except ValueError as e:
             # Validation errors are user input issues - provide clear feedback
@@ -658,18 +651,12 @@ def publish_role(
 
     # Run the publish workflow
     publish_workflow = PublishWorkflow()
-    job_template_name = (
-        f"{role_names[0]}_deploy"
-        if len(role_names) == 1
-        else "ansible-project"
-    )
     initial_state = PublishState(
         path=str(base_path_obj),
         roles=role_names,
         role_paths=role_paths,
         github_owner=github_owner,
         github_branch=github_branch,
-        job_template_name=job_template_name,
         skip_git=skip_git,
         publish_dir=str(deployment_path),
         collections=collections,
