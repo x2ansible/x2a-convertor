@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 class ModuleSelection(BaseModel):
     """Structured output for module selection"""
 
+    name: str
     path: str
     technology: str = "Chef"
 
@@ -26,10 +27,20 @@ class ModuleSelection(BaseModel):
 class MigrationState:
     user_message: str
     path: str
+    name: str
     technology: Technology | None
     migration_plan_content: str
     module_migration_plan: str
     module_plan_path: str
+
+    def get_migration_plan_path(self) -> str:
+        if self.name:
+            # Tokenize name by replacing spaces with underscores
+            tokenized_name = self.name.replace(" ", "_")
+            return MODULE_MIGRATION_PLAN_TEMPLATE.format(module=tokenized_name)
+
+        module = self.path.split("/")[-1] if self.path else "unknown"
+        return MODULE_MIGRATION_PLAN_TEMPLATE.format(module=module)
 
 
 class MigrationAnalysisWorkflow:
@@ -114,6 +125,8 @@ class MigrationAnalysisWorkflow:
 
         state.path = raw_path
         state.technology = Technology(raw_technology)
+        state.name = response.name
+
         logger.info(
             f"Selected path: '{state.path}' technology: '{state.technology.value}'"
         )
@@ -147,11 +160,7 @@ class MigrationAnalysisWorkflow:
             logger.error("Migration failed, no plan generated")
             return state
 
-        path = state.path
-        module = path.split("/")[-1] if path else "unknown"
-
-        filename = MODULE_MIGRATION_PLAN_TEMPLATE.format(module=module)
-
+        filename = state.get_migration_plan_path()
         Path(filename).write_text(migration_content)
         logger.info(f"Migration plan written to {filename}")
         state.module_plan_path = filename
@@ -167,6 +176,7 @@ def analyze_project(user_requirements: str, source_dir: str = "."):
     initial_state = MigrationState(
         user_message=user_requirements,
         path="/",
+        name="",
         technology=None,
         migration_plan_content="",
         module_migration_plan="",
