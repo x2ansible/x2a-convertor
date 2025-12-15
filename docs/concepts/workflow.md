@@ -6,6 +6,7 @@ nav_order: 2
 ---
 
 ## Table of contents
+
 {: .no_toc .text-delta }
 
 <style>
@@ -14,8 +15,8 @@ nav_order: 2
 }
 </style>
 
-* TOC
-{:toc .toc-h3-only}
+- TOC
+  {:toc .toc-h3-only}
 
 # Migration Workflow
 
@@ -327,50 +328,41 @@ ansible/nginx-multisite/
 
 ### Process
 
-The publisher automates GitOps deployment by creating a production-ready repository structure:
+The publisher automates GitOps deployment by creating a deployable Ansible project structure and (optionally) pushing it to a new GitHub repository:
 
 ```mermaid
 flowchart TB
     Start([Migrated Role]) --> Create[Create Deployment Structure]
-    Create --> Copy[Copy Role to deployments/]
-    Copy --> Gen1[Generate Playbook]
-    Gen1 --> Gen2[Generate Job Template]
-    Gen2 --> Gen3[Generate GitHub Actions]
-    Gen3 --> Verify[Verify All Files]
-    Verify --> Repo{GitHub<br/>Repo Exists?}
+    Create --> Copy[Copy Role(s)]
+    Copy --> GenPlaybook[Generate Wrapper Playbook(s)]
+    GenPlaybook --> GenCfg[Generate ansible.cfg]
+    GenCfg --> GenColl[Generate collections/requirements.yml]
+    GenColl --> GenInv[Generate inventory/hosts.yml]
+    GenInv --> Verify[Verify All Files]
+    Verify --> Git{--skip-git?}
 
-    Repo -->|No| CreateRepo[Create role-gitops]
-    Repo -->|Yes| CheckBranch{Branch<br/>Exists?}
-
+    Git -->|Yes| Done([Local Deployment Ready])
+    Git -->|No| CreateRepo[Create GitHub Repository]
     CreateRepo --> Commit[Commit Changes]
-    CheckBranch -->|No| Commit
-    CheckBranch -->|Yes| Error[Fail: Branch Exists]
-
-    Commit --> Push[Push to Remote]
+    Commit --> Push[Push Branch]
     Push --> Summary[Display Summary]
+    Summary --> Done
 
-    Summary --> Done([GitOps Deployment Ready])
-
-    style Repo fill:#fff3e0
-    style CheckBranch fill:#fff3e0
-    style Error fill:#ffebee
+    style Git fill:#fff3e0
     style Done fill:#e8f5e9
 ```
 
 ### Deployment Structure
 
-The publisher creates a complete GitOps repository at `<path>/ansible/deployments/{role}/`:
+The publisher creates an Ansible project deployment at `<base-path>/ansible/deployments/{role}/` (or `ansible-project/` for multiple roles):
 
 ```
 deployments/{role}/
-├── roles/
-│   └── {role}/                  # Copied role source
-├── playbooks/
-│   └── {role}_deploy.yml        # Entry point playbook
-├── aap-config/job-templates/
-│   └── {role}_deploy.yaml       # Ansible Automation Platform config
-└── .github/workflows/
-    └── deploy.yml               # CI/CD pipeline
+├── ansible.cfg
+├── collections/requirements.yml
+├── inventory/hosts.yml
+├── roles/{role}/
+└── playbooks/run_{role}.yml
 ```
 
 ### Key Features
@@ -385,8 +377,8 @@ deployments/{role}/
 
 - [ ] Deployment structure created correctly
 - [ ] Playbook references correct role
-- [ ] Job template configuration valid for AAP
-- [ ] GitHub Actions workflow configured properly
+- [ ] `collections/requirements.yml` matches the required collections
+- [ ] `inventory/hosts.yml` contains the intended inventory
 - [ ] Repository created and pushed successfully
 - [ ] All credentials and execution instructions clear
 

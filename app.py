@@ -12,7 +12,6 @@ from src.exporters.migrate import migrate_module
 from src.init import init_project
 from src.inputs.analyze import analyze_project
 from src.publishers.publish import publish_role
-from src.publishers.tools import load_collections_file, load_inventory_file
 from src.utils.logging import get_logger, setup_logging
 from src.validate import validate_module
 
@@ -40,8 +39,9 @@ def handle_exceptions(func):
             return func(*args, **kwargs)
         except Exception as e:
             human_message = get_error_human_message(e)
+            error_label = click.style("Error: ", fg="red", bold=True)
             click.echo(
-                "\n\n" + click.style("Error: ", fg="red", bold=True) + human_message,
+                "\n\n" + error_label + human_message,
                 err=True,
             )
             sys.exit(1)
@@ -232,10 +232,6 @@ def publish(
             param_hint="--github-owner",
         )
 
-    # Load collections and inventory from files if provided
-    collections = load_collections_file(collections_file) if collections_file else None
-    inventory = load_inventory_file(inventory_file) if inventory_file else None
-
     publish_role(
         module_names,
         source_paths,
@@ -243,8 +239,8 @@ def publish(
         github_branch or "main",
         base_path=base_path,
         skip_git=skip_git,
-        collections=collections,
-        inventory=inventory,
+        collections_file=collections_file,
+        inventory_file=inventory_file,
     )
 
 

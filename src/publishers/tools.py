@@ -19,6 +19,18 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+LOADERS: dict[str, Any] = {
+    ".yaml": yaml.safe_load,
+    ".yml": yaml.safe_load,
+    ".json": json.load,
+}
+
+
+def _load_yaml_or_json(file_path_obj: Path) -> Any:
+    with file_path_obj.open() as f:
+        loader = LOADERS.get(file_path_obj.suffix.lower(), json.load)
+        return loader(f)
+
 
 def load_collections_file(
     file_path: str | Path,
@@ -35,7 +47,7 @@ def load_collections_file(
     Raises:
         TypeError: If file format is invalid (wrong type)
         ValueError: If file format is invalid (parse error)
-        OSError: If file cannot be read
+        RuntimeError: If file cannot be read
     """
     file_path_obj = Path(file_path)
     if not file_path_obj.exists():
@@ -43,11 +55,7 @@ def load_collections_file(
         return None
 
     try:
-        with file_path_obj.open() as f:
-            if file_path_obj.suffix in [".yaml", ".yml"]:
-                data = yaml.safe_load(f)
-            else:
-                data = json.load(f)
+        data = _load_yaml_or_json(file_path_obj)
     except (yaml.YAMLError, json.JSONDecodeError) as e:
         error_msg = f"Failed to parse collections file {file_path}: {e}"
         logger.error(error_msg)
@@ -55,12 +63,27 @@ def load_collections_file(
     except Exception as e:
         error_msg = f"Failed to load collections file {file_path}: {e}"
         logger.error(error_msg)
-        raise OSError(error_msg) from e
+        raise RuntimeError(error_msg) from e
 
     # Type check after successful loading (outside try block)
     if not isinstance(data, list):
-        error_msg = f"Collections file must contain a list, got {type(data).__name__}"
-        logger.error(error_msg)
+        hint = (
+            "Expected YAML/JSON list. Example (YAML):\n"
+            "- name: community.general\n"
+            '  version: ">=1.0.0"'
+        )
+        error_msg = (
+            "Invalid collections file format. "
+            f"File: {file_path_obj}. "
+            f"Expected: list, got: {type(data).__name__}. "
+            f"Hint:\n{hint}"
+        )
+        logger.bind(
+            phase="load_collections_file",
+            file_path=str(file_path_obj),
+            expected_type="list",
+            actual_type=type(data).__name__,
+        ).error(error_msg)
         raise TypeError(error_msg)
 
     logger.info(f"Loaded {len(data)} collections from {file_path}")
@@ -79,7 +102,7 @@ def load_inventory_file(file_path: str | Path) -> dict | None:
     Raises:
         TypeError: If file format is invalid (wrong type)
         ValueError: If file format is invalid (parse error)
-        OSError: If file cannot be read
+        RuntimeError: If file cannot be read
     """
     file_path_obj = Path(file_path)
     if not file_path_obj.exists():
@@ -87,11 +110,7 @@ def load_inventory_file(file_path: str | Path) -> dict | None:
         return None
 
     try:
-        with file_path_obj.open() as f:
-            if file_path_obj.suffix in [".yaml", ".yml"]:
-                data = yaml.safe_load(f)
-            else:
-                data = json.load(f)
+        data = _load_yaml_or_json(file_path_obj)
     except (yaml.YAMLError, json.JSONDecodeError) as e:
         error_msg = f"Failed to parse inventory file {file_path}: {e}"
         logger.error(error_msg)
@@ -99,12 +118,31 @@ def load_inventory_file(file_path: str | Path) -> dict | None:
     except Exception as e:
         error_msg = f"Failed to load inventory file {file_path}: {e}"
         logger.error(error_msg)
-        raise OSError(error_msg) from e
+        raise RuntimeError(error_msg) from e
 
     # Type check after successful loading (outside try block)
     if not isinstance(data, dict):
-        error_msg = f"Inventory file must contain a dict, got {type(data).__name__}"
-        logger.error(error_msg)
+        hint = (
+            "Expected YAML/JSON dict. Example (YAML):\n"
+            "all:\n"
+            "  children:\n"
+            "    web_servers:\n"
+            "      hosts:\n"
+            "        web1:\n"
+            "          ansible_host: 10.0.0.1"
+        )
+        error_msg = (
+            "Invalid inventory file format. "
+            f"File: {file_path_obj}. "
+            f"Expected: dict, got: {type(data).__name__}. "
+            f"Hint:\n{hint}"
+        )
+        logger.bind(
+            phase="load_inventory_file",
+            file_path=str(file_path_obj),
+            expected_type="dict",
+            actual_type=type(data).__name__,
+        ).error(error_msg)
         raise TypeError(error_msg)
 
     logger.info(f"Loaded inventory from {file_path}")
@@ -235,7 +273,7 @@ def copy_role_directory(source_role_path: str, destination_path: str) -> None:
     except Exception as e:
         error_msg = f"Unexpected error copying role: {e}"
         logger.error(error_msg)
-        raise RuntimeError(error_msg) from e
+        raise OSError(error_msg) from e
 
 
 def generate_playbook_yaml(
