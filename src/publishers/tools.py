@@ -50,43 +50,39 @@ def load_collections_file(
         RuntimeError: If file cannot be read
     """
     file_path_obj = Path(file_path)
+    slog = logger.bind(filename=str(file_path_obj))
     if not file_path_obj.exists():
-        logger.warning(f"Collections file not found: {file_path}")
+        slog.warning(f"Collections file not found: {file_path_obj}")
         return None
 
     try:
         data = _load_yaml_or_json(file_path_obj)
     except (yaml.YAMLError, json.JSONDecodeError) as e:
         error_msg = f"Failed to parse collections file {file_path}: {e}"
-        logger.error(error_msg)
+        slog.bind(phase="load_collections_file", error_type="parse").error(error_msg)
         raise ValueError(error_msg) from e
     except Exception as e:
         error_msg = f"Failed to load collections file {file_path}: {e}"
-        logger.error(error_msg)
+        slog.bind(phase="load_collections_file", error_type="load").error(error_msg)
         raise RuntimeError(error_msg) from e
 
     # Type check after successful loading (outside try block)
     if not isinstance(data, list):
-        hint = (
-            "Expected YAML/JSON list. Example (YAML):\n"
-            "- name: community.general\n"
-            '  version: ">=1.0.0"'
-        )
+        hint = "Check that `--collections-file` points to the correct YAML/JSON file. The top-level value must be a list of collection entries."
         error_msg = (
             "Invalid collections file format. "
             f"File: {file_path_obj}. "
             f"Expected: list, got: {type(data).__name__}. "
-            f"Hint:\n{hint}"
+            f"Hint: {hint}"
         )
-        logger.bind(
+        slog.bind(
             phase="load_collections_file",
-            file_path=str(file_path_obj),
             expected_type="list",
             actual_type=type(data).__name__,
         ).error(error_msg)
         raise TypeError(error_msg)
 
-    logger.info(f"Loaded {len(data)} collections from {file_path}")
+    slog.info(f"Loaded {len(data)} collections from {file_path_obj}")
     return data
 
 
@@ -105,47 +101,39 @@ def load_inventory_file(file_path: str | Path) -> dict | None:
         RuntimeError: If file cannot be read
     """
     file_path_obj = Path(file_path)
+    slog = logger.bind(filename=str(file_path_obj))
     if not file_path_obj.exists():
-        logger.warning(f"Inventory file not found: {file_path}")
+        slog.warning(f"Inventory file not found: {file_path_obj}")
         return None
 
     try:
         data = _load_yaml_or_json(file_path_obj)
     except (yaml.YAMLError, json.JSONDecodeError) as e:
         error_msg = f"Failed to parse inventory file {file_path}: {e}"
-        logger.error(error_msg)
+        slog.bind(phase="load_inventory_file", error_type="parse").error(error_msg)
         raise ValueError(error_msg) from e
     except Exception as e:
         error_msg = f"Failed to load inventory file {file_path}: {e}"
-        logger.error(error_msg)
+        slog.bind(phase="load_inventory_file", error_type="load").error(error_msg)
         raise RuntimeError(error_msg) from e
 
     # Type check after successful loading (outside try block)
     if not isinstance(data, dict):
-        hint = (
-            "Expected YAML/JSON dict. Example (YAML):\n"
-            "all:\n"
-            "  children:\n"
-            "    web_servers:\n"
-            "      hosts:\n"
-            "        web1:\n"
-            "          ansible_host: 10.0.0.1"
-        )
+        hint = "Check that `--inventory-file` points to the correct YAML/JSON file. The top-level value must be a mapping (dict) in Ansible inventory format."
         error_msg = (
             "Invalid inventory file format. "
             f"File: {file_path_obj}. "
             f"Expected: dict, got: {type(data).__name__}. "
-            f"Hint:\n{hint}"
+            f"Hint: {hint}"
         )
-        logger.bind(
+        slog.bind(
             phase="load_inventory_file",
-            file_path=str(file_path_obj),
             expected_type="dict",
             actual_type=type(data).__name__,
         ).error(error_msg)
         raise TypeError(error_msg)
 
-    logger.info(f"Loaded inventory from {file_path}")
+    slog.info(f"Loaded inventory from {file_path_obj}")
     return data
 
 
