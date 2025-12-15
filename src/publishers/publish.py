@@ -21,6 +21,8 @@ from src.publishers.tools import (
     github_commit_changes,
     github_create_repository,
     github_push_branch,
+    load_collections_file,
+    load_inventory_file,
     verify_files_exist,
 )
 from src.utils.logging import get_logger
@@ -442,13 +444,6 @@ class PublishWorkflow:
             summary_lines.append(f"  Repository: {state.github_repository_url}")
             summary_lines.append(f"  Branch: {state.github_branch}")
             summary_lines.append("  The deployment has been pushed to the repository.")
-            summary_lines.append(
-                "\nPlease configure the AAP secrets in the repository "
-                "to activate the deployment actions:"
-            )
-            summary_lines.append("  - AAP_CONTROLLER_URL")
-            summary_lines.append("  - AAP_USERNAME")
-            summary_lines.append("  - AAP_PASSWORD")
         else:
             summary_lines.append(f"  Local directory: {state.publish_dir}")
             if not state.skip_git and not state.failed:
@@ -529,6 +524,8 @@ def publish_role(
     github_branch: str,
     base_path: str | None = None,
     skip_git: bool = False,
+    collections_file: str | Path | None = None,
+    inventory_file: str | Path | None = None,
     collections: list[dict[str, str]] | None = None,
     inventory: dict | None = None,
 ) -> PublishState:
@@ -544,6 +541,10 @@ def publish_role(
             (defaults to parent of role_path's parent)
         skip_git: If True, skip git steps (create repo, commit, push).
                   Files will be created in a role-specific directory.
+        collections_file: Path to YAML/JSON collections file. If provided and
+            collections is None, collections will be loaded from this file.
+        inventory_file: Path to YAML/JSON inventory file. If provided and
+            inventory is None, inventory will be loaded from this file.
         collections: List of collection dicts with 'name' and optional
             'version'
             Example: [{"name": "community.general", "version": ">=1.0.0"}]
@@ -558,6 +559,12 @@ def publish_role(
 
     role_paths = [role_path] if isinstance(role_path, str) else role_path
 
+    if collections is None and collections_file:
+        collections = load_collections_file(collections_file)
+
+    if inventory is None and inventory_file:
+        inventory = load_inventory_file(inventory_file)
+
     if len(role_names) != len(role_paths):
         error_msg = (
             f"Number of role names ({len(role_names)}) must match "
@@ -566,7 +573,8 @@ def publish_role(
         logger.error(error_msg)
         raise ValueError(error_msg)
 
-    logger.info(f"Publishing {len(role_names)} role(s): {', '.join(role_names)}")
+    role_list = ", ".join(role_names)
+    logger.info(f"Publishing {len(role_names)} role(s): {role_list}")
 
     # Determine base path and construct deployment path
     # Use first role path to determine base
@@ -608,10 +616,8 @@ def publish_role(
 
     if result.failed:
         failure_reason = result.failure_reason or "Unknown error"
-        role_list = ", ".join(role_names)
         logger.error(f"Publish failed for role(s) {role_list}: {failure_reason}")
         return result
 
-    role_list = ", ".join(role_names)
     logger.info(f"Publish completed successfully for role(s) {role_list}!")
     return result

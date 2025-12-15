@@ -91,12 +91,8 @@ uv run app.py publish "module-name" \
 - `src/migrate.py`: Migration orchestrator
 - `src/validate.py`: Migration validation
 - `src/publishers/`: Publishing workflow for creating Ansible projects
-  - `publish.py`: Main publish workflow using LangGraph
-  - `tools.py`: Deterministic tools for file generation and git operations
-  - `template_loader.py`: Template loading for Jinja2 templates
 - `src/model.py`: LLM model configuration and setup
 - `prompts/`: LangGraph prompt templates for different analysis phases
-- `templates/publishers/`: Jinja2 templates for Ansible project files
 
 ### AI Integration
 

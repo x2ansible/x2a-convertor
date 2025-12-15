@@ -36,10 +36,8 @@ uv run app.py migrate \
   --module-migration-plan migration-plan-nginx.md \
   "Convert nginx cookbook"
 
-# 4. Validate - verify output quality
-uv run app.py validate "nginx"
 
-# 5. Publish - create Ansible project and optionally push to GitHub
+# 4. Publish - create Ansible project and optionally push to GitHub
 # Single role
 uv run app.py publish "nginx" \
   --source-paths ./ansible/roles/nginx \

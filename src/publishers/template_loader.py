@@ -4,7 +4,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
-base_path = Path(__file__).parent.parent.parent / "templates" / "publishers"
+base_path = Path(__file__).parent / "templates"
 jinja_env = Environment(loader=FileSystemLoader(base_path))
 
 

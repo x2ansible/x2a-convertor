@@ -195,24 +195,6 @@ uv run app.py publish <role1> <role2> \
 - `--collections-file`: Path to YAML/JSON file containing collections list. Format: `[{"name": "collection.name", "version": "1.0.0"}]`
 - `--inventory-file`: Path to YAML/JSON file containing inventory structure. Format: `{"all": {"children": {...}}}`
 
-### What It Does
-
-1. Creates Ansible project structure at `<base-path>/ansible/deployments/{role}/` (or `ansible-project/` for multiple roles)
-2. Copies role directories and generates wrapper playbooks (`run_{role}.yml`)
-3. Generates `ansible.cfg`, `collections/requirements.yml`, and `inventory/hosts.yml`
-4. Optionally creates GitHub repository `{role}-gitops` (or `ansible-project-gitops` for multiple roles) and pushes to specified branch
-
-### Project Structure
-
-```
-<path>/ansible/deployments/{role}/
-├── ansible.cfg
-├── collections/requirements.yml
-├── inventory/hosts.yml
-├── roles/{role}/
-└── playbooks/run_{role}.yml
-```
-
 ### Examples
 
 ```bash
