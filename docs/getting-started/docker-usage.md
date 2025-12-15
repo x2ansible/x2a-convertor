@@ -17,6 +17,7 @@ We're using this repository as default test project:
 git clone https://github.com/x2ansible/chef-examples.git
 cd chef-examples
 ```
+
 ## Requirements
 
 This example uses the AWS Bedrock provider. You'll need to configure the following environment variables:
@@ -24,7 +25,6 @@ This example uses the AWS Bedrock provider. You'll need to configure the followi
 - **AWS_REGION**: The AWS region where the model will run
 - **AWS_BEARER_TOKEN_BEDROCK**: The API key to connect to the LLM
 - **LLM_MODEL**: The model to use (this guide uses `anthropic.claude-3-7-sonnet-20250219-v1:0`). Note: Some regions require the `us.` prefix
-
 
 ## Initialization
 
@@ -70,7 +70,6 @@ podman run --rm -ti \
 
 This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details
 
-
 ## Publish
 
 ```bash
@@ -80,15 +79,16 @@ podman run --rm -ti \
   -e AWS_REGION=$AWS_REGION \
   -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
   quay.io/x2ansible/x2a-convertor:latest \
-  publish "nginx" --source-path /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main --base-path /app/source/ansible/deployments --skip-git
+  publish "nginx_multisite" --source-paths /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main --skip-git
 ```
 
 This will generate the deployements for the role, can be found at:
 
-- Role: `./ansible/deployments/nginx/roles/nginx/`
-- Playbook: `./ansible/deployments/nginx/playbooks/nginx_deploy.yml`
-- Job Template: `./ansible/deployments/nginx/aap-config/job-templates/nginx_deploy.yaml`
-- GitHub Actions: `./ansible/deployments/nginx/.github/workflows/deploy.yml`
+- ansible.cfg: `./ansible/deployments/nginx_multisite/ansible.cfg`
+- Collections requirements: `./ansible/deployments/nginx_multisite/collections/requirements.yml`
+- Inventory: `./ansible/deployments/nginx_multisite/inventory/hosts.yml`
+- Role: `./ansible/deployments/nginx_multisite/roles/nginx_multisite/`
+- Playbook: `./ansible/deployments/nginx_multisite/playbooks/run_nginx_multisite.yml`
 
 And an example report like this:
 
@@ -98,10 +98,11 @@ PUBLISH SUMMARY
 ================================================================================
 
 Files Created:
-  - Role: /app/source/ansible/deployments/nginx/roles/nginx/
-  - Playbook: /app/source/ansible/deployments/nginx/playbooks/nginx_deploy.yml
-  - Job Template: /app/source/ansible/deployments/nginx/aap-config/job-templates/nginx_deploy.yaml
-  - GitHub Actions: /app/source/ansible/deployments/nginx/.github/workflows/deploy.yml
+  - ansible.cfg: /app/source/ansible/deployments/nginx_multisite/ansible.cfg
+  - Collections requirements: /app/source/ansible/deployments/nginx_multisite/collections/requirements.yml
+  - Inventory: /app/source/ansible/deployments/nginx_multisite/inventory/hosts.yml
+  - Role: /app/source/ansible/deployments/nginx_multisite/roles/nginx_multisite/
+  - Playbook: /app/source/ansible/deployments/nginx_multisite/playbooks/run_nginx_multisite.yml
 
 GitHub Credentials Required:
   To push to GitHub, you need to set up authentication:
@@ -114,5 +115,5 @@ GitHub Credentials Required:
      export GITHUB_TOKEN='your_token_here'
 
 Execution Location:
-  Local directory: /app/source/ansible/deployments/nginx
+  Local directory: /app/source/ansible/deployments/nginx_multisite
 ```
