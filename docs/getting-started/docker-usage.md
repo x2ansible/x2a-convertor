@@ -78,11 +78,15 @@ podman run --rm -ti \
   -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
   -e AWS_REGION=$AWS_REGION \
   -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
+  -e GITHUB_TOKEN=$GITHUB_TOKEN \
+  -e AAP_CONTROLLER_URL=$AAP_CONTROLLER_URL \
+  -e AAP_ORG_NAME=$AAP_ORG_NAME \
+  -e AAP_OAUTH_TOKEN=$AAP_OAUTH_TOKEN \
   quay.io/x2ansible/x2a-convertor:latest \
-  publish "nginx_multisite" --source-paths /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main --skip-git
+  publish "nginx_multisite" --source-paths /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main
 ```
 
-This will generate the deployements for the role, can be found at:
+This will generate the deployements for the role, push it to GitHub, and (when AAP env vars are set) upsert an AAP Project and trigger a sync. AAP integration uses environment variables only (no publish flags). The output can be found at:
 
 - ansible.cfg: `./ansible/deployments/nginx_multisite/ansible.cfg`
 - Collections requirements: `./ansible/deployments/nginx_multisite/collections/requirements.yml`
@@ -116,4 +120,19 @@ GitHub Credentials Required:
 
 Execution Location:
   Local directory: /app/source/ansible/deployments/nginx_multisite
+```
+
+Note: Adding `--skip-git` makes the publish step **local-only** (no repository creation/push), and therefore the AAP sync step is skipped.
+
+Note: To **push to GitHub but skip the AAP sync**, run publish without `--skip-git` but do **not** set `AAP_CONTROLLER_URL` (AAP integration is enabled only when that variable is present). For example:
+
+```bash
+podman run --rm -ti \
+  -v $(pwd)/:/app/source:Z \
+  -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
+  -e AWS_REGION=$AWS_REGION \
+  -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
+  -e GITHUB_TOKEN=$GITHUB_TOKEN \
+  quay.io/x2ansible/x2a-convertor:latest \
+  publish "nginx_multisite" --source-paths /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main
 ```

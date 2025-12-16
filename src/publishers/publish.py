@@ -23,6 +23,7 @@ from src.publishers.tools import (
     github_push_branch,
     load_collections_file,
     load_inventory_file,
+    sync_to_aap,
     verify_files_exist,
 )
 from src.utils.logging import get_logger
@@ -521,6 +522,34 @@ class PublishWorkflow:
                     f"git push -u origin {state.github_branch}"
                 )
                 summary_lines.append(push_cmd)
+
+        # AAP integration summary (sync_to_aap node writes these fields)
+        summary_lines.append("\nAAP Integration:")
+        if state.failed:
+            summary_lines.append("  Not attempted (publish failed).")
+        elif state.skip_git:
+            summary_lines.append("  Not attempted (skip_git=true).")
+        elif not state.branch_pushed:
+            summary_lines.append("  Not attempted (branch was not pushed).")
+        elif not state.aap_enabled:
+            summary_lines.append("  Disabled (AAP not configured).")
+        elif state.aap_error:
+            summary_lines.append("  Result: FAILED")
+            summary_lines.append(f"  Error: {state.aap_error}")
+        else:
+            summary_lines.append("  Result: SUCCESS")
+            if state.aap_project_name:
+                summary_lines.append(f"  Project: {state.aap_project_name}")
+            if state.aap_project_id is not None:
+                summary_lines.append(f"  Project ID: {state.aap_project_id}")
+            if state.aap_project_update_id is not None:
+                summary_lines.append(
+                    f"  Sync job ID: {state.aap_project_update_id}"
+                )
+            if state.aap_project_update_status:
+                summary_lines.append(
+                    f"  Sync job status: {state.aap_project_update_status}"
+                )
 
         summary_lines.append("\n" + "=" * 80)
 

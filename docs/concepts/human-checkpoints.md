@@ -239,13 +239,14 @@ After `app.py publish` completes
 
 - GitOps repository: `<github-owner>/<role>-gitops` on GitHub
 - Local deployment directory: `<base-path>/ansible/deployments/{role}/`
+- AAP Project + Project Update (SCM sync)
 
 ### Review Checklist
 
 - [ ] Deployment structure follows Ansible Project conventions (collections/, inventory/, roles/, playbooks/)
 - [ ] GitHub repository or branch created successfully
 - [ ] Local deployment structure created successfully
-
+- [ ] AAP Project was created/updated and a Project Update was triggered successfully
 
 ### Decision Points
 
@@ -260,8 +261,25 @@ After `app.py publish` completes
    - Re-run publish if major changes needed
 
 3. **Approve for production**
+
    - Repository ready for AAP integration
    - Document any manual configuration steps needed
+
+4. **AAP integration issues**
+
+   - AAP integration is **env-driven** and runs only after a successful Git push
+   - Required when enabled:
+     - `AAP_CONTROLLER_URL`
+     - `AAP_ORG_NAME`
+     - Auth: `AAP_OAUTH_TOKEN` **or** `AAP_USERNAME` + `AAP_PASSWORD`
+   - Optional:
+     - `AAP_PROJECT_NAME` (otherwise inferred from repository URL)
+     - `AAP_SCM_CREDENTIAL_ID` (required for private SCM repos)
+     - `AAP_CA_BUNDLE` (path to PEM/CRT CA cert for private PKI / self-signed)
+     - `AAP_VERIFY_SSL` (true/false)
+     - `AAP_TIMEOUT_S`
+     - `AAP_API_PREFIX` (default: `/api/controller/v2`)
+   - If AAP sync fails, publishing still completes; check the logs and re-run `publish` after fixing AAP configuration (or trigger a sync manually from the AAP UI)
 
 ### Audit Trail
 

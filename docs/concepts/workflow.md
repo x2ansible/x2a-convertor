@@ -6,7 +6,6 @@ nav_order: 2
 ---
 
 ## Table of contents
-
 {: .no_toc .text-delta }
 
 <style>
@@ -344,10 +343,18 @@ flowchart TB
     Git -->|No| CreateRepo[Create GitHub Repository]
     CreateRepo --> Commit[Commit Changes]
     Commit --> Push[Push Branch]
-    Push --> Summary[Display Summary]
+    Push --> PushOK{Push succeeded?}
+    PushOK -->|No| Summary[Display Summary]
+    PushOK -->|Yes| AAP{AAP enabled?}
+    AAP -->|No| Summary
+    AAP -->|Yes| SyncAAP[Sync to AAP Project]
+    SyncAAP --> Summary
     Summary --> Done
 
     style Git fill:#fff3e0
+    style PushOK fill:#fff3e0
+    style AAP fill:#fff3e0
+    style SyncAAP fill:#fff3e0
     style Done fill:#e8f5e9
 ```
 
@@ -369,7 +376,7 @@ deployments/{role}/
 - **Template-based generation**: Uses Jinja2 templates for consistent output
 - **Deterministic**: No LLM calls during generation for reproducible results
 - **GitOps-ready**: Automatically creates GitHub repositories
-- **AAP integration**: Upserts an AAP Project and triggers a sync (when `AAP_CONTROLLER_URL` is set)
+- **AAP integration**: After a successful push, optionally upserts an AAP Project and triggers a Project Update (SCM sync) when `AAP_CONTROLLER_URL` is set
 - **Idempotent**: Handles existing repositories gracefully, fails on existing branches
 - **Summary output**: Displays files created, credentials needed, and repository location
 
