@@ -543,9 +543,7 @@ class PublishWorkflow:
             if state.aap_project_id is not None:
                 summary_lines.append(f"  Project ID: {state.aap_project_id}")
             if state.aap_project_update_id is not None:
-                summary_lines.append(
-                    f"  Sync job ID: {state.aap_project_update_id}"
-                )
+                summary_lines.append(f"  Sync job ID: {state.aap_project_update_id}")
             if state.aap_project_update_status:
                 summary_lines.append(
                     f"  Sync job status: {state.aap_project_update_status}"
