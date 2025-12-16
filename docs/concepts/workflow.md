@@ -6,6 +6,7 @@ nav_order: 2
 ---
 
 ## Table of contents
+
 {: .no_toc .text-delta }
 
 <style>
@@ -322,7 +323,7 @@ ansible/nginx-multisite/
 
 ## Phase 4: Publish
 
-**Goal**: Deploy migrated Ansible role to a GitOps repository for production use.
+**Goal**: Get migrated Ansible roles into Ansible Automation Platform (AAP) via a GitOps flow.
 
 ### Process
 
@@ -368,6 +369,7 @@ deployments/{role}/
 - **Template-based generation**: Uses Jinja2 templates for consistent output
 - **Deterministic**: No LLM calls during generation for reproducible results
 - **GitOps-ready**: Automatically creates GitHub repositories
+- **AAP integration**: Upserts an AAP Project and triggers a sync (when `AAP_CONTROLLER_URL` is set)
 - **Idempotent**: Handles existing repositories gracefully, fails on existing branches
 - **Summary output**: Displays files created, credentials needed, and repository location
 
@@ -378,6 +380,7 @@ deployments/{role}/
 - [ ] `collections/requirements.yml` matches the required collections
 - [ ] `inventory/hosts.yml` contains the intended inventory
 - [ ] Repository created and pushed successfully
+- [ ] AAP Project exists and syncs successfully (if enabled)
 - [ ] All credentials and execution instructions clear
 
 ## Parallel Workflows

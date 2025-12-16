@@ -51,6 +51,13 @@ class PublishState:
     publish_dir: str = ""
     collections: list[dict[str, str]] | None = None
     inventory: dict | None = None
+    # AAP integration (optional, env-driven)
+    aap_enabled: bool = False
+    aap_project_name: str = ""
+    aap_project_id: int | None = None
+    aap_project_update_id: int | None = None
+    aap_project_update_status: str = ""
+    aap_error: str = ""
 
 
 class PublishWorkflow:
@@ -87,6 +94,7 @@ class PublishWorkflow:
         workflow.add_node("create_repository", self._create_repository_node)
         workflow.add_node("commit_changes", self._commit_changes_node)
         workflow.add_node("push_branch", self._push_branch_node)
+        workflow.add_node("sync_to_aap", self._sync_to_aap)
         workflow.add_node("summary", self._summary_node)
         workflow.add_node("mark_failed", self._mark_failed_node)
 
@@ -94,14 +102,21 @@ class PublishWorkflow:
         workflow.add_edge("create_ansible_project", "verify_files")
         workflow.add_conditional_edges("verify_files", self._check_verification)
         workflow.add_edge("create_repository", "commit_changes")
-        workflow.add_conditional_edges("commit_changes", self._check_commit_result)
-        workflow.add_edge("push_branch", "summary")
+        workflow.add_conditional_edges(
+            "commit_changes",
+            self._check_commit_result,
+        )
+        workflow.add_edge("push_branch", "sync_to_aap")
+        workflow.add_edge("sync_to_aap", "summary")
         workflow.add_edge("summary", END)
         workflow.add_edge("mark_failed", "summary")
 
         return workflow.compile()
 
-    def _create_ansible_project_node(self, state: PublishState) -> PublishState:
+    def _create_ansible_project_node(
+        self,
+        state: PublishState,
+    ) -> PublishState:
         """Node: Create complete Ansible project structure.
 
         Creates:
@@ -126,11 +141,18 @@ class PublishWorkflow:
                 "roles",
                 "playbooks",
             ]
-            create_directory_structure(base_path=base_path, structure=structure)
+            create_directory_structure(
+                base_path=base_path,
+                structure=structure,
+            )
             slog.info("Directory structure created")
 
             # 2. Copy all role directories
-            for role_name, role_path in zip(state.roles, state.role_paths, strict=True):
+            for role_name, role_path in zip(
+                state.roles,
+                state.role_paths,
+                strict=True,
+            ):
                 destination_path = f"{base_path}/roles/{role_name}"
                 slog.info(f"Copying role {role_name} from {role_path}")
                 copy_role_directory(
@@ -356,6 +378,45 @@ class PublishWorkflow:
             state.failure_reason = str(e)
         return state
 
+    def _sync_to_aap(self, state: PublishState) -> PublishState:
+        """Node: Upsert an AAP Project for the pushed GitHub repository.
+
+        Failures here are reported in the summary but do not fail the publish.
+        """
+        slog = logger.bind(phase="sync to aap")
+
+        should_skip = state.failed or state.skip_git or (not state.branch_pushed)
+        if should_skip:
+            return state
+
+        repository_url = state.github_repository_url
+        branch = state.github_branch
+
+        tool_result = sync_to_aap(repository_url=repository_url, branch=branch)
+        state.aap_enabled = bool(tool_result.get("enabled"))
+        state.aap_project_name = str(tool_result.get("project_name") or "")
+        state.aap_project_id = tool_result.get("project_id")
+        state.aap_project_update_id = tool_result.get("project_update_id")
+        state.aap_project_update_status = str(
+            tool_result.get("project_update_status") or ""
+        )
+        state.aap_error = str(tool_result.get("error") or "")
+
+        if not state.aap_enabled:
+            return state
+
+        if state.aap_error:
+            slog.error(f"AAP sync failed: {state.aap_error}")
+            return state
+
+        slog.info(
+            f"AAP project synced: name={state.aap_project_name} "
+            f"id={state.aap_project_id} "
+            f"update_id={state.aap_project_update_id} "
+            f"status={state.aap_project_update_status}"
+        )
+        return state
+
     def _check_verification(self, state: PublishState) -> str:
         """Conditional edge: Check if verification passed.
 
@@ -529,7 +590,10 @@ def publish_role(
     collections: list[dict[str, str]] | None = None,
     inventory: dict | None = None,
 ) -> PublishState:
-    """Publish one or more roles to Ansible Automation Platform.
+    """Publish one or more roles to GitHub.
+
+    Optionally registers the created/pushed Git repository as an AAP Project
+    (env-driven; see docs).
 
     Args:
         role_name: Name(s) of the role(s) to publish (string or list)
