@@ -6,7 +6,6 @@ nav_order: 2
 ---
 
 ## Table of contents
-
 {: .no_toc .text-delta }
 
 <style>
@@ -14,9 +13,8 @@ nav_order: 2
     display: none;
 }
 </style>
-
-- TOC
-  {:toc .toc-h3-only}
+* TOC
+{:toc .toc-h3-only}
 
 # Migration Workflow
 
@@ -252,7 +250,7 @@ flowchart TB
     Generate --> Lint{ansible-lint}
 
     Lint -->|Pass| Output[Write to ansible/]
-    Lint -->|Fail| Count{Attempt<br/>< 5?}
+    Lint -->|Fail| Count{Attempt<br/>under 5?}
 
     Count -->|Yes| Fix[AI Auto-Fix]
     Fix --> Generate
@@ -333,13 +331,13 @@ The publisher automates GitOps deployment by creating a deployable Ansible proje
 ```mermaid
 flowchart TB
     Start([Migrated Role]) --> Create[Create Deployment Structure]
-    Create --> Copy[Copy Role(s)]
-    Copy --> GenPlaybook[Generate Wrapper Playbook(s)]
+    Create --> Copy[Copy Roles]
+    Copy --> GenPlaybook[Generate Wrapper Playbooks]
     GenPlaybook --> GenCfg[Generate ansible.cfg]
     GenCfg --> GenColl[Generate collections/requirements.yml]
     GenColl --> GenInv[Generate inventory/hosts.yml]
     GenInv --> Verify[Verify All Files]
-    Verify --> Git{--skip-git?}
+    Verify --> Git{Skip git push?}
 
     Git -->|Yes| Done([Local Deployment Ready])
     Git -->|No| CreateRepo[Create GitHub Repository]

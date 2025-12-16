@@ -126,7 +126,7 @@ uv run app.py migrate [OPTIONS] USER_REQUIREMENTS
   Source technology to migrate from [Chef, Puppet, Salt]
 
 - `--module-migration-plan` (default: Sentinel.UNSET)
-  Module migration plan file produced by the analyze command. Must be in the format: migration-plan-<module_name>.md. Path is relative to the --source-dir. Example: migration-plan-nginx.md
+  Module migration plan file produced by the analyze command. Must be in the format: `migration-plan-<module_name>.md`. Path is relative to the --source-dir. Example: migration-plan-nginx.md
 
 - `--high-level-migration-plan` (default: Sentinel.UNSET)
   High level migration plan file produced by the init command. Path is relative to the --source-dir. Example: migration-plan.md
@@ -160,10 +160,9 @@ Publish one or more migrated Ansible roles to GitHub.
 
 Creates a new GitOps repository and pushes the deployment to it.
 For single role: creates deployment at
-<base-path>/ansible/deployments/{module_name}.
+`<base-path>/ansible/deployments/{module_name}`.
 For multiple roles: creates a consolidated project at
-<base-path>/ansible/deployments/ansible-project.
-
+`<base-path>/ansible/deployments/ansible-project`.
 
 ### Usage
 
@@ -190,7 +189,7 @@ uv run app.py publish [OPTIONS] MODULE_NAMES
   GitHub branch to push to (default: main, ignored if --skip-git)
 
 - `--skip-git`
-  Skip git steps (create repo, commit, push). Files will be created in <base-path>/ansible/deployments/ only.
+  Skip git steps (create repo, commit, push). Files will be created in `<base-path>/ansible/deployments/` only.
 
 - `--collections-file` (default: Sentinel.UNSET)
   Path to YAML/JSON file containing collections list. Format: [{"name": "collection.name", "version": "1.0.0"}]
