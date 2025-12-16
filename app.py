@@ -219,7 +219,7 @@ def publish(
     inventory_file,
 ) -> None:
     """Publish migrated Ansible roles to Ansible Automation Platform
-    wrap the roles in an Ansible Project format, 
+    wrap the roles in an Ansible Project format,
     push the project to git, and sync to AAP.
 
     Creates a new GitOps repository and pushes the deployment to it.
