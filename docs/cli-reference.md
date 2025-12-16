@@ -156,16 +156,9 @@ Options:
 
 ## publish
 
-Publish one or more migrated Ansible roles to GitHub.
+Publish one or more migrated Ansible roles to GitHub and integrate with AAP.
 
-Creates a new GitOps repository and pushes the deployment to it.
-For single role: creates deployment at
-`<base-path>/ansible/deployments/{module_name}`.
-For multiple roles: creates a consolidated project at
-`<base-path>/ansible/deployments/ansible-project`.
-Publish migrated Ansible roles for Ansible Automation Platform (AAP) using a GitOps flow.
-
-The end goal of `publish` is an AAP-synced Project that points at a Git repository containing a runnable Ansible project.
+Creates an Ansible Project structure from the migrated roles, creates a new GitOps repository and pushes an Ansible Project to it. It will also upsert an AAP Project and trigger a Project Update (SCM sync) if `AAP_CONTROLLER_URL` is set. For single role: creates deployment at `<base-path>/ansible/deployments/{module_name}`. For multiple roles: creates a consolidated project at `<base-path>/ansible/deployments/ansible-project`.
 
 ### Usage
 
@@ -190,21 +183,25 @@ uv run app.py publish [OPTIONS] MODULE_NAMES
 
 - `--github-branch` (default: main)
   GitHub branch to push to (default: main, ignored if --skip-git)
-1. Wrap the migrated role(s) into a runnable Ansible project (playbooks, inventory, collections, ansible.cfg)
-2. Push that project to a Git repository (GitHub), for GitOps
-3. Integrate the Git repository with AAP by upserting an AAP/Controller Project and triggering a sync
+
+- `--skip-git`
+  Skip git steps (create repo, commit, push). Files will be created in `<base-path>/ansible/deployments/` only.
+
+- `--collections-file` (default: Sentinel.UNSET)
+  Path to YAML/JSON file containing collections list. Format: [{"name": "collection.name", "version": "1.0.0"}]
+
+- `--inventory-file` (default: Sentinel.UNSET)
+  Path to YAML/JSON file containing inventory structure. Format: {"all": {"children": {...}}}
 
 ### AAP Integration (optional, env-driven)
 
-If `AAP_CONTROLLER_URL` is set, the publisher will integrate the Git repository with AAP by upserting an AAP/Controller **Project** and triggering a **Project sync**.
+If `AAP_CONTROLLER_URL` is set, the publisher will integrate the Git repository with AAP by upserting a **Project** and triggering a **Project Update (SCM sync)**.
+
+Required when enabled:
 
 - `AAP_CONTROLLER_URL`: Base URL of the AAP Controller (e.g. `https://aap.example.com`)
 - `AAP_ORG_NAME`: AAP organization name that will own the Project
-- Auth (choose one):
-  - `AAP_USERNAME` and `AAP_PASSWORD` (basic auth)
-  - `AAP_OAUTH_TOKEN` (bearer token; preferred for automation)
-
-Optional:
+- Auth (`AAP_OAUTH_TOKEN` or `AAP_USERNAME` + `AAP_PASSWORD`)
 
 - `AAP_PROJECT_NAME`: Override the Project name (default: inferred from repo name)
 - `AAP_CA_BUNDLE`: Path to a PEM/CRT file containing the CA certificate to trust (useful for self-signed or private PKI)
@@ -219,17 +216,6 @@ Notes:
   non-standard (e.g. older `/api/v2`), set `AAP_API_PREFIX`.
 - Default AAP Project name is inferred from the GitHub repo name (set
   `AAP_PROJECT_NAME` to override).
-
-### Ansible Project Structure
-
-- `--skip-git`
-  Skip git steps (create repo, commit, push). Files will be created in `<base-path>/ansible/deployments/` only.
-
-- `--collections-file` (default: Sentinel.UNSET)
-  Path to YAML/JSON file containing collections list. Format: [{"name": "collection.name", "version": "1.0.0"}]
-
-- `--inventory-file` (default: Sentinel.UNSET)
-  Path to YAML/JSON file containing inventory structure. Format: {"all": {"children": {...}}}
 
 ### Full Help
 
