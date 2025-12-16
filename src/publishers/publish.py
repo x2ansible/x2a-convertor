@@ -2,7 +2,7 @@
 
 import subprocess
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import requests
@@ -11,6 +11,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.model import get_runnable_config
 from src.publishers.tools import (
+    AAPSyncResult,
     _get_repo_path,
     copy_role_directory,
     create_directory_structure,
@@ -53,12 +54,7 @@ class PublishState:
     collections: list[dict[str, str]] | None = None
     inventory: dict | None = None
     # AAP integration (optional, env-driven)
-    aap_enabled: bool = False
-    aap_project_name: str = ""
-    aap_project_id: int | None = None
-    aap_project_update_id: int | None = None
-    aap_project_update_status: str = ""
-    aap_error: str = ""
+    aap_result: AAPSyncResult = field(default_factory=AAPSyncResult)
 
 
 class PublishWorkflow:
@@ -391,31 +387,23 @@ class PublishWorkflow:
         if should_skip:
             return state
 
-        repository_url = state.github_repository_url
-        branch = state.github_branch
-
-        tool_result = sync_to_aap(repository_url=repository_url, branch=branch)
-        state.aap_enabled = bool(tool_result.get("enabled"))
-        state.aap_project_name = str(tool_result.get("project_name") or "")
-        state.aap_project_id = tool_result.get("project_id")
-        state.aap_project_update_id = tool_result.get("project_update_id")
-        state.aap_project_update_status = str(
-            tool_result.get("project_update_status") or ""
+        state.aap_result = sync_to_aap(
+            repository_url=state.github_repository_url,
+            branch=state.github_branch,
         )
-        state.aap_error = str(tool_result.get("error") or "")
 
-        if not state.aap_enabled:
+        if not state.aap_result.enabled:
             return state
 
-        if state.aap_error:
-            slog.error(f"AAP sync failed: {state.aap_error}")
+        if state.aap_result.error:
+            slog.error(f"AAP sync failed: {state.aap_result.error}")
             return state
 
         slog.info(
-            f"AAP project synced: name={state.aap_project_name} "
-            f"id={state.aap_project_id} "
-            f"update_id={state.aap_project_update_id} "
-            f"status={state.aap_project_update_status}"
+            f"AAP project synced: name={state.aap_result.project_name} "
+            f"id={state.aap_result.project_id} "
+            f"update_id={state.aap_result.project_update_id} "
+            f"status={state.aap_result.project_update_status}"
         )
         return state
 
@@ -524,7 +512,7 @@ class PublishWorkflow:
                 )
                 summary_lines.append(push_cmd)
 
-        # AAP integration summary (sync_to_aap node writes these fields)
+        # AAP integration summary
         summary_lines.append("\nAAP Integration:")
         if state.failed:
             summary_lines.append("  Not attempted (publish failed).")
@@ -532,23 +520,8 @@ class PublishWorkflow:
             summary_lines.append("  Not attempted (skip_git=true).")
         elif not state.branch_pushed:
             summary_lines.append("  Not attempted (branch was not pushed).")
-        elif not state.aap_enabled:
-            summary_lines.append("  Disabled (AAP not configured).")
-        elif state.aap_error:
-            summary_lines.append("  Result: FAILED")
-            summary_lines.append(f"  Error: {state.aap_error}")
         else:
-            summary_lines.append("  Result: SUCCESS")
-            if state.aap_project_name:
-                summary_lines.append(f"  Project: {state.aap_project_name}")
-            if state.aap_project_id is not None:
-                summary_lines.append(f"  Project ID: {state.aap_project_id}")
-            if state.aap_project_update_id is not None:
-                summary_lines.append(f"  Sync job ID: {state.aap_project_update_id}")
-            if state.aap_project_update_status:
-                summary_lines.append(
-                    f"  Sync job status: {state.aap_project_update_status}"
-                )
+            summary_lines.extend(state.aap_result.report_summary())
 
         summary_lines.append("\n" + "=" * 80)
 

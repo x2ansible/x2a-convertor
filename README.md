@@ -39,8 +39,8 @@ flowchart LR
 
 ## How It Works
 
-| Phase         | What It Does                                                    | Output                                                  | Time    |
-| ------------- | --------------------------------------------------------------- | ------------------------------------------------------- | ------- |
+| Phase          | What It Does                                                    | Output                                                  | Time    |
+| -------------- | --------------------------------------------------------------- | ------------------------------------------------------- | ------- |
 | **1️⃣ Init**    | Scans entire Chef repo, identifies cookbooks, maps dependencies | Strategic migration plan (`migration-plan.md`)          | ~5 min  |
 | **2️⃣ Analyze** | Deep-dive analysis of specific cookbook/module                  | Detailed conversion spec (`migration-plan-<module>.md`) | ~10 min |
 | **3️⃣ Migrate** | Converts Chef code to Ansible with validation                   | Production-ready Ansible role                           | ~15 min |
@@ -181,36 +181,48 @@ flowchart TB
 
 ### Environment Variables
 
-| Variable                   | Description                                                                 | Example Values                                                                                           | Required                  |
-| -------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------- |
-| `LLM_MODEL`                | Language model to use                                                       | `claude-3-5-sonnet-20241022`<br>`openai:gpt-4o`<br>`google_vertexai:gemini-2.5-pro`<br>`openai:qwen3:4b`<br>`us.anthropic.claude-3-7-sonnet-20250219-v1:0` (Bedrock) | Yes                       |
-| `OPENAI_API_BASE`          | Custom API endpoint for OpenAI-compatible APIs                              | `http://localhost:11434/v1`<br>`http://192.168.1.100:8000/v1`                                            | No                        |
-| `OPENAI_API_KEY`           | API key for OpenAI or compatible services                                   | `sk-...` or `not-needed` for local                                                                       | No                        |
-| `AWS_ACCESS_KEY_ID`        | AWS IAM access key for Bedrock authentication                               | `AKIA...` (20 characters)                                                                                | For Bedrock with IAM      |
-| `AWS_SECRET_ACCESS_KEY`    | AWS IAM secret key for Bedrock authentication                               | `***` (40 characters)                                                                                    | For Bedrock with IAM      |
-| `AWS_SESSION_TOKEN`        | AWS session token for temporary credentials                                 | `***` (for temporary credentials only)                                                                   | No (for temp creds only)  |
-| `AWS_BEARER_TOKEN_BEDROCK` | AWS Bedrock API key. Alternative to IAM credentials.                        | `ABSKQmVkcm9j.......`                                                                                    | For Bedrock with API key  |
-| `AWS_REGION`               | AWS region for Bedrock                                                      | `us-east-1`, `us-east-2`, `us-west-2`, `eu-west-2`                                                      | No (default: `eu-west-2`) |
-| `LOG_LEVEL`                | Logging verbosity for x2convertor namespace                                 | `INFO`, `DEBUG`, `ERROR`                                                                                 | No (default: INFO)        |
-| `DEBUG_ALL`                | Enable DEBUG logging for all libraries                                      | `true`, `false`                                                                                          | No (default: false)       |
-| `LANGCHAIN_DEBUG`          | Enable LangChain debug mode                                                 | `true`, `false`                                                                                          | No                        |
-| `LANGCHAIN_TRACING_V2`     | Enable LangChain tracing                                                    | `true`, `false`                                                                                          | No                        |
-| `LANGCHAIN_API_KEY`        | LangSmith API key for tracing                                               | `ls_...`                                                                                                 | No                        |
-| `LANGCHAIN_PROJECT`        | LangSmith project name                                                      | `x2a-convertor`                                                                                          | No                        |
-| `TARGET_REPO_PATH`         | Path to repository to analyze                                               | `/path/to/chef-repo`<br>`../my-puppet-repo`                                                              | No (default: current dir) |
-| `MAX_TOKENS`               | Maximum tokens for response                                                 | `8192`, `16384`, `32768`                                                                                 | No (default: 8192)        |
-| `TEMPERATURE`              | Model temperature (0-1)                                                     | `0.1`, `0.5`, `1.0`                                                                                      | No (default: 0.1)         |
-| `RECURSION_LIMIT`          | Maximum recursion limit to be used by the langchain                         | `100`, `200`                                                                                             | No (default: 500)         |
-| `MAX_EXPORT_ATTEMPTS`      | Maximum number of attempts to export the playbook                           | `5`, `10`                                                                                                | No (default: 5)           |
-| `REASONING_EFFORT`         | Reasoning effort when using a LLM model                                     | `low`, `medium`, `high`                                                                                  | No (default: None)        |
-| `RATE_LIMIT_REQUESTS`      | Rate limit for API requests (requests per second)                           | `5`, `10`, `20`                                                                                          | No (default: disabled)    |
-| `MOLECULE_DOCKER_IMAGE`    | Container image for Molecule testing                                        | `docker.io/geerlingguy/docker-fedora40-ansible:latest`<br>`docker.io/geerlingguy/docker-ubuntu2204-ansible:latest` | No (default: Fedora 40)   |
+| Variable                   | Description                                          | Example Values                                                                                                                                                       | Required                           |
+| -------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `LLM_MODEL`                | Language model to use                                | `claude-3-5-sonnet-20241022`<br>`openai:gpt-4o`<br>`google_vertexai:gemini-2.5-pro`<br>`openai:qwen3:4b`<br>`us.anthropic.claude-3-7-sonnet-20250219-v1:0` (Bedrock) | Yes                                |
+| `OPENAI_API_BASE`          | Custom API endpoint for OpenAI-compatible APIs       | `http://localhost:11434/v1`<br>`http://192.168.1.100:8000/v1`                                                                                                        | No                                 |
+| `OPENAI_API_KEY`           | API key for OpenAI or compatible services            | `sk-...` or `not-needed` for local                                                                                                                                   | No                                 |
+| `AWS_ACCESS_KEY_ID`        | AWS IAM access key for Bedrock authentication        | `AKIA...` (20 characters)                                                                                                                                            | For Bedrock with IAM               |
+| `AWS_SECRET_ACCESS_KEY`    | AWS IAM secret key for Bedrock authentication        | `***` (40 characters)                                                                                                                                                | For Bedrock with IAM               |
+| `AWS_SESSION_TOKEN`        | AWS session token for temporary credentials          | `***` (for temporary credentials only)                                                                                                                               | No (for temp creds only)           |
+| `AWS_BEARER_TOKEN_BEDROCK` | AWS Bedrock API key. Alternative to IAM credentials. | `ABSKQmVkcm9j.......`                                                                                                                                                | For Bedrock with API key           |
+| `AWS_REGION`               | AWS region for Bedrock                               | `us-east-1`, `us-east-2`, `us-west-2`, `eu-west-2`                                                                                                                   | No (default: `eu-west-2`)          |
+| `LOG_LEVEL`                | Logging verbosity for x2convertor namespace          | `INFO`, `DEBUG`, `ERROR`                                                                                                                                             | No (default: INFO)                 |
+| `DEBUG_ALL`                | Enable DEBUG logging for all libraries               | `true`, `false`                                                                                                                                                      | No (default: false)                |
+| `LANGCHAIN_DEBUG`          | Enable LangChain debug mode                          | `true`, `false`                                                                                                                                                      | No                                 |
+| `LANGCHAIN_TRACING_V2`     | Enable LangChain tracing                             | `true`, `false`                                                                                                                                                      | No                                 |
+| `LANGCHAIN_API_KEY`        | LangSmith API key for tracing                        | `ls_...`                                                                                                                                                             | No                                 |
+| `LANGCHAIN_PROJECT`        | LangSmith project name                               | `x2a-convertor`                                                                                                                                                      | No                                 |
+| `TARGET_REPO_PATH`         | Path to repository to analyze                        | `/path/to/chef-repo`<br>`../my-puppet-repo`                                                                                                                          | No (default: current dir)          |
+| `MAX_TOKENS`               | Maximum tokens for response                          | `8192`, `16384`, `32768`                                                                                                                                             | No (default: 8192)                 |
+| `TEMPERATURE`              | Model temperature (0-1)                              | `0.1`, `0.5`, `1.0`                                                                                                                                                  | No (default: 0.1)                  |
+| `RECURSION_LIMIT`          | Maximum recursion limit to be used by the langchain  | `100`, `200`                                                                                                                                                         | No (default: 500)                  |
+| `MAX_EXPORT_ATTEMPTS`      | Maximum number of attempts to export the playbook    | `5`, `10`                                                                                                                                                            | No (default: 5)                    |
+| `REASONING_EFFORT`         | Reasoning effort when using a LLM model              | `low`, `medium`, `high`                                                                                                                                              | No (default: None)                 |
+| `RATE_LIMIT_REQUESTS`      | Rate limit for API requests (requests per second)    | `5`, `10`, `20`                                                                                                                                                      | No (default: disabled)             |
+| `MOLECULE_DOCKER_IMAGE`    | Container image for Molecule testing                 | `docker.io/geerlingguy/docker-fedora40-ansible:latest`<br>`docker.io/geerlingguy/docker-ubuntu2204-ansible:latest`                                                   | No (default: Fedora 40)            |
+| `AAP_CONTROLLER_URL`       | Ansible Automation Platform controller URL           | `https://aap.example.com`                                                                                                                                            | For AAP integration                |
+| `AAP_ORG_NAME`             | AAP organization name                                | `Default`                                                                                                                                                            | For AAP integration                |
+| `AAP_OAUTH_TOKEN`          | AAP OAuth token for authentication                   | `***`                                                                                                                                                                | AAP auth option 1                  |
+| `AAP_USERNAME`             | AAP username (use with `AAP_PASSWORD`)               | `admin`                                                                                                                                                              | AAP auth option 2                  |
+| `AAP_PASSWORD`             | AAP password (use with `AAP_USERNAME`)               | `***`                                                                                                                                                                | AAP auth option 2                  |
+| `AAP_PROJECT_NAME`         | AAP project name                                     | `my-ansible-project`                                                                                                                                                 | No (inferred from repo)            |
+| `AAP_SCM_CREDENTIAL_ID`    | AAP SCM credential ID for private repos              | `1`, `credential-name`                                                                                                                                               | For private SCM repos              |
+| `AAP_CA_BUNDLE`            | Path to CA certificate bundle for private PKI        | `/path/to/ca-bundle.crt`                                                                                                                                             | No                                 |
+| `AAP_VERIFY_SSL`           | Enable/disable SSL verification                      | `true`, `false`                                                                                                                                                      | No (default: true)                 |
+| `AAP_TIMEOUT_S`            | AAP API request timeout in seconds                   | `30`, `60`                                                                                                                                                           | No                                 |
+| `AAP_API_PREFIX`           | AAP API prefix path                                  | `/api/controller/v2`                                                                                                                                                 | No (default: `/api/controller/v2`) |
 
 #### AWS Bedrock Authentication
 
 AWS Bedrock supports two authentication methods (use one, not both):
 
 **Option 1: IAM Credentials (Recommended)**
+
 ```bash
 export LLM_MODEL="us.anthropic.claude-3-7-sonnet-20250219-v1:0"
 export AWS_REGION="us-east-2"
@@ -219,6 +231,7 @@ export AWS_SECRET_ACCESS_KEY="..."
 ```
 
 **Option 2: Bearer Token (API Key)**
+
 ```bash
 export LLM_MODEL="us.anthropic.claude-3-7-sonnet-20250219-v1:0"
 export AWS_REGION="us-east-2"
@@ -226,6 +239,35 @@ export AWS_BEARER_TOKEN_BEDROCK="ABSKQmVkcm9j..."
 ```
 
 **Important:** Do NOT set `AWS_BEARER_TOKEN_BEDROCK` if using IAM credentials, as bearer tokens take precedence.
+
+#### AAP (Ansible Automation Platform) Integration
+
+AAP integration is optional and used for publishing migrated roles. Two authentication methods are supported:
+
+**Option 1: OAuth Token (Recommended)**
+
+```bash
+export AAP_CONTROLLER_URL="https://aap.example.com"
+export AAP_ORG_NAME="Default"
+export AAP_OAUTH_TOKEN="your-oauth-token"
+```
+
+**Option 2: Username/Password**
+
+```bash
+export AAP_CONTROLLER_URL="https://aap.example.com"
+export AAP_ORG_NAME="Default"
+export AAP_USERNAME="admin"
+export AAP_PASSWORD="your-password"
+```
+
+**For private PKI or self-signed certificates:**
+
+```bash
+export AAP_CA_BUNDLE="/path/to/ca-bundle.crt"
+# Or disable SSL verification (not recommended for production)
+export AAP_VERIFY_SSL="false"
+```
 
 Optionally, a `.env` file with these settings for development purposes can be created.
 
@@ -268,17 +310,18 @@ uv run ruff check --select TID .
 ```
 
 If you accidentally use `logging.getLogger()`, Ruff will fail with:
+
 ```
 TID251 `logging.getLogger` is banned: Use get_logger() from src.utils.logging instead of logging.getLogger()
 ```
 
 #### Log Levels
 
-| Setting           | x2convertor.* logs | Third-party logs | Use Case                   |
-| ----------------- | ------------------ | ---------------- | -------------------------- |
-| Default           | INFO               | WARNING          | Normal operation           |
-| `LOG_LEVEL=DEBUG` | DEBUG              | WARNING          | Debug your code only       |
-| `DEBUG_ALL=true`  | DEBUG              | DEBUG            | Debug everything (verbose) |
+| Setting           | x2convertor.\* logs | Third-party logs | Use Case                   |
+| ----------------- | ------------------- | ---------------- | -------------------------- |
+| Default           | INFO                | WARNING          | Normal operation           |
+| `LOG_LEVEL=DEBUG` | DEBUG               | WARNING          | Debug your code only       |
+| `DEBUG_ALL=true`  | DEBUG               | DEBUG            | Debug everything (verbose) |
 
 **Examples:**
 
@@ -296,12 +339,14 @@ DEBUG_ALL=true uv run app.py analyze ...
 #### Best Practices
 
 1. Use appropriate log levels:
+
    - `logger.debug()` - Detailed diagnostic info
    - `logger.info()` - General informational messages
    - `logger.warning()` - Warning messages
    - `logger.error()` - Error messages
 
 2. Add context with structured logging:
+
    ```python
    logger.info("File processed", file_path=path, line_count=100)
    ```

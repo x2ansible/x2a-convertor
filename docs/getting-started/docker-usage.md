@@ -75,9 +75,6 @@ This will generate real Ansible code, primarily in `ansible/roles/nginx_multisit
 ```bash
 podman run --rm -ti \
   -v $(pwd)/:/app/source:Z \
-  -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
-  -e AWS_REGION=$AWS_REGION \
-  -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
   -e GITHUB_TOKEN=$GITHUB_TOKEN \
   -e AAP_CONTROLLER_URL=$AAP_CONTROLLER_URL \
   -e AAP_ORG_NAME=$AAP_ORG_NAME \
@@ -129,9 +126,6 @@ Note: To **push to GitHub but skip the AAP sync**, run publish without `--skip-g
 ```bash
 podman run --rm -ti \
   -v $(pwd)/:/app/source:Z \
-  -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
-  -e AWS_REGION=$AWS_REGION \
-  -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
   -e GITHUB_TOKEN=$GITHUB_TOKEN \
   quay.io/x2ansible/x2a-convertor:latest \
   publish "nginx_multisite" --source-paths /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main

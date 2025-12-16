@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -24,6 +25,52 @@ from src.publishers.template_loader import get_template
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class AAPSyncResult:
+    """Result of syncing a repository to AAP."""
+
+    enabled: bool = False
+    project_name: str = ""
+    project_id: int | None = None
+    project_update_id: int | None = None
+    project_update_status: str = ""
+    error: str = ""
+
+    @classmethod
+    def disabled(cls) -> "AAPSyncResult":
+        """Create a result indicating AAP is not enabled."""
+        return cls(enabled=False)
+
+    @classmethod
+    def from_error(cls, error: str) -> "AAPSyncResult":
+        """Create a result indicating an error occurred."""
+        return cls(enabled=True, error=error)
+
+    def report_summary(self) -> list[str]:
+        """Generate summary lines for this AAP sync result."""
+        lines: list[str] = []
+        if not self.enabled:
+            lines.append("  Disabled (AAP not configured).")
+            return lines
+
+        if self.error:
+            lines.append("  Result: FAILED")
+            lines.append(f"  Error: {self.error}")
+            return lines
+
+        lines.append("  Result: SUCCESS")
+        if self.project_name:
+            lines.append(f"  Project: {self.project_name}")
+        if self.project_id is not None:
+            lines.append(f"  Project ID: {self.project_id}")
+        if self.project_update_id is not None:
+            lines.append(f"  Sync job ID: {self.project_update_id}")
+        if self.project_update_status:
+            lines.append(f"  Sync job status: {self.project_update_status}")
+        return lines
+
 
 LOADERS: dict[str, Any] = {
     ".yaml": yaml.safe_load,
@@ -546,12 +593,13 @@ def verify_files_exist(file_paths: list[str]) -> None:
     logger.info("All files verified successfully")
 
 
-def sync_to_aap(repository_url: str, branch: str) -> dict[str, Any]:
+def sync_to_aap(repository_url: str, branch: str) -> AAPSyncResult:
     """Upsert an AAP Project pointing at the provided repository and trigger a sync.
 
     This is env-driven and optional:
-    - If AAP_CONTROLLER_URL is not set, returns {"enabled": False}.
-    - If enabled but misconfigured or API call fails, returns {"enabled": True, "error": "..."}.
+    - If AAP_CONTROLLER_URL is not set, returns AAPSyncResult.disabled().
+    - If enabled but misconfigured or API call fails, returns
+      AAPSyncResult.from_error(...).
 
     Environment variables:
     - Required when enabled:
@@ -565,41 +613,29 @@ def sync_to_aap(repository_url: str, branch: str) -> dict[str, Any]:
       - AAP_VERIFY_SSL (true/false)
       - AAP_TIMEOUT_S
     """
-    result: dict[str, Any] = {
-        "enabled": False,
-        "project_name": "",
-        "project_id": None,
-        "project_update_id": None,
-        "project_update_status": "",
-        "error": "",
-    }
-
     try:
         cfg = load_aap_config_from_env()
     except ValueError as e:
-        result["enabled"] = True
-        result["error"] = str(e)
-        return result
+        return AAPSyncResult.from_error(str(e))
 
     if cfg is None:
-        return result
+        return AAPSyncResult.disabled()
 
-    result["enabled"] = True
-
-    project_name = (os.environ.get("AAP_PROJECT_NAME") or "").strip()
+    project_name = os.environ.get("AAP_PROJECT_NAME", "").strip()
     if not project_name:
         project_name = infer_aap_project_name(repository_url)
 
-    scm_credential_id_raw = (os.environ.get("AAP_SCM_CREDENTIAL_ID") or "").strip()
+    scm_credential_id_raw = os.environ.get("AAP_SCM_CREDENTIAL_ID", "").strip()
     scm_credential_id = None
     if scm_credential_id_raw:
         try:
             scm_credential_id = int(scm_credential_id_raw)
         except ValueError:
-            result["error"] = (
-                f"AAP_SCM_CREDENTIAL_ID must be an integer, got: {scm_credential_id_raw}"
+            msg = (
+                f"AAP_SCM_CREDENTIAL_ID must be an integer, "
+                f"got: {scm_credential_id_raw}"
             )
-            return result
+            return AAPSyncResult.from_error(msg)
 
     try:
         client = AAPClient(cfg)
@@ -614,27 +650,21 @@ def sync_to_aap(repository_url: str, branch: str) -> dict[str, Any]:
             scm_credential_id=scm_credential_id,
         )
 
-        project_id = int(project.get("id") or 0)
+        project_id = int(project.get("id", 0))
         if not project_id:
-            result["error"] = "AAP API did not return a project id"
-            return result
-
-        result["project_name"] = project_name
-        result["project_id"] = project_id
+            return AAPSyncResult.from_error("AAP API did not return a project id")
 
         update = client.start_project_update(project_id=project_id)
-        update_id = update.get("id")
-        if update_id is not None:
-            result["project_update_id"] = int(update_id)
 
-        status = update.get("status")
-        if status:
-            result["project_update_status"] = str(status)
-
-        return result
+        return AAPSyncResult(
+            enabled=True,
+            project_name=project_name,
+            project_id=project_id,
+            project_update_id=int(update["id"]) if "id" in update else None,
+            project_update_status=update.get("status", ""),
+        )
     except (requests.exceptions.RequestException, RuntimeError, ValueError) as e:
-        result["error"] = str(e)
-        return result
+        return AAPSyncResult.from_error(str(e))
 
 
 def _get_repo_path(repository_url: str) -> Path:

@@ -281,6 +281,8 @@ After `app.py publish` completes
      - `AAP_API_PREFIX` (default: `/api/controller/v2`)
    - If AAP sync fails, publishing still completes; check the logs and re-run `publish` after fixing AAP configuration (or trigger a sync manually from the AAP UI)
 
+   For information on obtaining AAP Tokens and credentials, see the [AAP documentation](https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.6/html/access_management_and_authentication/gw-token-based-authentication).
+
 ### Audit Trail
 
 All checkpoints should be documented on git.
