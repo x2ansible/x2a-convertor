@@ -72,7 +72,8 @@ class PublishWorkflow:
     3. Create GitHub repository (if not skip_git)
     4. Commit changes (if not skip_git)
     5. Push branch (if not skip_git)
-    6. Display summary
+    6. Sync to AAP (if not skip_git)
+    7. Display summary
     """
 
     # Node names for conditional edges
