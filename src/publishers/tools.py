@@ -14,6 +14,12 @@ from urllib.parse import urlparse
 import requests
 import yaml
 
+from src.publishers.aap_client import (
+    AAPClient,
+    infer_aap_project_description,
+    infer_aap_project_name,
+    load_aap_config_from_env,
+)
 from src.publishers.template_loader import get_template
 from src.utils.logging import get_logger
 
@@ -538,6 +544,97 @@ def verify_files_exist(file_paths: list[str]) -> None:
         raise FileNotFoundError(error_msg)
 
     logger.info("All files verified successfully")
+
+
+def sync_to_aap(repository_url: str, branch: str) -> dict[str, Any]:
+    """Upsert an AAP Project pointing at the provided repository and trigger a sync.
+
+    This is env-driven and optional:
+    - If AAP_CONTROLLER_URL is not set, returns {"enabled": False}.
+    - If enabled but misconfigured or API call fails, returns {"enabled": True, "error": "..."}.
+
+    Environment variables:
+    - Required when enabled:
+      - AAP_CONTROLLER_URL
+      - AAP_ORG_NAME
+      - Auth: AAP_USERNAME + AAP_PASSWORD OR AAP_OAUTH_TOKEN
+    - Optional:
+      - AAP_PROJECT_NAME
+      - AAP_CA_BUNDLE (path to PEM/CRT CA cert for self-signed/private PKI)
+      - AAP_SCM_CREDENTIAL_ID (needed for private SCM repos)
+      - AAP_VERIFY_SSL (true/false)
+      - AAP_TIMEOUT_S
+    """
+    result: dict[str, Any] = {
+        "enabled": False,
+        "project_name": "",
+        "project_id": None,
+        "project_update_id": None,
+        "project_update_status": "",
+        "error": "",
+    }
+
+    try:
+        cfg = load_aap_config_from_env()
+    except ValueError as e:
+        result["enabled"] = True
+        result["error"] = str(e)
+        return result
+
+    if cfg is None:
+        return result
+
+    result["enabled"] = True
+
+    project_name = (os.environ.get("AAP_PROJECT_NAME") or "").strip()
+    if not project_name:
+        project_name = infer_aap_project_name(repository_url)
+
+    scm_credential_id_raw = (os.environ.get("AAP_SCM_CREDENTIAL_ID") or "").strip()
+    scm_credential_id = None
+    if scm_credential_id_raw:
+        try:
+            scm_credential_id = int(scm_credential_id_raw)
+        except ValueError:
+            result["error"] = (
+                f"AAP_SCM_CREDENTIAL_ID must be an integer, got: {scm_credential_id_raw}"
+            )
+            return result
+
+    try:
+        client = AAPClient(cfg)
+        org_id = client.find_organization_id(name=cfg.organization_name)
+        description = infer_aap_project_description(repository_url, branch)
+        project = client.upsert_project(
+            org_id=org_id,
+            name=project_name,
+            scm_url=repository_url,
+            scm_branch=branch,
+            description=description,
+            scm_credential_id=scm_credential_id,
+        )
+
+        project_id = int(project.get("id") or 0)
+        if not project_id:
+            result["error"] = "AAP API did not return a project id"
+            return result
+
+        result["project_name"] = project_name
+        result["project_id"] = project_id
+
+        update = client.start_project_update(project_id=project_id)
+        update_id = update.get("id")
+        if update_id is not None:
+            result["project_update_id"] = int(update_id)
+
+        status = update.get("status")
+        if status:
+            result["project_update_status"] = str(status)
+
+        return result
+    except (requests.exceptions.RequestException, RuntimeError, ValueError) as e:
+        result["error"] = str(e)
+        return result
 
 
 def _get_repo_path(repository_url: str) -> Path:

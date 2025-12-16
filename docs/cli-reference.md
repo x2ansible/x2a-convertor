@@ -37,7 +37,7 @@ Commands:
   analyze   Perform detailed analysis and create module migration plans
   init      Initialize project with interactive message
   migrate   Migrate project based on migration plan from analysis
-  publish   Publish one or more migrated Ansible roles to GitHub.
+  publish   Publish migrated Ansible roles for AAP (wrap project, push to git, integrate with AAP).
   validate  Validate migrated module against original configuration
 ```
 
@@ -163,6 +163,9 @@ For single role: creates deployment at
 `<base-path>/ansible/deployments/{module_name}`.
 For multiple roles: creates a consolidated project at
 `<base-path>/ansible/deployments/ansible-project`.
+Publish migrated Ansible roles for Ansible Automation Platform (AAP) using a GitOps flow.
+
+The end goal of `publish` is an AAP-synced Project that points at a Git repository containing a runnable Ansible project.
 
 ### Usage
 
@@ -187,6 +190,37 @@ uv run app.py publish [OPTIONS] MODULE_NAMES
 
 - `--github-branch` (default: main)
   GitHub branch to push to (default: main, ignored if --skip-git)
+1. Wrap the migrated role(s) into a runnable Ansible project (playbooks, inventory, collections, ansible.cfg)
+2. Push that project to a Git repository (GitHub), for GitOps
+3. Integrate the Git repository with AAP by upserting an AAP/Controller Project and triggering a sync
+
+### AAP Integration (optional, env-driven)
+
+If `AAP_CONTROLLER_URL` is set, the publisher will integrate the Git repository with AAP by upserting an AAP/Controller **Project** and triggering a **Project sync**.
+
+- `AAP_CONTROLLER_URL`: Base URL of the AAP Controller (e.g. `https://aap.example.com`)
+- `AAP_ORG_NAME`: AAP organization name that will own the Project
+- Auth (choose one):
+  - `AAP_USERNAME` and `AAP_PASSWORD` (basic auth)
+  - `AAP_OAUTH_TOKEN` (bearer token; preferred for automation)
+
+Optional:
+
+- `AAP_PROJECT_NAME`: Override the Project name (default: inferred from repo name)
+- `AAP_CA_BUNDLE`: Path to a PEM/CRT file containing the CA certificate to trust (useful for self-signed or private PKI)
+- `AAP_VERIFY_SSL`: `true`/`false` (default: `true`)
+- `AAP_TIMEOUT_S`: HTTP timeout in seconds (default: `30`)
+- `AAP_SCM_CREDENTIAL_ID`: Controller SCM credential ID (only needed for private repos)
+
+Notes:
+
+- `AAP_CONTROLLER_URL` should be the base URL only (no `/api/...` suffix).
+- The default Controller API prefix is `/api/controller/v2`. If your deployment is
+  non-standard (e.g. older `/api/v2`), set `AAP_API_PREFIX`.
+- Default AAP Project name is inferred from the GitHub repo name (set
+  `AAP_PROJECT_NAME` to override).
+
+### Ansible Project Structure
 
 - `--skip-git`
   Skip git steps (create repo, commit, push). Files will be created in `<base-path>/ansible/deployments/` only.
