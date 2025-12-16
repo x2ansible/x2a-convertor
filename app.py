@@ -218,7 +218,9 @@ def publish(
     collections_file,
     inventory_file,
 ) -> None:
-    """Publish one or more migrated Ansible roles to GitHub.
+    """Publish migrated Ansible roles to Ansible Automation Platform
+    wrap the roles in an Ansible Project format, 
+    push the project to git, and sync to AAP.
 
     Creates a new GitOps repository and pushes the deployment to it.
     For single role: creates deployment at
