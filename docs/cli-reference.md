@@ -5,11 +5,9 @@ nav_order: 5
 ---
 
 # CLI Reference
-
 {: .no_toc }
 
 ## Table of contents
-
 {: .no_toc .text-delta }
 
 <style>
@@ -18,8 +16,8 @@ nav_order: 5
 }
 </style>
 
-- TOC
-  {:toc .toc-h2-only}
+* TOC
+{:toc .toc-h2-only}
 
 ---
 

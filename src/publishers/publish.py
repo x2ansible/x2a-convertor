@@ -55,6 +55,7 @@ class PublishState:
     inventory: dict | None = None
     # AAP integration (optional, env-driven)
     aap_result: AAPSyncResult = field(default_factory=AAPSyncResult)
+    skip_aap_sync: bool = False  # Set by _sync_to_aap based on workflow state
 
 
 class PublishWorkflow:
@@ -383,8 +384,8 @@ class PublishWorkflow:
         """
         slog = logger.bind(phase="sync to aap")
 
-        should_skip = state.failed or state.skip_git or (not state.branch_pushed)
-        if should_skip:
+        state.skip_aap_sync = state.failed or state.skip_git or not state.branch_pushed
+        if state.skip_aap_sync:
             return state
 
         state.aap_result = sync_to_aap(

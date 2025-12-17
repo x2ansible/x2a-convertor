@@ -1,13 +1,13 @@
 ---
 layout: default
-title: Docker Usage
+title: Usage
 parent: Getting Started
-nav_order: 2
+nav_order: 1
 ---
 
-# Docker Usage
+# Usage
 
-Run X2A Convertor in containers for reproducible, enterprise-grade deployments.
+Run X2A Convertor natively for local development and quick migrations.
 
 ## Quick Reference
 
@@ -26,18 +26,31 @@ This example uses the AWS Bedrock provider. You'll need to configure the followi
 - **AWS_BEARER_TOKEN_BEDROCK**: The API key to connect to the LLM
 - **LLM_MODEL**: The model to use (this guide uses `anthropic.claude-3-7-sonnet-20250219-v1:0`). Note: Some regions require the `us.` prefix
 
+Export these variables in your shell before running commands:
+
+```bash
+export LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0
+export AWS_REGION=your-aws-region
+export AWS_BEARER_TOKEN_BEDROCK=your-bearer-token
+
+# For publish command
+export GITHUB_TOKEN=your-github-token
+export AAP_CONTROLLER_URL=your-aap-url
+
+# For AAP Authentication
+export AAP_OAUTH_TOKEN=your-oauth-token or export AAP_USERNAME=your-username and export AAP_PASSWORD=your-password
+
+#AAP integration extra configuration (optional)
+export AAP_CA_BUNDLE=your-ca-bundle-path
+export AAP_VERIFY_SSL=true
+```
+
 ## Initialization
 
 The first thing we need to do is create the migration-plan.md file which will be used as a reference file:
 
 ```bash
-podman run --rm -ti \
-  -v $(pwd)/:/app/source:Z \
-  -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
-  -e AWS_REGION=$AWS_REGION \
-  -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
-  quay.io/x2ansible/x2a-convertor:latest \
-  init --source-dir /app/source "Migrate to Ansible"
+uv run app.py init --source-dir . "Migrate to Ansible"
 ```
 
 This will create a **migration-plan.md** with a lot of details.
@@ -45,13 +58,7 @@ This will create a **migration-plan.md** with a lot of details.
 ## Analyze:
 
 ```bash
-podman run --rm -ti \
-  -v $(pwd)/:/app/source:Z \
-  -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
-  -e AWS_REGION=$AWS_REGION \
-  -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
-  quay.io/x2ansible/x2a-convertor:latest \
-  analyze "please make a detailed plan for nginx-multisite"  --source-dir /app/source/
+uv run app.py analyze "please make a detailed plan for nginx-multisite" --source-dir .
 ```
 
 This will make a blueprint of what the model understands about the migration of that cookbook. In this case, it will create a **migration-plan-nginx-multisite.md**
@@ -59,13 +66,7 @@ This will make a blueprint of what the model understands about the migration of 
 ## Migrate
 
 ```bash
-podman run --rm -ti \
-  -v $(pwd)/:/app/source:Z \
-  -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
-  -e AWS_REGION=$AWS_REGION \
-  -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
-  quay.io/x2ansible/x2a-convertor:latest \
-  migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the 'nginx-multisite' module"
+uv run app.py migrate --source-dir . --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the 'nginx-multisite' module"
 ```
 
 This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details
@@ -73,14 +74,7 @@ This will generate real Ansible code, primarily in `ansible/roles/nginx_multisit
 ## Publish
 
 ```bash
-podman run --rm -ti \
-  -v $(pwd)/:/app/source:Z \
-  -e GITHUB_TOKEN=$GITHUB_TOKEN \
-  -e AAP_CONTROLLER_URL=$AAP_CONTROLLER_URL \
-  -e AAP_ORG_NAME=$AAP_ORG_NAME \
-  -e AAP_OAUTH_TOKEN=$AAP_OAUTH_TOKEN \
-  quay.io/x2ansible/x2a-convertor:latest \
-  publish "nginx_multisite" --source-paths /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main
+uv run app.py publish "nginx_multisite" --source-paths ./ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main
 ```
 
 This will generate the deployements for the role, push it to GitHub, and (when AAP env vars are set) upsert an AAP Project and trigger a sync. AAP integration uses environment variables only (no publish flags). The output can be found at:
@@ -90,3 +84,15 @@ This will generate the deployements for the role, push it to GitHub, and (when A
 - Inventory: `./ansible/deployments/nginx_multisite/inventory/hosts.yml`
 - Role: `./ansible/deployments/nginx_multisite/roles/nginx_multisite/`
 - Playbook: `./ansible/deployments/nginx_multisite/playbooks/run_nginx_multisite.yml`
+
+## Notes
+
+Adding `--skip-git` makes the publish step **local-only** (no repository creation/push), and therefore the AAP sync step is skipped.
+
+example:
+
+```bash
+uv run app.py publish "nginx_multisite" --source-paths ./ansible/roles/nginx_multisite --skip-git
+```
+
+To **push to GitHub but skip the AAP sync**, run publish without `--skip-git` but do **not** set `AAP_CONTROLLER_URL` (AAP integration is enabled only when that variable is present). For
