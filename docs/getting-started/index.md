@@ -63,6 +63,7 @@ uv run app.py publish "nginx" \
 ## Guides
 
 - [Installation](installation.html) - Docker or local setup
+- [Usage](usage.html) - CLI usage and examples
 - [Docker Usage](docker-usage.html) - Container configuration
 - [Configuration](configuration.html) - Environment variables and LLM setup
 
