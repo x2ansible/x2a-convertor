@@ -79,6 +79,12 @@ LOADERS: dict[str, Any] = {
 }
 
 
+def _github_api_base() -> str:
+    base = (os.environ.get("GITHUB_API_BASE") or "https://api.github.com").strip()
+    base = base.rstrip("/")
+    return base or "https://api.github.com"
+
+
 def _load_yaml_or_json(file_path_obj: Path) -> Any:
     with file_path_obj.open() as f:
         loader = LOADERS.get(file_path_obj.suffix.lower(), json.load)
@@ -1111,7 +1117,7 @@ def github_get_repository(owner: str, repo_name: str) -> str | None:
         "Authorization": f"Bearer {github_token}",
     }
 
-    api_url = f"https://api.github.com/repos/{owner}/{repo_name}"
+    api_url = f"{_github_api_base()}/repos/{owner}/{repo_name}"
 
     try:
         response = requests.get(api_url, headers=headers)
@@ -1189,7 +1195,7 @@ def github_create_repository(
     }
 
     # Try orgs endpoint first (for organizations)
-    api_url = f"https://api.github.com/orgs/{owner}/repos"
+    api_url = f"{_github_api_base()}/orgs/{owner}/repos"
     logger.info(f"Sending POST request to {api_url}")
 
     response: requests.Response | None = None
@@ -1197,7 +1203,7 @@ def github_create_repository(
         response = requests.post(api_url, headers=headers, data=json.dumps(payload))
         # If 404, try user/repos (for personal accounts)
         if response.status_code == 404:
-            api_url = "https://api.github.com/user/repos"
+            api_url = f"{_github_api_base()}/user/repos"
             logger.info(
                 f"Owner not found as organization, trying user endpoint: {api_url}"
             )

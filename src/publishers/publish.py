@@ -100,7 +100,10 @@ class PublishWorkflow:
         workflow.add_edge(START, "create_ansible_project")
         workflow.add_edge("create_ansible_project", "verify_files")
         workflow.add_conditional_edges("verify_files", self._check_verification)
-        workflow.add_edge("create_repository", "commit_changes")
+        workflow.add_conditional_edges(
+            "create_repository",
+            self._check_repository_result,
+        )
         workflow.add_conditional_edges(
             "commit_changes",
             self._check_commit_result,
@@ -429,6 +432,12 @@ class PublishWorkflow:
         if state.failed:
             return self.NODE_SUMMARY  # Go to summary to show what happened
         return "push_branch"
+
+    def _check_repository_result(self, state: PublishState) -> str:
+        """Conditional edge: Check if repository creation succeeded."""
+        if state.failed:
+            return self.NODE_SUMMARY
+        return "commit_changes"
 
     def _summary_node(self, state: PublishState) -> PublishState:
         """Node: Display summary of what was done."""
