@@ -40,6 +40,8 @@ dev = [
     "dotenv>=0.9.9",
     "pyrefly>=0.37.0",
     "pytest>=8.3.0",
+    "pytest-mock>=3.14.0",
+    "responses>=0.25.0",
     "ruff>=0.13.2",
 ]
 
