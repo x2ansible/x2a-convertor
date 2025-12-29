@@ -120,17 +120,20 @@ def test_sync_to_aap_client_failure_returns_error(monkeypatch):
     assert "org not found" in (result.error or "")
 
 
-def test_load_aap_config_from_env_disabled(monkeypatch):
+def test_aapconfig_from_env_disabled(monkeypatch):
     monkeypatch.delenv("AAP_CONTROLLER_URL", raising=False)
-    cfg = aap_client.load_aap_config_from_env()
+    cfg = aap_client.AAPConfig.from_env()
     assert cfg is None
 
 
-def test_load_aap_config_from_env_missing_org_raises(monkeypatch):
+def test_aapconfig_from_env_missing_org_raises(monkeypatch):
     monkeypatch.setenv("AAP_CONTROLLER_URL", "https://aap.example")
     monkeypatch.delenv("AAP_ORG_NAME", raising=False)
+    monkeypatch.delenv("AAP_OAUTH_TOKEN", raising=False)
+    monkeypatch.delenv("AAP_USERNAME", raising=False)
+    monkeypatch.delenv("AAP_PASSWORD", raising=False)
     with pytest.raises(ValueError, match="AAP_ORG_NAME is required"):
-        aap_client.load_aap_config_from_env()
+        aap_client.AAPConfig.from_env()
 
 
 def test_aap_client_auth_missing_raises():
@@ -232,3 +235,20 @@ def test_infer_aap_project_description_includes_branch():
         "https://github.com/acme/repo.git", "dev"
     )
     assert "branch: dev" in desc
+
+
+def test_aapconfig_explicit_overrides_env(monkeypatch):
+    """Explicit constructor values take precedence over environment."""
+    monkeypatch.setenv("AAP_CONTROLLER_URL", "https://env.example.com")
+    monkeypatch.setenv("AAP_ORG_NAME", "env-org")
+    monkeypatch.setenv("AAP_OAUTH_TOKEN", "env-token")
+
+    cfg = aap_client.AAPConfig(
+        controller_url="https://explicit.example.com",
+        organization_name="explicit-org",
+    )
+
+    assert cfg.controller_url == "https://explicit.example.com"
+    assert cfg.organization_name == "explicit-org"
+    # oauth_token not passed, so comes from env
+    assert cfg.oauth_token == "env-token"
