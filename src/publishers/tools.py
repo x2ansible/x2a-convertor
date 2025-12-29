@@ -645,6 +645,7 @@ def sync_to_aap(repository_url: str, branch: str) -> AAPSyncResult:
 
     try:
         client = AAPClient(cfg)
+        assert cfg.organization_name  # Validated by from_env()
         org_id = client.find_organization_id(name=cfg.organization_name)
         description = infer_aap_project_description(repository_url, branch)
         project = client.upsert_project(
