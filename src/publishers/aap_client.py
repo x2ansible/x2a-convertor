@@ -21,10 +21,26 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclass
 class AAPConfig:
-    controller_url: str
-    organization_name: str
+    """Configuration for Ansible Automation Platform integration.
+
+    Environment Variables:
+        AAP_CONTROLLER_URL: Controller base URL (required to enable)
+        AAP_ORG_NAME: Organization name (required when enabled)
+        AAP_API_PREFIX: API path prefix (default: /api/controller/v2)
+        AAP_OAUTH_TOKEN: OAuth token for auth
+        AAP_USERNAME: Username for basic auth
+        AAP_PASSWORD: Password for basic auth
+        AAP_CA_BUNDLE: Path to CA bundle for self-signed certs
+        AAP_VERIFY_SSL: Verify SSL (true/false, default: true)
+        AAP_TIMEOUT_S: Request timeout in seconds (default: 30)
+        AAP_PROJECT_NAME: Project name (default: inferred from repo URL)
+        AAP_SCM_CREDENTIAL_ID: Credential ID for private repos
+    """
+
+    controller_url: str | None = None
+    organization_name: str | None = None
     api_prefix: str = "/api/controller/v2"
     oauth_token: str | None = None
     username: str | None = None
@@ -33,64 +49,106 @@ class AAPConfig:
     verify_ssl: bool = True
     timeout_s: float = 30.0
 
+    def __post_init__(self) -> None:
+        """Load configuration from environment variables if not explicitly set."""
+        self.controller_url = self.controller_url or self._get_env_str(
+            "AAP_CONTROLLER_URL"
+        )
+        self.organization_name = self.organization_name or self._get_env_str(
+            "AAP_ORG_NAME"
+        )
 
-def load_aap_config_from_env() -> AAPConfig | None:
-    """Load AAP config from environment.
+        api_prefix_env = self._get_env_str("AAP_API_PREFIX")
+        self.api_prefix = (api_prefix_env or self.api_prefix).rstrip("/")
 
-    Returns:
-        AAPConfig when AAP integration is configured, otherwise None.
+        self.oauth_token = self.oauth_token or self._get_env_str("AAP_OAUTH_TOKEN")
+        self.username = self.username or self._get_env_str("AAP_USERNAME")
+        self.password = self.password or self._get_env_str("AAP_PASSWORD")
+        self.ca_bundle_path = self.ca_bundle_path or self._get_env_str("AAP_CA_BUNDLE")
 
-    Notes:
-        We treat AAP integration as optional and env-driven:
-        - If AAP_CONTROLLER_URL is missing, integration is disabled.
-        - If URL exists but required fields are missing, we raise.
-    """
-    controller_url = (os.environ.get("AAP_CONTROLLER_URL") or "").strip()
-    if not controller_url:
-        return None
+        verify_ssl_env = self._get_env_str("AAP_VERIFY_SSL")
+        if verify_ssl_env:
+            self.verify_ssl = verify_ssl_env.lower() in {"1", "true", "yes"}
 
-    organization_name = (os.environ.get("AAP_ORG_NAME") or "").strip()
-    if not organization_name:
-        error_msg = "AAP_ORG_NAME is required when AAP_CONTROLLER_URL is set"
-        raise ValueError(error_msg)
+        timeout_env = self._get_env_str("AAP_TIMEOUT_S")
+        if timeout_env:
+            try:
+                self.timeout_s = float(timeout_env)
+            except ValueError:
+                logger.warning(
+                    f"Invalid AAP_TIMEOUT_S value '{timeout_env}', using default {self.timeout_s}"
+                )
 
-    api_prefix = (os.environ.get("AAP_API_PREFIX") or "/api/controller/v2").strip()
-    if not api_prefix.startswith("/"):
-        raise ValueError("AAP_API_PREFIX must start with '/', e.g. /api/controller/v2")
-    api_prefix = api_prefix.rstrip("/")
+    @staticmethod
+    def _get_env_str(key: str) -> str | None:
+        """Get environment variable as stripped string, or None if empty."""
+        value = os.environ.get(key, "").strip()
+        return value if value else None
 
-    ca_bundle_path = (os.environ.get("AAP_CA_BUNDLE") or "").strip() or None
-    if ca_bundle_path:
-        ca_path_obj = Path(ca_bundle_path)
-        if not ca_path_obj.exists():
-            raise ValueError(
-                f"AAP_CA_BUNDLE is set but file does not exist: {ca_bundle_path}"
+    def is_enabled(self) -> bool:
+        """Check if AAP integration is enabled (controller_url is set)."""
+        return bool(self.controller_url)
+
+    def validate(self) -> list[str]:
+        """Validate configuration and return list of errors.
+
+        Returns:
+            List of validation error messages. Empty list means valid.
+        """
+        if not self.controller_url:
+            return []
+
+        errors: list[str] = []
+
+        if not self.organization_name:
+            errors.append("AAP_ORG_NAME is required when AAP_CONTROLLER_URL is set")
+
+        if not self.api_prefix.startswith("/"):
+            errors.append("AAP_API_PREFIX must start with '/', e.g. /api/controller/v2")
+
+        if self.ca_bundle_path:
+            ca_path_obj = Path(self.ca_bundle_path)
+            if not ca_path_obj.exists():
+                errors.append(
+                    f"AAP_CA_BUNDLE file does not exist: {self.ca_bundle_path}"
+                )
+            elif not ca_path_obj.is_file():
+                errors.append(f"AAP_CA_BUNDLE is not a file: {self.ca_bundle_path}")
+
+        if not self.oauth_token and not (self.username and self.password):
+            errors.append(
+                "Auth required: set AAP_OAUTH_TOKEN or AAP_USERNAME + AAP_PASSWORD"
             )
-        if not ca_path_obj.is_file():
-            raise ValueError(
-                f"AAP_CA_BUNDLE is set but is not a file: {ca_bundle_path}"
-            )
 
-    verify_ssl_raw = (os.environ.get("AAP_VERIFY_SSL") or "true").strip().lower()
-    verify_ssl = verify_ssl_raw in {"1", "true", "yes"}
+        timeout_env = self._get_env_str("AAP_TIMEOUT_S")
+        if timeout_env:
+            try:
+                float(timeout_env)
+            except ValueError:
+                errors.append(f"AAP_TIMEOUT_S must be a number, got: {timeout_env}")
 
-    timeout_raw = (os.environ.get("AAP_TIMEOUT_S") or "30").strip()
-    try:
-        timeout_s = float(timeout_raw)
-    except ValueError as e:
-        raise ValueError(f"AAP_TIMEOUT_S must be a number, got: {timeout_raw}") from e
+        return errors
 
-    return AAPConfig(
-        controller_url=controller_url,
-        organization_name=organization_name,
-        api_prefix=api_prefix,
-        oauth_token=(os.environ.get("AAP_OAUTH_TOKEN") or "").strip() or None,
-        username=(os.environ.get("AAP_USERNAME") or "").strip() or None,
-        password=(os.environ.get("AAP_PASSWORD") or "").strip() or None,
-        ca_bundle_path=ca_bundle_path,
-        verify_ssl=verify_ssl,
-        timeout_s=timeout_s,
-    )
+    @classmethod
+    def from_env(cls) -> AAPConfig | None:
+        """Load config from environment.
+
+        Returns:
+            AAPConfig if enabled and valid, None if disabled.
+
+        Raises:
+            ValueError: If enabled but configuration is invalid.
+        """
+        config = cls()
+
+        if not config.is_enabled():
+            return None
+
+        errors = config.validate()
+        if errors:
+            raise ValueError("; ".join(errors))
+
+        return config
 
 
 class AAPClient:
@@ -111,6 +169,8 @@ class AAPClient:
             self._session.headers["Authorization"] = f"Bearer {token}"
 
     def _url(self, path: str) -> str:
+        if not self._cfg.controller_url:
+            raise ValueError("controller_url is not configured")
         base = self._cfg.controller_url.rstrip("/")
         p = path if path.startswith("/") else f"/{path}"
         return f"{base}{p}"

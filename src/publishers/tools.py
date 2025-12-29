@@ -17,9 +17,9 @@ import yaml
 
 from src.publishers.aap_client import (
     AAPClient,
+    AAPConfig,
     infer_aap_project_description,
     infer_aap_project_name,
-    load_aap_config_from_env,
 )
 from src.publishers.template_loader import get_template
 from src.utils.logging import get_logger
@@ -620,7 +620,7 @@ def sync_to_aap(repository_url: str, branch: str) -> AAPSyncResult:
       - AAP_TIMEOUT_S
     """
     try:
-        cfg = load_aap_config_from_env()
+        cfg = AAPConfig.from_env()
     except ValueError as e:
         return AAPSyncResult.from_error(str(e))
 
