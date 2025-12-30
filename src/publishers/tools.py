@@ -17,9 +17,9 @@ import yaml
 
 from src.publishers.aap_client import (
     AAPClient,
+    AAPConfig,
     infer_aap_project_description,
     infer_aap_project_name,
-    load_aap_config_from_env,
 )
 from src.publishers.template_loader import get_template
 from src.utils.logging import get_logger
@@ -77,6 +77,12 @@ LOADERS: dict[str, Any] = {
     ".yml": yaml.safe_load,
     ".json": json.load,
 }
+
+
+def _github_api_base() -> str:
+    base = (os.environ.get("GITHUB_API_BASE") or "https://api.github.com").strip()
+    base = base.rstrip("/")
+    return base or "https://api.github.com"
 
 
 def _load_yaml_or_json(file_path_obj: Path) -> Any:
@@ -614,7 +620,7 @@ def sync_to_aap(repository_url: str, branch: str) -> AAPSyncResult:
       - AAP_TIMEOUT_S
     """
     try:
-        cfg = load_aap_config_from_env()
+        cfg = AAPConfig.from_env()
     except ValueError as e:
         return AAPSyncResult.from_error(str(e))
 
@@ -639,6 +645,7 @@ def sync_to_aap(repository_url: str, branch: str) -> AAPSyncResult:
 
     try:
         client = AAPClient(cfg)
+        assert cfg.organization_name  # Validated by from_env()
         org_id = client.find_organization_id(name=cfg.organization_name)
         description = infer_aap_project_description(repository_url, branch)
         project = client.upsert_project(
@@ -1111,7 +1118,7 @@ def github_get_repository(owner: str, repo_name: str) -> str | None:
         "Authorization": f"Bearer {github_token}",
     }
 
-    api_url = f"https://api.github.com/repos/{owner}/{repo_name}"
+    api_url = f"{_github_api_base()}/repos/{owner}/{repo_name}"
 
     try:
         response = requests.get(api_url, headers=headers)
@@ -1189,7 +1196,7 @@ def github_create_repository(
     }
 
     # Try orgs endpoint first (for organizations)
-    api_url = f"https://api.github.com/orgs/{owner}/repos"
+    api_url = f"{_github_api_base()}/orgs/{owner}/repos"
     logger.info(f"Sending POST request to {api_url}")
 
     response: requests.Response | None = None
@@ -1197,7 +1204,7 @@ def github_create_repository(
         response = requests.post(api_url, headers=headers, data=json.dumps(payload))
         # If 404, try user/repos (for personal accounts)
         if response.status_code == 404:
-            api_url = "https://api.github.com/user/repos"
+            api_url = f"{_github_api_base()}/user/repos"
             logger.info(
                 f"Owner not found as organization, trying user endpoint: {api_url}"
             )

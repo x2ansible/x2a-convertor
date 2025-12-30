@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Generate CLI documentation from Click commands."""
 
+import sys
 from pathlib import Path
 
 import click
 
-from app import cli
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from app import cli  # noqa: E402
 
 
 def generate_cli_docs(output_file="docs/cli-reference.md"):
@@ -118,8 +123,8 @@ def generate_cli_docs(output_file="docs/cli-reference.md"):
         lines.append("```")
         lines.append("")
 
-    # Write to file
-    output_path = Path(output_file)
+    # Write to file relative to project root
+    output_path = project_root / output_file
     output_path.write_text("\n".join(lines))
 
     print(f"CLI documentation generated at: {output_file}")
