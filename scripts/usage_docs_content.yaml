@@ -1,0 +1,128 @@
+# Content for generating usage documentation
+# Edit this file to update usage.md and docker-usage.md
+# Then run: python3 scripts/generate_usage_docs.py
+
+# Shared content between native and Docker docs
+shared:
+  quick_reference: |
+    ## Quick Reference
+
+    We're using this repository as default test project:
+
+    ```
+    git clone https://github.com/x2ansible/chef-examples.git
+    cd chef-examples
+    ```
+
+  requirements_intro: |
+    ## Requirements
+
+    This example uses the AWS Bedrock provider. You'll need to configure the following environment variables:
+
+    - **AWS_REGION**: The AWS region where the model will run
+    - **AWS_BEARER_TOKEN_BEDROCK**: The API key to connect to the LLM
+    - **LLM_MODEL**: The model to use (this guide uses `anthropic.claude-3-7-sonnet-20250219-v1:0`). Note: Some regions require the `us.` prefix
+
+  env_exports: |
+
+    Export these variables in your shell before running commands:
+
+    ```bash
+    export LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0
+    export AWS_REGION=your-aws-region
+    export AWS_BEARER_TOKEN_BEDROCK=your-bearer-token
+
+    # For publish command
+    export GITHUB_TOKEN=your-github-token
+    export AAP_CONTROLLER_URL=your-aap-url
+
+    # For AAP Authentication
+    export AAP_OAUTH_TOKEN=your-oauth-token or export AAP_USERNAME=your-username and export AAP_PASSWORD=your-password
+
+    #AAP integration extra configuration (optional)
+    export AAP_CA_BUNDLE=your-ca-bundle-path
+    export AAP_VERIFY_SSL=true
+    ```
+
+  # Command descriptions (used in both docs)
+  descriptions:
+    init: "This will create a **migration-plan.md** with a lot of details."
+    analyze: "This will make a blueprint of what the model understands about the migration of that cookbook. In this case, it will create a **migration-plan-nginx-multisite.md**"
+    migrate: "This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details"
+    publish: "This will generate the deployments for the role, push it to GitHub, and (when AAP env vars are set) upsert an AAP Project and trigger a sync."
+
+  publish_output_paths: |
+
+    - ansible.cfg: `./ansible/deployments/nginx_multisite/ansible.cfg`
+    - Collections requirements: `./ansible/deployments/nginx_multisite/collections/requirements.yml`
+    - Inventory: `./ansible/deployments/nginx_multisite/inventory/hosts.yml`
+    - Role: `./ansible/deployments/nginx_multisite/roles/nginx_multisite/`
+    - Playbook: `./ansible/deployments/nginx_multisite/playbooks/run_nginx_multisite.yml`
+
+  notes_section: |
+    ## Notes
+
+    Adding `--skip-git` makes the publish step **local-only** (no repository creation/push), and therefore the AAP sync step is skipped.
+
+    example:
+
+    ```bash
+    uv run app.py publish "nginx_multisite" --source-paths ./ansible/roles/nginx_multisite --skip-git
+    ```
+
+    To **push to GitHub but skip the AAP sync**, run publish without `--skip-git` but do **not** set `AAP_CONTROLLER_URL` (AAP integration is enabled only when that variable is present). For
+
+# Local (uv run) specific configuration
+local:
+  title: "Usage"
+  nav_order: 1
+  intro: "Run X2A Convertor natively for local development and quick migrations."
+  output_file: "docs/getting-started/usage.md"
+  include_env_exports: true
+  include_notes: true
+
+  commands:
+    init: 'uv run app.py init --source-dir . "Migrate to Ansible"'
+    analyze: 'uv run app.py analyze "please make a detailed plan for nginx-multisite" --source-dir .'
+    migrate: 'uv run app.py migrate --source-dir . --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the ''nginx-multisite'' module"'
+    publish: 'uv run app.py publish "nginx_multisite" --source-paths ./ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main'
+
+# Docker/Podman specific configuration
+docker:
+  title: "Docker Usage"
+  nav_order: 2
+  intro: "Run X2A Convertor in containers for reproducible, enterprise-grade deployments."
+  output_file: "docs/getting-started/docker-usage.md"
+  include_env_exports: false
+  include_notes: false
+
+  container:
+    image: "quay.io/x2ansible/x2a-convertor:latest"
+    volume_mount: "$(pwd)/:/app/source:Z"
+
+  # Environment variables passed to container for each command type
+  env_vars:
+    llm:
+      - "LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0"
+      - "AWS_REGION=$AWS_REGION"
+      - "AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK"
+    publish:
+      - "GITHUB_TOKEN=$GITHUB_TOKEN"
+      - "AAP_CONTROLLER_URL=$AAP_CONTROLLER_URL"
+      - "AAP_ORG_NAME=$AAP_ORG_NAME"
+      - "AAP_OAUTH_TOKEN=$AAP_OAUTH_TOKEN"
+
+  # Commands (without the podman wrapper - that's added by the script)
+  commands:
+    init:
+      cmd: 'init --source-dir /app/source "Migrate to Ansible"'
+      env_type: llm
+    analyze:
+      cmd: 'analyze "please make a detailed plan for nginx-multisite"  --source-dir /app/source/'
+      env_type: llm
+    migrate:
+      cmd: 'migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the ''nginx-multisite'' module"'
+      env_type: llm
+    publish:
+      cmd: 'publish "nginx_multisite" --source-paths /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main'
+      env_type: publish

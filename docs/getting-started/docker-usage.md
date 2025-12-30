@@ -83,7 +83,7 @@ podman run --rm -ti \
   publish "nginx_multisite" --source-paths /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main
 ```
 
-This will generate the deployements for the role, push it to GitHub, and (when AAP env vars are set) upsert an AAP Project and trigger a sync. AAP integration uses environment variables only (no publish flags). The output can be found at:
+This will generate the deployments for the role, push it to GitHub, and (when AAP env vars are set) upsert an AAP Project and trigger a sync.
 
 - ansible.cfg: `./ansible/deployments/nginx_multisite/ansible.cfg`
 - Collections requirements: `./ansible/deployments/nginx_multisite/collections/requirements.yml`
