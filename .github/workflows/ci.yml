@@ -37,6 +37,11 @@ jobs:
     - name: Run pytest
       run: uv run pytest -m "not eval"
 
+    - name: Check generated docs are up-to-date
+      run: |
+        make generate-docs
+        git diff --exit-code docs/ || (echo "Generated docs are out of date. Run 'make generate-docs' and commit the changes." && exit 1)
+
   build-container:
     runs-on: ubuntu-latest
 
