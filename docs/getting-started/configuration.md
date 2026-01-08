@@ -224,26 +224,7 @@ TEMPERATURE=0.1
 
 ## Environment Variable Reference
 
-| Variable | Type | Default | Required | Purpose |
-|----------|------|---------|----------|---------|
-| `LLM_MODEL` | string | - | Yes | Model selection |
-| `AWS_BEARER_TOKEN_BEDROCK` | string | - | If using Bedrock | AWS Bedrock auth |
-| `AWS_REGION` | string | `eu-west-2` | No | AWS region |
-| `OPENAI_API_KEY` | string | - | If using OpenAI | OpenAI auth |
-| `OPENAI_API_BASE` | string | - | If using local | Custom endpoint |
-| `GOOGLE_APPLICATION_CREDENTIALS` | path | - | If using Vertex | GCP credentials |
-| `LOG_LEVEL` | enum | `INFO` | No | App log level |
-| `DEBUG_ALL` | boolean | `false` | No | Debug all libraries |
-| `LANGCHAIN_DEBUG` | boolean | `false` | No | LangChain debug |
-| `LANGCHAIN_TRACING_V2` | boolean | `false` | No | Enable tracing |
-| `LANGCHAIN_API_KEY` | string | - | If tracing | LangSmith auth |
-| `LANGCHAIN_PROJECT` | string | - | If tracing | Project name |
-| `MAX_EXPORT_ATTEMPTS` | integer | `5` | No | Lint retry limit |
-| `RECURSION_LIMIT` | integer | `100` | No | State transition limit |
-| `MAX_TOKENS` | integer | `8192` | No | LLM token limit |
-| `TEMPERATURE` | float | `0.1` | No | LLM randomness |
-| `REASONING_EFFORT` | enum | - | No | Reasoning intensity |
-| `GITHUB_TOKEN` | string | - | No | Github token |
+For the complete list of all environment variables, see [Configuration Options](../configuration_options.html).
 
 ## Security Best Practices
 

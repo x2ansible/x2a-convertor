@@ -156,11 +156,16 @@ Options:
 
 ## publish
 
-Publish migrated Ansible roles to Ansible Automation Platform, wrap the roles in an Ansible Project format, push the project to git, and sync to AAP.
+Publish migrated Ansible roles to Ansible Automation Platform
+wrap the roles in an Ansible Project format,
+push the project to git, and sync to AAP.
 
 Creates a new GitOps repository and pushes the deployment to it.
-For single role: creates deployment at `<base-path>/ansible/deployments/{module_name}`.
-For multiple roles: creates a consolidated project at `<base-path>/ansible/deployments/ansible-project`.
+For single role: creates deployment at
+<base-path>/ansible/deployments/{module_name}.
+For multiple roles: creates a consolidated project at
+<base-path>/ansible/deployments/ansible-project.
+
 
 ### Usage
 
@@ -178,7 +183,7 @@ uv run app.py publish [OPTIONS] MODULE_NAMES
   Path(s) to the migrated Ansible role directory(ies). Can be specified multiple times. Example: --source-paths ./ansible/roles/role1 --source-paths ./ansible/roles/role2
 
 - `--base-path` (default: Sentinel.UNSET)
-  Base path for constructing deployment path. If not provided, derived from first source-paths (parent of `ansible/roles`).
+  Base path for constructing deployment path. If not provided, derived from first source-paths (parent of ansible/roles).
 
 - `--github-owner` (default: Sentinel.UNSET)
   GitHub user or organization name where the repository will be created (required if not using --skip-git)
@@ -187,7 +192,7 @@ uv run app.py publish [OPTIONS] MODULE_NAMES
   GitHub branch to push to (default: main, ignored if --skip-git)
 
 - `--skip-git`
-  Skip git steps (create repo, commit, push). Files will be created in `<base-path>/ansible/deployments/` only.
+  Skip git steps (create repo, commit, push). Files will be created in <base-path>/ansible/deployments/ only.
 
 - `--collections-file` (default: Sentinel.UNSET)
   Path to YAML/JSON file containing collections list. Format: [{"name": "collection.name", "version": "1.0.0"}]
@@ -201,7 +206,7 @@ uv run app.py publish [OPTIONS] MODULE_NAMES
 Usage: publish [OPTIONS] MODULE_NAMES...
 
   Publish migrated Ansible roles to Ansible Automation Platform wrap the roles
-  in an Ansible Project format,  push the project to git, and sync to AAP.
+  in an Ansible Project format, push the project to git, and sync to AAP.
 
   Creates a new GitOps repository and pushes the deployment to it. For single
   role: creates deployment at <base-path>/ansible/deployments/{module_name}.

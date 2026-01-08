@@ -1,5 +1,6 @@
 JEKYLL_IMAGE = minhng/jekyll:4.4.1
-JEKYLL_CMD = podman run --rm -ti -v $(PWD):/srv/jekyll:Z,U -w /srv/jekyll $(JEKYLL_IMAGE) bash -c
+JEKYLL_CMD = podman run --rm -ti -p 4000:4000 -v $(PWD):/srv/jekyll:Z,U -w /srv/jekyll $(JEKYLL_IMAGE) bash -c
+
 HTMLPROOFER_IMAGE = klakegg/html-proofer:3.19.2
 
 build:
