@@ -59,5 +59,10 @@ run-migrate:
 	  "Convert the hello_world cookbook"
 
 
-.PHONY: check format ci-check evals install clean run-init run-analyze run-migrate build run-container clean-container
+generate-docs:
+	uv run python scripts/generate_env_docs.py
+	uv run python scripts/generate_cli_docs.py
+	uv run python scripts/generate_usage_docs.py
+
+.PHONY: check format ci-check evals install clean run-init run-analyze run-migrate build run-container clean-container generate-docs
 
