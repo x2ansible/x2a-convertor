@@ -26,6 +26,8 @@ from molecule.command import (
 )
 from molecule.config import Config
 
+from src.config import get_settings
+
 logger = structlog.get_logger(__name__)
 
 
@@ -98,11 +100,7 @@ class AnsibleMolecule:
         # Even tough, the class shold support withtout a lot of changes.
 
         self.podman_cmd = shutil.which("podman")
-        self.container_image = (
-            container_image
-            or os.getenv("MOLECULE_DOCKER_IMAGE")
-            or self.DEFAULT_CONTAINER_IMAGE
-        )
+        self.container_image = container_image or get_settings().molecule.docker_image
         self.phase_timeout = phase_timeout
 
     def _get_molecule_file(

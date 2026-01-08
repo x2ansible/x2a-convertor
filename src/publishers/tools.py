@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import requests
 import yaml
 
+from src.config import get_settings
 from src.publishers.aap_client import (
     AAPClient,
     AAPConfig,
@@ -80,9 +81,7 @@ LOADERS: dict[str, Any] = {
 
 
 def _github_api_base() -> str:
-    base = (os.environ.get("GITHUB_API_BASE") or "https://api.github.com").strip()
-    base = base.rstrip("/")
-    return base or "https://api.github.com"
+    return get_settings().github.api_base
 
 
 def _load_yaml_or_json(file_path_obj: Path) -> Any:
@@ -627,21 +626,10 @@ def sync_to_aap(repository_url: str, branch: str) -> AAPSyncResult:
     if cfg is None:
         return AAPSyncResult.disabled()
 
-    project_name = os.environ.get("AAP_PROJECT_NAME", "").strip()
-    if not project_name:
-        project_name = infer_aap_project_name(repository_url)
-
-    scm_credential_id_raw = os.environ.get("AAP_SCM_CREDENTIAL_ID", "").strip()
-    scm_credential_id = None
-    if scm_credential_id_raw:
-        try:
-            scm_credential_id = int(scm_credential_id_raw)
-        except ValueError:
-            msg = (
-                f"AAP_SCM_CREDENTIAL_ID must be an integer, "
-                f"got: {scm_credential_id_raw}"
-            )
-            return AAPSyncResult.from_error(msg)
+    # Get project name from settings or infer from repository URL
+    settings = get_settings()
+    project_name = settings.aap.project_name or infer_aap_project_name(repository_url)
+    scm_credential_id = settings.aap.scm_credential_id
 
     try:
         client = AAPClient(cfg)
@@ -1108,10 +1096,11 @@ def github_get_repository(owner: str, repo_name: str) -> str | None:
     Returns:
         Repository URL (HTTPS) if it exists, None otherwise
     """
-    github_token = os.environ.get("GITHUB_TOKEN", "")
-
-    if not github_token:
+    settings = get_settings()
+    if not settings.github.token:
         return None
+
+    github_token = settings.github.token.get_secret_value()
 
     headers = {
         "Accept": "application/vnd.github.v3+json",
@@ -1163,14 +1152,15 @@ def github_create_repository(
         )
         return existing_repo_url
 
-    github_token = os.environ.get("GITHUB_TOKEN", "")
-
-    if not github_token:
+    settings = get_settings()
+    if not settings.github.token:
         error_msg = (
             "GITHUB_TOKEN environment variable not set. Cannot create repository."
         )
         logger.error(error_msg)
         raise ValueError(error_msg)
+
+    github_token = settings.github.token.get_secret_value()
 
     if not owner:
         error_msg = "owner is required"

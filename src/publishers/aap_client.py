@@ -9,13 +9,13 @@ This module is intentionally small and opinionated:
 
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import requests
 
+from src.config import AAPSettings, get_settings
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -25,7 +25,10 @@ logger = get_logger(__name__)
 class AAPConfig:
     """Configuration for Ansible Automation Platform integration.
 
-    Environment Variables:
+    This class wraps AAPSettings from the centralized config module
+    and provides backwards-compatible interface for the AAPClient.
+
+    Environment Variables (loaded via pydantic-settings):
         AAP_CONTROLLER_URL: Controller base URL (required to enable)
         AAP_ORG_NAME: Organization name (required when enabled)
         AAP_API_PREFIX: API path prefix (default: /api/controller/v2)
@@ -48,42 +51,29 @@ class AAPConfig:
     ca_bundle_path: str | None = None
     verify_ssl: bool = True
     timeout_s: float = 30.0
+    _settings: AAPSettings | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
-        """Load configuration from environment variables if not explicitly set."""
-        self.controller_url = self.controller_url or self._get_env_str(
-            "AAP_CONTROLLER_URL"
+        """Load configuration from centralized settings if not explicitly set."""
+        if self._settings is None:
+            self._settings = get_settings().aap
+
+        s = self._settings
+        self.controller_url = self.controller_url or s.controller_url
+        self.organization_name = self.organization_name or s.org_name
+        self.api_prefix = (
+            self.api_prefix if self.api_prefix != "/api/controller/v2" else s.api_prefix
+        ).rstrip("/")
+        self.oauth_token = self.oauth_token or (
+            s.oauth_token.get_secret_value() if s.oauth_token else None
         )
-        self.organization_name = self.organization_name or self._get_env_str(
-            "AAP_ORG_NAME"
+        self.username = self.username or s.username
+        self.password = self.password or (
+            s.password.get_secret_value() if s.password else None
         )
-
-        api_prefix_env = self._get_env_str("AAP_API_PREFIX")
-        self.api_prefix = (api_prefix_env or self.api_prefix).rstrip("/")
-
-        self.oauth_token = self.oauth_token or self._get_env_str("AAP_OAUTH_TOKEN")
-        self.username = self.username or self._get_env_str("AAP_USERNAME")
-        self.password = self.password or self._get_env_str("AAP_PASSWORD")
-        self.ca_bundle_path = self.ca_bundle_path or self._get_env_str("AAP_CA_BUNDLE")
-
-        verify_ssl_env = self._get_env_str("AAP_VERIFY_SSL")
-        if verify_ssl_env:
-            self.verify_ssl = verify_ssl_env.lower() in {"1", "true", "yes"}
-
-        timeout_env = self._get_env_str("AAP_TIMEOUT_S")
-        if timeout_env:
-            try:
-                self.timeout_s = float(timeout_env)
-            except ValueError:
-                logger.warning(
-                    f"Invalid AAP_TIMEOUT_S value '{timeout_env}', using default {self.timeout_s}"
-                )
-
-    @staticmethod
-    def _get_env_str(key: str) -> str | None:
-        """Get environment variable as stripped string, or None if empty."""
-        value = os.environ.get(key, "").strip()
-        return value if value else None
+        self.ca_bundle_path = self.ca_bundle_path or s.ca_bundle
+        self.verify_ssl = s.verify_ssl
+        self.timeout_s = s.timeout_s
 
     def is_enabled(self) -> bool:
         """Check if AAP integration is enabled (controller_url is set)."""
@@ -119,13 +109,6 @@ class AAPConfig:
             errors.append(
                 "Auth required: set AAP_OAUTH_TOKEN or AAP_USERNAME + AAP_PASSWORD"
             )
-
-        timeout_env = self._get_env_str("AAP_TIMEOUT_S")
-        if timeout_env:
-            try:
-                float(timeout_env)
-            except ValueError:
-                errors.append(f"AAP_TIMEOUT_S must be a number, got: {timeout_env}")
 
         return errors
 
