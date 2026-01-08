@@ -1,9 +1,10 @@
-import os
 import logging
 import sys
-import structlog
 
+import structlog
 from langchain_core.globals import set_debug
+
+from src.config import get_settings
 
 
 def get_logger(name: str | None = None):
@@ -56,12 +57,14 @@ def setup_logging() -> None:
     """
     Setup logging for the application.
 
-    Environment variables:
+    Configuration is loaded from environment variables via pydantic-settings:
         DEBUG_ALL: If set to "true" (case-insensitive), enable DEBUG logging for all libraries.
                    If not set, x2convertor logs at INFO, third-party libraries at WARNING.
+        LOG_LEVEL: Log level for x2convertor namespace (default: INFO)
     """
-    debug_all = os.environ.get("DEBUG_ALL", "false").lower() == "true"
-    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    settings = get_settings()
+    debug_all = settings.logging.debug_all
+    log_level = settings.logging.log_level
 
     # Root logger level - WARNING by default, DEBUG only if DEBUG_ALL is set
     root_level = "DEBUG" if debug_all else "WARNING"

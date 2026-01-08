@@ -44,7 +44,9 @@ def test_sync_to_aap_invalid_scm_credential_id_returns_error(monkeypatch):
         repository_url="https://github.com/acme/repo.git", branch="main"
     )
     assert result.enabled is True
-    assert "AAP_SCM_CREDENTIAL_ID must be an integer" in (result.error or "")
+    # pydantic-settings validates type at load time
+    assert "scm_credential_id" in (result.error or "")
+    assert "int" in (result.error or "").lower()
 
 
 def test_sync_to_aap_happy_flow(monkeypatch):
