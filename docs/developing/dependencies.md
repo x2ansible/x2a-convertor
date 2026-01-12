@@ -6,7 +6,9 @@ This guide covers setting up Ansible Automation Platform (AAP) on OpenShift usin
 
 ### Prerequisites
 
-#### Enable Privileged Ports
+If you're not familiar with OpenShift CRC:
+- Follow the [CRC installation guide](https://crc.dev/docs/installing/)
+- Get your [Red Hat pull secret](https://console.redhat.com/openshift/create/local) for installation
 
 #### Configure CRC Resources
 
@@ -42,7 +44,7 @@ metadata:
   name: ansible-automation-platform
   namespace: aap
 spec:
-  channel: stable-2.5
+  channel: stable-2.6
   name: ansible-automation-platform-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
