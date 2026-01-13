@@ -42,6 +42,24 @@ Recipes → Tasks:
 - Format: recipes/recipe_name.rb → tasks/recipe_name.yml
 
 
+Dependencies (requirements.yml):
+- If AAP discovery results are provided, add discovered collections to the checklist
+- Format: collection:namespace.name → requirements.yml
+- These will be added to requirements.yml during the write phase
+
+## Available AAP Collections
+
+If AAP discovery results are provided, you MUST consider reusing existing
+collections instead of writing custom tasks. Benefits:
+- Reduces migration effort
+- Leverages tested, maintained code
+- Follows organizational standards
+
+When a relevant collection exists:
+1. Add it to requirements.yml instead of writing custom tasks
+2. Use collection roles/modules in tasks
+3. Add a DEPENDENCIES checklist item for the collection
+
 Important rules:
 - First, use list_checklist_tasks to see what items already exist
 - If checklist already has items, preserve them - only add missing ones
@@ -51,3 +69,4 @@ Important rules:
 - Do NOT modify or remove existing items - they may have already been addressed
 - For Ansible structure files, use "N/A" as the source path
 - Be thorough - ensure every file mentioned in the migration plan has been added to the checklist
+- If AAP collections are available, prefer using them over writing custom code

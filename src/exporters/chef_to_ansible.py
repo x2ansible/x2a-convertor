@@ -3,6 +3,7 @@ from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
 
+from src.exporters.aap_discovery_agent import AAPDiscoveryAgent
 from src.exporters.planning_agent import PlanningAgent
 from src.exporters.state import ChefState
 from src.exporters.types import MigrationCategory
@@ -49,6 +50,7 @@ class ChefToAnsibleSubagent:
         self.module = module
 
         # Initialize agent instances
+        self.discovery_agent = AAPDiscoveryAgent(model=self.model)
         self.planning_agent = PlanningAgent(model=self.model)
         self.write_agent = WriteAgent(model=self.model)
         self.validation_agent = ValidationAgent(model=self.model)
@@ -85,6 +87,7 @@ class ChefToAnsibleSubagent:
         """
         workflow = StateGraph(ChefState)
         workflow.add_node("initialize", self._initialize)
+        workflow.add_node("discover_collections", self.discovery_agent)
         workflow.add_node("plan_migration", self.planning_agent)
         workflow.add_node("write_migration", self.write_agent)
         workflow.add_node("validate_migration", self.validation_agent)
@@ -92,7 +95,8 @@ class ChefToAnsibleSubagent:
 
         # Check for failure after each agent
         workflow.add_edge(START, "initialize")
-        workflow.add_edge("initialize", "plan_migration")
+        workflow.add_edge("initialize", "discover_collections")
+        workflow.add_edge("discover_collections", "plan_migration")
 
         # After planning: skip to finalize if failed
         workflow.add_conditional_edges(
@@ -243,7 +247,14 @@ class ChefToAnsibleSubagent:
     ) -> ChefState:
         """Execute the complete Chef to Ansible migration workflow.
 
-        The workflow will load or create the checklist during the planning phase.
+        The workflow will discover collections on AAP and from there load or create the checklist during the planning phase.
+
+        Args:
+            path: Path to the Chef cookbook
+            user_message: User requirements
+            module_migration_plan: Detailed migration plan document
+            high_level_migration_plan: High-level strategy document
+            directory_listing: Files in source directory
         """
         logger.info(f"Starting Chef to Ansible migration for module: {self.module}")
 
@@ -260,6 +271,7 @@ class ChefToAnsibleSubagent:
             validation_report="",
             last_output="",
             checklist=None,  # Will be loaded/created during planning phase
+            aap_discovery=None,  # Will be populated by discovery agent
             failed=False,
             failure_reason="",
         )

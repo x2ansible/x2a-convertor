@@ -7,7 +7,13 @@ through its various phases.
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from src.types import AnsibleModule, Checklist, DocumentFile, MigrationStateInterface
+from src.types import (
+    AAPDiscoveryResult,
+    AnsibleModule,
+    Checklist,
+    DocumentFile,
+    MigrationStateInterface,
+)
 
 # Constants
 ANSIBLE_PATH_TEMPLATE = "ansible/roles/{module}"
@@ -43,6 +49,7 @@ class ChefState(MigrationStateInterface):
         validation_report: Latest validation report
         last_output: Last output from the workflow
         checklist: Migration checklist tracking file transformations
+        aap_discovery: Result of AAP collection discovery for deduplication
         failed: Whether the migration has failed
         failure_reason: Human-readable reason for failure
     """
@@ -59,6 +66,7 @@ class ChefState(MigrationStateInterface):
     validation_report: str
     last_output: str
     checklist: Checklist | None = None
+    aap_discovery: AAPDiscoveryResult | None = None
     failed: bool = False
     failure_reason: str = ""
 

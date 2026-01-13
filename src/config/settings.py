@@ -86,7 +86,11 @@ class AWSSettings(BaseSettings):
 
 
 class AAPSettings(BaseSettings):
-    """Ansible Automation Platform configuration."""
+    """Ansible Automation Platform configuration.
+
+    Supports both Controller API and Galaxy API (Private Automation Hub).
+    Galaxy API URL is derived from controller_url and uses the same oauth_token.
+    """
 
     model_config = SettingsConfigDict(env_prefix="AAP_", extra="ignore")
 
@@ -134,15 +138,37 @@ class AAPSettings(BaseSettings):
         default=None,
         description="Credential ID for private repos",
     )
+    galaxy_repository: str = Field(
+        default="published",
+        description="Galaxy repository to search (published, staging, community)",
+    )
 
     @field_validator("api_prefix")
     @classmethod
     def normalize_api_prefix(cls, v: str) -> str:
         return v.rstrip("/")
 
+    @property
+    def galaxy_url(self) -> str | None:
+        """Derive Galaxy API URL from controller_url.
+
+        Transforms controller URL to Galaxy API endpoint:
+        https://aap.example.com/api/controller/v2 -> https://aap.example.com/api/galaxy/
+        """
+        if not self.controller_url:
+            return None
+        base = self.controller_url.rstrip("/")
+        if "/api/controller" in base:
+            base = base.split("/api/controller")[0]
+        return f"{base}/api/galaxy/"
+
     def is_enabled(self) -> bool:
         """Check if AAP integration is enabled (controller_url is set)."""
         return bool(self.controller_url)
+
+    def is_galaxy_enabled(self) -> bool:
+        """Check if Galaxy discovery is enabled (uses same token as controller)."""
+        return bool(self.controller_url and self.oauth_token)
 
     def validate_config(self) -> list[str]:
         """Validate configuration and return list of errors.

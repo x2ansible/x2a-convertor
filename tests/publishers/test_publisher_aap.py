@@ -138,13 +138,13 @@ def test_aapconfig_from_env_missing_org_raises(monkeypatch):
         aap_client.AAPConfig.from_env()
 
 
-def test_aap_client_auth_missing_raises():
+def test_aap_client_auth_missing_validation():
+    """Test that AAPConfig validation catches missing auth."""
     cfg = aap_client.AAPConfig(
         controller_url="https://aap.example", organization_name="Default"
     )
-    client = aap_client.AAPClient(cfg)
-    with pytest.raises(ValueError, match="AAP auth missing"):
-        client._auth()
+    errors = cfg.validate()
+    assert any("Auth required" in e for e in errors)
 
 
 def test_aap_client_upsert_project_creates_when_missing(monkeypatch):

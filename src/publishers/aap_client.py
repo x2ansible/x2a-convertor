@@ -13,9 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import requests
-
 from src.config import AAPSettings, get_settings
+from src.publishers.base_client import BaseAAPClient
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -134,76 +133,39 @@ class AAPConfig:
         return config
 
 
-class AAPClient:
-    """Minimal client for AAP/Controller API (/api/v2)."""
+class AAPClient(BaseAAPClient):
+    """Client for AAP Controller API (/api/controller/v2).
+
+    Extends BaseAAPClient to share session and SSL configuration.
+    Accepts AAPConfig for backward compatibility with existing code.
+    """
 
     def __init__(self, cfg: AAPConfig) -> None:
         self._cfg = cfg
-        self._session = requests.Session()
-        self._session.headers.update(
-            {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            }
-        )
+        # Pass the underlying settings to BaseAAPClient
+        super().__init__(cfg._settings)
 
-        token = cfg.oauth_token
-        if token:
-            self._session.headers["Authorization"] = f"Bearer {token}"
-
-    def _url(self, path: str) -> str:
+    @property
+    def _base_url(self) -> str:
+        """Return the Controller API base URL."""
         if not self._cfg.controller_url:
             raise ValueError("controller_url is not configured")
-        base = self._cfg.controller_url.rstrip("/")
-        p = path if path.startswith("/") else f"/{path}"
-        return f"{base}{p}"
+        return self._cfg.controller_url.rstrip("/")
 
-    def _api(self, path: str) -> str:
-        p = path if path.startswith("/") else f"/{path}"
-        return f"{self._cfg.api_prefix}{p}"
+    @property
+    def _api_prefix(self) -> str:
+        """Return the Controller API path prefix."""
+        return self._cfg.api_prefix
 
-    def _auth(self) -> tuple[str, str] | None:
-        if self._cfg.oauth_token:
-            return None
-
-        username = self._cfg.username
-        password = self._cfg.password
-        if username and password:
-            return (username, password)
-
-        error_msg = "AAP auth missing: set AAP_OAUTH_TOKEN or AAP_USERNAME/AAP_PASSWORD"
-        raise ValueError(error_msg)
-
-    def _request(
-        self,
-        method: str,
-        path: str,
-        *,
-        json: dict[str, Any] | None = None,
-        params: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        verify: bool | str = self._cfg.verify_ssl
-        if self._cfg.ca_bundle_path:
-            verify = self._cfg.ca_bundle_path
-
-        resp = self._session.request(
-            method=method,
-            url=self._url(path),
-            auth=self._auth(),
-            json=json,
-            params=params,
-            verify=verify,
-            timeout=self._cfg.timeout_s,
-        )
-        resp.raise_for_status()
-        if resp.status_code == 204:
-            return {}
-        return resp.json()
+    @property
+    def _auth_header_format(self) -> str:
+        """Controller API uses Bearer token format."""
+        return "Bearer"
 
     def find_organization_id(self, *, name: str) -> int:
         data = self._request(
             "GET",
-            self._api("/organizations/"),
+            "/organizations/",
             params={"name": name},
         )
         results = data.get("results", [])
@@ -214,7 +176,7 @@ class AAPClient:
     def find_project(self, *, org_id: int, name: str) -> dict[str, Any] | None:
         data = self._request(
             "GET",
-            self._api("/projects/"),
+            "/projects/",
             params={"organization": org_id, "name": name},
         )
         results = data.get("results", [])
@@ -248,7 +210,7 @@ class AAPClient:
             if scm_credential_id:
                 payload["credential"] = scm_credential_id
 
-            return self._request("POST", self._api("/projects/"), json=payload)
+            return self._request("POST", "/projects/", json=payload)
 
         project_id = int(existing["id"])
         patch: dict[str, Any] = {
@@ -261,14 +223,14 @@ class AAPClient:
 
         return self._request(
             "PATCH",
-            self._api(f"/projects/{project_id}/"),
+            f"/projects/{project_id}/",
             json=patch,
         )
 
     def start_project_update(self, *, project_id: int) -> dict[str, Any]:
         return self._request(
             "POST",
-            self._api(f"/projects/{project_id}/update/"),
+            f"/projects/{project_id}/update/",
             json={},
         )
 

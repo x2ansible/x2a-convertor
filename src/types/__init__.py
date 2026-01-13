@@ -5,8 +5,10 @@ This package provides:
 - Migration checklist management system
 - Ansible domain types
 - Migration state interfaces
+- AAP discovery result types
 """
 
+from .aap_discovery import AAPDiscoveryResult
 from .ansible_module import AnsibleModule
 from .checklist import (
     SUMMARY_SUCCESS_MESSAGE,
@@ -19,6 +21,7 @@ from .migration_state import MigrationStateInterface
 
 __all__ = [
     "SUMMARY_SUCCESS_MESSAGE",
+    "AAPDiscoveryResult",
     "AnsibleModule",
     "Checklist",
     "ChecklistItem",

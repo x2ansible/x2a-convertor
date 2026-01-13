@@ -11,6 +11,7 @@ class MigrationCategory(str, Enum):
     ATTRIBUTES = "attributes"
     FILES = "files"
     STRUCTURE = "structure"
+    DEPENDENCIES = "dependencies"
 
     def to_title(self) -> str:
         """Return markdown title for this category"""
@@ -20,5 +21,6 @@ class MigrationCategory(str, Enum):
             self.ATTRIBUTES: "### Attributes → Variables",
             self.FILES: "### Static Files",
             self.STRUCTURE: "### Structure Files",
+            self.DEPENDENCIES: "### Dependencies (requirements.yml)",
         }
         return titles.get(self, f"### {self.value.title()}")
