@@ -60,6 +60,7 @@ Auto-generated from `src/config/settings.py`.
 | `AAP_TIMEOUT_S` | float | `30.0` | Request timeout in seconds |
 | `AAP_PROJECT_NAME` | string | - | Project name in AAP |
 | `AAP_SCM_CREDENTIAL_ID` | integer | - | Credential ID for private repos |
+| `AAP_GALAXY_REPOSITORY` | string | `published` | Galaxy repository to search (published, staging, community) |
 
 ## GitHub Configuration
 

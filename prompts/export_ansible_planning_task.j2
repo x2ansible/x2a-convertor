@@ -9,6 +9,21 @@ MODULE MIGRATION PLAN:
 CHEF SOURCE PATH: `{{ path }}`
 ANSIBLE OUTPUT PATH: `./ansible/roles/{{ module }}`
 
+{% if aap_discovery and aap_discovery.enabled and aap_discovery.content %}
+## Available Collections in AAP Private Hub
+
+The following collections are available in your organization's Private Automation Hub.
+**You MUST use these instead of writing custom tasks.**
+
+{{ aap_discovery.content }}
+
+**CRITICAL REQUIREMENT**: When a collection above covers a technology in the migration plan:
+1. Add a DEPENDENCIES checklist item using the EXACT collection FQCN from the discovery above (source_path="collection:<namespace>.<name>", target_path="requirements.yml")
+2. DO NOT add template items for technologies covered by a collection (the collection provides its own templates)
+3. DO NOT add custom task items for technologies covered by a collection
+4. The write agent will use `include_role` with the collection's roles
+{% endif %}
+
 {% if existing_checklist != "" %}
 EXISTING CHECKLIST (from previous run):
 <checklist>
@@ -32,6 +47,7 @@ Categories:
 - "attributes": Chef attributes → Ansible variables
 - "files": Static files (configs, scripts, etc.)
 - "structure": Generated Ansible role structure files (meta/main.yml, handlers/main.yml, etc.)
+- "dependencies": Collection dependencies for requirements.yml
 
 For each file in the migration plan:
 1. Check if it already exists in the checklist (use list_checklist_tasks)
@@ -59,6 +75,7 @@ Sample calls (replace {{module}} with actual module name from ANSIBLE OUTPUT PAT
 - add_checklist_task(category="templates", source_path="<full_path_from_file_structure>", target_path="ansible/roles/{{module}}/templates/config.j2", description="Configuration template")
 - add_checklist_task(category="recipes", source_path="<full_path_from_file_structure>", target_path="ansible/roles/{{module}}/tasks/main.yml", description="Main recipe tasks")
 - add_checklist_task(category="structure", source_path="N/A", target_path="ansible/roles/{{module}}/meta/main.yml", description="Role metadata")
+- add_checklist_task(category="dependencies", source_path="collection:namespace.collection_name", target_path="ansible/roles/{{module}}/requirements.yml", description="External collection dependency")
 
 Your goal: Ensure the checklist contains EVERY file mentioned in the migration plan.
 - If checklist already has items: only add what's missing

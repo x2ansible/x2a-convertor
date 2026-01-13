@@ -25,6 +25,7 @@ dependencies = [
     "molecule>=25.9.0",
     "molecule-podman>=2.0.3",
     "pydantic-settings>=2.0.0",
+    "markdownify>=0.14.1",
 ]
 
 [tool.pyrefly]

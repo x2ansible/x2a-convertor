@@ -11,6 +11,33 @@ A high-level migration plan describing all cookbooks in the repository is availa
 **Module Plan:**
 {{ migration_plan }}
 
+{% if aap_discovery and aap_discovery.enabled and aap_discovery.content %}
+## AAP Private Hub Collections (USE THESE!)
+
+The following collections are available and MUST be used instead of writing custom tasks:
+
+{{ aap_discovery.content }}
+
+**CRITICAL RULES**:
+1. For technologies covered by collections listed above → Use `include_role` with the collection's role
+2. For technologies NOT covered by any collection above → Write custom tasks using ansible.builtin modules (package, template, service)
+3. DO NOT invent or assume collection roles - only use roles from collections EXPLICITLY listed above
+4. DO NOT create templates for technologies covered by a discovered collection
+{% if aap_discovery.requirements_yaml %}
+
+## Pre-Generated requirements.yml (USE THIS!)
+
+The following requirements.yml has been generated from AAP Private Hub discovery with exact versions.
+When writing requirements.yml, use this content EXACTLY (do not add public Galaxy collections):
+
+```yaml
+{{ aap_discovery.requirements_yaml }}
+```
+
+Write this content to `{{ ansible_path }}/requirements.yml` using ansible_write.
+{% endif %}
+{% endif %}
+
 ## Current Checklist
 
 <checklist>

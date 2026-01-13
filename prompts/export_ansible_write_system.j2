@@ -67,6 +67,29 @@ RECIPES (.rb → .yml tasks):
 - Task files must be a flat list of tasks WITHOUT playbook wrappers (no hosts:, no tasks: wrapper)
 - Use ansible_write tool for task files
 
+USING AAP PRIVATE HUB COLLECTIONS:
+IMPORTANT: Only use `include_role` for collections that are EXPLICITLY listed in the AAP Private Hub section of the task prompt.
+
+When a collection from AAP Private Hub is listed:
+- Use `ansible.builtin.include_role` to invoke the collection's role
+- Example:
+```yaml
+- name: Configure service using Private Hub collection
+  ansible.builtin.include_role:
+    name: <namespace>.<collection>.<role_name>
+  vars:
+    # Use variables from the collection's documentation
+```
+- DO NOT write custom package/template/service tasks for technologies covered by a discovered collection
+- DO NOT create templates for technologies covered by a discovered collection
+
+CRITICAL: For technologies where NO collection was discovered in the AAP Private Hub section:
+- DO NOT use include_role - only use it for collections EXPLICITLY listed in the prompt
+- Instead, write custom tasks using standard Ansible modules:
+  - ansible.builtin.package for installation
+  - ansible.builtin.template for configuration files
+  - ansible.builtin.service for service management
+
 YAML QUOTING RULES FOR ANSIBLE:
 {% raw %}
 1. **Jinja2 Variables - ALWAYS quote:**
@@ -144,6 +167,24 @@ STATIC FILES:
 
 STRUCTURE FILES:
 - Create proper Ansible role structure (meta/main.yml, handlers/main.yml, tasks/main.yml)
+
+DEPENDENCIES (requirements.yml):
+IMPORTANT: If the task prompt includes a "Pre-Generated requirements.yml" section, use that content EXACTLY.
+The pre-generated content includes:
+- Only collections from AAP Private Hub (not public Galaxy collections)
+- Exact versions pinned from the Private Hub
+
+If no pre-generated content is provided, and you need to create requirements.yml:
+- Create it in the role directory (same directory as tasks/, handlers/, etc.)
+- Only include collections that were discovered in AAP Private Hub
+- DO NOT add public Galaxy collections (like community.general) - these are already available
+- Format:
+```yaml
+---
+collections:
+  - name: <namespace>.<collection>
+    version: "<version>"
+```
 
 META/MAIN.YML (metadata.rb → meta/main.yml):
 - Read Chef metadata.rb if it exists to extract role information

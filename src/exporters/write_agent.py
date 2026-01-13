@@ -203,6 +203,7 @@ galaxy_info:
             checklist=chef_state.checklist.to_markdown()
             if chef_state.checklist
             else "",
+            aap_discovery=chef_state.aap_discovery,
         )
 
         result = agent.invoke(

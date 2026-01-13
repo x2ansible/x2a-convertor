@@ -4,7 +4,8 @@ Validates and fixes migration output issues.
 """
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, ClassVar, Literal
+from pathlib import Path
+from typing import ClassVar, Literal
 
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
@@ -13,8 +14,10 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 
 from prompts.get_prompt import get_prompt
+from src.config import get_settings
 from src.exporters.agent_state import ValidationAgentState
 from src.exporters.base_agent import BaseAgent
+from src.exporters.services import CollectionManager, InstallResultSummary
 from src.exporters.state import ChefState
 from src.model import (
     get_last_ai_message,
@@ -32,9 +35,6 @@ from tools.ansible_write import AnsibleWriteTool
 from tools.copy_file import CopyFileWithMkdirTool
 from tools.diff_file import DiffFileTool
 from tools.validated_write import ValidatedWriteTool
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -86,21 +86,104 @@ class ValidationAgent(BaseAgent):
         """Build the internal StateGraph for validation workflow.
 
         Graph structure:
-        START → validate → evaluate → END / fix_errors / mark_failed
-                    ↑          ↓
-                    └─ fix_errors (if has errors)
+        START -> install_collections -> validate -> evaluate -> END / fix_errors / mark_failed
+                                          ^                    |
+                                          +--- fix_errors -----+
         """
         workflow = StateGraph(ValidationAgentState)
+        workflow.add_node("install_collections", self._install_collections_node)
         workflow.add_node("validate", self._validate_node)
         workflow.add_node("fix_errors", self._fix_errors_node)
         workflow.add_node("mark_failed", self._mark_failed_node)
 
-        workflow.add_edge(START, "validate")
+        workflow.add_edge(START, "install_collections")
+        workflow.add_edge("install_collections", "validate")
         workflow.add_conditional_edges("validate", self._evaluate_validation_node)
         workflow.add_edge("fix_errors", "validate")  # Loop back to re-validate
         workflow.add_edge("mark_failed", END)
 
         return workflow.compile()
+
+    # -------------------------------------------------------------------------
+    # Collection Installation Node
+    # -------------------------------------------------------------------------
+
+    def _install_collections_node(
+        self, state: ValidationAgentState
+    ) -> ValidationAgentState:
+        """Node: Install collections from requirements.yml before validation.
+
+        This ensures that collection roles referenced via include_role are available
+        for validation. Uses CollectionManager service which handles AAP Private Hub
+        with Bearer token auth and falls back to public Galaxy.
+
+        Args:
+            state: Internal agent state
+
+        Returns:
+            Updated agent state (unchanged, this is a side-effect node)
+        """
+        slog = logger.bind(phase="install_collections")
+
+        requirements_file = self._find_requirements_file(state.chef_state, slog)
+        if requirements_file is None:
+            slog.info("No requirements.yml found, skipping collection install")
+            return state
+        slog.info(f"Installing collections from '{requirements_file.resolve()}'")
+        results = self._install_requirements(requirements_file)
+        self._log_install_results(results, slog)
+
+        return state
+
+    def _find_requirements_file(self, chef_state: ChefState, slog) -> Path | None:
+        """Find requirements.yml in standard locations."""
+        search_paths = self._get_requirements_search_paths(chef_state)
+
+        for path in search_paths:
+            slog.debug(
+                f"Checking for requirements.yml at: {path} (exists: {path.exists()})"
+            )
+            if path.exists():
+                return path
+
+        return None
+
+    def _get_requirements_search_paths(self, chef_state: ChefState) -> list[Path]:
+        """Get ordered list of paths to search for requirements.yml."""
+        ansible_path = Path(chef_state.get_ansible_path())  # e.g., ansible/roles/cache
+        ansible_root = ansible_path.parent.parent  # ansible/
+
+        return [
+            # Role-level (preferred)
+            ansible_path / "requirements.yml",
+            # Project-level
+            ansible_root / "requirements.yml",
+        ]
+
+    def _install_requirements(self, requirements_file: Path) -> list:
+        """Install collections from requirements file."""
+        aap_settings = get_settings().aap
+        manager = CollectionManager.from_settings(aap_settings)
+        return manager.install_from_requirements(requirements_file)
+
+    def _log_install_results(self, results: list, slog) -> None:
+        """Log summary of installation results."""
+        summary = InstallResultSummary.from_results(results)
+
+        if summary.all_succeeded:
+            slog.info(f"All {summary.success_count} collections installed successfully")
+            return
+
+        slog.warning(
+            f"Collection install: {summary.success_count} succeeded, "
+            f"{summary.fail_count} failed"
+        )
+        for failure in summary.failures:
+            slog.warning(f"  Failed: {failure.collection.fqcn} ({failure.source})")
+
+    # -------------------------------------------------------------------------
+    # Validation Node
+    # -------------------------------------------------------------------------
 
     def _validate_node(self, state: ValidationAgentState) -> ValidationAgentState:
         """Node: Run validation service on the state.get_ansible_path().
@@ -129,17 +212,23 @@ class ValidationAgent(BaseAgent):
             error_report = self.validation_service.format_error_report(results)
             state.error_report = error_report
             slog.warning(f"Validation errors found:\n{error_report}")
-        else:
-            slog.info("All validations passed")
-            validation_report = (
-                f"{SUMMARY_SUCCESS_MESSAGE}\n\n"
-                + self.validation_service.get_success_message(results)
-            )
-            chef_state = chef_state.update(validation_report=validation_report)
-            state.chef_state = chef_state
-            state.complete = True
+            return state
+
+        # No errors - mark complete
+        slog.info("All validations passed")
+        validation_report = (
+            f"{SUMMARY_SUCCESS_MESSAGE}\n\n"
+            + self.validation_service.get_success_message(results)
+        )
+        chef_state = chef_state.update(validation_report=validation_report)
+        state.chef_state = chef_state
+        state.complete = True
 
         return state
+
+    # -------------------------------------------------------------------------
+    # Fix Errors Node
+    # -------------------------------------------------------------------------
 
     def _fix_errors_node(self, state: ValidationAgentState) -> ValidationAgentState:
         """Node: Use react agent to fix validation errors.
@@ -196,6 +285,10 @@ class ValidationAgent(BaseAgent):
         slog.info("Fix iteration completed")
         return state
 
+    # -------------------------------------------------------------------------
+    # Mark Failed Node
+    # -------------------------------------------------------------------------
+
     def _mark_failed_node(self, state: ValidationAgentState) -> ValidationAgentState:
         """Node: Mark the migration as failed due to validation errors.
 
@@ -210,25 +303,37 @@ class ValidationAgent(BaseAgent):
         """
         slog = logger.bind(phase="mark_failed", attempt=state.attempt)
         slog.error(
-            f"Max validation attempts ({state.max_attempts}) reached, marking migration as failed"
+            f"Max validation attempts ({state.max_attempts}) reached, "
+            "marking migration as failed"
         )
 
         # Mark migration as failed
         chef_state = state.chef_state.mark_failed(
-            f"Validation failed after {state.max_attempts} attempts. Errors remain:\n{state.error_report}"
+            f"Validation failed after {state.max_attempts} attempts. "
+            f"Errors remain:\n{state.error_report}"
         )
         # Also set validation report for debugging
         chef_state = chef_state.update(
-            validation_report=f"Validation incomplete after {state.attempt} attempts:\n{state.error_report}"
+            validation_report=(
+                f"Validation incomplete after {state.attempt} attempts:\n"
+                f"{state.error_report}"
+            )
         )
         state.chef_state = chef_state
 
         return state
 
+    # -------------------------------------------------------------------------
+    # Evaluation Edge (Pure Function)
+    # -------------------------------------------------------------------------
+
     def _evaluate_validation_node(
         self, state: ValidationAgentState
     ) -> Literal["fix_errors", "mark_failed", "__end__"]:
         """Conditional edge: Decide whether to fix errors or finish.
+
+        This is a pure function that only returns the decision.
+        State mutations are handled by the respective nodes.
 
         Args:
             state: Internal agent state
@@ -238,22 +343,29 @@ class ValidationAgent(BaseAgent):
         """
         slog = logger.bind(phase="evaluate_validation", attempt=state.attempt)
 
+        # Already complete (set by validate_node on success)
         if state.complete:
             slog.info("Validation agent complete - all validations passed")
             return "__end__"
 
+        # No errors means success (complete flag set by validate_node)
         if not state.has_errors:
             slog.info("No validation errors, finishing")
-            state.complete = True
             return "__end__"
 
+        # Max attempts reached - go to mark_failed
         if state.attempt >= state.max_attempts:
             return "mark_failed"
 
+        # More attempts available - try to fix
         slog.info(
             f"Attempting to fix errors (attempt {state.attempt + 1}/{state.max_attempts})"
         )
         return "fix_errors"
+
+    # -------------------------------------------------------------------------
+    # Main Entry Point
+    # -------------------------------------------------------------------------
 
     def __call__(self, state: ChefState) -> ChefState:
         """Execute validation workflow with internal retry loop.
