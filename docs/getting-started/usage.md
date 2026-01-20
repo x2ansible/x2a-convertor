@@ -33,6 +33,14 @@ export LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0
 export AWS_REGION=your-aws-region
 export AWS_BEARER_TOKEN_BEDROCK=your-bearer-token
 
+# For AAP Collection Discovery during migrate (optional)
+# When set, migrate will search Private Hub for reusable collections
+# See: /concepts/export-agents#aap-discovery-agent-optional
+export AAP_CONTROLLER_URL=your-aap-url
+export AAP_ORG_NAME=your-org-name
+export AAP_OAUTH_TOKEN=your-oauth-token
+export AAP_GALAXY_REPOSITORY=published  # published, staging, or community
+
 # For publish command
 export GITHUB_TOKEN=your-github-token
 export AAP_CONTROLLER_URL=your-aap-url
@@ -40,7 +48,7 @@ export AAP_CONTROLLER_URL=your-aap-url
 # For AAP Authentication
 export AAP_OAUTH_TOKEN=your-oauth-token or export AAP_USERNAME=your-username and export AAP_PASSWORD=your-password
 
-#AAP integration extra configuration (optional)
+# AAP integration extra configuration (optional)
 export AAP_CA_BUNDLE=your-ca-bundle-path
 export AAP_VERIFY_SSL=true
 ```
@@ -50,7 +58,10 @@ export AAP_VERIFY_SSL=true
 The first thing we need to do is create the migration-plan.md file which will be used as a reference file:
 
 ```bash
-uv run app.py init --source-dir . "Migrate to Ansible"
+uv run app.py init \
+  --source-dir . \
+  "Migrate to Ansible"
+
 ```
 
 This will create a **migration-plan.md** with a lot of details.
@@ -58,7 +69,10 @@ This will create a **migration-plan.md** with a lot of details.
 ## Analyze:
 
 ```bash
-uv run app.py analyze "please make a detailed plan for nginx-multisite" --source-dir .
+uv run app.py analyze \
+  --source-dir . \
+  "please make a detailed plan for nginx-multisite"
+
 ```
 
 This will make a blueprint of what the model understands about the migration of that cookbook. In this case, it will create a **migration-plan-nginx-multisite.md**
@@ -66,15 +80,25 @@ This will make a blueprint of what the model understands about the migration of 
 ## Migrate
 
 ```bash
-uv run app.py migrate --source-dir . --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the 'nginx-multisite' module"
+uv run app.py migrate \
+  --source-dir . \
+  --source-technology Chef \
+  --high-level-migration-plan migration-plan.md \
+  --module-migration-plan migration-plan-nginx-multisite.md \
+  "Convert the 'nginx-multisite' module"
+
 ```
 
-This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details
+This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details. When AAP env vars are set, it will also search your Private Automation Hub for reusable collections (see [AAP Discovery Agent]({% link concepts/export-agents.md %}#aap-discovery-agent-optional)).
 
 ## Publish
 
 ```bash
-uv run app.py publish "nginx_multisite" --source-paths ./ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main
+uv run app.py publish "nginx_multisite" \
+  --source-paths ./ansible/roles/nginx_multisite \
+  --github-owner  companyName \
+  --github-branch main
+
 ```
 
 This will generate the deployments for the role, push it to GitHub, and (when AAP env vars are set) upsert an AAP Project and trigger a sync.

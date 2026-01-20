@@ -64,11 +64,15 @@ podman run --rm -ti \
   -e LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0 \
   -e AWS_REGION=$AWS_REGION \
   -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
+  -e AAP_CONTROLLER_URL=$AAP_CONTROLLER_URL \
+  -e AAP_ORG_NAME=$AAP_ORG_NAME \
+  -e AAP_OAUTH_TOKEN=$AAP_OAUTH_TOKEN \
+  -e AAP_GALAXY_REPOSITORY=$AAP_GALAXY_REPOSITORY \
   quay.io/x2ansible/x2a-convertor:latest \
   migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the 'nginx-multisite' module"
 ```
 
-This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details
+This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details. When AAP env vars are set, it will also search your Private Automation Hub for reusable collections (see [AAP Discovery Agent]({% link concepts/export-agents.md %}#aap-discovery-agent-optional)).
 
 ## Publish
 

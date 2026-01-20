@@ -21,7 +21,10 @@ Export agents serve as the "generation" layer of X2A Convertor:
 ```mermaid
 flowchart LR
     Spec[Migration<br/>Specification] --> Agent[Export Agent]
-    Agent --> Generate[Generate Code]
+    Agent --> Discovery{AAP<br/>Configured?}
+    Discovery -->|Yes| AAP[AAP Discovery<br/>Find Collections]
+    Discovery -->|No| Generate
+    AAP --> Generate[Generate Code]
     Generate --> Validate{Validate}
     Validate -->|Pass| Output[Ansible Role]
     Validate -->|Fail| Fix[Auto-Fix]
@@ -29,6 +32,7 @@ flowchart LR
 
     style Spec fill:#e3f2fd
     style Agent fill:#e8f5e9
+    style AAP fill:#fff9c4
     style Output fill:#fff3e0
 ```
 
@@ -42,7 +46,8 @@ flowchart LR
 stateDiagram-v2
     [*] --> ReadMetadata
     ReadMetadata --> ChooseSubagent
-    ChooseSubagent --> GenerateAnsible
+    ChooseSubagent --> AAPDiscovery
+    AAPDiscovery --> GenerateAnsible
     GenerateAnsible --> WriteMigration
     WriteMigration --> [*]
 
@@ -54,6 +59,11 @@ stateDiagram-v2
     note right of ChooseSubagent
         Select Chef/Puppet/Salt
         specific generator
+    end note
+
+    note right of AAPDiscovery
+        Query Private Hub for
+        reusable collections (optional)
     end note
 
     note right of GenerateAnsible
@@ -99,7 +109,20 @@ def choose_migration_strategy(source_technology: str):
 
 Currently implemented: Chef → Ansible
 
-### Stage 3: Generate Ansible Code
+### Stage 3: AAP Discovery (Optional)
+
+**Goal**: Find reusable collections from Private Automation Hub
+
+When AAP is configured (`AAP_CONTROLLER_URL` and `AAP_OAUTH_TOKEN`), the discovery agent:
+
+1. Analyzes the migration plan to identify technologies
+2. Searches the Private Hub for relevant collections
+3. Verifies collection existence and retrieves exact versions
+4. Passes discovered collections to the code generation stage
+
+See [AAP Discovery Agent](#aap-discovery-agent-optional) for full details.
+
+### Stage 4: Generate Ansible Code
 
 **Process**:
 
@@ -235,7 +258,7 @@ end
     state: reloaded
 ```
 
-### Stage 4: Write Migration Output
+### Stage 5: Write Migration Output
 
 **Process with Validation Loop**:
 
@@ -342,6 +365,7 @@ ansible/roles/<module-name>/
 │   └── main.yml          # Event handlers
 ├── meta/
 │   └── main.yml          # Role metadata and dependencies
+├── requirements.yml      # Collection dependencies (if AAP enabled)
 ├── tasks/
 │   └── main.yml          # Primary task list
 ├── templates/
@@ -350,9 +374,122 @@ ansible/roles/<module-name>/
     └── main.yml          # Higher-precedence variables (optional)
 ```
 
+## AAP Discovery Agent (Optional)
+
+**Location**: `src/exporters/aap_discovery_agent.py`
+
+### Purpose
+
+When AAP (Ansible Automation Platform) integration is configured, the AAP Discovery Agent queries your Private Automation Hub to find reusable collections that can accelerate the migration.
+
+**Benefits:**
+- Reuse existing collections from your organization's Private Hub
+- Reduce migration effort by leveraging pre-built roles
+- Ensure consistency with organizational standards
+- Automatically add collection dependencies to `requirements.yml`
+
+### Configuration
+
+The agent runs automatically when these environment variables are set:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AAP_CONTROLLER_URL` | Yes | AAP Controller base URL |
+| `AAP_OAUTH_TOKEN` | Yes | OAuth token for authentication |
+| `AAP_GALAXY_REPOSITORY` | No | Repository to search: `published` (default), `staging`, or `community` |
+
+### Workflow
+
+```mermaid
+stateDiagram-v2
+    [*] --> CheckConfig
+    CheckConfig --> Skip: AAP not configured
+    CheckConfig --> ReadPlan: AAP configured
+
+    ReadPlan --> SearchCollections
+    SearchCollections --> GetDetails
+    GetDetails --> ExtractRefs
+    ExtractRefs --> VerifyCollections
+    VerifyCollections --> ReturnDiscovered
+
+    Skip --> [*]
+    ReturnDiscovered --> [*]
+
+    note right of SearchCollections
+        Use keywords from migration plan
+        (nginx, redis, security, etc.)
+    end note
+
+    note right of VerifyCollections
+        Confirm each collection exists
+        Get exact version numbers
+    end note
+```
+
+### Tools
+
+The agent uses these tools to explore the Private Hub:
+
+| Tool | Purpose |
+|------|---------|
+| `aap_list_collections` | List all available collections |
+| `aap_search_collections` | Search by keywords (nginx, redis, etc.) |
+| `aap_get_collection_detail` | Get detailed info about a collection |
+
+### Process
+
+1. **Analyze Migration Plan**: Extract technologies being migrated (nginx, redis, etc.)
+2. **Search Private Hub**: Query for relevant collections using keywords
+3. **Get Collection Details**: Retrieve roles, modules, and usage information
+4. **Extract References**: Use LLM to extract structured collection data
+5. **Verify Collections**: Confirm existence and get exact versions via Galaxy API
+6. **Return Results**: Pass discovered collections to the write agent
+
+### Output
+
+Discovered collections are:
+
+1. Added to the role's `requirements.yml`:
+
+```yaml
+# ansible/roles/<module>/requirements.yml
+collections:
+- name: company.redis
+  version: 1.0.0
+- name: company.nginx
+  version: 2.3.1
+```
+
+2. Used in generated tasks via `include_role`:
+
+```yaml
+# ansible/roles/<module>/tasks/main.yml
+- name: Configure Redis
+  ansible.builtin.include_role:
+    name: redis
+    collections:
+      - company.redis
+  vars:
+    redis_port: 6379
+    redis_requirepass: secure_password
+```
+
+### Integration with Write Agent
+
+The discovered collections are passed to the Write Agent, which:
+
+1. Includes collection roles using `ansible.builtin.include_role`
+2. Uses collection modules where applicable
+3. Maps variables to match collection role interfaces
+4. Generates `requirements.yml` with verified versions
+
+### Skipping Discovery
+
+If AAP is not configured (no `AAP_CONTROLLER_URL`), the discovery step is skipped and migration proceeds normally using only built-in Ansible modules.
+
 ## Validation Agent
 
-**Location**: `src/validate.py`
+**Location**: `src/exporters/validation_agent.py`
 
 ### Purpose
 

@@ -162,9 +162,9 @@ push the project to git, and sync to AAP.
 
 Creates a new GitOps repository and pushes the deployment to it.
 For single role: creates deployment at
-<base-path>/ansible/deployments/{module_name}.
+`<base-path>/ansible/deployments/{module_name}`.
 For multiple roles: creates a consolidated project at
-<base-path>/ansible/deployments/ansible-project.
+`<base-path>/ansible/deployments/ansible-project`.
 
 
 ### Usage
@@ -209,9 +209,9 @@ Usage: publish [OPTIONS] MODULE_NAMES...
   in an Ansible Project format, push the project to git, and sync to AAP.
 
   Creates a new GitOps repository and pushes the deployment to it. For single
-  role: creates deployment at <base-path>/ansible/deployments/{module_name}.
-  For multiple roles: creates a consolidated project at <base-
-  path>/ansible/deployments/ansible-project.
+  role: creates deployment at `<base-path>/ansible/deployments/{module_name}`.
+  For multiple roles: creates a consolidated project at `<base-
+  path>/ansible/deployments/ansible-project`.
 
 Options:
   --source-paths DIRECTORY  Path(s) to the migrated Ansible role

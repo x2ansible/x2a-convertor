@@ -162,13 +162,61 @@ REASONING_EFFORT=high
 - Increased cost (10x)
 - Better accuracy for complex scenarios
 
+## AAP Integration (Optional)
+
+Enable Ansible Automation Platform integration for collection discovery and deployment.
+
+For the complete list of AAP environment variables, see [AAP Configuration](../configuration_options.html#ansible-automation-platform-configuration).
+
+### Collection Discovery
+
+When configured, the migrate phase queries your Private Automation Hub to discover reusable collections.
+
+```bash
+# Required for collection discovery
+AAP_CONTROLLER_URL=https://aap.example.com
+AAP_ORG_NAME=your-org
+# Authentication choose OAuth token or Basic credentials
+AAP_OAUTH_TOKEN=your-oauth-token           # OAuth token (recommended)
+
+# Optional
+AAP_GALAXY_REPOSITORY=published  # published, staging, or community
+AAP_VERIFY_SSL=true
+AAP_CA_BUNDLE=/path/to/ca-bundle.crt  # For self-signed certs
+```
+
+**How it works:**
+1. Discovery agent searches Private Hub for relevant collections
+2. Found collections are added to `requirements.yml`
+3. Write agent uses collections in generated Ansible code
+
+See [Human Checkpoints](../concepts/human-checkpoints.html#aap-collection-discovery-optional) for review guidance.
+
+### AAP Project Sync
+
+For publish phase AAP integration (creating projects in AAP Controller):
+
+```bash
+# Required
+AAP_CONTROLLER_URL=https://aap.example.com
+AAP_ORG_NAME=your-org
+AAP_OAUTH_TOKEN=your-oauth-token  # Or use username/password
+
+# Optional
+AAP_PROJECT_NAME=my-project       # Inferred from repo if not set
+AAP_SCM_CREDENTIAL_ID=1           # For private Git repos
+AAP_API_PREFIX=/api/controller/v2
+AAP_TIMEOUT_S=30.0
+```
+
+Get OAuth token: See [AAP Token Authentication](https://docs.redhat.com/en/documentation/red_hat_ansible_automation_platform/2.6/html/access_management_and_authentication/gw-token-based-authentication)
+
 ## Publishing Configurations
 
 To publish a migrated cookbook, now Ansible Role, to Github, the github token is required.
 
 ```bash
-# Use reasoning model
-GITHUB_TOKEN=<ghp_...> # not-secret
+GITHUB_TOKEN=<ghp_...>
 ```
 
 ## Complete Configuration Examples
@@ -186,7 +234,13 @@ MAX_EXPORT_ATTEMPTS=5
 RECURSION_LIMIT=100
 MAX_TOKENS=8192
 TEMPERATURE=0.1
-GITHUB_TOKEN=<ghp_...> # not-secret
+GITHUB_TOKEN=<ghp_...>
+
+# AAP Integration (optional)
+AAP_CONTROLLER_URL=https://aap.example.com
+AAP_ORG_NAME=my-org
+AAP_OAUTH_TOKEN=your-oauth-token
+AAP_GALAXY_REPOSITORY=published
 ```
 
 ### Development (OpenAI)
@@ -204,7 +258,7 @@ LANGCHAIN_PROJECT=x2a-dev
 MAX_EXPORT_ATTEMPTS=3
 MAX_TOKENS=8192
 TEMPERATURE=0.1
-GITHUB_TOKEN=<ghp_...> # not-secret
+GITHUB_TOKEN=<ghp_...>
 ```
 
 ### Air-Gapped (Local Ollama)

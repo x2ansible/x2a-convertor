@@ -224,9 +224,9 @@ def publish(
 
     Creates a new GitOps repository and pushes the deployment to it.
     For single role: creates deployment at
-    <base-path>/ansible/deployments/{module_name}.
+    `<base-path>/ansible/deployments/{module_name}`.
     For multiple roles: creates a consolidated project at
-    <base-path>/ansible/deployments/ansible-project.
+    `<base-path>/ansible/deployments/ansible-project`.
     """
     if not skip_git and not github_owner:
         raise click.BadParameter(
