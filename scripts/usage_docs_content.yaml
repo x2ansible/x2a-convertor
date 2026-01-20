@@ -32,6 +32,14 @@ shared:
     export AWS_REGION=your-aws-region
     export AWS_BEARER_TOKEN_BEDROCK=your-bearer-token
 
+    # For AAP Collection Discovery during migrate (optional)
+    # When set, migrate will search Private Hub for reusable collections
+    # See: /concepts/export-agents#aap-discovery-agent-optional
+    export AAP_CONTROLLER_URL=your-aap-url
+    export AAP_ORG_NAME=your-org-name
+    export AAP_OAUTH_TOKEN=your-oauth-token
+    export AAP_GALAXY_REPOSITORY=published  # published, staging, or community
+
     # For publish command
     export GITHUB_TOKEN=your-github-token
     export AAP_CONTROLLER_URL=your-aap-url
@@ -39,7 +47,7 @@ shared:
     # For AAP Authentication
     export AAP_OAUTH_TOKEN=your-oauth-token or export AAP_USERNAME=your-username and export AAP_PASSWORD=your-password
 
-    #AAP integration extra configuration (optional)
+    # AAP integration extra configuration (optional)
     export AAP_CA_BUNDLE=your-ca-bundle-path
     export AAP_VERIFY_SSL=true
     ```
@@ -48,7 +56,7 @@ shared:
   descriptions:
     init: "This will create a **migration-plan.md** with a lot of details."
     analyze: "This will make a blueprint of what the model understands about the migration of that cookbook. In this case, it will create a **migration-plan-nginx-multisite.md**"
-    migrate: "This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details"
+    migrate: "This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details. When AAP env vars are set, it will also search your Private Automation Hub for reusable collections (see [AAP Discovery Agent]({% link concepts/export-agents.md %}#aap-discovery-agent-optional))."
     publish: "This will generate the deployments for the role, push it to GitHub, and (when AAP env vars are set) upsert an AAP Project and trigger a sync."
 
   publish_output_paths: |
@@ -82,11 +90,28 @@ local:
   include_notes: true
 
   commands:
-    init: 'uv run app.py init --source-dir . "Migrate to Ansible"'
-    analyze: 'uv run app.py analyze "please make a detailed plan for nginx-multisite" --source-dir .'
-    migrate: 'uv run app.py migrate --source-dir . --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the ''nginx-multisite'' module"'
-    publish: 'uv run app.py publish "nginx_multisite" --source-paths ./ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main'
+    init: |
+      uv run app.py init \
+        --source-dir . \
+        "Migrate to Ansible"
 
+    analyze: |
+      uv run app.py analyze \
+        --source-dir . \
+        "please make a detailed plan for nginx-multisite"
+
+    migrate: |
+      uv run app.py migrate \
+        --source-dir . \
+        --source-technology Chef \
+        --high-level-migration-plan migration-plan.md \
+        --module-migration-plan migration-plan-nginx-multisite.md \
+        "Convert the 'nginx-multisite' module"
+    publish: |
+      uv run app.py publish "nginx_multisite" \
+        --source-paths ./ansible/roles/nginx_multisite \
+        --github-owner  companyName \
+        --github-branch main
 # Docker/Podman specific configuration
 docker:
   title: "Docker Usage"
@@ -106,6 +131,15 @@ docker:
       - "LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0"
       - "AWS_REGION=$AWS_REGION"
       - "AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK"
+    # migrate uses llm vars + optional AAP vars for collection discovery
+    migrate:
+      - "LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0"
+      - "AWS_REGION=$AWS_REGION"
+      - "AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK"
+      - "AAP_CONTROLLER_URL=$AAP_CONTROLLER_URL"
+      - "AAP_ORG_NAME=$AAP_ORG_NAME"
+      - "AAP_OAUTH_TOKEN=$AAP_OAUTH_TOKEN"
+      - "AAP_GALAXY_REPOSITORY=$AAP_GALAXY_REPOSITORY"
     publish:
       - "GITHUB_TOKEN=$GITHUB_TOKEN"
       - "AAP_CONTROLLER_URL=$AAP_CONTROLLER_URL"
@@ -122,7 +156,7 @@ docker:
       env_type: llm
     migrate:
       cmd: 'migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the ''nginx-multisite'' module"'
-      env_type: llm
+      env_type: migrate
     publish:
       cmd: 'publish "nginx_multisite" --source-paths /app/source/ansible/roles/nginx_multisite --github-owner eloycoto --github-branch main'
       env_type: publish

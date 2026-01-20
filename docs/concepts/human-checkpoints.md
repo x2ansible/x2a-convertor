@@ -132,6 +132,49 @@ After `app.py migrate` completes
 
 `ansible/roles/<module>/` directory
 
+### AAP Collection Discovery (Optional)
+
+When AAP (Ansible Automation Platform) integration is configured, the migrate phase automatically queries your Private Automation Hub (Galaxy) to discover reusable collections.
+
+**Requirements:**
+- `AAP_CONTROLLER_URL`: AAP Controller base URL
+- `AAP_OAUTH_TOKEN`: OAuth token for authentication
+- `AAP_GALAXY_REPOSITORY`: Repository to search (default: `published`)
+
+**What happens:**
+1. The discovery agent analyzes your migration plan
+2. Searches the Private Hub for relevant collections (e.g., nginx, redis, security)
+3. Verified collections are added to the role's `requirements.yml`
+4. The write agent uses discovered collections in generated tasks
+
+**Example output:**
+
+```yaml
+# ansible/roles/<module>/requirements.yml
+collections:
+- name: company.redis
+  version: 1.0.0
+```
+
+```yaml
+# ansible/roles/<module>/tasks/main.yml
+- name: Configure Redis
+  ansible.builtin.include_role:
+    name: redis
+    collections:
+      - company.redis
+  vars:
+    redis_port: 6379
+    redis_requirepass: redis_secure_password_123
+```
+
+**Benefits:**
+- Reuse existing collections from your organization's Private Hub
+- Reduce migration effort by leveraging pre-built roles
+- Ensure consistency with organizational standards
+
+If no `AAP_CONTROLLER_URL` is configured, this step is skipped and migration proceeds without collection discovery.
+
 ### Review Checklist
 
 #### Structure
@@ -151,6 +194,12 @@ After `app.py migrate` completes
 - [ ] Jinja2 syntax correct
 - [ ] Variables match defaults
 - [ ] Conditional blocks translated
+
+#### Collections (if AAP enabled)
+
+- [ ] `requirements.yml` contains verified collections
+- [ ] Discovered collections match expected functionality
+- [ ] Collection versions are appropriate
 
 #### Lint Status
 
