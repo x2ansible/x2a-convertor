@@ -52,33 +52,41 @@ class PlanningAgent(BaseAgent):
         slog = logger.bind(phase="plan_migration")
         slog.info("Planning migration: analyzing migration plan and creating checklist")
 
-        agent = self._create_react_agent(state)
+        with self._get_telemetry_context(state) as metrics:
+            agent = self._create_react_agent(state)
 
-        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
-        user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
-            module=state.module,
-            high_level_migration_plan=state.high_level_migration_plan,
-            module_migration_plan=state.module_migration_plan.to_document(),
-            path=state.path,
-            existing_checklist=state.checklist.to_markdown() if state.checklist else "",
-        )
+            system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
+            user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
+                module=state.module,
+                high_level_migration_plan=state.high_level_migration_plan,
+                module_migration_plan=state.module_migration_plan.to_document(),
+                path=state.path,
+                existing_checklist=state.checklist.to_markdown()
+                if state.checklist
+                else "",
+            )
 
-        result = agent.invoke(
-            {
-                "messages": [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_prompt},
-                ]
-            },
-            get_runnable_config(),
-        )
+            result = agent.invoke(
+                {
+                    "messages": [
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_prompt},
+                    ]
+                },
+                get_runnable_config(),
+            )
 
-        slog.info(f"Planning agent tools: {report_tool_calls(result).to_string()}")
+            tool_calls = report_tool_calls(result)
+            slog.info(f"Planning agent tools: {tool_calls.to_string()}")
 
-        assert state.checklist is not None, (
-            "Checklist must be created by planning agent"
-        )
-        state.checklist.save(state.get_checklist_path())
-        slog.info(f"Checklist after planning:\n{state.checklist.to_markdown()}")
+            # Record telemetry
+            if metrics:
+                metrics.record_tool_calls(tool_calls)
+
+            assert state.checklist is not None, (
+                "Checklist must be created by planning agent"
+            )
+            state.checklist.save(state.get_checklist_path())
+            slog.info(f"Checklist after planning:\n{state.checklist.to_markdown()}")
 
         return state

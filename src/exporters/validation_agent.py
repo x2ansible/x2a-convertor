@@ -25,6 +25,7 @@ from src.model import (
     report_tool_calls,
 )
 from src.types import SUMMARY_SUCCESS_MESSAGE
+from src.types.telemetry import AgentMetrics
 from src.utils.config import get_config_int
 from src.utils.logging import get_logger
 from src.validation.service import ValidationService
@@ -81,6 +82,8 @@ class ValidationAgent(BaseAgent):
         ]
         self.validation_service = ValidationService(self.validators)
         self._graph = self._build_internal_graph()
+        # Telemetry metrics reference (set during __call__)
+        self._current_metrics: AgentMetrics | None = None
 
     def _build_internal_graph(self):
         """Build the internal StateGraph for validation workflow.
@@ -170,6 +173,15 @@ class ValidationAgent(BaseAgent):
         """Log summary of installation results."""
         summary = InstallResultSummary.from_results(results)
 
+        # Record collection install metrics in telemetry
+        if self._current_metrics:
+            self._current_metrics.record_metric(
+                "collections_installed", summary.success_count
+            )
+            self._current_metrics.record_metric(
+                "collections_failed", summary.fail_count
+            )
+
         if summary.all_succeeded:
             slog.info(f"All {summary.success_count} collections installed successfully")
             return
@@ -203,6 +215,18 @@ class ValidationAgent(BaseAgent):
 
         # Run validation using service
         results = self.validation_service.validate_all(ansible_path)
+
+        # Record per-validator results in telemetry
+        if self._current_metrics:
+            validators_passed = []
+            validators_failed = []
+            for name, result in results.items():
+                if result.success:
+                    validators_passed.append(name)
+                else:
+                    validators_failed.append(name)
+            self._current_metrics.record_metric("validators_passed", validators_passed)
+            self._current_metrics.record_metric("validators_failed", validators_failed)
 
         # Update internal state
         state.validation_results = results
@@ -269,7 +293,13 @@ class ValidationAgent(BaseAgent):
             get_runnable_config(),
         )
 
-        slog.info(f"Validation agent tools: {report_tool_calls(result).to_string()}")
+        tool_calls = report_tool_calls(result)
+        slog.info(f"Validation agent tools: {tool_calls.to_string()}")
+
+        # Record tool calls in telemetry
+        if self._current_metrics:
+            self._current_metrics.record_tool_calls(tool_calls)
+
         chef_state.checklist.save(chef_state.get_checklist_path())
 
         # Extract validation report
@@ -384,30 +414,43 @@ class ValidationAgent(BaseAgent):
         # Set current phase
         state = state.update(current_phase=MigrationPhase.VALIDATING)
 
-        # Create internal state and run internal graph
-        internal_state = ValidationAgentState(
-            chef_state=state,
-            attempt=0,
-            max_attempts=self.max_attempts,
-            complete=False,
-            has_errors=False,
-        )
+        with self._get_telemetry_context(state) as metrics:
+            # Store metrics reference for internal nodes to use
+            self._current_metrics = metrics
 
-        final_state_dict = self._graph.invoke(internal_state, get_runnable_config())
+            # Create internal state and run internal graph
+            internal_state = ValidationAgentState(
+                chef_state=state,
+                attempt=0,
+                max_attempts=self.max_attempts,
+                complete=False,
+                has_errors=False,
+            )
 
-        # Convert dict back to ValidationAgentState
-        final_state = ValidationAgentState(**final_state_dict)
+            final_state_dict = self._graph.invoke(internal_state, get_runnable_config())
 
-        # Update chef_state with final counter
-        chef_state = final_state.chef_state
-        chef_state = chef_state.update(
-            validation_attempt_counter=chef_state.validation_attempt_counter
-            + final_state.attempt
-        )
+            # Convert dict back to ValidationAgentState
+            final_state = ValidationAgentState(**final_state_dict)
 
-        slog.info(
-            f"Validation agent finished: complete={final_state.complete}, "
-            f"attempts={final_state.attempt}/{self.max_attempts}"
-        )
+            # Record final telemetry metrics
+            if metrics:
+                metrics.record_metric("attempts", final_state.attempt)
+                metrics.record_metric("complete", final_state.complete)
+                metrics.record_metric("has_errors", final_state.has_errors)
+
+            # Clear metrics reference
+            self._current_metrics = None
+
+            # Update chef_state with final counter
+            chef_state = final_state.chef_state
+            chef_state = chef_state.update(
+                validation_attempt_counter=chef_state.validation_attempt_counter
+                + final_state.attempt
+            )
+
+            slog.info(
+                f"Validation agent finished: complete={final_state.complete}, "
+                f"attempts={final_state.attempt}/{self.max_attempts}"
+            )
 
         return chef_state

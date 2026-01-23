@@ -27,6 +27,7 @@ from src.publishers.tools import (
     sync_to_aap,
     verify_files_exist,
 )
+from src.types import Telemetry, telemetry_context
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -56,6 +57,8 @@ class PublishState:
     # AAP integration (optional, env-driven)
     aap_result: AAPSyncResult = field(default_factory=AAPSyncResult)
     skip_aap_sync: bool = False  # Set by _sync_to_aap based on workflow state
+    # Telemetry
+    telemetry: Telemetry | None = None
 
 
 class PublishWorkflow:
@@ -135,68 +138,73 @@ class PublishWorkflow:
 
         base_path = state.publish_dir
 
-        try:
-            # 1. Create directory structure
-            structure = [
-                "collections",
-                "inventory",
-                "roles",
-                "playbooks",
-            ]
-            create_directory_structure(
-                base_path=base_path,
-                structure=structure,
-            )
-            slog.info("Directory structure created")
-
-            # 2. Copy all role directories
-            for role_name, role_path in zip(
-                state.roles,
-                state.role_paths,
-                strict=True,
-            ):
-                destination_path = f"{base_path}/roles/{role_name}"
-                slog.info(f"Copying role {role_name} from {role_path}")
-                copy_role_directory(
-                    source_role_path=role_path,
-                    destination_path=destination_path,
+        with telemetry_context(state.telemetry, "create_ansible_project") as metrics:
+            try:
+                # 1. Create directory structure
+                structure = [
+                    "collections",
+                    "inventory",
+                    "roles",
+                    "playbooks",
+                ]
+                create_directory_structure(
+                    base_path=base_path,
+                    structure=structure,
                 )
-            slog.info("All roles copied successfully")
+                slog.info("Directory structure created")
 
-            # 3. Generate wrapper playbooks for each role
-            for role_name in state.roles:
-                file_path = f"{base_path}/playbooks/run_{role_name}.yml"
-                name = f"Run {role_name}"
-                slog.info(f"Generating playbook for {role_name}")
-                generate_playbook_yaml(
-                    file_path=file_path,
-                    name=name,
-                    role_name=role_name,
+                # 2. Copy all role directories
+                for role_name, role_path in zip(
+                    state.roles,
+                    state.role_paths,
+                    strict=True,
+                ):
+                    destination_path = f"{base_path}/roles/{role_name}"
+                    slog.info(f"Copying role {role_name} from {role_path}")
+                    copy_role_directory(
+                        source_role_path=role_path,
+                        destination_path=destination_path,
+                    )
+                slog.info("All roles copied successfully")
+
+                # 3. Generate wrapper playbooks for each role
+                for role_name in state.roles:
+                    file_path = f"{base_path}/playbooks/run_{role_name}.yml"
+                    name = f"Run {role_name}"
+                    slog.info(f"Generating playbook for {role_name}")
+                    generate_playbook_yaml(
+                        file_path=file_path,
+                        name=name,
+                        role_name=role_name,
+                    )
+                slog.info("All playbooks generated successfully")
+
+                # 4. Generate ansible.cfg
+                ansible_cfg_path = f"{base_path}/ansible.cfg"
+                slog.info("Generating ansible.cfg")
+                generate_ansible_cfg(ansible_cfg_path)
+
+                # 5. Generate collections/requirements.yml
+                collections_req_path = f"{base_path}/collections/requirements.yml"
+                slog.info("Generating collections/requirements.yml")
+                generate_collections_requirements(
+                    collections_req_path, collections=state.collections
                 )
-            slog.info("All playbooks generated successfully")
 
-            # 4. Generate ansible.cfg
-            ansible_cfg_path = f"{base_path}/ansible.cfg"
-            slog.info("Generating ansible.cfg")
-            generate_ansible_cfg(ansible_cfg_path)
+                # 6. Generate inventory file
+                inventory_path = f"{base_path}/inventory/hosts.yml"
+                slog.info("Generating inventory file")
+                generate_inventory_file(inventory_path, inventory=state.inventory)
 
-            # 5. Generate collections/requirements.yml
-            collections_req_path = f"{base_path}/collections/requirements.yml"
-            slog.info("Generating collections/requirements.yml")
-            generate_collections_requirements(
-                collections_req_path, collections=state.collections
-            )
+                # Record telemetry
+                if metrics:
+                    metrics.record_metric("roles_count", len(state.roles))
 
-            # 6. Generate inventory file
-            inventory_path = f"{base_path}/inventory/hosts.yml"
-            slog.info("Generating inventory file")
-            generate_inventory_file(inventory_path, inventory=state.inventory)
-
-            slog.info("Ansible project created successfully")
-        except (ValueError, FileNotFoundError, OSError, RuntimeError) as e:
-            state.failed = True
-            state.failure_reason = str(e)
-            slog.error(f"Failed to create Ansible project: {e}")
+                slog.info("Ansible project created successfully")
+            except (ValueError, FileNotFoundError, OSError, RuntimeError) as e:
+                state.failed = True
+                state.failure_reason = str(e)
+                slog.error(f"Failed to create Ansible project: {e}")
         return state
 
     def _get_required_files(self, state: PublishState) -> list[str]:
@@ -443,6 +451,11 @@ class PublishWorkflow:
         """Node: Display summary of what was done."""
         slog = logger.bind(phase="summary")
 
+        # Stop telemetry timing and save
+        if state.telemetry:
+            state.telemetry.stop()
+            state.telemetry.save()
+
         summary_lines = []
         summary_lines.append("\n" + "=" * 80)
         if state.failed:
@@ -532,6 +545,12 @@ class PublishWorkflow:
             summary_lines.append("  Not attempted (branch was not pushed).")
         else:
             summary_lines.extend(state.aap_result.report_summary())
+
+        # Add telemetry summary
+        if state.telemetry:
+            summary_lines.append("")
+            summary_lines.append("Telemetry:")
+            summary_lines.append(state.telemetry.to_summary())
 
         summary_lines.append("\n" + "=" * 80)
 
@@ -686,6 +705,7 @@ def publish_role(
         publish_dir=str(deployment_path),
         collections=collections,
         inventory=inventory,
+        telemetry=Telemetry(phase="publish"),
     )
     result = publish_workflow.invoke(initial_state)
 

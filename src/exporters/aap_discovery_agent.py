@@ -129,25 +129,34 @@ class AAPDiscoveryAgent(BaseAgent):
 
         slog.info("Starting AAP collection discovery")
 
-        try:
-            discovery_content = self._run_discovery_agent(state, slog)
-            collections = self._extract_and_verify_collections(discovery_content, slog)
+        with self._get_telemetry_context(state) as metrics:
+            try:
+                discovery_content = self._run_discovery_agent(state, slog, metrics)
+                collections = self._extract_and_verify_collections(
+                    discovery_content, slog
+                )
 
-            self._log_discovery_results(collections, slog)
+                self._log_discovery_results(collections, slog)
 
-            return state.update(
-                aap_discovery=AAPDiscoveryResult.success(discovery_content, collections)
-            )
+                # Record discovery metrics
+                if metrics:
+                    metrics.record_metric("collections_found", len(collections))
 
-        except Exception as e:
-            slog.warning(f"AAP discovery failed: {e}")
-            return state.update(aap_discovery=AAPDiscoveryResult.failed(str(e)))
+                return state.update(
+                    aap_discovery=AAPDiscoveryResult.success(
+                        discovery_content, collections
+                    )
+                )
+
+            except Exception as e:
+                slog.warning(f"AAP discovery failed: {e}")
+                return state.update(aap_discovery=AAPDiscoveryResult.failed(str(e)))
 
     # -------------------------------------------------------------------------
     # Discovery Execution
     # -------------------------------------------------------------------------
 
-    def _run_discovery_agent(self, state: ChefState, slog) -> str:
+    def _run_discovery_agent(self, state: ChefState, slog, metrics=None) -> str:
         """Run the discovery agent to find relevant collections."""
         agent = self._create_react_agent(state)
 
@@ -167,7 +176,13 @@ class AAPDiscoveryAgent(BaseAgent):
             },
             get_runnable_config(),
         )
-        slog.info(f"Discovery agent tools: {report_tool_calls(result).to_string()}")
+
+        tool_calls = report_tool_calls(result)
+        slog.info(f"Discovery agent tools: {tool_calls.to_string()}")
+
+        # Record telemetry
+        if metrics:
+            metrics.record_tool_calls(tool_calls)
 
         message = get_last_ai_message(result)
         if message is None:

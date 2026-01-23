@@ -13,6 +13,7 @@ from src.types import (
     Checklist,
     DocumentFile,
     MigrationStateInterface,
+    Telemetry,
 )
 
 # Constants
@@ -52,6 +53,7 @@ class ChefState(MigrationStateInterface):
         aap_discovery: Result of AAP collection discovery for deduplication
         failed: Whether the migration has failed
         failure_reason: Human-readable reason for failure
+        telemetry: Telemetry data for tracking agent execution metrics
     """
 
     path: str
@@ -69,6 +71,7 @@ class ChefState(MigrationStateInterface):
     aap_discovery: AAPDiscoveryResult | None = None
     failed: bool = False
     failure_reason: str = ""
+    telemetry: Telemetry | None = None
 
     def get_ansible_path(self) -> str:
         """Get the Ansible output path for this module.
