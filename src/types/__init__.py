@@ -6,6 +6,7 @@ This package provides:
 - Ansible domain types
 - Migration state interfaces
 - AAP discovery result types
+- Telemetry tracking types
 """
 
 from .aap_discovery import AAPDiscoveryResult
@@ -18,14 +19,18 @@ from .checklist import (
 )
 from .document import DocumentFile
 from .migration_state import MigrationStateInterface
+from .telemetry import AgentMetrics, Telemetry, telemetry_context
 
 __all__ = [
     "SUMMARY_SUCCESS_MESSAGE",
     "AAPDiscoveryResult",
+    "AgentMetrics",
     "AnsibleModule",
     "Checklist",
     "ChecklistItem",
     "ChecklistStatus",
     "DocumentFile",
     "MigrationStateInterface",
+    "Telemetry",
+    "telemetry_context",
 ]

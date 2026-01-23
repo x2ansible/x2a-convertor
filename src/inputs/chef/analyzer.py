@@ -16,7 +16,13 @@ from langgraph.prebuilt import create_react_agent
 
 from prompts.get_prompt import get_prompt
 from src.inputs.tree_analysis import TreeSitterAnalyzer
-from src.model import get_last_ai_message, get_model, get_runnable_config
+from src.model import (
+    get_last_ai_message,
+    get_model,
+    get_runnable_config,
+    report_tool_calls,
+)
+from src.types import Telemetry, telemetry_context
 from src.utils.logging import get_logger
 
 from .dependency_fetcher import ChefDependencyManager
@@ -51,6 +57,7 @@ class ChefState:
     dependency_paths: list[str]
     export_path: str | None
     structured_analysis: StructuredAnalysis | None = None
+    telemetry: Telemetry | None = None
 
     @property
     def all_paths(self) -> list[Path]:
@@ -372,43 +379,49 @@ class ChefSubagent:
             slog.warning("No structured analysis available, skipping validation")
             return state
 
-        # Prepare execution tree summary for validation
-        analysis_summary = self._build_execution_tree_summary(
-            state.structured_analysis, state.path, state.dependency_paths
-        )
+        with telemetry_context(state.telemetry, "validate_with_analysis") as metrics:
+            # Prepare execution tree summary for validation
+            analysis_summary = self._build_execution_tree_summary(
+                state.structured_analysis, state.path, state.dependency_paths
+            )
 
-        # Create validation prompt
-        system_message = get_prompt("chef_analysis_validation_system")
-        user_prompt = get_prompt("chef_analysis_validation_task").format(
-            specification=state.specification,
-            analysis_summary=analysis_summary,
-        )
+            # Create validation prompt
+            system_message = get_prompt("chef_analysis_validation_system")
+            user_prompt = get_prompt("chef_analysis_validation_task").format(
+                specification=state.specification,
+                analysis_summary=analysis_summary,
+            )
 
-        # Execute validation agent
-        agent = create_react_agent(model=self.model, tools=[])  # type: ignore[deprecated]
-        result = agent.invoke(
-            {
-                "messages": [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_prompt},
-                ]
-            },
-            config=get_runnable_config(),
-        )
+            # Execute validation agent (no tools, but track timing)
+            agent = create_react_agent(model=self.model, tools=[])  # type: ignore[deprecated]
+            result = agent.invoke(
+                {
+                    "messages": [
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_prompt},
+                    ]
+                },
+                config=get_runnable_config(),
+            )
 
-        message = get_last_ai_message(result)
-        if not message:
-            slog.warning("No response from validation agent")
-            return state
+            # Record tool calls (will be empty for this agent)
+            tool_calls = report_tool_calls(result)
+            if metrics:
+                metrics.record_tool_calls(tool_calls)
 
-        validation_response = message.content
+            message = get_last_ai_message(result)
+            if not message:
+                slog.warning("No response from validation agent")
+                return state
 
-        # If validation found issues, append them to specification
-        if not validation_response.startswith("VALIDATED:"):
-            slog.info("Validation found issues, updating specification")
-            state.specification = f"{state.specification}\n\n## VALIDATION NOTES ##\n{validation_response}"
-        else:
-            slog.info("✓ Specification validated successfully")
+            validation_response = message.content
+
+            # If validation found issues, append them to specification
+            if not validation_response.startswith("VALIDATED:"):
+                slog.info("Validation found issues, updating specification")
+                state.specification = f"{state.specification}\n\n## VALIDATION NOTES ##\n{validation_response}"
+            else:
+                slog.info("✓ Specification validated successfully")
 
         return state
 
@@ -481,33 +494,39 @@ class ChefSubagent:
         slog = logger.bind(phase="cleanup_specification")
         slog.info("Cleaning up migration specification")
 
-        # Prepare cleanup prompts
-        system_message = get_prompt("chef_analysis_cleanup_system")
-        user_prompt = get_prompt("chef_analysis_cleanup_task").format(
-            messy_specification=state.specification
-        )
+        with telemetry_context(state.telemetry, "cleanup_specification") as metrics:
+            # Prepare cleanup prompts
+            system_message = get_prompt("chef_analysis_cleanup_system")
+            user_prompt = get_prompt("chef_analysis_cleanup_task").format(
+                messy_specification=state.specification
+            )
 
-        agent = create_react_agent(  # type: ignore[deprecated]
-            model=self.model,
-            tools=[],
-        )
-        # Execute cleanup agent
-        result = agent.invoke(
-            {
-                "messages": [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_prompt},
-                ]
-            },
-            config=get_runnable_config(),
-        )
+            agent = create_react_agent(  # type: ignore[deprecated]
+                model=self.model,
+                tools=[],
+            )
+            # Execute cleanup agent
+            result = agent.invoke(
+                {
+                    "messages": [
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_prompt},
+                    ]
+                },
+                config=get_runnable_config(),
+            )
 
-        message = get_last_ai_message(result)
-        if not message:
-            slog.warning("No valid response from cleanup agent")
-            return state
+            # Record tool calls (will be empty for this agent)
+            tool_calls = report_tool_calls(result)
+            if metrics:
+                metrics.record_tool_calls(tool_calls)
 
-        state.specification = message.content
+            message = get_last_ai_message(result)
+            if not message:
+                slog.warning("No valid response from cleanup agent")
+                return state
+
+            state.specification = message.content
 
         return state
 
@@ -515,60 +534,72 @@ class ChefSubagent:
         """Generate migration specification using structured analysis."""
         slog = logger.bind(phase="write_report")
         slog.info("Generating migration specification")
-        data_list = (
-            "\n".join(state.structured_analysis.analyzed_file_paths)
-            if state.structured_analysis
-            else ""
-        )
 
-        # Generate tree-sitter analysis report
-        analyzer = TreeSitterAnalyzer()
-        try:
-            tree_sitter_report = analyzer.report_directory(state.path)
-        except Exception as e:
-            slog.warning(f"Failed to generate tree-sitter report: {e}")
-            tree_sitter_report = "Tree-sitter analysis not available"
-
-        # Build execution tree if available
-        execution_tree_summary = ""
-        if state.structured_analysis:
-            execution_tree_summary = self._build_execution_tree_summary(
-                state.structured_analysis, state.path, state.dependency_paths
+        with telemetry_context(state.telemetry, "write_report") as metrics:
+            data_list = (
+                "\n".join(state.structured_analysis.analyzed_file_paths)
+                if state.structured_analysis
+                else ""
             )
-            slog.info(
-                f"Built execution tree from {state.structured_analysis.get_total_files_analyzed()} analyzed files"
+
+            # Generate tree-sitter analysis report
+            analyzer = TreeSitterAnalyzer()
+            try:
+                tree_sitter_report = analyzer.report_directory(state.path)
+            except Exception as e:
+                slog.warning(f"Failed to generate tree-sitter report: {e}")
+                tree_sitter_report = "Tree-sitter analysis not available"
+
+            # Build execution tree if available
+            execution_tree_summary = ""
+            if state.structured_analysis:
+                execution_tree_summary = self._build_execution_tree_summary(
+                    state.structured_analysis, state.path, state.dependency_paths
+                )
+                slog.info(
+                    f"Built execution tree from {state.structured_analysis.get_total_files_analyzed()} analyzed files"
+                )
+            else:
+                slog.warning("No structured analysis available")
+
+            # Prepare system and user messages for chef agent
+            system_message = get_prompt("chef_analysis_system")
+            user_prompt = get_prompt("chef_analysis_task").format(
+                path=state.path,
+                user_message=state.user_message,
+                directory_listing=data_list,
+                tree_sitter_report=tree_sitter_report,
+                execution_tree=execution_tree_summary,
             )
-        else:
-            slog.warning("No structured analysis available")
+            # Execute chef agent with both system and user messages
+            result = self.agent.invoke(
+                {
+                    "messages": [
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_prompt},
+                    ]
+                },
+                config=get_runnable_config(),
+            )
 
-        # Prepare system and user messages for chef agent
-        system_message = get_prompt("chef_analysis_system")
-        user_prompt = get_prompt("chef_analysis_task").format(
-            path=state.path,
-            user_message=state.user_message,
-            directory_listing=data_list,
-            tree_sitter_report=tree_sitter_report,
-            execution_tree=execution_tree_summary,
-        )
-        # Execute chef agent with both system and user messages
-        result = self.agent.invoke(
-            {
-                "messages": [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_prompt},
-                ]
-            },
-            config=get_runnable_config(),
-        )
-        messages = result.get("messages", [])
-        if len(messages) < 2:
-            raise ChefAgentError("Invalid response from Chef agent")
+            # Record tool calls
+            tool_calls = report_tool_calls(result)
+            slog.info(f"Write report agent tools: {tool_calls.to_string()}")
+            if metrics:
+                metrics.record_tool_calls(tool_calls)
 
-        state.specification = messages[-1].content
-        slog.info("✓ Migration specification generated")
+            messages = result.get("messages", [])
+            if len(messages) < 2:
+                raise ChefAgentError("Invalid response from Chef agent")
+
+            state.specification = messages[-1].content
+            slog.info("✓ Migration specification generated")
+
         return state
 
-    def invoke(self, path: str, user_message: str) -> str:
+    def invoke(
+        self, path: str, user_message: str, telemetry: Telemetry | None = None
+    ) -> str:
         """Analyze a Chef cookbook and return migration plan.
 
         This method satisfies the InfrastructureAnalyzer protocol.
@@ -576,6 +607,7 @@ class ChefSubagent:
         Args:
             path: Path to Chef cookbook
             user_message: User's migration requirements
+            telemetry: Optional telemetry collector for tracking tool calls
 
         Returns:
             Migration specification as markdown string
@@ -588,6 +620,7 @@ class ChefSubagent:
             specification="",
             dependency_paths=[],
             export_path=None,
+            telemetry=telemetry,
         )
 
         result = self._workflow.invoke(initial_state, config=get_runnable_config())

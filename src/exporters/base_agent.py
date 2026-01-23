@@ -14,6 +14,7 @@ from langchain_core.tools import BaseTool
 
 from src.exporters.state import ChefState
 from src.model import get_model
+from src.types import telemetry_context
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -89,3 +90,17 @@ class BaseAgent(ABC):
         return create_agent(
             model=self.model, middleware=self.middleware(), tools=tools
         )  # pyrefly: ignore
+
+    def _get_telemetry_context(self, state: ChefState):
+        """Get telemetry context manager for this agent.
+
+        Returns a context manager that handles timing. Safe to use
+        even when telemetry is not enabled (no-op).
+
+        Args:
+            state: Current ChefState
+
+        Returns:
+            Context manager yielding AgentMetrics or None
+        """
+        return telemetry_context(state.telemetry, self.__class__.__name__)
