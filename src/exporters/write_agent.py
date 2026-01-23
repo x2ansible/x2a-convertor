@@ -72,6 +72,8 @@ class WriteAgent(BaseAgent):
         super().__init__(model)
         self.max_attempts = get_config_int("MAX_WRITE_ATTEMPTS")
         self._graph = self._build_internal_graph()
+        # Telemetry metrics reference (set during __call__)
+        self._current_metrics = None
 
     def _build_internal_graph(self):
         """Build the internal StateGraph for write workflow.
@@ -215,7 +217,13 @@ galaxy_info:
             },
             config=get_runnable_config(),
         )
-        slog.info(f"Write agent tools: {report_tool_calls(result).to_string()}")
+
+        tool_calls = report_tool_calls(result)
+        slog.info(f"Write agent tools: {tool_calls.to_string()}")
+
+        # Record tool calls in telemetry
+        if self._current_metrics:
+            self._current_metrics.record_tool_calls(tool_calls)
         chef_state.checklist.save(chef_state.get_checklist_path())
 
         slog.info(f"Checklist after writing:\n{chef_state.checklist.to_markdown()}")
@@ -383,30 +391,52 @@ galaxy_info:
         # Set current phase
         state = state.update(current_phase=MigrationPhase.WRITING)
 
-        # Early exit if all files already created
-        assert state.checklist is not None, (
-            "Checklist must exist before write agent execution"
-        )
-        if all(item.target_exists() for item in state.checklist.items):
-            slog.info("All files already created, skipping write agent")
-            return state
+        with self._get_telemetry_context(state) as metrics:
+            # Store metrics reference for internal nodes to use
+            self._current_metrics = metrics
 
-        # Create internal state and run internal graph
-        internal_state = WriteAgentState(
-            chef_state=state,
-            attempt=0,
-            max_attempts=self.max_attempts,
-            complete=False,
-        )
+            # Early exit if all files already created
+            assert state.checklist is not None, (
+                "Checklist must exist before write agent execution"
+            )
+            if all(item.target_exists() for item in state.checklist.items):
+                slog.info("All files already created, skipping write agent")
+                self._current_metrics = None
+                return state
 
-        final_state_dict = self._graph.invoke(internal_state, get_runnable_config())
+            # Create internal state and run internal graph
+            internal_state = WriteAgentState(
+                chef_state=state,
+                attempt=0,
+                max_attempts=self.max_attempts,
+                complete=False,
+            )
 
-        # Convert dict back to WriteAgentState
-        final_state = WriteAgentState(**final_state_dict)
+            final_state_dict = self._graph.invoke(internal_state, get_runnable_config())
 
-        slog.info(
-            f"Write agent finished: complete={final_state.complete}, "
-            f"attempts={final_state.attempt}/{self.max_attempts}"
-        )
+            # Convert dict back to WriteAgentState
+            final_state = WriteAgentState(**final_state_dict)
+
+            # Record telemetry
+            if metrics:
+                metrics.record_metric("attempts", final_state.attempt)
+                metrics.record_metric("complete", final_state.complete)
+                if final_state.missing_files:
+                    metrics.record_metric(
+                        "missing_files", len(final_state.missing_files)
+                    )
+                # Record checklist stats
+                if final_state.chef_state.checklist:
+                    stats = final_state.chef_state.checklist.get_stats()
+                    metrics.record_metric("files_created", stats.get("complete", 0))
+                    metrics.record_metric("files_total", stats.get("total", 0))
+
+            # Clear metrics reference
+            self._current_metrics = None
+
+            slog.info(
+                f"Write agent finished: complete={final_state.complete}, "
+                f"attempts={final_state.attempt}/{self.max_attempts}"
+            )
 
         return final_state.chef_state

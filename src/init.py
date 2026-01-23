@@ -12,7 +12,8 @@ from langgraph.prebuilt import create_react_agent
 
 from prompts.get_prompt import get_prompt
 from src.const import MIGRATION_PLAN_FILE
-from src.model import get_model, get_runnable_config
+from src.model import get_model, get_runnable_config, report_tool_calls
+from src.types import Telemetry, telemetry_context
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -65,44 +66,62 @@ def init_project(user_requirements, source_dir: str = "."):
     logger.info("Analyzing repository for migration planning...")
     logger.debug(f"User requirements: {user_requirements}")
 
+    telemetry = Telemetry(phase="init")
+
     try:
-        # Create the migration planning agent
-        agent = create_migration_agent()
-        files = list_with_depth(".", max_depth=3)
+        with telemetry_context(telemetry, "MigrationPlanningAgent") as metrics:
+            # Create the migration planning agent
+            agent = create_migration_agent()
+            files = list_with_depth(".", max_depth=3)
 
-        # Prepare the user message for migration analysis
-        user_message = get_prompt("init_migration_plan_request").format(
-            user_requirements=user_requirements,
-            migration_plan_file=MIGRATION_PLAN_FILE,
-            files=files,
-        )
-        logger.debug(f"Initial user prompt: {user_message}")
-        # Execute the agent with higher recursion limit
-        result = agent.invoke(
-            {"messages": [{"role": "user", "content": user_message}]},
-            config=get_runnable_config(),
-        )
-
-        logger.debug("Migration agent result:")
-        logger.debug(f"Result type: {type(result)}")
-        logger.debug(
-            f"Result keys: {list(result.keys()) if hasattr(result, 'keys') else 'N/A'}"
-        )
-
-        # Print last AI message and ALL tool calls made during conversation
-        for user_requirements in result["messages"]:
-            user_requirements.pretty_print()
-
-        # Check if the migration plan was actually created
-        if Path(MIGRATION_PLAN_FILE).exists():
-            click.echo("✅ Migration plan generated successfully!")
-            click.echo(
-                f"Check '{MIGRATION_PLAN_FILE}' for the detailed migration analysis."
+            # Prepare the user message for migration analysis
+            user_message = get_prompt("init_migration_plan_request").format(
+                user_requirements=user_requirements,
+                migration_plan_file=MIGRATION_PLAN_FILE,
+                files=files,
             )
-        else:
-            click.echo(f"Agent completed but '{MIGRATION_PLAN_FILE}' was not created.")
+            logger.debug(f"Initial user prompt: {user_message}")
+            # Execute the agent with higher recursion limit
+            result = agent.invoke(
+                {"messages": [{"role": "user", "content": user_message}]},
+                config=get_runnable_config(),
+            )
+
+            # Record tool calls in telemetry
+            if metrics:
+                tool_calls = report_tool_calls(result)
+                metrics.record_tool_calls(tool_calls)
+
+            logger.debug("Migration agent result:")
+            logger.debug(f"Result type: {type(result)}")
+            logger.debug(
+                f"Result keys: {list(result.keys()) if hasattr(result, 'keys') else 'N/A'}"
+            )
+
+            # Print last AI message and ALL tool calls made during conversation
+            for user_requirements in result["messages"]:
+                user_requirements.pretty_print()
+
+            # Check if the migration plan was actually created
+            if Path(MIGRATION_PLAN_FILE).exists():
+                click.echo("Migration plan generated successfully!")
+                click.echo(
+                    f"Check '{MIGRATION_PLAN_FILE}' for the detailed migration analysis."
+                )
+            else:
+                click.echo(
+                    f"Agent completed but '{MIGRATION_PLAN_FILE}' was not created."
+                )
+
+        # Stop telemetry, save, and log summary
+        telemetry.stop()
+        telemetry.save()
+        logger.info(f"Telemetry summary:\n{telemetry.to_summary()}")
+
         return result
 
     except Exception as e:
+        telemetry.stop()
+        telemetry.save()
         click.echo(f"Error during migration planning: {e!s}")
         raise

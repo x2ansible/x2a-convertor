@@ -14,6 +14,7 @@ from src.types import (
     AnsibleModule,
     Checklist,
     DocumentFile,
+    Telemetry,
 )
 from src.utils.logging import get_logger
 
@@ -172,6 +173,11 @@ class ChefToAnsibleSubagent:
         """
         slog = logger.bind(phase="finalize")
 
+        # Stop telemetry timing and save
+        if state.telemetry:
+            state.telemetry.stop()
+            state.telemetry.save()
+
         assert state.checklist is not None, (
             "Checklist must be initialized before finalize"
         )
@@ -205,6 +211,12 @@ class ChefToAnsibleSubagent:
                 checklist.to_markdown(),
             ]
 
+            # Add telemetry summary
+            if state.telemetry:
+                summary_lines.append("")
+                summary_lines.append("Telemetry:")
+                summary_lines.append(state.telemetry.to_summary())
+
             slog.error(
                 f"Migration failed: {stats['complete']}/{stats['total']} completed"
             )
@@ -229,6 +241,12 @@ class ChefToAnsibleSubagent:
                 "Final checklist:",
                 checklist.to_markdown(),
             ]
+
+            # Add telemetry summary
+            if state.telemetry:
+                summary_lines.append("")
+                summary_lines.append("Telemetry:")
+                summary_lines.append(state.telemetry.to_summary())
 
             slog.info(
                 f"Migration finalized: {stats['complete']}/{stats['total']} completed"
@@ -274,6 +292,7 @@ class ChefToAnsibleSubagent:
             aap_discovery=None,  # Will be populated by discovery agent
             failed=False,
             failure_reason="",
+            telemetry=Telemetry(phase="migrate"),
         )
 
         result = self._workflow.invoke(
