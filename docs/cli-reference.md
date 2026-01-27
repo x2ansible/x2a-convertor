@@ -91,6 +91,9 @@ uv run app.py init [OPTIONS] USER_REQUIREMENTS
 - `--source-dir` (default: .)
   Source directory to analyze
 
+- `--refresh`
+  Skip migration plan generation if migration-plan.md exists, only regenerate metadata
+
 ### Full Help
 
 ```
@@ -100,6 +103,8 @@ Usage: init [OPTIONS] USER_REQUIREMENTS
 
 Options:
   --source-dir DIRECTORY  Source directory to analyze
+  --refresh               Skip migration plan generation if migration-plan.md
+                          exists, only regenerate metadata
   --help                  Show this message and exit.
 ```
 
