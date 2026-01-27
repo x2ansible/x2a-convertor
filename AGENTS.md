@@ -42,6 +42,9 @@ uv run app.py
 # Initialize migration project
 uv run app.py init --source-dir ./input/hello_world "I want to migrate this Chef repository to Ansible"
 
+# Initialize with refresh mode (skip plan generation if migration-plan.md exists)
+uv run app.py init --refresh "Update metadata"
+
 # Using Makefile shortcut
 make name=hello_world run-init
 
@@ -81,7 +84,11 @@ uv run app.py publish "module-name" \
 ### Core Modules
 
 - `app.py`: Main CLI entry point using Click framework
-- `src/init.py`: Project initialization and high-level analysis
+- `src/init/`: Project initialization and high-level analysis (LangGraph workflow)
+  - `init_agent.py`: InitAgent orchestrator with StateGraph workflow
+  - `initialize_subagent.py`: InitializeSubAgent (ReAct agent for exploration)
+  - `init_state.py`: InitState dataclass
+  - `__init__.py`: init_project() entry point
 - `src/inputs/`: Technology-specific analyzers (Chef, Puppet, Salt)
   - `analyze.py`: Root analyzer that detects technology and delegates
   - `chef.py`: Chef cookbook analyzer with LangChain agents
@@ -92,6 +99,9 @@ uv run app.py publish "module-name" \
 - `src/validate.py`: Migration validation
 - `src/publishers/`: Publishing workflow for creating Ansible projects
 - `src/model.py`: LLM model configuration and setup
+- `src/types/`: Core data structures
+  - `base_state.py`: BaseState for all workflow phases
+  - `metadata.py`: ModuleMetadata and MetadataCollection schemas
 - `prompts/`: LangGraph prompt templates for different analysis phases
 
 ### AI Integration

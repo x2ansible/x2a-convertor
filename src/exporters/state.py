@@ -4,16 +4,16 @@ This module defines the state object that tracks the migration process
 through its various phases.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from src.types import (
     AAPDiscoveryResult,
     AnsibleModule,
+    BaseState,
     Checklist,
     DocumentFile,
     MigrationStateInterface,
-    Telemetry,
 )
 
 # Constants
@@ -22,8 +22,11 @@ CHECKLIST_FILENAME = ".checklist.json"
 
 
 @dataclass
-class ChefState(MigrationStateInterface):
+class ChefState(BaseState, MigrationStateInterface):
     """State object for tracking Chef to Ansible migration workflow.
+
+    Inherits from BaseState for common fields (user_message, path, telemetry,
+    failed, failure_reason).
 
     This is the aggregate root for the migration domain in DDD terms.
     All domain state flows through this object, making agents stateless
@@ -37,10 +40,15 @@ class ChefState(MigrationStateInterface):
     - Migration checklist (domain state)
     - Failure state and reason
 
-    Attributes:
-        path: Path to the Chef cookbook/module
-        module: AnsibleModule value object representing the module being migrated
+    Attributes inherited from BaseState:
         user_message: Original user message/requirements
+        path: Path to the Chef cookbook/module
+        telemetry: Telemetry data for tracking agent execution metrics
+        failed: Whether the migration has failed
+        failure_reason: Human-readable reason for failure
+
+    Migration-specific attributes:
+        module: AnsibleModule value object representing the module being migrated
         module_migration_plan: Detailed migration plan document
         high_level_migration_plan: High-level migration strategy document
         directory_listing: List of files in the source directory
@@ -51,27 +59,27 @@ class ChefState(MigrationStateInterface):
         last_output: Last output from the workflow
         checklist: Migration checklist tracking file transformations
         aap_discovery: Result of AAP collection discovery for deduplication
-        failed: Whether the migration has failed
-        failure_reason: Human-readable reason for failure
-        telemetry: Telemetry data for tracking agent execution metrics
     """
 
-    path: str
-    module: AnsibleModule
-    user_message: str
-    module_migration_plan: DocumentFile
-    high_level_migration_plan: DocumentFile
-    directory_listing: list[str]
-    current_phase: str
-    write_attempt_counter: int
-    validation_attempt_counter: int
-    validation_report: str
-    last_output: str
-    checklist: Checklist | None = None
-    aap_discovery: AAPDiscoveryResult | None = None
-    failed: bool = False
-    failure_reason: str = ""
-    telemetry: Telemetry | None = None
+    # Fields inherited from BaseState:
+    # - user_message: str
+    # - path: str
+    # - telemetry: Telemetry | None (kw_only)
+    # - failed: bool (kw_only)
+    # - failure_reason: str (kw_only)
+
+    # Migration-specific fields (all keyword-only since they follow kw_only fields from BaseState)
+    module: AnsibleModule = field(kw_only=True)
+    module_migration_plan: DocumentFile = field(kw_only=True)
+    high_level_migration_plan: DocumentFile = field(kw_only=True)
+    directory_listing: list[str] = field(kw_only=True)
+    current_phase: str = field(kw_only=True)
+    write_attempt_counter: int = field(kw_only=True)
+    validation_attempt_counter: int = field(kw_only=True)
+    validation_report: str = field(kw_only=True)
+    last_output: str = field(kw_only=True)
+    checklist: Checklist | None = field(default=None, kw_only=True)
+    aap_discovery: AAPDiscoveryResult | None = field(default=None, kw_only=True)
 
     def get_ansible_path(self) -> str:
         """Get the Ansible output path for this module.
@@ -108,6 +116,8 @@ class ChefState(MigrationStateInterface):
 
     def mark_failed(self, reason: str) -> "ChefState":
         """Mark this migration as failed with a reason.
+
+        Overrides BaseState.mark_failed() to return ChefState for proper typing.
 
         This is a convenience method for agents to signal failure in a clean way.
         The parent workflow can check state.failed to decide whether to continue.

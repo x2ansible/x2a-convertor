@@ -8,3 +8,6 @@ MODULE_MIGRATION_PLAN_TEMPLATE = "migration-plan-{module}.md"
 
 # Export final output filename template
 EXPORT_OUTPUT_FILENAME_TEMPLATE = "ansible/roles/{module}/export-output.md"
+
+# Metadata filename
+METADATA_FILENAME = ".x2ansible-metadata.json"
