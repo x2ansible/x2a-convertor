@@ -67,10 +67,25 @@ def cli(ctx) -> None:
     is_eager=True,
     help="Source directory to analyze",
 )
+@click.option(
+    "--refresh",
+    is_flag=True,
+    default=False,
+    help="Skip migration plan generation if migration-plan.md exists, only regenerate metadata",
+)
 @handle_exceptions
-def init(user_requirements, source_dir) -> None:
+def init(user_requirements, source_dir, refresh) -> None:
     """Initialize project with interactive message"""
-    init_project(user_requirements=user_requirements, source_dir=source_dir)
+    result = init_project(
+        user_requirements=user_requirements, source_dir=source_dir, refresh=refresh
+    )
+
+    # User-facing success messages
+    click.echo("\nInit workflow completed successfully!")
+    click.echo(f"Migration plan: {result.migration_plan_path}")
+    click.echo(
+        f"Metadata file: .x2ansible-metadata.json ({len(result.metadata_items)} modules)"
+    )
 
 
 @cli.command()

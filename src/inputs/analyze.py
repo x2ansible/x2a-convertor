@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from langgraph.graph import END, StateGraph
@@ -9,7 +9,7 @@ from prompts.get_prompt import get_prompt
 from src.const import MIGRATION_PLAN_FILE, MODULE_MIGRATION_PLAN_TEMPLATE
 from src.inputs.chef import ChefSubagent
 from src.model import get_model, get_runnable_config
-from src.types import Telemetry, telemetry_context
+from src.types import BaseState, Telemetry, telemetry_context
 from src.utils.logging import get_logger
 from src.utils.technology import Technology
 
@@ -25,15 +25,33 @@ class ModuleSelection(BaseModel):
 
 
 @dataclass
-class MigrationState:
-    user_message: str
-    path: str
-    name: str
-    technology: Technology | None
-    migration_plan_content: str
-    module_migration_plan: str
-    module_plan_path: str
-    telemetry: Telemetry | None = None
+class MigrationState(BaseState):
+    """State for analyze phase workflow.
+
+    Inherits from BaseState for common fields (user_message, path, telemetry,
+    failed, failure_reason).
+
+    Analyze-specific attributes:
+        name: Module/cookbook name selected for analysis
+        technology: Source technology (Chef, Puppet, Salt)
+        migration_plan_content: Content of high-level migration plan
+        module_migration_plan: Generated module-specific migration plan
+        module_plan_path: Path where module plan was written
+    """
+
+    # Fields inherited from BaseState:
+    # - user_message: str
+    # - path: str
+    # - telemetry: Telemetry | None (kw_only)
+    # - failed: bool (kw_only)
+    # - failure_reason: str (kw_only)
+
+    # Analyze-specific fields (all keyword-only since they follow kw_only fields from BaseState)
+    name: str = field(kw_only=True)
+    technology: Technology | None = field(kw_only=True)
+    migration_plan_content: str = field(kw_only=True)
+    module_migration_plan: str = field(kw_only=True)
+    module_plan_path: str = field(kw_only=True)
 
     def get_migration_plan_path(self) -> str:
         if self.name:
