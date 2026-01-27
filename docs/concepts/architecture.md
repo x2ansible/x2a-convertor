@@ -251,3 +251,72 @@ Each state transition is managed by LangGraph, allowing:
 3. **Modular agents**: Easy to add new source technologies (Puppet, Salt)
 4. **LLM agnostic**: Support for multiple providers via abstraction layer
 5. **Human-in-the-loop**: Mandatory review checkpoints prevent automated errors
+
+## Telemetry and Observability
+
+X2A Convertor includes built-in telemetry to track agent execution and provide visibility into the migration workflow. Each phase (init, analyze, migrate, publish) records detailed metrics to help understand performance and tool usage.
+
+### Telemetry Output
+
+All phases write telemetry data to `.x2a-telemetry.json` in the working directory:
+
+```json
+{
+  "phase": "migrate",
+  "started_at": "2026-01-26T09:35:26.192699",
+  "ended_at": "2026-01-26T09:40:13.643805",
+  "duration_seconds": 287.451106,
+  "agents": {
+    "AAPDiscoveryAgent": {
+      "name": "AAPDiscoveryAgent",
+      "started_at": "2026-01-26T09:35:26.194891",
+      "ended_at": "2026-01-26T09:35:36.218019",
+      "duration_seconds": 10.023128,
+      "metrics": {
+        "collections_found": 0
+      },
+      "tool_calls": {
+        "aap_list_collections": 1,
+        "aap_search_collections": 1
+      }
+    },
+    "WriteAgent": {
+      "name": "WriteAgent",
+      "started_at": "2026-01-26T09:36:29.816967",
+      "ended_at": "2026-01-26T09:40:13.642303",
+      "duration_seconds": 223.825336,
+      "metrics": {
+        "attempts": 10,
+        "complete": false,
+        "missing_files": 1,
+        "files_created": 22,
+        "files_total": 23
+      },
+      "tool_calls": {
+        "list_checklist_tasks": 15,
+        "read_file": 10,
+        "ansible_lint": 10
+      }
+    }
+  },
+  "total_tool_calls": {
+    "aap_list_collections": 1,
+    "read_file": 10,
+    "ansible_lint": 10
+  }
+}
+```
+
+### Collected Metrics
+
+**Per-Agent Metrics:**
+- `name`: Agent identifier (e.g., "PlanningAgent", "WriteAgent")
+- `started_at`/`ended_at`: ISO 8601 timestamps
+- `duration_seconds`: Total execution time
+- `tool_calls`: Count of each tool invoked (e.g., `read_file`, `ansible_lint`)
+- `metrics`: Custom agent-specific data (e.g., `files_created`, `collections_found`)
+
+**Phase-Level Aggregation:**
+- `phase`: Current workflow phase (init, analyze, migrate, publish)
+- `total_tool_calls`: Aggregated tool usage across all agents
+- `duration_seconds`: Total phase execution time
