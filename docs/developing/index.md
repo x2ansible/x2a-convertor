@@ -13,3 +13,6 @@ Resources for developers contributing to X2A Convertor or setting up development
 
 ### [Dependencies]({% link developing/dependencies.md %})
 External services and infrastructure setup for development.
+
+### [UX Deployment]({% link developing/ux_deployment.md %})
+Deploy the X2A Backstage plugin on OpenShift using Red Hat Developer Hub.
