@@ -27,7 +27,7 @@ class InitAgent:
     Workflow:
     1. check_refresh: Determine if we can skip plan generation
     2. generate_plan: Run ReAct agent to create migration-plan.md (conditional)
-    3. extract_metadata: Use structured output to generate .x2ansible-metadata.json
+    3. extract_metadata: Use structured output to generate `generated-project-metadata.json`
     4. finalize: Save state and report results
 
     The workflow uses conditional edges to skip plan generation when in refresh mode
@@ -204,7 +204,7 @@ class InitAgent:
             Unchanged state (terminal node)
         """
         slog = logger.bind(phase="finalize", failed=state.failed)
-        if state.failed:
+        if state.did_fail():
             slog.error("Failing executing the init phase")
             return state
 

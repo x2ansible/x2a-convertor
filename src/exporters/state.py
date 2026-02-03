@@ -40,13 +40,6 @@ class ChefState(BaseState, MigrationStateInterface):
     - Migration checklist (domain state)
     - Failure state and reason
 
-    Attributes inherited from BaseState:
-        user_message: Original user message/requirements
-        path: Path to the Chef cookbook/module
-        telemetry: Telemetry data for tracking agent execution metrics
-        failed: Whether the migration has failed
-        failure_reason: Human-readable reason for failure
-
     Migration-specific attributes:
         module: AnsibleModule value object representing the module being migrated
         module_migration_plan: Detailed migration plan document

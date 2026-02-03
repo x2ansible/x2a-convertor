@@ -21,7 +21,7 @@ class InitState(BaseState):
         refresh: Flag to skip plan generation if plan exists
         migration_plan_content: Generated high-level migration plan
         migration_plan_path: Path where migration plan was written
-        metadata_items: Extracted metadata for .x2ansible-metadata.json
+        metadata_items: Extracted metadata for 'generated-project-metadata.json'
     """
 
     # Fields inherited from BaseState:

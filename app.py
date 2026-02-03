@@ -7,6 +7,7 @@ from functools import wraps
 import click
 from dotenv import load_dotenv
 
+from src.const import METADATA_FILENAME
 from src.error_details import get_error_human_message
 from src.exporters.migrate import migrate_module
 from src.init import init_project
@@ -84,7 +85,7 @@ def init(user_requirements, source_dir, refresh) -> None:
     click.echo("\nInit workflow completed successfully!")
     click.echo(f"Migration plan: {result.migration_plan_path}")
     click.echo(
-        f"Metadata file: .x2ansible-metadata.json ({len(result.metadata_items)} modules)"
+        f"Metadata file: {METADATA_FILENAME} with {len(result.metadata_items)} modules"
     )
 
 

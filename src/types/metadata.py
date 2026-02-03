@@ -1,4 +1,4 @@
-"""Metadata extraction types for .x2ansible-metadata.json"""
+"""Metadata extraction types"""
 
 from pydantic import BaseModel, Field
 

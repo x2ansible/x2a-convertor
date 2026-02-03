@@ -4,7 +4,7 @@ Provides common fields and behaviors shared across init, analyze, and migrate ph
 """
 
 from abc import ABC
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from src.types.telemetry import Telemetry
 
@@ -31,6 +31,17 @@ class BaseState(ABC):
     failed: bool = field(default=False, kw_only=True)
     failure_reason: str = field(default="", kw_only=True)
 
+    def update(self, **kwargs) -> "BaseState":
+        """Create new BaseState with updated fields (immutable pattern).
+
+        Args:
+            **kwargs: Fields to update (must be valid BaseState attributes)
+
+        Returns:
+            New BaseState instance with updated fields
+        """
+        return replace(self, **kwargs)
+
     def mark_failed(self, reason: str) -> "BaseState":
         """Mark this operation as failed with a reason.
 
@@ -42,9 +53,7 @@ class BaseState(ABC):
         Returns:
             Self with failed=True and failure_reason set
         """
-        self.failed = True
-        self.failure_reason = reason
-        return self
+        return self.update(failed=True, failure_reason=reason)
 
     def did_fail(self) -> bool:
         """Check if the operation failed.
