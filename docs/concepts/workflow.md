@@ -124,7 +124,7 @@ sequenceDiagram
     Init->>LLM: Analyze repository structure
     LLM-->>Init: Strategic recommendations
     Init->>FS: Write migration-plan.md
-    Init->>FS: Write .x2ansible-metadata.json
+    Init->>FS: Write generated-project-metadata.json
     Init-->>User: High-level plan ready
 ```
 
