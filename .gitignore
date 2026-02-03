@@ -13,3 +13,7 @@ wheels/
 .vscode
 
 publish_results*/
+
+# Deployment secrets - NEVER commit real credentials!
+deploy/secrets.yaml
+*.secrets.yaml

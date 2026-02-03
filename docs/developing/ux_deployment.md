@@ -1,3 +1,9 @@
+---
+layout: default
+title: UX Deployment
+parent: Developing
+---
+
 # X2A Backstage Plugin Deployment
 
 This guide covers deploying the X2A Backstage plugin on OpenShift using Red Hat Developer Hub.
@@ -5,40 +11,50 @@ This guide covers deploying the X2A Backstage plugin on OpenShift using Red Hat 
 ## Prerequisites
 
 - OpenShift cluster access (CRC or production cluster)
-- `oc` CLI tool installed and configured
-- AWS credentials with access to Bedrock (for LLM)
-- Ansible Automation Platform instance (optional, for publishing)
+- Cluster-admin rights (for operator installation)
+- `oc` CLI tool installed and configured([documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/cli_tools/openshift-cli-oc#cli-getting-started))
+- AWS credentials with access to Bedrock (for LLM functionality)
+- Ansible Automation Platform instance (optional, for publishing roles)
 
-## Installation Steps
+## Quick Start
 
-### 1. Install Red Hat Developer Hub Operator
-
-Save the following YAML as `install.yaml`:
-
-```yaml
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: openshift-developer-hub
----
-apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: developer-hub-operator-subscription
-  namespace: openshift-operators
-spec:
-  channel: fast
-  installPlanApproval: Automatic
-  name: rhdh
-  source: redhat-operators
-  sourceNamespace: openshift-marketplace
-```
-
-Apply the configuration:
+Deploy to any namespace with these simple commands:
 
 ```bash
-oc apply -f install.yaml
+# 1. Git clone current x2a-ansible code
+git clone https://github.com/x2ansible/x2a-convertor/
+cd x2a-convertor
+
+# 2. Install operator (cluster-scoped, one-time installation)
+oc apply -f deploy/operator.yaml
+
+# 3. Create your namespace (or use existing)
+oc create namespace <your-namespace>
+
+# 4. Deploy application resources
+oc apply -n <your-namespace> -f deploy/app.yaml
+
+# 5. Configure and apply secrets
+cp deploy/secrets.yaml.template deploy/secrets.yaml
+# Edit deploy/secrets.yaml with your actual credentials
+oc apply -n <your-namespace> -f deploy/secrets.yaml
+
+# 6. Get the application URL
+oc get route developer-hub -n <your-namespace> -o jsonpath='https://{.spec.host}{"\n"}'
+```
+
+## Installation Files
+
+All deployment files are located in the `deploy/` directory at the root of the repository.
+
+### 1. Operator Installation
+
+**File:** `deploy/operator.yaml`
+
+This installs the Red Hat Developer Hub operator. This is cluster-scoped and only needs to be installed once.
+
+```yaml
+{% include deploy/operator.yaml %}
 ```
 
 Wait for the operator to be ready:
@@ -47,179 +63,94 @@ Wait for the operator to be ready:
 oc get csv -n openshift-operators | grep rhdh
 ```
 
-### 2. Deploy Backstage with X2A Plugin
+### 2. Application Deployment
 
-Save the following YAML as `bs.yaml`:
+**File:** `deploy/app.yaml`
+
+This file contains all the application resources: ConfigMaps, PersistentVolumeClaim, and the Backstage Custom Resource.
+
+All resources intentionally omit the `namespace` field - specify your desired namespace using the `-n` flag when applying.
 
 ```yaml
----
-kind: ConfigMap
-apiVersion: v1
-metadata:
-  name: dynamic-plugins
-  namespace: openshift-developer-hub
-data:
-  dynamic-plugins.yaml: |
-    includes:
-      - dynamic-plugins.default.yaml
-    plugins:
-      - package: "oci://quay.io/x2ansible/red-hat-developer-hub-backstage-plugin-x2a:x2a__0.1.0!red-hat-developer-hub-backstage-plugin-x2a"
-        disabled: false
-      - package: "oci://quay.io/x2ansible/red-hat-developer-hub-backstage-plugin-x2a-backend:x2a__0.1.0!red-hat-developer-hub-backstage-plugin-x2a-backend"
-        disabled: false
----
-kind: ConfigMap
-apiVersion: v1
-metadata:
-  name: app-config-rhdh
-  namespace: openshift-developer-hub
-data:
-  app-config-rhdh.yaml: |
-    auth:
-      environment: development
-      providers:
-        guest:
-          dangerouslyAllowOutsideDevelopment: true
-    permission:
-      enabled: false
-
-    dynamicPlugins:
-      frontend:
-        red-hat-developer-hub.backstage-plugin-x2a:
-          dynamicRoutes:
-            - path: /x2a
-              importName: X2APage
-              menuItem:
-                text: X2A
-                # icon: CloudQueue
-
-    x2a:
-      kubernetes:
-        namespace: openshift-developer-hub  # Namespace where x2a jobs will run
-        image: quay.io/x2ansible/x2a-convertor
-        imageTag: latest
-        ttlSecondsAfterFinished: 86400  # 24 hours
-        resources:
-          requests:
-            cpu: 500m
-            memory: 1Gi
-          limits:
-            cpu: 2000m
-            memory: 4Gi
-      credentials:
-        llm:
-          LLM_MODEL: ${LLM_MODEL}
-          AWS_REGION: ${AWS_REGION}
-          AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-          AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-        aap:
-          url: ${AAP_URL}
-          orgName: ${AAP_ORG_NAME}
-          oauthToken: ${AAP_OAUTH_TOKEN}
----
-kind: Secret
-apiVersion: v1
-metadata:
-  name: x2a-credentials
-  namespace: openshift-developer-hub
-type: Opaque
-stringData:
-  LLM_MODEL: "anthropic.claude-3-7-sonnet-20250219-v1:0"
-  AWS_REGION: "us-east-1"
-  AWS_ACCESS_KEY_ID: "your-aws-access-key-id"
-  AWS_SECRET_ACCESS_KEY: "your-aws-secret-access-key"
-  AAP_URL: "https://your-aap-instance.com"
-  AAP_ORG_NAME: "your-org"
-  AAP_OAUTH_TOKEN: "your-oauth-token"
----
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: dynamic-plugins-root
-  namespace: openshift-developer-hub
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: crc-csi-hostpath-provisioner
-  resources:
-    requests:
-      storage: 2Gi
----
-apiVersion: rhdh.redhat.com/v1alpha1
-kind: Backstage
-metadata:
-  name: developer-hub
-  namespace: openshift-developer-hub
-spec:
-  application:
-    dynamicPluginsConfigMapName: dynamic-plugins
-    appConfig:
-      mountPath: /opt/app-root/src
-      configMaps:
-        - name: app-config-rhdh
-    extraFiles:
-      mountPath: /opt/app-root/src
-    route:
-      enabled: true
-  extraEnvs:
-    envs:
-      - name: LOG_LEVEL
-        value: INFO
-    secrets:
-      - name: x2a-credentials
+{% include deploy/app.yaml %}
 ```
 
-Apply the configuration:
+Apply to your namespace:
 
 ```bash
-oc apply -f bs.yaml
+oc apply -n <your-namespace> -f deploy/app.yaml
 ```
 
-### 3. Update Credentials
+### 3. Secrets Configuration
 
-Edit the secret with your actual credentials:
+{: .warning }
+**SECURITY WARNING: Never commit real credentials to git!**
+
+**File:** `deploy/secrets.yaml.template`
+
+This is a template file with placeholder values. You must create your own `secrets.yaml` from this template.
+
+```yaml
+{% include deploy/secrets.yaml.template %}
+```
+
+**Steps to configure secrets:**
+
+1. Copy the template:
+   ```bash
+   cp deploy/secrets.yaml.template deploy/secrets.yaml
+   ```
+
+2. Edit with your credentials:
+   ```bash
+   vi deploy/secrets.yaml
+   ```
+   Replace all `REPLACE-WITH-YOUR-*` placeholders with your actual credentials.
+
+3. Apply to your namespace:
+   ```bash
+   oc apply -n <your-namespace> -f deploy/secrets.yaml
+   ```
+
+4. Restart the Backstage pod to pick up the new secrets:
+   ```bash
+   oc delete pod -n <your-namespace> -l app.kubernetes.io/name=developer-hub
+   ```
+
+The `secrets.yaml` file is git-ignored and will not be committed to version control.
+
+{: .note }
+**For production environments**, consider using:
+- External Secrets Operator (https://external-secrets.io/)
+- HashiCorp Vault integration
+- OpenShift Sealed Secrets
+- Your organization's secret management solution
+
+## Customization Options
+
+The deployment files include clear comments (marked with `# CUSTOMIZATION:`) for common customization points.
+
+### Namespace Selection
+
+No file editing required - just specify the namespace when applying:
 
 ```bash
-oc edit secret x2a-credentials -n openshift-developer-hub
+oc apply -n my-custom-namespace -f deploy/app.yaml
 ```
 
-Update the following values:
-- `LLM_MODEL`: Your preferred AWS Bedrock model
-- `AWS_REGION`: Your AWS region
-- `AWS_ACCESS_KEY_ID`: Your AWS access key
-- `AWS_SECRET_ACCESS_KEY`: Your AWS secret key
-- `AAP_URL`: Your Ansible Automation Platform URL (if using publish feature)
-- `AAP_ORG_NAME`: Your AAP organization name
-- `AAP_OAUTH_TOKEN`: Your AAP OAuth token
+### Plugin Versions
 
-You need to delete the Backstage pod when the secret is changed.
+To use different plugin versions, update the OCI image references in the `dynamic-plugins` ConfigMap section of `deploy/app.yaml`.
 
-### 4. Access the Application
+## Access the Application
 
 Get the Developer Hub URL:
 
 ```bash
-oc get route developer-hub -n openshift-developer-hub -o jsonpath='https://{.spec.host}{"\n"}'
+oc get route developer-hub -n <your-namespace> -o jsonpath='https://{.spec.host}{"\n"}'
 ```
 
 Open the URL in your browser and navigate to the X2A menu item to start using the migration tool.
-
-## Configuration Options
-
-### Storage Class
-
-For production environments, update the `storageClassName` in the PersistentVolumeClaim to match your cluster's storage provider:
-
-```yaml
-spec:
-  storageClassName: your storage class
-```
-
-To list available storage classes:
-
-```bash
-oc get storageclass
-```
 
 ## Troubleshooting
 
@@ -233,17 +164,24 @@ oc get pods -n openshift-operators
 ### Check Backstage deployment
 
 ```bash
-oc get backstage -n openshift-developer-hub
-oc get pods -n openshift-developer-hub
-oc logs -n openshift-developer-hub deployment/backstage-developer-hub
+oc get backstage -n <your-namespace>
+oc get pods -n <your-namespace>
+oc logs -n <your-namespace> deployment/backstage-developer-hub
 ```
 
-## Uninstall
-
-To remove the X2A Backstage deployment:
+### Verify secrets are loaded
 
 ```bash
-oc delete backstage developer-hub -n openshift-developer-hub
-oc delete -f bs.yaml
-oc delete -f install.yaml
+oc get secret x2a-credentials -n <your-namespace>
+oc describe secret x2a-credentials -n <your-namespace>
+```
+
+### Common Issues
+
+**Issue:** Backstage pod fails to start
+
+**Solution:** Check secrets are properly configured and applied:
+```bash
+oc get secret x2a-credentials -n <your-namespace>
+oc logs -n <your-namespace> deployment/backstage-developer-hub
 ```
