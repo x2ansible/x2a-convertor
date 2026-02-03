@@ -1,0 +1,110 @@
+---
+# X2A Backstage Plugin Application Resources
+# Apply to any namespace using: oc apply -n <your-namespace> -f app.yaml
+#
+# ConfigMap: Dynamic Plugins Configuration
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: dynamic-plugins
+  # namespace field intentionally omitted - use -n flag when applying
+data:
+  dynamic-plugins.yaml: |
+    includes:
+      - dynamic-plugins.default.yaml
+    plugins:
+      # CUSTOMIZATION: Update plugin versions by changing the tag after the colon
+      - package: "oci://quay.io/x2ansible/red-hat-developer-hub-backstage-plugin-x2a:x2a__0.1.0!red-hat-developer-hub-backstage-plugin-x2a"
+        disabled: false
+      - package: "oci://quay.io/x2ansible/red-hat-developer-hub-backstage-plugin-x2a-backend:x2a__0.1.0!red-hat-developer-hub-backstage-plugin-x2a-backend"
+        disabled: false
+---
+# ConfigMap: Application Configuration
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: app-config-rhdh
+data:
+  app-config-rhdh.yaml: |
+    auth:
+      environment: development
+      providers:
+        guest:
+          dangerouslyAllowOutsideDevelopment: true
+    permission:
+      enabled: false
+
+    dynamicPlugins:
+      frontend:
+        red-hat-developer-hub.backstage-plugin-x2a:
+          dynamicRoutes:
+            - path: /x2a
+              importName: X2APage
+              menuItem:
+                text: X2A
+                # icon: CloudQueue
+
+    x2a:
+      kubernetes:
+        namespace: ${KUBERNETES_NAMESPACE}
+        image: quay.io/x2ansible/x2a-convertor
+        imageTag: latest
+        ttlSecondsAfterFinished: 86400  # 24 hours
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+      credentials:
+        llm:
+          LLM_MODEL: ${LLM_MODEL}
+          AWS_REGION: ${AWS_REGION}
+          AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+          AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+        aap:
+          url: ${AAP_URL}
+          orgName: ${AAP_ORG_NAME}
+          oauthToken: ${AAP_OAUTH_TOKEN}
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: dynamic-plugins-root
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # CUSTOMIZATION: Change storage class for your environment
+  # Common values:
+  #   - OpenShift CRC: crc-csi-hostpath-provisioner
+  #   - AWS EBS: gp2 or gp3
+  #   - Azure: managed-premium
+  #   - GCP: standard or standard-rwo
+  # List available storage classes: oc get storageclass
+  storageClassName: crc-csi-hostpath-provisioner
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: rhdh.redhat.com/v1alpha1
+kind: Backstage
+metadata:
+  name: developer-hub
+spec:
+  application:
+    dynamicPluginsConfigMapName: dynamic-plugins
+    appConfig:
+      mountPath: /opt/app-root/src
+      configMaps:
+        - name: app-config-rhdh
+    extraFiles:
+      mountPath: /opt/app-root/src
+    route:
+      enabled: true
+  extraEnvs:
+    envs:
+      - name: LOG_LEVEL
+        value: INFO
+    secrets:
+      - name: x2a-credentials
