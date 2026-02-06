@@ -451,11 +451,6 @@ class PublishWorkflow:
         """Node: Display summary of what was done."""
         slog = logger.bind(phase="summary")
 
-        # Stop telemetry timing and save
-        if state.telemetry:
-            state.telemetry.stop()
-            state.telemetry.save()
-
         summary_lines = []
         summary_lines.append("\n" + "=" * 80)
         if state.failed:
@@ -546,7 +541,12 @@ class PublishWorkflow:
         else:
             summary_lines.extend(state.aap_result.report_summary())
 
-        # Add telemetry summary
+        # Stop telemetry and save with core summary
+        core_summary_text = "\n".join(summary_lines)
+        if state.telemetry:
+            state.telemetry.stop().with_summary(core_summary_text).save()
+
+        # Add telemetry summary for display
         if state.telemetry:
             summary_lines.append("")
             summary_lines.append("Telemetry:")

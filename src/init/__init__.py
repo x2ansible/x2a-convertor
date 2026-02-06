@@ -78,9 +78,21 @@ def init_project(user_requirements: str, source_dir: str = ".", refresh: bool = 
     agent = InitAgent()
     result_state = agent(initial_state)
 
-    # Stop telemetry
+    # Stop telemetry and capture summary
     telemetry.stop()
-    telemetry.save()
+
+    if result_state.failed:
+        summary_text = f"Init failed: {result_state.failure_reason}"
+    else:
+        summary_text = "\n".join(
+            [
+                "Init workflow completed successfully",
+                f"Migration plan: {result_state.migration_plan_path}",
+                f"Metadata file: {METADATA_FILENAME} ({len(result_state.metadata_items)} modules)",
+            ]
+        )
+
+    telemetry.with_summary(summary_text).save()
     slog.info(f"Telemetry summary:\n{telemetry.to_summary()}")
 
     # Handle results

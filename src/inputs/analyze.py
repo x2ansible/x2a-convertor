@@ -192,6 +192,7 @@ class MigrationAnalysisWorkflow:
 
     def write_migration_file(self, state: MigrationState) -> MigrationState:
         """Write the migration plan to a file"""
+
         migration_content = state.module_migration_plan
         if not migration_content:
             logger.error("Migration failed, no plan generated")
@@ -201,6 +202,10 @@ class MigrationAnalysisWorkflow:
         Path(filename).write_text(migration_content)
         logger.info(f"Migration plan written to {filename}")
         state.module_plan_path = filename
+
+        # Capture summary in telemetry
+        if state.telemetry:
+            state.telemetry.with_summary(f"Migration plan written to {filename}")
 
         return state
 
@@ -224,9 +229,8 @@ def analyze_project(user_requirements: str, source_dir: str = "."):
 
     result = workflow.graph.invoke(initial_state, config=get_runnable_config())
 
-    # Stop telemetry, save, and log summary
-    telemetry.stop()
-    telemetry.save()
+    # Stop telemetry and save
+    telemetry.stop().save()
     logger.info(f"Telemetry summary:\n{telemetry.to_summary()}")
 
     logger.info("Chef to Ansible migration analysis completed successfully!")

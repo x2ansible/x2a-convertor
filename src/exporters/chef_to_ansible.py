@@ -173,11 +173,6 @@ class ChefToAnsibleSubagent:
         """
         slog = logger.bind(phase="finalize")
 
-        # Stop telemetry timing and save
-        if state.telemetry:
-            state.telemetry.stop()
-            state.telemetry.save()
-
         assert state.checklist is not None, (
             "Checklist must be initialized before finalize"
         )
@@ -252,7 +247,13 @@ class ChefToAnsibleSubagent:
                 f"Migration finalized: {stats['complete']}/{stats['total']} completed"
             )
 
-        state = state.update(last_output="\n".join(summary_lines))
+        summary_text = "\n".join(summary_lines)
+
+        # Stop telemetry and save with summary
+        if state.telemetry:
+            state.telemetry.stop().with_summary(summary_text).save()
+
+        state = state.update(last_output=summary_text)
         return state
 
     def invoke(

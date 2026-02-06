@@ -114,12 +114,14 @@ class Telemetry:
         started_at: When the phase started
         ended_at: When the phase completed
         agents: Per-agent metrics (agent_name -> AgentMetrics)
+        summary: Human-readable summary of the phase execution (default: empty string)
     """
 
     phase: str
     started_at: datetime = field(default_factory=datetime.now)
     ended_at: datetime | None = None
     agents: dict[str, AgentMetrics] = field(default_factory=dict)
+    summary: str = ""
 
     def get_or_create_agent(self, name: str) -> AgentMetrics:
         """Get existing agent metrics or create new.
@@ -141,6 +143,18 @@ class Telemetry:
             Self for method chaining
         """
         self.ended_at = datetime.now()
+        return self
+
+    def with_summary(self, summary: str) -> "Telemetry":
+        """Set the summary text for this telemetry instance.
+
+        Args:
+            summary: Human-readable summary of the phase execution
+
+        Returns:
+            Self for method chaining
+        """
+        self.summary = summary
         return self
 
     @property
@@ -167,6 +181,7 @@ class Telemetry:
             "duration_seconds": self.duration_seconds,
             "agents": {name: agent.to_dict() for name, agent in self.agents.items()},
             "total_tool_calls": self.get_total_tool_calls(),
+            "summary": self.summary,
         }
 
     def to_summary(self) -> str:
