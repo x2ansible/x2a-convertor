@@ -11,10 +11,10 @@ from ansible.parsing.dataloader import DataLoader
 from ansible.playbook.play import Play
 from ansible.plugins.loader import init_plugin_loader
 from ansible.vars.manager import VariableManager
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
+from tools.base_tool import X2ATool
 
 logger = get_logger(__name__)
 
@@ -91,7 +91,7 @@ class AnsibleRoleCheckInput(BaseModel):
     )
 
 
-class AnsibleRoleCheckTool(BaseTool):
+class AnsibleRoleCheckTool(X2ATool):
     """Tool to validate Ansible role using Ansible's role loading validation."""
 
     name: str = "ansible_role_check"
@@ -108,7 +108,7 @@ class AnsibleRoleCheckTool(BaseTool):
     def _run(self, ansible_role_path: str) -> str:
         """Validate Ansible role using Ansible's role loading mechanism."""
         role_path = Path(ansible_role_path)
-        logger.debug(f"AnsibleRoleCheckTool validating {ansible_role_path}")
+        self.log.debug(f"AnsibleRoleCheckTool validating {ansible_role_path}")
 
         if not role_path.exists():
             return f"ERROR: Role path '{ansible_role_path}' does not exist"
@@ -170,13 +170,13 @@ class AnsibleRoleCheckTool(BaseTool):
 
             # If we get here, the role loaded successfully
             # This means Ansible validated all the structure
-            logger.info(f"Role '{role_name}' passed validation")
+            self.log.info(f"Role '{role_name}' passed validation")
             return "Role validation passed: All tasks, handlers, and role structure are valid."
 
         except AnsibleParserError as e:
             # YAML syntax errors, malformed tasks, etc.
             error_msg = str(e)
-            logger.error(f"Parser error in role '{role_name}': {error_msg}")
+            self.log.error(f"Parser error in role '{role_name}': {error_msg}")
             return (
                 f"ERROR: Role validation failed (parser error):\n```\n{error_msg}\n```"
             )
@@ -184,11 +184,13 @@ class AnsibleRoleCheckTool(BaseTool):
         except AnsibleError as e:
             # General Ansible errors: undefined vars, missing files, invalid module params, etc.
             error_msg = str(e)
-            logger.error(f"Validation error in role '{role_name}': {error_msg}")
+            self.log.error(f"Validation error in role '{role_name}': {error_msg}")
             return f"ERROR: Role validation failed:\n```\n{error_msg}\n```"
 
         except Exception as e:
             # Catch-all for unexpected errors
             error_msg = str(e)
-            logger.error(f"Unexpected error validating role '{role_name}': {error_msg}")
+            self.log.error(
+                f"Unexpected error validating role '{role_name}': {error_msg}"
+            )
             return f"ERROR: Unexpected validation error:\n```\n{error_msg}\n```"

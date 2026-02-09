@@ -1,8 +1,9 @@
 from typing import Any
 
 import yaml
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
+
+from tools.base_tool import X2ATool
 
 
 class YamlValidateInput(BaseModel):
@@ -17,7 +18,7 @@ class YamlLintInput(BaseModel):
     yaml_content: str = Field(description="The YAML content to lint")
 
 
-class YamlValidateTool(BaseTool):
+class YamlValidateTool(X2ATool):
     """Tool to validate YAML content and return linted version."""
 
     name: str = "yaml_validate"
@@ -50,7 +51,7 @@ class YamlValidateTool(BaseTool):
             return f"Error validating YAML: {e!s}"
 
 
-class YamlLintTool(BaseTool):
+class YamlLintTool(X2ATool):
     """Tool to lint YAML content and check for issues."""
 
     name: str = "yaml_lint"

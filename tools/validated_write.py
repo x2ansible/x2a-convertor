@@ -4,10 +4,10 @@ from pathlib import Path
 from typing import Any
 
 from langchain_community.tools.file_management.write import WriteFileTool
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from tools.ansible_write import AnsibleWriteTool
+from tools.base_tool import X2ATool
 
 
 class ValidatedWriteInput(BaseModel):
@@ -20,7 +20,7 @@ class ValidatedWriteInput(BaseModel):
     )
 
 
-class ValidatedWriteTool(BaseTool):
+class ValidatedWriteTool(X2ATool):
     """Write tool that automatically routes YAML files to ansible_write.
 
     This tool transparently handles file type routing:

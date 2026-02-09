@@ -4,10 +4,10 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
+from tools.base_tool import X2ATool
 
 logger = get_logger(__name__)
 
@@ -314,7 +314,7 @@ class ModuleListFormatter:
         return "\n".join(output)
 
 
-class AnsibleDocLookupTool(BaseTool):
+class AnsibleDocLookupTool(X2ATool):
     """Lookup Ansible module documentation using pure Python API.
 
     This tool provides access to Ansible's builtin module documentation without
@@ -355,7 +355,7 @@ class AnsibleDocLookupTool(BaseTool):
 
     def _handle_module_lookup(self, module_name: str) -> str:
         """Handle detailed module documentation lookup."""
-        logger.debug(f"Looking up documentation for module: {module_name}")
+        self.log.debug(f"Looking up documentation for module: {module_name}")
         info = self._load_module(module_name)
 
         if info is None:
@@ -368,7 +368,7 @@ class AnsibleDocLookupTool(BaseTool):
 
     def _handle_module_list(self, filter_pattern: str | None) -> str:
         """Handle module listing."""
-        logger.debug(f"Listing modules with filter: {filter_pattern}")
+        self.log.debug(f"Listing modules with filter: {filter_pattern}")
         all_modules = self._discovery_service.discover_builtin_modules()
         filtered_modules = self._filter_modules(all_modules, filter_pattern)
         return self._list_formatter.format_module_list(filtered_modules, filter_pattern)
@@ -386,8 +386,7 @@ class AnsibleDocLookupTool(BaseTool):
         module_name = kwargs.get("module_name")
         list_filter = kwargs.get("list_filter")
 
-        logger.bind(
-            phase="AnsibleDocLookupTool",
+        self.log.bind(
             module_name=module_name,
             list_filter=list_filter,
         )
