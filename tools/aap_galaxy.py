@@ -8,14 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.config import AAPSettings, get_settings
 from src.publishers.galaxy_client import GalaxyClient
-from src.utils.logging import get_logger
-
-logger = get_logger(__name__)
+from tools.base_tool import X2ATool
 
 
 class SearchCollectionsInput(BaseModel):
@@ -51,7 +48,7 @@ def _check_enabled(settings: AAPSettings | None = None) -> str | None:
     return None
 
 
-class AAPListCollectionsTool(BaseTool):
+class AAPListCollectionsTool(X2ATool):
     """Tool to list all collections in AAP Private Hub."""
 
     name: str = "aap_list_collections"
@@ -64,7 +61,7 @@ class AAPListCollectionsTool(BaseTool):
     # pyrefly: ignore
     def _run(self) -> str:
         """List all collections in the configured repository."""
-        logger.info("AAPListCollectionsTool: listing all collections")
+        self.log.info("AAPListCollectionsTool: listing all collections")
 
         error = _check_enabled()
         if error:
@@ -86,11 +83,11 @@ class AAPListCollectionsTool(BaseTool):
             return "\n".join(lines)
 
         except Exception as e:
-            logger.error(f"Error listing collections: {e}")
+            self.log.error(f"Error listing collections: {e}")
             return f"Error listing collections: {e}"
 
 
-class AAPSearchCollectionsTool(BaseTool):
+class AAPSearchCollectionsTool(X2ATool):
     """Tool to search collections by keywords."""
 
     name: str = "aap_search_collections"
@@ -105,7 +102,7 @@ class AAPSearchCollectionsTool(BaseTool):
     # pyrefly: ignore
     def _run(self, keywords: list[str]) -> str:
         """Search collections by keywords."""
-        logger.info(f"AAPSearchCollectionsTool: searching for {keywords}")
+        self.log.info(f"AAPSearchCollectionsTool: searching for {keywords}")
 
         error = _check_enabled()
         if error:
@@ -132,11 +129,11 @@ class AAPSearchCollectionsTool(BaseTool):
             return "\n".join(lines)
 
         except Exception as e:
-            logger.error(f"Error searching collections: {e}")
+            self.log.error(f"Error searching collections: {e}")
             return f"Error searching collections: {e}"
 
 
-class AAPGetCollectionDetailTool(BaseTool):
+class AAPGetCollectionDetailTool(X2ATool):
     """Tool to get detailed information about a collection."""
 
     name: str = "aap_get_collection_detail"
@@ -150,7 +147,7 @@ class AAPGetCollectionDetailTool(BaseTool):
     # pyrefly: ignore
     def _run(self, namespace: str, name: str) -> str:
         """Get collection details including roles and modules."""
-        logger.info(
+        self.log.info(
             f"AAPGetCollectionDetailTool: getting details for {namespace}.{name}"
         )
 
@@ -170,5 +167,5 @@ class AAPGetCollectionDetailTool(BaseTool):
             return collection.to_markdown()
 
         except Exception as e:
-            logger.error(f"Error getting collection details: {e}")
+            self.log.error(f"Error getting collection details: {e}")
             return f"Error getting collection details: {e}"

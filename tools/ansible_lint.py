@@ -11,10 +11,10 @@ from ansiblelint.config import Options
 from ansiblelint.errors import MatchError
 from ansiblelint.rules import BaseRule, RulesCollection
 from ansiblelint.runner import LintResult, get_matches
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
+from tools.base_tool import X2ATool
 
 logger = get_logger(__name__)
 
@@ -171,7 +171,7 @@ def change_directory(path: Path) -> Iterator[None]:
         logger.debug(f"Restored directory to {original_cwd}")
 
 
-class AnsibleLintTool(BaseTool):
+class AnsibleLintTool(X2ATool):
     """Tool to lint Ansible files using ansible-lint."""
 
     name: str = "ansible_lint"
@@ -205,7 +205,7 @@ class AnsibleLintTool(BaseTool):
     def _handle_syntax_errors(self, result: LintResult, base_path: str) -> str:
         """Handle lint results containing syntax errors."""
         syntax_errors = self._get_syntax_error_matches(result)
-        logger.warning(
+        self.log.warning(
             f"Found {len(syntax_errors)} syntax error(s) that prevent auto-fixing"
         )
 
@@ -219,7 +219,7 @@ class AnsibleLintTool(BaseTool):
 
     def _handle_no_autofix(self, result: LintResult, base_path: str) -> str:
         """Handle lint results when autofix is disabled."""
-        logger.info(
+        self.log.info(
             f"Autofix disabled, returning {len(result.matches)} issue(s) without fixing"
         )
         return IssueFormatter.format_issues(result.matches, base_path=base_path)
@@ -230,20 +230,20 @@ class AnsibleLintTool(BaseTool):
         result = self._run_lint(config)
 
         if not result.matches:
-            logger.info(f"No issues found for '{ansible_path}'")
+            self.log.info(f"No issues found for '{ansible_path}'")
             return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 
-        logger.debug(f"Found {len(result.matches)} matches, attempting fixes")
+        self.log.debug(f"Found {len(result.matches)} matches, attempting fixes")
         self._apply_fixes(config, result)
 
         config = LintConfiguration.create()
         result = self._run_lint(config)
 
         if not result.matches:
-            logger.info(f"No issues found after fixes for '{ansible_path}'")
+            self.log.info(f"No issues found after fixes for '{ansible_path}'")
             return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 
-        logger.info(f"After fixes, still found {len(result.matches)} matches")
+        self.log.info(f"After fixes, still found {len(result.matches)} matches")
         return IssueFormatter.format_issues(result.matches, base_path=base_path)
 
     # pyrefly: ignore
@@ -254,7 +254,7 @@ class AnsibleLintTool(BaseTool):
             ansible_path: Path to Ansible directory to lint
             autofix: Whether to automatically fix issues (default: True)
         """
-        logger.info(f"AnsibleLintTool in {ansible_path} (autofix={autofix})")
+        self.log.info(f"AnsibleLintTool in {ansible_path} (autofix={autofix})")
 
         try:
             is_valid, error_message = PathValidator.validate(ansible_path)
@@ -271,10 +271,10 @@ class AnsibleLintTool(BaseTool):
                 )
 
         except ImportError:
-            logger.error("ansible-lint is not installed")
+            self.log.error("ansible-lint is not installed")
             return ERROR_ANSIBLE_LINT_NOT_INSTALLED
         except Exception as e:
-            logger.error(f"Error running ansible-lint: {e!s}")
+            self.log.error(f"Error running ansible-lint: {e!s}")
             return f"ERROR: running ansible-lint:\n```{e!s}```"
 
     def _execute_linting_workflow(
@@ -285,7 +285,7 @@ class AnsibleLintTool(BaseTool):
         result = self._run_lint(config)
 
         if not result.matches:
-            logger.info(f"No issues found for '{ansible_path}'")
+            self.log.info(f"No issues found for '{ansible_path}'")
             return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 
         if self._has_syntax_errors(result):

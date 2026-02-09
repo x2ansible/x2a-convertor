@@ -2,8 +2,9 @@ import difflib
 from pathlib import Path
 from typing import Any
 
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
+
+from tools.base_tool import X2ATool
 
 
 class DiffFileInput(BaseModel):
@@ -14,7 +15,7 @@ class DiffFileInput(BaseModel):
     )
 
 
-class DiffFileTool(BaseTool):
+class DiffFileTool(X2ATool):
     name: str = "diff_file"
     description: str = (
         "Compare two files and return a unified diff showing the differences. "

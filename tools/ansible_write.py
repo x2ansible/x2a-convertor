@@ -33,12 +33,9 @@ from ansible_risk_insight import ARIScanner, Config
 from ansible_risk_insight.scanner import LoadType
 from jinja2 import Environment, FileSystemLoader
 from langchain_community.tools.file_management.write import WriteFileTool
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
-from src.utils.logging import get_logger
-
-logger = get_logger(__name__)
+from tools.base_tool import X2ATool
 
 # Setup Jinja2 environment
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -636,7 +633,7 @@ class AnsibleWriteInput(BaseModel):
     )
 
 
-class AnsibleWriteTool(BaseTool):
+class AnsibleWriteTool(X2ATool):
     """Validates and writes Ansible YAML files with Jinja2 support."""
 
     name: str = "ansible_write"
@@ -870,7 +867,7 @@ class AnsibleWriteTool(BaseTool):
     # pyrefly: ignore
     def _run(self, file_path: str, yaml_content: str) -> str:
         """Validate Ansible YAML content and write to file."""
-        slog = logger.bind(phase="AnsibleWriteTool", file_path=file_path)
+        slog = self.log.bind(file_path=file_path)
         slog.debug(f"AnsibleWriteTool called on {file_path}")
 
         yaml_content = yaml_content.replace("\\n", "\n")

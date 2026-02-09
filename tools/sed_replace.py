@@ -2,12 +2,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
-from src.utils.logging import get_logger
-
-logger = get_logger(__name__)
+from tools.base_tool import X2ATool
 
 # Safety limits to prevent excessive resource usage and token limit issues
 MAX_PATTERN_LENGTH = 1000
@@ -32,7 +29,7 @@ class SedToolInput(BaseModel):
     )
 
 
-class SedTool(BaseTool):
+class SedTool(X2ATool):
     """Tool to perform sed-like text replacement on a specific line in a file."""
 
     name: str = "sed_replace"
@@ -56,9 +53,7 @@ class SedTool(BaseTool):
     ) -> str:
         """Perform sed-like replacement on specific line in file."""
 
-        slog = logger.bind(
-            phase="SedTool", file_path=file_path, line_number=line_number
-        )
+        slog = self.log.bind(file_path=file_path, line_number=line_number)
         slog.debug(f"SedTool called on {file_path}:{line_number}")
 
         # Validate input lengths to prevent excessive resource usage
