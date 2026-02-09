@@ -14,16 +14,12 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 
 from prompts.get_prompt import get_prompt
+from src.base_agent import BaseAgent
 from src.config import get_settings
 from src.exporters.agent_state import ValidationAgentState
-from src.exporters.base_agent import BaseAgent
 from src.exporters.services import CollectionManager, InstallResultSummary
 from src.exporters.state import ChefState
-from src.model import (
-    get_last_ai_message,
-    get_runnable_config,
-    report_tool_calls,
-)
+from src.model import get_runnable_config
 from src.types import SUMMARY_SUCCESS_MESSAGE
 from src.types.telemetry import AgentMetrics
 from src.utils.config import get_config_int
@@ -40,7 +36,7 @@ from tools.validated_write import ValidatedWriteTool
 logger = get_logger(__name__)
 
 
-class ValidationAgent(BaseAgent):
+class ValidationAgent(BaseAgent[ChefState]):
     """Agent responsible for validating and fixing migration output.
 
     This agent uses an internal StateGraph to manage validation/fix loops:
@@ -52,7 +48,6 @@ class ValidationAgent(BaseAgent):
     The agent returns only when validation passes or max attempts exhausted.
     """
 
-    # Base tools that this agent always has access to
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ReadFileTool(),
         lambda: DiffFileTool(),
@@ -68,12 +63,6 @@ class ValidationAgent(BaseAgent):
     USER_PROMPT_NAME = "export_ansible_validation_task"
 
     def __init__(self, model=None, max_attempts=None):
-        """Initialize validation agent with validators, model, and max attempts.
-
-        Args:
-            model: LLM model to use (defaults to get_model())
-            max_attempts: Maximum validation attempts (defaults to MAX_VALIDATION_ATTEMPTS config)
-        """
         super().__init__(model)
         self.max_attempts = max_attempts or get_config_int("MAX_VALIDATION_ATTEMPTS")
         self.validators = [
@@ -82,17 +71,15 @@ class ValidationAgent(BaseAgent):
         ]
         self.validation_service = ValidationService(self.validators)
         self._graph = self._build_internal_graph()
-        # Telemetry metrics reference (set during __call__)
         self._current_metrics: AgentMetrics | None = None
 
-    def _build_internal_graph(self):
-        """Build the internal StateGraph for validation workflow.
+    def extra_tools_from_state(self, state: ChefState) -> list[BaseTool]:
+        if state.checklist is None:
+            return []
+        return state.checklist.get_tools()
 
-        Graph structure:
-        START -> install_collections -> validate -> evaluate -> END / fix_errors / mark_failed
-                                          ^                    |
-                                          +--- fix_errors -----+
-        """
+    def _build_internal_graph(self):
+        """Build the internal StateGraph for validation workflow."""
         workflow = StateGraph(ValidationAgentState)
         workflow.add_node("install_collections", self._install_collections_node)
         workflow.add_node("validate", self._validate_node)
@@ -114,18 +101,7 @@ class ValidationAgent(BaseAgent):
     def _install_collections_node(
         self, state: ValidationAgentState
     ) -> ValidationAgentState:
-        """Node: Install collections from requirements.yml before validation.
-
-        This ensures that collection roles referenced via include_role are available
-        for validation. Uses CollectionManager service which handles AAP Private Hub
-        with Bearer token auth and falls back to public Galaxy.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Updated agent state (unchanged, this is a side-effect node)
-        """
+        """Node: Install collections from requirements.yml before validation."""
         slog = logger.bind(phase="install_collections")
 
         requirements_file = self._find_requirements_file(state.chef_state, slog)
@@ -153,13 +129,11 @@ class ValidationAgent(BaseAgent):
 
     def _get_requirements_search_paths(self, chef_state: ChefState) -> list[Path]:
         """Get ordered list of paths to search for requirements.yml."""
-        ansible_path = Path(chef_state.get_ansible_path())  # e.g., ansible/roles/cache
-        ansible_root = ansible_path.parent.parent  # ansible/
+        ansible_path = Path(chef_state.get_ansible_path())
+        ansible_root = ansible_path.parent.parent
 
         return [
-            # Role-level (preferred)
             ansible_path / "requirements.yml",
-            # Project-level
             ansible_root / "requirements.yml",
         ]
 
@@ -173,7 +147,6 @@ class ValidationAgent(BaseAgent):
         """Log summary of installation results."""
         summary = InstallResultSummary.from_results(results)
 
-        # Record collection install metrics in telemetry
         if self._current_metrics:
             self._current_metrics.record_metric(
                 "collections_installed", summary.success_count
@@ -198,14 +171,7 @@ class ValidationAgent(BaseAgent):
     # -------------------------------------------------------------------------
 
     def _validate_node(self, state: ValidationAgentState) -> ValidationAgentState:
-        """Node: Run validation service on the state.get_ansible_path().
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Updated agent state with validation_results and has_errors
-        """
+        """Node: Run validation service on the state.get_ansible_path()."""
         chef_state = state.chef_state
 
         slog = logger.bind(phase="validate", attempt=state.attempt)
@@ -213,10 +179,8 @@ class ValidationAgent(BaseAgent):
 
         ansible_path = chef_state.get_ansible_path()
 
-        # Run validation using service
         results = self.validation_service.validate_all(ansible_path)
 
-        # Record per-validator results in telemetry
         if self._current_metrics:
             validators_passed = []
             validators_failed = []
@@ -228,7 +192,6 @@ class ValidationAgent(BaseAgent):
             self._current_metrics.record_metric("validators_passed", validators_passed)
             self._current_metrics.record_metric("validators_failed", validators_failed)
 
-        # Update internal state
         state.validation_results = results
         state.has_errors = self.validation_service.has_errors(results)
 
@@ -238,7 +201,6 @@ class ValidationAgent(BaseAgent):
             slog.warning(f"Validation errors found:\n{error_report}")
             return state
 
-        # No errors - mark complete
         slog.info("All validations passed")
         validation_report = (
             f"{SUMMARY_SUCCESS_MESSAGE}\n\n"
@@ -255,14 +217,7 @@ class ValidationAgent(BaseAgent):
     # -------------------------------------------------------------------------
 
     def _fix_errors_node(self, state: ValidationAgentState) -> ValidationAgentState:
-        """Node: Use react agent to fix validation errors.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Updated agent state
-        """
+        """Node: Use react agent to fix validation errors."""
         chef_state = state.chef_state
         assert chef_state.checklist is not None, (
             "Checklist must exist before validation"
@@ -273,10 +228,6 @@ class ValidationAgent(BaseAgent):
 
         ansible_path = chef_state.get_ansible_path()
 
-        # Create react agent to fix errors
-        agent = self._create_react_agent(chef_state)
-
-        # Use v2 validation prompt with few-shot examples
         validation_task = get_prompt(self.USER_PROMPT_NAME).format(
             module=chef_state.module,
             chef_path=chef_state.path,
@@ -284,30 +235,20 @@ class ValidationAgent(BaseAgent):
             error_report=state.error_report,
         )
 
-        result = agent.invoke(
-            {
-                "messages": [
-                    {"role": "user", "content": validation_task},
-                ]
-            },
-            get_runnable_config(),
+        result = self.invoke_react(
+            chef_state,
+            [
+                {"role": "user", "content": validation_task},
+            ],
+            self._current_metrics,
         )
-
-        tool_calls = report_tool_calls(result)
-        slog.info(f"Validation agent tools: {tool_calls.to_string()}")
-
-        # Record tool calls in telemetry
-        if self._current_metrics:
-            self._current_metrics.record_tool_calls(tool_calls)
 
         chef_state.checklist.save(chef_state.get_checklist_path())
 
-        # Extract validation report
-        message = get_last_ai_message(result)
+        message = self.get_last_ai_message(result)
         if message:
             chef_state = chef_state.update(validation_report=message.content)
 
-        # Update internal state
         state.chef_state = chef_state
         state.last_result = result
         state.attempt += 1
@@ -320,29 +261,17 @@ class ValidationAgent(BaseAgent):
     # -------------------------------------------------------------------------
 
     def _mark_failed_node(self, state: ValidationAgentState) -> ValidationAgentState:
-        """Node: Mark the migration as failed due to validation errors.
-
-        This node is reached when max validation attempts are exceeded.
-        It updates the chef_state to mark the migration as failed.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Updated state with failed chef_state
-        """
+        """Node: Mark the migration as failed due to validation errors."""
         slog = logger.bind(phase="mark_failed", attempt=state.attempt)
         slog.error(
             f"Max validation attempts ({state.max_attempts}) reached, "
             "marking migration as failed"
         )
 
-        # Mark migration as failed
         chef_state = state.chef_state.mark_failed(
             f"Validation failed after {state.max_attempts} attempts. "
             f"Errors remain:\n{state.error_report}"
         )
-        # Also set validation report for debugging
         chef_state = chef_state.update(
             validation_report=(
                 f"Validation incomplete after {state.attempt} attempts:\n"
@@ -360,34 +289,20 @@ class ValidationAgent(BaseAgent):
     def _evaluate_validation_node(
         self, state: ValidationAgentState
     ) -> Literal["fix_errors", "mark_failed", "__end__"]:
-        """Conditional edge: Decide whether to fix errors or finish.
-
-        This is a pure function that only returns the decision.
-        State mutations are handled by the respective nodes.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Next node name or END
-        """
+        """Conditional edge: Decide whether to fix errors or finish."""
         slog = logger.bind(phase="evaluate_validation", attempt=state.attempt)
 
-        # Already complete (set by validate_node on success)
         if state.complete:
             slog.info("Validation agent complete - all validations passed")
             return "__end__"
 
-        # No errors means success (complete flag set by validate_node)
         if not state.has_errors:
             slog.info("No validation errors, finishing")
             return "__end__"
 
-        # Max attempts reached - go to mark_failed
         if state.attempt >= state.max_attempts:
             return "mark_failed"
 
-        # More attempts available - try to fix
         slog.info(
             f"Attempting to fix errors (attempt {state.attempt + 1}/{state.max_attempts})"
         )
@@ -397,60 +312,44 @@ class ValidationAgent(BaseAgent):
     # Main Entry Point
     # -------------------------------------------------------------------------
 
-    def __call__(self, state: ChefState) -> ChefState:
-        """Execute validation workflow with internal retry loop.
-
-        Args:
-            state: Current migration state
-
-        Returns:
-            Updated ChefState after validation attempts
-        """
+    def execute(self, state: ChefState, metrics: AgentMetrics | None) -> ChefState:
+        """Execute validation workflow with internal retry loop."""
         from src.exporters.chef_to_ansible import MigrationPhase
 
-        slog = logger.bind(phase="validate_migration")
-        slog.info("Starting validation agent workflow")
+        self._log.info("Starting validation agent workflow")
 
-        # Set current phase
         state = state.update(current_phase=MigrationPhase.VALIDATING)
 
-        with self._get_telemetry_context(state) as metrics:
-            # Store metrics reference for internal nodes to use
-            self._current_metrics = metrics
+        # Store metrics reference for internal nodes to use
+        self._current_metrics = metrics
 
-            # Create internal state and run internal graph
-            internal_state = ValidationAgentState(
-                chef_state=state,
-                attempt=0,
-                max_attempts=self.max_attempts,
-                complete=False,
-                has_errors=False,
-            )
+        internal_state = ValidationAgentState(
+            chef_state=state,
+            attempt=0,
+            max_attempts=self.max_attempts,
+            complete=False,
+            has_errors=False,
+        )
 
-            final_state_dict = self._graph.invoke(internal_state, get_runnable_config())
+        final_state_dict = self._graph.invoke(internal_state, get_runnable_config())
+        final_state = ValidationAgentState(**final_state_dict)
 
-            # Convert dict back to ValidationAgentState
-            final_state = ValidationAgentState(**final_state_dict)
+        if metrics:
+            metrics.record_metric("attempts", final_state.attempt)
+            metrics.record_metric("complete", final_state.complete)
+            metrics.record_metric("has_errors", final_state.has_errors)
 
-            # Record final telemetry metrics
-            if metrics:
-                metrics.record_metric("attempts", final_state.attempt)
-                metrics.record_metric("complete", final_state.complete)
-                metrics.record_metric("has_errors", final_state.has_errors)
+        self._current_metrics = None
 
-            # Clear metrics reference
-            self._current_metrics = None
+        chef_state = final_state.chef_state
+        chef_state = chef_state.update(
+            validation_attempt_counter=chef_state.validation_attempt_counter
+            + final_state.attempt
+        )
 
-            # Update chef_state with final counter
-            chef_state = final_state.chef_state
-            chef_state = chef_state.update(
-                validation_attempt_counter=chef_state.validation_attempt_counter
-                + final_state.attempt
-            )
-
-            slog.info(
-                f"Validation agent finished: complete={final_state.complete}, "
-                f"attempts={final_state.attempt}/{self.max_attempts}"
-            )
+        self._log.info(
+            f"Validation agent finished: complete={final_state.complete}, "
+            f"attempts={final_state.attempt}/{self.max_attempts}"
+        )
 
         return chef_state

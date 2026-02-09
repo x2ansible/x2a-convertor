@@ -14,14 +14,10 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import START, StateGraph
 
 from prompts.get_prompt import get_prompt
+from src.base_agent import BaseAgent
 from src.exporters.agent_state import WriteAgentState
-from src.exporters.base_agent import BaseAgent
 from src.exporters.state import ChefState
-from src.model import (
-    get_last_ai_message,
-    get_runnable_config,
-    report_tool_calls,
-)
+from src.model import get_runnable_config
 from src.types import ChecklistStatus
 from src.types.telemetry import AgentMetrics
 from src.utils.config import get_config_int
@@ -37,7 +33,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class WriteAgent(BaseAgent):
+class WriteAgent(BaseAgent[ChefState]):
     """Agent responsible for writing all migration files from checklist.
 
     This agent uses an internal StateGraph to manage file creation loops:
@@ -47,8 +43,6 @@ class WriteAgent(BaseAgent):
 
     The agent returns only when complete or max attempts exhausted.
     """
-
-    # Base tools that this agent always has access to
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),
@@ -64,26 +58,18 @@ class WriteAgent(BaseAgent):
     USER_PROMPT_NAME = "export_ansible_write_task"
 
     def __init__(self, model=None, max_attempts=None):
-        """Initialize write agent with optional model and max attempts.
-
-        Args:
-            model: LLM model to use (defaults to get_model())
-            max_attempts: Maximum write attempts (defaults to MAX_WRITE_ATTEMPTS config)
-        """
         super().__init__(model)
         self.max_attempts = get_config_int("MAX_WRITE_ATTEMPTS")
         self._graph = self._build_internal_graph()
-        # Telemetry metrics reference (set during __call__)
         self._current_metrics: AgentMetrics | None = None
 
-    def _build_internal_graph(self):
-        """Build the internal StateGraph for write workflow.
+    def extra_tools_from_state(self, state: ChefState) -> list[BaseTool]:
+        if state.checklist is None:
+            return []
+        return state.checklist.get_tools()
 
-        Graph structure:
-        START → write_standard_files → write_files → check_files → lint_files → evaluate → END / mark_failed
-                                                                                      ↓
-                                                                                (loop back if incomplete)
-        """
+    def _build_internal_graph(self):
+        """Build the internal StateGraph for write workflow."""
         workflow = StateGraph(WriteAgentState)
         workflow.add_node("write_standard_files", self._write_standard_files_node)
         workflow.add_node("write_files", self._write_files_node)
@@ -101,22 +87,11 @@ class WriteAgent(BaseAgent):
         return workflow.compile()
 
     def _write_standard_files_node(self, state: WriteAgentState) -> WriteAgentState:
-        """Node: Create standard boilerplate files before LLM agent runs.
-
-        Creates simple files like meta/main.yml with known-good templates,
-        then updates the checklist to mark them as complete.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Updated agent state with files created and checklist updated
-        """
+        """Node: Create standard boilerplate files before LLM agent runs."""
         chef_state = state.chef_state
         slog = logger.bind(phase="write_standard_files")
         slog.info("Creating standard boilerplate files")
 
-        # 1. CREATE meta/main.yml directly
         ansible_path = chef_state.get_ansible_path()
         meta_file_path = Path(ansible_path) / "meta" / "main.yml"
 
@@ -147,12 +122,11 @@ galaxy_info:
         slog.info(f"Created: {meta_file_path}")
 
         target_path_str = str(meta_file_path)
-        source_path = "N/A"  # No direct source file for meta/main.yml
+        source_path = "N/A"
 
         assert chef_state.checklist is not None, (
             "Checklist must exist before writing files"
         )
-        # Try to update existing task
         updated = chef_state.checklist.update_task(
             source_path=source_path,
             target_path=target_path_str,
@@ -160,7 +134,6 @@ galaxy_info:
             notes="Created standard meta/main.yml",
         )
 
-        # If task doesn't exist, add it
         if not updated:
             chef_state.checklist.add_task(
                 category="structure",
@@ -176,14 +149,7 @@ galaxy_info:
         return state
 
     def _write_files_node(self, state: WriteAgentState) -> WriteAgentState:
-        """Node: Write files from checklist using react agent.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Updated agent state with last_result
-        """
+        """Node: Write files from checklist using react agent."""
         chef_state = state.chef_state
         assert chef_state.checklist is not None, (
             "Checklist must exist before writing files"
@@ -192,8 +158,6 @@ galaxy_info:
         slog.info("Writing migration files")
 
         slog.debug(f"Checklist before writing:\n{chef_state.checklist.to_markdown()}")
-
-        agent = self._create_react_agent(chef_state)
 
         ansible_path = chef_state.get_ansible_path()
         system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
@@ -209,33 +173,25 @@ galaxy_info:
             aap_discovery=chef_state.aap_discovery,
         )
 
-        result = agent.invoke(
-            input={
-                "messages": [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_prompt},
-                ]
-            },
-            config=get_runnable_config(),
+        result = self.invoke_react(
+            chef_state,
+            [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_prompt},
+            ],
+            self._current_metrics,
         )
 
-        tool_calls = report_tool_calls(result)
-        slog.info(f"Write agent tools: {tool_calls.to_string()}")
-
-        # Record tool calls in telemetry
-        if self._current_metrics:
-            self._current_metrics.record_tool_calls(tool_calls)
         chef_state.checklist.save(chef_state.get_checklist_path())
 
         slog.info(f"Checklist after writing:\n{chef_state.checklist.to_markdown()}")
-        message = get_last_ai_message(result)
+        message = self.get_last_ai_message(result)
         if message:
             chef_state = chef_state.update(last_output=message.content)
             slog.info("Write iteration completed")
         else:
             slog.warning("Write agent did not produce output")
 
-        # Update internal state
         state.chef_state = chef_state
         state.last_result = result
         state.attempt += 1
@@ -243,14 +199,7 @@ galaxy_info:
         return state
 
     def _check_files_node(self, state: WriteAgentState) -> WriteAgentState:
-        """Node: Check if all checklist files exist.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Updated agent state with missing_files and complete flag
-        """
+        """Node: Check if all checklist files exist."""
         chef_state = state.chef_state
         assert chef_state.checklist is not None, (
             "Checklist must exist before checking files"
@@ -258,7 +207,6 @@ galaxy_info:
         slog = logger.bind(phase="check_files", attempt=state.attempt)
         slog.info("Checking file creation status")
 
-        # Check file existence for all checklist items
         missing_files = []
         for item in chef_state.checklist.items:
             if not item.target_exists():
@@ -278,7 +226,6 @@ galaxy_info:
             state.missing_files = []
             state.complete = True
 
-        # Update chef_state with incremented counter
         chef_state = chef_state.update(
             write_attempt_counter=chef_state.write_attempt_counter + 1
         )
@@ -287,24 +234,15 @@ galaxy_info:
         return state
 
     def _lint_files_node(self, state: WriteAgentState) -> WriteAgentState:
-        """Node: Run ansible-lint with autofix on generated files.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Updated agent state after linting
-        """
+        """Node: Run ansible-lint with autofix on generated files."""
         chef_state = state.chef_state
         slog = logger.bind(phase="lint_files", attempt=state.attempt)
 
-        # Skip linting if files are missing
         if state.missing_files:
             slog.info("Skipping lint - files are missing")
             return state
 
         slog.info("Running ansible-lint with autofix on generated files")
-        # The main reason to do this, is to fix issues getting into the validation phase.
         ansible_path = chef_state.get_ansible_path()
         lint_tool = AnsibleLintTool()
 
@@ -317,23 +255,12 @@ galaxy_info:
         return state
 
     def _mark_failed_node(self, state: WriteAgentState) -> WriteAgentState:
-        """Node: Mark the migration as failed due to write errors.
-
-        This node is reached when max write attempts are exceeded.
-        It updates the chef_state to mark the migration as failed.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Updated state with failed chef_state
-        """
+        """Node: Mark the migration as failed due to write errors."""
         slog = logger.bind(phase="mark_failed", attempt=state.attempt)
         slog.error(
             f"Max write attempts ({state.max_attempts}) reached, marking migration as failed"
         )
 
-        # Build failure message
         assert state.missing_files is not None, (
             "missing_files must be set after file check"
         )
@@ -341,7 +268,6 @@ galaxy_info:
         if len(state.missing_files) > 5:
             missing_file_list += f" ... and {len(state.missing_files) - 5} more"
 
-        # Mark migration as failed
         chef_state = state.chef_state.mark_failed(
             f"Failed to create {len(state.missing_files)} files after {state.max_attempts} attempts. "
             f"Missing files: {missing_file_list}"
@@ -353,14 +279,7 @@ galaxy_info:
     def _evaluate_write_node(
         self, state: WriteAgentState
     ) -> Literal["write_files", "mark_failed", "__end__"]:
-        """Conditional edge: Decide whether to retry or finish.
-
-        Args:
-            state: Internal agent state
-
-        Returns:
-            Next node name or END
-        """
+        """Conditional edge: Decide whether to retry or finish."""
         slog = logger.bind(phase="evaluate_write", attempt=state.attempt)
 
         if state.complete:
@@ -375,69 +294,51 @@ galaxy_info:
         )
         return "write_files"
 
-    def __call__(self, state: ChefState) -> ChefState:
-        """Execute write workflow with internal retry loop.
-
-        Args:
-            state: Current migration state
-
-        Returns:
-            Updated ChefState after all write attempts
-        """
+    def execute(self, state: ChefState, metrics: AgentMetrics | None) -> ChefState:
+        """Execute write workflow with internal retry loop."""
         from src.exporters.chef_to_ansible import MigrationPhase
 
-        slog = logger.bind(phase="write_migration")
-        slog.info("Starting write agent workflow")
+        self._log.info("Starting write agent workflow")
 
-        # Set current phase
         state = state.update(current_phase=MigrationPhase.WRITING)
 
-        with self._get_telemetry_context(state) as metrics:
-            # Store metrics reference for internal nodes to use
-            self._current_metrics = metrics
+        # Store metrics reference for internal nodes to use
+        self._current_metrics = metrics
 
-            # Early exit if all files already created
-            assert state.checklist is not None, (
-                "Checklist must exist before write agent execution"
-            )
-            if all(item.target_exists() for item in state.checklist.items):
-                slog.info("All files already created, skipping write agent")
-                self._current_metrics = None
-                return state
-
-            # Create internal state and run internal graph
-            internal_state = WriteAgentState(
-                chef_state=state,
-                attempt=0,
-                max_attempts=self.max_attempts,
-                complete=False,
-            )
-
-            final_state_dict = self._graph.invoke(internal_state, get_runnable_config())
-
-            # Convert dict back to WriteAgentState
-            final_state = WriteAgentState(**final_state_dict)
-
-            # Record telemetry
-            if metrics:
-                metrics.record_metric("attempts", final_state.attempt)
-                metrics.record_metric("complete", final_state.complete)
-                if final_state.missing_files:
-                    metrics.record_metric(
-                        "missing_files", len(final_state.missing_files)
-                    )
-                # Record checklist stats
-                if final_state.chef_state.checklist:
-                    stats = final_state.chef_state.checklist.get_stats()
-                    metrics.record_metric("files_created", stats.get("complete", 0))
-                    metrics.record_metric("files_total", stats.get("total", 0))
-
-            # Clear metrics reference
+        # Early exit if all files already created
+        assert state.checklist is not None, (
+            "Checklist must exist before write agent execution"
+        )
+        if all(item.target_exists() for item in state.checklist.items):
+            self._log.info("All files already created, skipping write agent")
             self._current_metrics = None
+            return state
 
-            slog.info(
-                f"Write agent finished: complete={final_state.complete}, "
-                f"attempts={final_state.attempt}/{self.max_attempts}"
-            )
+        internal_state = WriteAgentState(
+            chef_state=state,
+            attempt=0,
+            max_attempts=self.max_attempts,
+            complete=False,
+        )
+
+        final_state_dict = self._graph.invoke(internal_state, get_runnable_config())
+        final_state = WriteAgentState(**final_state_dict)
+
+        if metrics:
+            metrics.record_metric("attempts", final_state.attempt)
+            metrics.record_metric("complete", final_state.complete)
+            if final_state.missing_files:
+                metrics.record_metric("missing_files", len(final_state.missing_files))
+            if final_state.chef_state.checklist:
+                stats = final_state.chef_state.checklist.get_stats()
+                metrics.record_metric("files_created", stats.get("complete", 0))
+                metrics.record_metric("files_total", stats.get("total", 0))
+
+        self._current_metrics = None
+
+        self._log.info(
+            f"Write agent finished: complete={final_state.complete}, "
+            f"attempts={final_state.attempt}/{self.max_attempts}"
+        )
 
         return final_state.chef_state

@@ -16,15 +16,9 @@ from typing import ClassVar
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
+from src.base_agent import BaseAgent
 from src.config import get_settings
-from src.exporters.base_agent import BaseAgent
 from src.exporters.state import ChefState
-from src.model import (
-    get_last_ai_message,
-    get_model,
-    get_runnable_config,
-    report_tool_calls,
-)
 from src.publishers.galaxy_client import AAPCollection, GalaxyClient
 from src.types.aap_discovery import (
     AAPDiscoveryResult,
@@ -32,15 +26,12 @@ from src.types.aap_discovery import (
     DiscoveredCollection,
     ExtractedCollectionRef,
 )
-from src.utils.logging import get_logger
+from src.types.telemetry import AgentMetrics
 from tools.aap_galaxy import (
     AAPGetCollectionDetailTool,
     AAPListCollectionsTool,
     AAPSearchCollectionsTool,
 )
-
-logger = get_logger(__name__)
-
 
 # =============================================================================
 # Value Objects
@@ -83,7 +74,7 @@ class VerificationResult:
 # =============================================================================
 
 
-class AAPDiscoveryAgent(BaseAgent):
+class AAPDiscoveryAgent(BaseAgent[ChefState]):
     """Agent that discovers relevant collections in AAP Private Automation Hub.
 
     This agent uses Galaxy tools to explore the Private Hub and find collections
@@ -110,56 +101,45 @@ class AAPDiscoveryAgent(BaseAgent):
     def __init__(self, model=None) -> None:
         super().__init__(model)
         self._settings = get_settings().aap
-        self._extraction_model = model or get_model()
 
-    def __call__(self, state: ChefState) -> ChefState:
-        """Execute AAP discovery and update state with results.
+    def extra_tools_from_state(self, state: ChefState) -> list[BaseTool]:
+        if state.checklist is None:
+            return []
+        return state.checklist.get_tools()
 
-        Args:
-            state: Current migration state
-
-        Returns:
-            Updated ChefState with aap_discovery populated
-        """
-        slog = logger.bind(phase="aap_discovery")
-
+    def execute(self, state: ChefState, metrics: AgentMetrics | None) -> ChefState:
+        """Execute AAP discovery and update state with results."""
         if not self._settings.is_galaxy_enabled():
-            slog.info("AAP discovery skipped (not configured)")
+            self._log.info("AAP discovery skipped (not configured)")
             return state.update(aap_discovery=AAPDiscoveryResult.disabled())
 
-        slog.info("Starting AAP collection discovery")
+        self._log.info("Starting AAP collection discovery")
 
-        with self._get_telemetry_context(state) as metrics:
-            try:
-                discovery_content = self._run_discovery_agent(state, slog, metrics)
-                collections = self._extract_and_verify_collections(
-                    discovery_content, slog
-                )
+        try:
+            discovery_content = self._run_discovery_agent(state, metrics)
+            collections = self._extract_and_verify_collections(discovery_content)
 
-                self._log_discovery_results(collections, slog)
+            self._log_discovery_results(collections)
 
-                # Record discovery metrics
-                if metrics:
-                    metrics.record_metric("collections_found", len(collections))
+            if metrics:
+                metrics.record_metric("collections_found", len(collections))
 
-                return state.update(
-                    aap_discovery=AAPDiscoveryResult.success(
-                        discovery_content, collections
-                    )
-                )
+            return state.update(
+                aap_discovery=AAPDiscoveryResult.success(discovery_content, collections)
+            )
 
-            except Exception as e:
-                slog.warning(f"AAP discovery failed: {e}")
-                return state.update(aap_discovery=AAPDiscoveryResult.failed(str(e)))
+        except Exception as e:
+            self._log.warning(f"AAP discovery failed: {e}")
+            return state.update(aap_discovery=AAPDiscoveryResult.failed(str(e)))
 
     # -------------------------------------------------------------------------
     # Discovery Execution
     # -------------------------------------------------------------------------
 
-    def _run_discovery_agent(self, state: ChefState, slog, metrics=None) -> str:
+    def _run_discovery_agent(
+        self, state: ChefState, metrics: AgentMetrics | None = None
+    ) -> str:
         """Run the discovery agent to find relevant collections."""
-        agent = self._create_react_agent(state)
-
         system_prompt = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
             module=state.module,
@@ -167,24 +147,16 @@ class AAPDiscoveryAgent(BaseAgent):
             migration_plan=state.module_migration_plan.content,
         )
 
-        result = agent.invoke(
-            {
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ]
-            },
-            get_runnable_config(),
+        result = self.invoke_react(
+            state,
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            metrics,
         )
 
-        tool_calls = report_tool_calls(result)
-        slog.info(f"Discovery agent tools: {tool_calls.to_string()}")
-
-        # Record telemetry
-        if metrics:
-            metrics.record_tool_calls(tool_calls)
-
-        message = get_last_ai_message(result)
+        message = self.get_last_ai_message(result)
         if message is None:
             return ""
         return str(message.content)
@@ -194,41 +166,35 @@ class AAPDiscoveryAgent(BaseAgent):
     # -------------------------------------------------------------------------
 
     def _extract_and_verify_collections(
-        self, content: str, slog
+        self, content: str
     ) -> list[DiscoveredCollection]:
         """Extract collection references and verify them in Private Hub."""
-        refs = self._extract_collection_refs(content, slog)
+        refs = self._extract_collection_refs(content)
         if not refs:
             return []
 
-        slog.debug(
+        self._log.debug(
             f"LLM extracted {len(refs)} collection references: {[r.fqcn for r in refs]}"
         )
 
-        return self._verify_collections(refs, slog)
+        return self._verify_collections(refs)
 
-    def _extract_collection_refs(
-        self, content: str, slog
-    ) -> list[ExtractedCollectionRef]:
+    def _extract_collection_refs(self, content: str) -> list[ExtractedCollectionRef]:
         """Extract collection references from LLM output using structured output."""
         extraction_prompt = get_prompt(self.EXTRACTION_PROMPT_NAME).format(
             discovery_content=content
         )
 
         try:
-            structured_model = self._extraction_model.with_structured_output(
-                CollectionExtractionOutput
+            extraction_result = self.invoke_structured(
+                CollectionExtractionOutput, extraction_prompt
             )
-            extraction_result = structured_model.invoke(
-                extraction_prompt, config=get_runnable_config()
-            )
-            # Type guard: structured output should return CollectionExtractionOutput
             if isinstance(extraction_result, CollectionExtractionOutput):
                 return extraction_result.collections
             return []
 
         except Exception as e:
-            slog.warning(f"LLM extraction failed: {e}")
+            self._log.warning(f"LLM extraction failed: {e}")
             return []
 
     # -------------------------------------------------------------------------
@@ -236,49 +202,47 @@ class AAPDiscoveryAgent(BaseAgent):
     # -------------------------------------------------------------------------
 
     def _verify_collections(
-        self, refs: list[ExtractedCollectionRef], slog
+        self, refs: list[ExtractedCollectionRef]
     ) -> list[DiscoveredCollection]:
         """Verify collections exist in Private Hub using functional map/filter."""
-        client = self._create_galaxy_client(slog)
+        client = self._create_galaxy_client()
         if client is None:
             return []
 
-        # Map: verify each reference
         verification_results = [
-            self._verify_single_collection(ref, client, slog) for ref in refs
+            self._verify_single_collection(ref, client) for ref in refs
         ]
 
-        # Filter: keep only successful verifications (collection is non-None when success)
         return [
             r.collection
             for r in verification_results
             if r.success and r.collection is not None
         ]
 
-    def _create_galaxy_client(self, slog) -> GalaxyClient | None:
+    def _create_galaxy_client(self) -> GalaxyClient | None:
         """Create Galaxy client for verification."""
         try:
             return GalaxyClient(self._settings)
         except Exception as e:
-            slog.warning(f"Could not create GalaxyClient: {e}")
+            self._log.warning(f"Could not create GalaxyClient: {e}")
             return None
 
     def _verify_single_collection(
-        self, ref: ExtractedCollectionRef, client: GalaxyClient, slog
+        self, ref: ExtractedCollectionRef, client: GalaxyClient
     ) -> VerificationResult:
         """Verify a single collection exists in Private Hub."""
         try:
             detail = client.get_collection_detail(ref.namespace, ref.name)
             if detail is None:
-                slog.warning(f"{ref.fqcn} not found in Private Hub, skipping")
+                self._log.warning(f"{ref.fqcn} not found in Private Hub, skipping")
                 return VerificationResult.not_found(ref)
 
             collection = self._to_discovered_collection(ref, detail)
-            slog.debug(f"Verified {ref.fqcn} v{detail.version} in Private Hub")
+            self._log.debug(f"Verified {ref.fqcn} v{detail.version} in Private Hub")
             return VerificationResult.found(ref, collection)
 
         except Exception as e:
-            slog.debug(f"Error fetching {ref.fqcn}: {e}")
+            self._log.debug(f"Error fetching {ref.fqcn}: {e}")
             return VerificationResult.failed(ref, str(e))
 
     def _to_discovered_collection(
@@ -297,15 +261,13 @@ class AAPDiscoveryAgent(BaseAgent):
     # Logging
     # -------------------------------------------------------------------------
 
-    def _log_discovery_results(
-        self, collections: list[DiscoveredCollection], slog
-    ) -> None:
+    def _log_discovery_results(self, collections: list[DiscoveredCollection]) -> None:
         """Log discovery results summary."""
         if collections:
-            slog.info(
+            self._log.info(
                 f"Discovered {len(collections)} collections: "
                 f"{', '.join(c.fqcn for c in collections)}"
             )
             return
 
-        slog.info("No Private Hub collections discovered")
+        self._log.info("No Private Hub collections discovered")
