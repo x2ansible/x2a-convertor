@@ -14,9 +14,9 @@ data:
       - dynamic-plugins.default.yaml
     plugins:
       # CUSTOMIZATION: Update plugin versions by changing the tag after the colon
-      - package: "oci://quay.io/x2ansible/red-hat-developer-hub-backstage-plugin-x2a:x2a__0.1.0!red-hat-developer-hub-backstage-plugin-x2a"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:bs_1.45.3__0.1.0!red-hat-developer-hub-backstage-plugin-x2a"
         disabled: false
-      - package: "oci://quay.io/x2ansible/red-hat-developer-hub-backstage-plugin-x2a-backend:x2a__0.1.0!red-hat-developer-hub-backstage-plugin-x2a-backend"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:bs_1.45.3__0.1.0!red-hat-developer-hub-backstage-plugin-x2a-backend"
         disabled: false
 ---
 # ConfigMap: Application Configuration
