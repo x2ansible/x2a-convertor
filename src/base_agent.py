@@ -21,6 +21,7 @@ from src.model import get_model, get_runnable_config, report_tool_calls
 from src.types.base_state import BaseState
 from src.types.telemetry import AgentMetrics, telemetry_context
 from src.utils.logging import get_logger
+from tools.base_tool import X2ATool
 
 
 class BaseAgent[S: BaseState](ABC):
@@ -75,6 +76,15 @@ class BaseAgent[S: BaseState](ABC):
 
     # --- Invocation Helpers ---
 
+    def _get_tools(self, state: S) -> list[BaseTool]:
+        """Build tools from BASE_TOOLS and state, binding agent name on X2ATool instances."""
+        tools = [factory() for factory in self.BASE_TOOLS]
+        tools.extend(self.extra_tools_from_state(state))
+        return [
+            tool.with_agent(self.agent_name) if isinstance(tool, X2ATool) else tool
+            for tool in tools
+        ]
+
     def invoke_react(
         self,
         state: S,
@@ -85,8 +95,7 @@ class BaseAgent[S: BaseState](ABC):
 
         Returns the raw result dict from the agent.
         """
-        tools = [factory() for factory in self.BASE_TOOLS]
-        tools.extend(self.extra_tools_from_state(state))
+        tools = self._get_tools(state)
 
         agent = create_agent(
             model=self.model, middleware=self.middleware(), tools=tools
