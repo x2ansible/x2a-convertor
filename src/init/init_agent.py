@@ -4,18 +4,16 @@ This module contains the InitAgent class that orchestrates the init workflow
 following the same pattern as the exporters (ChefToAnsibleSubagent).
 """
 
-import json
 from pathlib import Path
 from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
 
-from prompts.get_prompt import get_prompt
 from src.const import METADATA_FILENAME, MIGRATION_PLAN_FILE
 from src.init.init_state import InitState
 from src.init.initialize_subagent import InitializeSubAgent
+from src.init.metadata_extraction_agent import MetadataExtractionAgent
 from src.model import get_model, get_runnable_config
-from src.types import MetadataCollection, telemetry_context
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -38,6 +36,7 @@ class InitAgent:
         slog = logger.bind(phase="init_agent")
         self.model = model or get_model()
         self.initialize_agent = InitializeSubAgent(model=self.model)
+        self.metadata_agent = MetadataExtractionAgent(model=self.model)
         self._workflow = self._create_workflow()
         slog.debug(self._workflow.get_graph().draw_mermaid())
 
@@ -52,7 +51,7 @@ class InitAgent:
         # Nodes
         workflow.add_node("check_refresh", self._check_refresh)
         workflow.add_node("generate_plan", self.initialize_agent)
-        workflow.add_node("extract_metadata", self._extract_metadata)
+        workflow.add_node("extract_metadata", self.metadata_agent)
         workflow.add_node("finalize", self._finalize)
 
         # Edges
@@ -73,7 +72,14 @@ class InitAgent:
                 "failed": "finalize",
             },
         )
-        workflow.add_edge("extract_metadata", "finalize")
+        workflow.add_conditional_edges(
+            "extract_metadata",
+            self._check_failure_after_agent,
+            {
+                "continue": "finalize",
+                "failed": "finalize",
+            },
+        )
         workflow.add_edge("finalize", END)
 
         return workflow.compile()
@@ -133,66 +139,10 @@ class InitAgent:
         """
         slog = logger.bind(phase="check_failure", failed=state.failed)
         if state.failed:
-            slog.error(f"Planning agent failed: {state.failure_reason}")
+            slog.error(f"Agent failed: {state.failure_reason}")
             return "failed"
 
         return "continue"
-
-    def _extract_metadata(self, state: InitState) -> InitState:
-        """Extract metadata from migration plan using structured output.
-
-        Args:
-            state: Current init state with migration_plan_content
-
-        Returns:
-            Updated state with metadata_items populated
-        """
-        slog = logger.bind(phase="extract_metadata")
-        slog.info("Extracting module metadata from migration plan")
-
-        if not state.migration_plan_content:
-            slog.error("No migration plan content available for metadata extraction")
-            return state.mark_failed(
-                "Cannot extract metadata: migration plan content is empty"
-            )
-
-        with telemetry_context(state.telemetry, "extract_metadata") as metrics:
-            # Prepare prompts
-            system_message = get_prompt("init_metadata_extraction_system")
-            user_prompt = get_prompt("init_metadata_extraction_task").format(
-                migration_plan_content=state.migration_plan_content
-            )
-
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_prompt},
-            ]
-
-            # Structured output call
-            structured_llm = self.model.with_structured_output(MetadataCollection)
-            response: MetadataCollection = structured_llm.invoke(  # pyrefly: ignore
-                messages, config=get_runnable_config()
-            )
-
-            slog.debug(f"LLM metadata extraction response: {response}")
-
-            if metrics:
-                metrics.record_metric("modules_found", len(response.modules))
-
-            metadata_list = [module.model_dump() for module in response.modules]
-            if metrics:
-                metrics.record_metric("metadata_modules", len(metadata_list))
-
-            # Write metadata file
-            metadata_file_path = Path(METADATA_FILENAME)
-            with metadata_file_path.open("w") as f:
-                json.dump(metadata_list, f, indent=2)
-
-            slog.info(
-                f"Metadata file created: {METADATA_FILENAME} ({len(metadata_list)} modules)"
-            )
-
-            return state.update(metadata_items=metadata_list)
 
     def _finalize(self, state: InitState) -> InitState:
         """Finalize workflow and log results.
