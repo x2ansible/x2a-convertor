@@ -90,6 +90,29 @@ class AgentMetrics:
         self.metrics[key] = value
         return self
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AgentMetrics":
+        """Reconstruct an AgentMetrics instance from a snake_case dict.
+
+        Args:
+            data: Dictionary as produced by to_dict() or loaded from JSON
+
+        Returns:
+            AgentMetrics instance
+        """
+        return cls(
+            name=data.get("name", ""),
+            started_at=datetime.fromisoformat(data["started_at"])
+            if data.get("started_at")
+            else None,
+            ended_at=datetime.fromisoformat(data["ended_at"])
+            if data.get("ended_at")
+            else None,
+            duration_seconds=data.get("duration_seconds", 0.0),
+            metrics=data.get("metrics", {}),
+            tool_calls=data.get("tool_calls", {}),
+        )
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -100,6 +123,29 @@ class AgentMetrics:
             "metrics": self.metrics,
             "tool_calls": self.tool_calls,
         }
+
+    def to_api_dict(self) -> dict[str, Any]:
+        """Convert to camelCase dict matching the OpenAPI AgentMetrics schema.
+
+        Returns:
+            Dictionary with camelCase keys. Optional fields are only
+            included when present.
+        """
+        result: dict[str, Any] = {
+            "name": self.name,
+            "durationSeconds": self.duration_seconds,
+        }
+
+        if self.started_at:
+            result["startedAt"] = self.started_at.isoformat()
+        if self.ended_at:
+            result["endedAt"] = self.ended_at.isoformat()
+        if self.metrics:
+            result["metrics"] = self.metrics
+        if self.tool_calls:
+            result["toolCalls"] = self.tool_calls
+
+        return result
 
 
 @dataclass
@@ -172,6 +218,44 @@ class Telemetry:
                 total[tool_name] = total.get(tool_name, 0) + count
         return total
 
+    @classmethod
+    def load_from(cls, path: Path | str | None = None) -> "Telemetry | None":
+        """Load a Telemetry instance from a JSON file.
+
+        Counterpart to save(). Reads the JSON file and reconstructs
+        a Telemetry instance with all agent metrics.
+
+        Args:
+            path: Path to the JSON file. Defaults to TELEMETRY_FILENAME
+                  in the current directory.
+
+        Returns:
+            Telemetry instance, or None if the file does not exist.
+        """
+        if path is None:
+            path = Path(TELEMETRY_FILENAME)
+        elif isinstance(path, str):
+            path = Path(path)
+
+        if not path.exists():
+            return None
+
+        raw = json.loads(path.read_text())
+        agents = {
+            name: AgentMetrics.from_dict(agent_data)
+            for name, agent_data in raw.get("agents", {}).items()
+        }
+
+        instance = cls.__new__(cls)
+        instance.phase = raw.get("phase", "")
+        instance.started_at = datetime.fromisoformat(raw["started_at"])
+        instance.ended_at = (
+            datetime.fromisoformat(raw["ended_at"]) if raw.get("ended_at") else None
+        )
+        instance.agents = agents
+        instance.summary = raw.get("summary", "")
+        return instance
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -183,6 +267,29 @@ class Telemetry:
             "total_tool_calls": self.get_total_tool_calls(),
             "summary": self.summary,
         }
+
+    def to_api_dict(self) -> dict[str, Any]:
+        """Convert to camelCase dict matching the OpenAPI Telemetry schema.
+
+        Returns:
+            Dictionary with camelCase keys. Optional fields are only
+            included when present.
+        """
+        result: dict[str, Any] = {
+            "summary": self.summary,
+            "phase": self.phase,
+            "startedAt": self.started_at.isoformat(),
+        }
+
+        if self.ended_at:
+            result["endedAt"] = self.ended_at.isoformat()
+
+        if self.agents:
+            result["agents"] = {
+                name: agent.to_api_dict() for name, agent in self.agents.items()
+            }
+
+        return result
 
     def to_summary(self) -> str:
         """Generate human-readable summary."""

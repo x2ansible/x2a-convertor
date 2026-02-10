@@ -38,6 +38,7 @@ Commands:
   init      Initialize project with interactive message
   migrate   Migrate project based on migration plan from analysis
   publish   Publish migrated Ansible roles to Ansible Automation Platform...
+  report    Report execution artifacts to the x2a API
   validate  Validate migrated module against original configuration
 ```
 
@@ -240,6 +241,47 @@ Options:
   --inventory-file FILE     Path to YAML/JSON file containing inventory
                             structure. Format: {"all": {"children": {...}}}
   --help                    Show this message and exit.
+```
+
+## report
+
+Report execution artifacts to the x2a API
+
+### Usage
+
+```bash
+uv run app.py report [OPTIONS]
+```
+
+### Options
+
+- `--url` **[required]** (default: Sentinel.UNSET)
+  Full URL to report artifacts to
+
+- `--job-id` **[required]** (default: Sentinel.UNSET)
+  UUID of the completed job
+
+- `--error-message`
+  Error message to report (sets status to error)
+
+- `--artifacts` **[required]** (default: Sentinel.UNSET)
+  Artifact as type:url (e.g., migration_plan:https://storage.example/migration-plan.md)
+
+### Full Help
+
+```
+Usage: report [OPTIONS]
+
+  Report execution artifacts to the x2a API
+
+Options:
+  --url TEXT            Full URL to report artifacts to  [required]
+  --job-id TEXT         UUID of the completed job  [required]
+  --error-message TEXT  Error message to report (sets status to error)
+  --artifacts TEXT      Artifact as type:url (e.g.,
+                        migration_plan:https://storage.example/migration-
+                        plan.md)  [required]
+  --help                Show this message and exit.
 ```
 
 ## validate
