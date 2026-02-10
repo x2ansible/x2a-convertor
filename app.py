@@ -13,6 +13,7 @@ from src.exporters.migrate import migrate_module
 from src.init import init_project
 from src.inputs.analyze import analyze_project
 from src.publishers.publish import publish_role
+from src.report import report_artifacts
 from src.utils.logging import get_logger, setup_logging
 from src.validate import validate_module
 
@@ -260,6 +261,32 @@ def publish(
         collections_file=collections_file,
         inventory_file=inventory_file,
     )
+
+
+@cli.command()
+@click.option("--url", required=True, help="Full URL to report artifacts to")
+@click.option("--job-id", required=True, help="UUID of the completed job")
+@click.option(
+    "--error-message",
+    default=None,
+    help="Error message to report (sets status to error)",
+)
+@click.option(
+    "--artifacts",
+    multiple=True,
+    required=True,
+    help="Artifact as type:url (e.g., migration_plan:https://storage.example/migration-plan.md)",
+)
+@handle_exceptions
+def report(url, job_id, error_message, artifacts) -> None:
+    """Report execution artifacts to the x2a API"""
+    report_artifacts(
+        url=url,
+        job_id=job_id,
+        artifacts=list(artifacts),
+        error_message=error_message,
+    )
+    click.echo("Report sent successfully.")
 
 
 if __name__ == "__main__":

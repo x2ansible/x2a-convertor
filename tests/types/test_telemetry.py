@@ -146,6 +146,67 @@ class TestAgentMetrics:
         datetime.fromisoformat(result["started_at"])
         datetime.fromisoformat(result["ended_at"])
 
+    def test_from_dict_complete(self):
+        """Test reconstructing AgentMetrics from a complete dict."""
+        data = {
+            "name": "TestAgent",
+            "started_at": "2026-01-15T10:00:00",
+            "ended_at": "2026-01-15T10:05:00",
+            "duration_seconds": 300.0,
+            "metrics": {"files_processed": 10},
+            "tool_calls": {"read_file": 5, "write_file": 3},
+        }
+        metrics = AgentMetrics.from_dict(data)
+
+        assert metrics.name == "TestAgent"
+        assert metrics.started_at == datetime.fromisoformat("2026-01-15T10:00:00")
+        assert metrics.ended_at == datetime.fromisoformat("2026-01-15T10:05:00")
+        assert metrics.duration_seconds == 300.0
+        assert metrics.metrics == {"files_processed": 10}
+        assert metrics.tool_calls == {"read_file": 5, "write_file": 3}
+
+    def test_from_dict_minimal(self):
+        """Test reconstructing AgentMetrics from a minimal dict."""
+        data = {"name": "MinimalAgent", "duration_seconds": 1.0}
+        metrics = AgentMetrics.from_dict(data)
+
+        assert metrics.name == "MinimalAgent"
+        assert metrics.started_at is None
+        assert metrics.ended_at is None
+        assert metrics.duration_seconds == 1.0
+        assert metrics.metrics == {}
+        assert metrics.tool_calls == {}
+
+    def test_to_api_dict_complete(self):
+        """Test camelCase API dict with all fields present."""
+        metrics = AgentMetrics(name="TestAgent")
+        metrics.start()
+        time.sleep(0.01)
+        metrics.stop()
+        metrics.record_metric("files_created", 5)
+        metrics.record_tool_calls(ToolCallCounter({"read_file": 10}))
+
+        result = metrics.to_api_dict()
+
+        assert result["name"] == "TestAgent"
+        assert result["durationSeconds"] > 0
+        assert "startedAt" in result
+        assert "endedAt" in result
+        assert result["metrics"] == {"files_created": 5}
+        assert result["toolCalls"] == {"read_file": 10}
+
+    def test_to_api_dict_minimal(self):
+        """Test camelCase API dict with only required fields."""
+        metrics = AgentMetrics(name="MinimalAgent")
+        result = metrics.to_api_dict()
+
+        assert result["name"] == "MinimalAgent"
+        assert result["durationSeconds"] == 0.0
+        assert "startedAt" not in result
+        assert "endedAt" not in result
+        assert "metrics" not in result
+        assert "toolCalls" not in result
+
     def test_to_dict_before_stop(self):
         """Test serialization before stop() is called."""
         metrics = AgentMetrics(name="TestAgent")
@@ -287,6 +348,60 @@ class TestTelemetry:
         total = telemetry.get_total_tool_calls()
 
         assert total == {"read_file": 8}
+
+    def test_to_api_dict_complete(self):
+        """Test camelCase API dict with all fields present."""
+        telemetry = Telemetry(phase="init")
+        telemetry.with_summary("Init completed")
+        agent = telemetry.get_or_create_agent("PlanningAgent")
+        agent.start()
+        agent.record_tool_calls(ToolCallCounter({"read_file": 5}))
+        agent.stop()
+        telemetry.stop()
+
+        result = telemetry.to_api_dict()
+
+        assert result["phase"] == "init"
+        assert result["summary"] == "Init completed"
+        assert "startedAt" in result
+        assert "endedAt" in result
+        assert "PlanningAgent" in result["agents"]
+        agent_result = result["agents"]["PlanningAgent"]
+        assert agent_result["name"] == "PlanningAgent"
+        assert agent_result["durationSeconds"] > 0
+        assert agent_result["toolCalls"] == {"read_file": 5}
+
+    def test_to_api_dict_without_ended_at(self):
+        """Test camelCase API dict when ended_at is not set."""
+        telemetry = Telemetry(phase="migrate")
+
+        result = telemetry.to_api_dict()
+
+        assert result["phase"] == "migrate"
+        assert "startedAt" in result
+        assert "endedAt" not in result
+
+    def test_to_api_dict_agents_uses_camel_case(self):
+        """Test that agent metrics within to_api_dict use camelCase keys."""
+        telemetry = Telemetry(phase="test")
+        agent = telemetry.get_or_create_agent("Agent1")
+        agent.start()
+        agent.stop()
+        agent.record_metric("files", 3)
+        agent.record_tool_calls(ToolCallCounter({"read_file": 2}))
+
+        result = telemetry.to_api_dict()
+        agent_result = result["agents"]["Agent1"]
+
+        assert "durationSeconds" in agent_result
+        assert "startedAt" in agent_result
+        assert "endedAt" in agent_result
+        assert "toolCalls" in agent_result
+        # Ensure no snake_case keys leaked
+        assert "duration_seconds" not in agent_result
+        assert "started_at" not in agent_result
+        assert "ended_at" not in agent_result
+        assert "tool_calls" not in agent_result
 
     def test_to_dict_complete(self):
         """Test serialization to dict with complete data."""
@@ -451,6 +566,78 @@ class TestTelemetryContext:
 
 class TestTelemetryPersistence:
     """Tests for file I/O operations."""
+
+    def test_load_from_default_path(self, tmp_path, monkeypatch):
+        """Test loading telemetry from default filename."""
+        monkeypatch.chdir(tmp_path)
+        data = {
+            "phase": "init",
+            "started_at": "2026-01-15T10:00:00",
+            "ended_at": "2026-01-15T10:05:00",
+            "duration_seconds": 300.0,
+            "agents": {},
+            "total_tool_calls": {},
+            "summary": "Init done",
+        }
+        (tmp_path / TELEMETRY_FILENAME).write_text(json.dumps(data))
+
+        telemetry = Telemetry.load_from()
+
+        assert telemetry is not None
+        assert telemetry.phase == "init"
+        assert telemetry.summary == "Init done"
+        assert telemetry.started_at == datetime.fromisoformat("2026-01-15T10:00:00")
+        assert telemetry.ended_at == datetime.fromisoformat("2026-01-15T10:05:00")
+
+    def test_load_from_custom_path(self, tmp_path):
+        """Test loading telemetry from a custom path."""
+        data = {
+            "phase": "migrate",
+            "started_at": "2026-01-15T10:00:00",
+            "agents": {},
+            "summary": "",
+        }
+        custom_path = tmp_path / "custom-telemetry.json"
+        custom_path.write_text(json.dumps(data))
+
+        telemetry = Telemetry.load_from(custom_path)
+
+        assert telemetry is not None
+        assert telemetry.phase == "migrate"
+
+    def test_load_from_missing_returns_none(self, tmp_path, monkeypatch):
+        """Test that load_from returns None when file doesn't exist."""
+        monkeypatch.chdir(tmp_path)
+
+        telemetry = Telemetry.load_from()
+
+        assert telemetry is None
+
+    def test_load_from_roundtrip(self, tmp_path):
+        """Test saving and loading back produces equivalent data."""
+        original = Telemetry(phase="migrate")
+        original.with_summary("Migration completed")
+        agent = original.get_or_create_agent("TestAgent")
+        agent.start()
+        agent.record_metric("files_created", 5)
+        agent.record_tool_calls(ToolCallCounter({"read_file": 10}))
+        agent.stop()
+        original.stop()
+
+        path = tmp_path / "roundtrip.json"
+        original.save(path)
+
+        loaded = Telemetry.load_from(path)
+
+        assert loaded is not None
+        assert loaded.phase == original.phase
+        assert loaded.summary == original.summary
+        assert loaded.started_at == original.started_at
+        assert loaded.ended_at == original.ended_at
+        assert "TestAgent" in loaded.agents
+        loaded_agent = loaded.agents["TestAgent"]
+        assert loaded_agent.metrics == {"files_created": 5}
+        assert loaded_agent.tool_calls == {"read_file": 10}
 
     def test_save_default_filename(self, tmp_path, monkeypatch):
         """Test saving with default filename."""
