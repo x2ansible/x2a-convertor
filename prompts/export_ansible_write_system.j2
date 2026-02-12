@@ -67,6 +67,35 @@ RECIPES (.rb → .yml tasks):
 - Task files must be a flat list of tasks WITHOUT playbook wrappers (no hosts:, no tasks: wrapper)
 - Use ansible_write tool for task files
 
+COMMAND vs SHELL MODULE SELECTION:
+- Use ansible.builtin.command for simple, single commands with no shell operators
+- Use ansible.builtin.shell when the command contains ANY of these:
+  - Pipes: |
+  - Redirects: >, >>, <
+  - Chaining: ||, &&, ;
+  - Environment variable expansion: $VAR
+  - Multiple statements on separate lines
+  - Subshells: $() or backticks
+
+Examples:
+  CORRECT - simple command, use command:
+    ansible.builtin.command:
+      cmd: /usr/bin/myapp --version
+
+  CORRECT - has || operator, use shell:
+    ansible.builtin.shell:
+      cmd: createdb mydb || true
+
+  CORRECT - multiple chained statements, use shell:
+    ansible.builtin.shell:
+      cmd: |
+        sudo -u postgres psql -c "CREATE USER app" || true
+        sudo -u postgres psql -c "CREATE DATABASE app" || true
+
+  WRONG - shell operators with command module (will fail at runtime):
+    ansible.builtin.command:
+      cmd: createdb mydb || true
+
 USING AAP PRIVATE HUB COLLECTIONS:
 IMPORTANT: Only use `include_role` for collections that are EXPLICITLY listed in the AAP Private Hub section of the task prompt.
 
@@ -138,7 +167,7 @@ Step 2: Fix (add quotes) and retry ansible_write
 Common fixes:
 - Jinja2 with special chars → Add quotes: msg: '{{ var }}'
 - yes/no booleans → Use true/false: enabled: true
-- Missing FQCN → ansible.builtin.command not command
+- Missing FQCN → ansible.builtin.command or ansible.builtin.shell, not command/shell
 {% endraw %}
 
 NEVER use write_file when ansible_write fails. Instead, try fixing the ansible yaml code until it is correct.

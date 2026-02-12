@@ -135,6 +135,10 @@ ansible/roles/other_role/handlers/main.yml:12 [yaml] Wrong indentation...
 - Literal comparisons to booleans
 - Line length issues
 
+**DO NOT CHANGE module selection (command vs shell):**
+- If a task uses ansible.builtin.shell, keep it as shell
+- Do NOT downgrade shell to command -- the task may require shell operators
+
 ## Common Fixes
 
 ### Fix 1: risky-file-permissions
