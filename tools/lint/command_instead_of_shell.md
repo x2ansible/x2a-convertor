@@ -1,21 +1,25 @@
 # command-instead-of-shell
 
-Use `command` module instead of `shell` unless you need shell features like pipes, redirects, or environment variable expansion.
+Use `ansible.builtin.command` for simple commands. Use `ansible.builtin.shell` when you need shell operators.
+
+Switch to `ansible.builtin.shell` if the command contains ANY of: pipes (|), redirects (>, >>), chaining (||, &&, ;), variable expansion ($VAR), subshells ($(...)), or multiple statements.
 
 ## Problematic code
 
 ```yaml
-- name: Echo a message
-  ansible.builtin.shell: echo hello
+- name: Create database
+  ansible.builtin.command:
+    cmd: createdb mydb || true
   changed_when: false
 ```
 
 ## Correct code
 
 ```yaml
-- name: Echo a message
-  ansible.builtin.command: echo hello
+- name: Create database
+  ansible.builtin.shell:
+    cmd: createdb mydb || true
   changed_when: false
 ```
 
-Tip: Only use `shell` when you need shell-specific features like pipes (|), redirects (>), or variable expansion ($VAR).
+Tip: If in doubt, use `ansible.builtin.shell` -- it handles all cases that `command` handles plus shell operators.
