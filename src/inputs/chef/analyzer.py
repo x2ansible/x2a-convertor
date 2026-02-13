@@ -1,28 +1,21 @@
 """Chef infrastructure analyzer.
 
 This module implements the main ChefSubagent that orchestrates all Chef analysis.
-It maintains backward compatibility with the original implementation while using
-clean SOLID/DDD architecture internally.
+It composes BaseAgent subclasses as graph nodes following the pattern from
+src/exporters/chef_to_ansible.py.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
-from langchain_community.tools.file_management.file_search import FileSearchTool
-from langchain_community.tools.file_management.list_dir import ListDirectoryTool
-from langchain_community.tools.file_management.read import ReadFileTool
 from langgraph.graph import END, StateGraph
-from langgraph.prebuilt import create_react_agent
 
-from prompts.get_prompt import get_prompt
-from src.inputs.tree_analysis import TreeSitterAnalyzer
-from src.model import (
-    get_last_ai_message,
-    get_model,
-    get_runnable_config,
-    report_tool_calls,
-)
-from src.types import Telemetry, telemetry_context
+from src.inputs.chef.analysis_validation_agent import AnalysisValidationAgent
+from src.inputs.chef.cleanup_agent import CleanupAgent
+from src.inputs.chef.report_writer_agent import ReportWriterAgent
+from src.inputs.chef.state import ChefState
+from src.model import get_model, get_runnable_config
+from src.types import Telemetry
 from src.utils.logging import get_logger
 
 from .dependency_fetcher import ChefDependencyManager
@@ -43,41 +36,18 @@ from .services import (
 logger = get_logger(__name__)
 
 
-class ChefAgentError(Exception):
-    """Raised when Chef agent returns invalid response."""
-
-
-@dataclass
-class ChefState:
-    """State object for Chef analysis workflow."""
-
-    path: str
-    user_message: str
-    specification: str
-    dependency_paths: list[str]
-    export_path: str | None
-    structured_analysis: StructuredAnalysis | None = None
-    telemetry: Telemetry | None = None
-
-    @property
-    def all_paths(self) -> list[Path]:
-        """Get all paths (main path + dependencies) as Path objects."""
-        return [Path(x) for x in [self.path, *self.dependency_paths]]
-
-
 class ChefSubagent:
     """Main Chef analyzer - implements InfrastructureAnalyzer protocol.
 
     This class orchestrates all Chef analysis using a LangGraph workflow.
-    It composes services following Dependency Injection pattern.
+    It composes services and BaseAgent subclasses following DDD patterns.
 
     Workflow phases:
     1. fetch_dependencies - Fetch cookbook dependencies
     2. analyze_structure - Use analysis services to analyze all files
-    3. write_report - Generate migration plan using structured analysis
-    4. validate_with_analysis - Validate plan against analysis
-    5. cleanup_specification - Clean up the specification
-    6. cleanup_temp_files - Cleanup temporary files
+    3. write_report - Generate migration plan using ReportWriterAgent
+    4. validate_with_analysis - Validate plan using AnalysisValidationAgent
+    5. cleanup_specification - Clean up using CleanupAgent
     """
 
     def __init__(self, model=None) -> None:
@@ -89,40 +59,18 @@ class ChefSubagent:
         self._provider_service = ProviderAnalysisService(self.model)
         self._attribute_service = AttributeAnalysisService(self.model)
 
-        # Existing LangGraph components
-        self.agent = self._create_agent()
-        self._workflow = self._create_workflow()
+        # Compose agents
+        self._report_writer = ReportWriterAgent(model=self.model)
+        self._analysis_validator = AnalysisValidationAgent(model=self.model)
+        self._cleanup = CleanupAgent(model=self.model)
+
         self._dependency_fetcher: ChefDependencyManager | None = None
+        self._workflow = self._create_workflow()
 
         logger.debug(self._workflow.get_graph().draw_mermaid())
 
-    def _create_agent(self):
-        """Create a LangGraph agent with file management tools."""
-        logger.info("Creating chef agent")
-
-        tools = [
-            FileSearchTool(),
-            ListDirectoryTool(),
-            ReadFileTool(),
-        ]
-
-        agent = create_react_agent(  # type: ignore[deprecated]
-            model=self.model,
-            tools=tools,
-        )
-        return agent
-
     def _create_workflow(self):
-        """Create LangGraph workflow.
-
-        Workflow phases:
-        1. fetch_dependencies - Fetch cookbook dependencies
-        2. analyze_structure - Use analysis services to analyze all files
-        3. write_report - Generate migration plan using structured analysis
-        4. validate_with_analysis - Validate plan against analysis
-        5. cleanup_specification - Clean up the specification
-        6. cleanup_temp_files - Cleanup temporary files
-        """
+        """Create LangGraph workflow composing agents as nodes."""
         workflow = StateGraph(ChefState)
 
         workflow.add_node(
@@ -131,67 +79,87 @@ class ChefSubagent:
         workflow.add_node(
             "analyze_structure", lambda state: self._analyze_structure(state)
         )
-        workflow.add_node("write_report", lambda state: self._write_report(state))
-        workflow.add_node(
-            "validate_with_analysis", lambda state: self._validate_with_analysis(state)
-        )
-        workflow.add_node(
-            "cleanup_specification", lambda state: self._cleanup_specification(state)
-        )
+        workflow.add_node("write_report", self._report_writer)
+        workflow.add_node("validate_with_analysis", self._analysis_validator)
+        workflow.add_node("cleanup_specification", self._cleanup)
 
         workflow.set_entry_point("fetch_dependencies")
         workflow.add_edge("fetch_dependencies", "analyze_structure")
         workflow.add_edge("analyze_structure", "write_report")
-        workflow.add_edge("write_report", "validate_with_analysis")
-        workflow.add_edge("validate_with_analysis", "cleanup_specification")
+        workflow.add_conditional_edges(
+            "write_report",
+            self._check_failure_after_agent,
+            {
+                "continue": "validate_with_analysis",
+                "failed": END,
+            },
+        )
+        workflow.add_conditional_edges(
+            "validate_with_analysis",
+            self._check_failure_after_agent,
+            {
+                "continue": "cleanup_specification",
+                "failed": END,
+            },
+        )
         workflow.add_edge("cleanup_specification", END)
 
         return workflow.compile()
+
+    def _check_failure_after_agent(
+        self, state: ChefState
+    ) -> Literal["continue", "failed"]:
+        """Conditional edge: check if agent failed, route to END or next phase."""
+        if state.failed:
+            logger.error(f"Agent failed: {state.failure_reason}")
+            return "failed"
+        return "continue"
 
     def _prepare_dependencies(self, state: ChefState) -> ChefState:
         """Fetch external dependencies using appropriate strategy."""
         slog = logger.bind(phase="prepare_dependencies")
         slog.info(f"Checking for external dependencies for {state.path}")
 
-        # Initialize dependency manager
         try:
             self._dependency_fetcher = ChefDependencyManager(state.path)
             slog.info(f"Using {self._dependency_fetcher._strategy.__class__.__name__}")
         except RuntimeError as e:
             slog.error(f"Failed to initialize dependency manager: {e}")
-            state.dependency_paths = [f"{state.path}/cookbooks"]
-            state.export_path = None
-            return state
+            return state.update(
+                dependency_paths=[f"{state.path}/cookbooks"], export_path=None
+            )
 
-        # Check for dependencies
         has_deps, deps = self._dependency_fetcher.has_dependencies()
         if not has_deps:
             slog.info("No external dependencies found, using local cookbooks only")
-            state.dependency_paths = [f"{state.path}/cookbooks"]
-            state.export_path = None
-            return state
+            return state.update(
+                dependency_paths=[f"{state.path}/cookbooks"], export_path=None
+            )
 
-        # Fetch dependencies
         slog.info(f"Found {len(deps)} external dependencies, fetching...")
+        return self._fetch_dependencies(state, deps, slog)
+
+    def _fetch_dependencies(self, state: ChefState, deps: list, slog) -> ChefState:
+        """Fetch and resolve dependency paths."""
+        assert self._dependency_fetcher is not None
+
         try:
             self._dependency_fetcher.fetch_dependencies()
             dependency_paths = self._dependency_fetcher.get_dependencies_paths(deps)
 
-            if dependency_paths:
-                state.dependency_paths = dependency_paths
-                state.export_path = str(self._dependency_fetcher.export_path)
-                slog.info(f"Successfully fetched {len(dependency_paths)} dependencies")
-            else:
+            if not dependency_paths:
                 slog.warning("No dependency paths returned after fetch")
-                state.dependency_paths = []
-                state.export_path = None
+                return state.update(dependency_paths=[], export_path=None)
+
+            slog.info(f"Successfully fetched {len(dependency_paths)} dependencies")
+            return state.update(
+                dependency_paths=dependency_paths,
+                export_path=str(self._dependency_fetcher.export_path),
+            )
 
         except RuntimeError as e:
             slog.warning(f"Failed to fetch dependencies: {e}")
-            state.dependency_paths = []
-            state.export_path = None
-
-        return state
+            return state.update(dependency_paths=[], export_path=None)
 
     def _analyze_files_by_pattern(
         self,
@@ -202,19 +170,7 @@ class ChefSubagent:
         result_class,
         slog,
     ) -> list:
-        """Generic method to analyze Chef files matching a pattern.
-
-        Args:
-            paths: List of paths to search
-            pattern: Glob pattern (e.g., "**/recipes/*.rb")
-            file_type: Human-readable type for logging (e.g., "recipe")
-            analysis_service: Service with analyze() method
-            result_class: Result class to instantiate (e.g., RecipeAnalysisResult)
-            slog: Structured logger
-
-        Returns:
-            List of analysis results
-        """
+        """Generic method to analyze Chef files matching a pattern."""
         results = []
 
         for path in paths:
@@ -237,61 +193,46 @@ class ChefSubagent:
     def _build_attribute_collections(
         self, attributes: list[AttributesAnalysisResult], slog
     ) -> dict[str, list[str]]:
-        """Build map of collection names to their item keys.
-
-        Args:
-            attributes: List of analyzed attribute files
-            slog: Structured logger
-
-        Returns:
-            Dictionary mapping collection paths to item lists
-            Example: {"nginx.sites": ["test.cluster.local", "ci.cluster.local"]}
-        """
-        attribute_collections = {}
+        """Build map of collection names to their item keys."""
+        attribute_collections: dict[str, list[str]] = {}
 
         def find_collections(attrs_dict, path=""):
             """Recursively find collection attributes."""
             for key, value in attrs_dict.items():
                 current_path = f"{path}.{key}" if path else key
 
-                if isinstance(value, dict) and len(value) > 1:
-                    # Check if all values are dicts (collection pattern)
-                    # e.g., sites: {site1: {...}, site2: {...}}
-                    all_dict_values = all(isinstance(v, dict) for v in value.values())
-                    slog.debug(
-                        f"Checking '{current_path}': all_dict_values={all_dict_values}, "
-                        f"keys={list(value.keys())[:5]}"
+                if not isinstance(value, dict) or len(value) <= 1:
+                    continue
+
+                all_dict_values = all(isinstance(v, dict) for v in value.values())
+                slog.debug(
+                    f"Checking '{current_path}': all_dict_values={all_dict_values}, "
+                    f"keys={list(value.keys())[:5]}"
+                )
+
+                if not all_dict_values:
+                    slog.debug(f"Namespace '{current_path}', recursing")
+                    find_collections(value, current_path)
+                    continue
+
+                collections_before = len(attribute_collections)
+                slog.debug(
+                    f"Recursing into '{current_path}' "
+                    f"(collections_before={collections_before})"
+                )
+                find_collections(value, current_path)
+                collections_added = len(attribute_collections) - collections_before
+                slog.debug(
+                    f"After recursing '{current_path}': "
+                    f"collections_added={collections_added}"
+                )
+
+                if collections_added == 0:
+                    attribute_collections[current_path] = list(value.keys())
+                    slog.info(
+                        f"Found LEAF collection '{current_path}' with "
+                        f"{len(value)} items: {list(value.keys())}"
                     )
-
-                    if all_dict_values:
-                        # Check if this is a deep collection by recursing first
-                        # This ensures we find nginx.sites instead of nginx
-                        collections_before = len(attribute_collections)
-                        slog.debug(
-                            f"Recursing into '{current_path}' "
-                            f"(collections_before={collections_before})"
-                        )
-                        find_collections(value, current_path)
-                        collections_added = (
-                            len(attribute_collections) - collections_before
-                        )
-                        slog.debug(
-                            f"After recursing '{current_path}': "
-                            f"collections_added={collections_added}"
-                        )
-
-                        # Only mark as collection if no deeper collections were found
-                        if collections_added == 0:
-                            # This is a leaf collection
-                            attribute_collections[current_path] = list(value.keys())
-                            slog.info(
-                                f"Found LEAF collection '{current_path}' with "
-                                f"{len(value)} items: {list(value.keys())}"
-                            )
-                    else:
-                        # This is just a namespace, recurse deeper
-                        slog.debug(f"Namespace '{current_path}', recursing")
-                        find_collections(value, current_path)
 
         for attr_result in attributes:
             try:
@@ -306,15 +247,14 @@ class ChefSubagent:
     def _analyze_structure(self, state: ChefState) -> ChefState:
         """Analyze cookbook structure using analysis services.
 
-        This phase uses RecipeAnalysisService, ProviderAnalysisService, and
-        AttributeAnalysisService to create structured analysis of all Chef files.
+        This phase uses analysis services to create structured analysis
+        of all Chef files, then precomputes the execution tree summary.
         """
         slog = logger.bind(phase="analyze_structure")
         slog.info("Starting structured analysis of cookbook files")
 
         # STEP 1: Analyze attributes FIRST to build collection map
         slog.info("Step 1: Analyzing attributes to build iteration map")
-
         attributes = self._analyze_files_by_pattern(
             paths=state.all_paths,
             pattern="**/attributes/default.rb",
@@ -323,15 +263,11 @@ class ChefSubagent:
             result_class=AttributesAnalysisResult,
             slog=slog,
         )
-
-        # Build collection map for iteration expansion
         attribute_collections = self._build_attribute_collections(attributes, slog)
         slog.info(f"Built iteration map with {len(attribute_collections)} collections")
 
-        # STEP 2: Analyze recipes and providers with iteration context
+        # STEP 2: Analyze recipes and providers
         slog.info("Step 2: Analyzing recipes and providers")
-
-        # Analyze all recipe files
         recipes = self._analyze_files_by_pattern(
             paths=state.all_paths,
             pattern="**/recipes/*.rb",
@@ -340,8 +276,6 @@ class ChefSubagent:
             result_class=RecipeAnalysisResult,
             slog=slog,
         )
-
-        # Analyze all provider files
         providers = self._analyze_files_by_pattern(
             paths=state.all_paths,
             pattern="**/providers/*.rb",
@@ -351,8 +285,7 @@ class ChefSubagent:
             slog=slog,
         )
 
-        # Create structured analysis aggregate
-        state.structured_analysis = StructuredAnalysis(
+        structured_analysis = StructuredAnalysis(
             recipes=recipes,
             providers=providers,
             attributes=attributes,
@@ -361,69 +294,19 @@ class ChefSubagent:
 
         slog.info(
             f"Analyzed {len(recipes)} recipes, {len(providers)} providers, "
-            f"{len(attributes)} attributes files with {len(attribute_collections)} iterable collections"
+            f"{len(attributes)} attributes files with "
+            f"{len(attribute_collections)} iterable collections"
         )
 
-        return state
+        # Precompute execution tree summary for downstream agents
+        execution_tree_summary = self._build_execution_tree_summary(
+            structured_analysis, state.path, state.dependency_paths
+        )
 
-    def _validate_with_analysis(self, state: ChefState) -> ChefState:
-        """Validate migration plan against structured analysis.
-
-        This phase ensures the migration plan is consistent with the
-        structured analysis from recipes, providers, and attributes.
-        """
-        slog = logger.bind(phase="validate_with_analysis")
-        slog.info("Validating migration plan against structured analysis")
-
-        if not state.structured_analysis:
-            slog.warning("No structured analysis available, skipping validation")
-            return state
-
-        with telemetry_context(state.telemetry, "validate_with_analysis") as metrics:
-            # Prepare execution tree summary for validation
-            analysis_summary = self._build_execution_tree_summary(
-                state.structured_analysis, state.path, state.dependency_paths
-            )
-
-            # Create validation prompt
-            system_message = get_prompt("chef_analysis_validation_system")
-            user_prompt = get_prompt("chef_analysis_validation_task").format(
-                specification=state.specification,
-                analysis_summary=analysis_summary,
-            )
-
-            # Execute validation agent (no tools, but track timing)
-            agent = create_react_agent(model=self.model, tools=[])  # type: ignore[deprecated]
-            result = agent.invoke(
-                {
-                    "messages": [
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_prompt},
-                    ]
-                },
-                config=get_runnable_config(),
-            )
-
-            # Record tool calls (will be empty for this agent)
-            tool_calls = report_tool_calls(result)
-            if metrics:
-                metrics.record_tool_calls(tool_calls)
-
-            message = get_last_ai_message(result)
-            if not message:
-                slog.warning("No response from validation agent")
-                return state
-
-            validation_response = message.content
-
-            # If validation found issues, append them to specification
-            if not validation_response.startswith("VALIDATED:"):
-                slog.info("Validation found issues, updating specification")
-                state.specification = f"{state.specification}\n\n## VALIDATION NOTES ##\n{validation_response}"
-            else:
-                slog.info("✓ Specification validated successfully")
-
-        return state
+        return state.update(
+            structured_analysis=structured_analysis,
+            execution_tree_summary=execution_tree_summary,
+        )
 
     def _build_execution_tree_summary(
         self,
@@ -432,37 +315,23 @@ class ChefSubagent:
         dependency_paths: list[str],
     ) -> str:
         """Build and format the execution tree showing complete recipe flow."""
-        lines = []
+        lines = [
+            "=" * 80,
+            "CHEF RECIPE EXECUTION TREE",
+            "=" * 80,
+            "",
+            f"Total files analyzed: {analysis.get_total_files_analyzed()}",
+            "",
+        ]
 
-        lines.append("=" * 80)
-        lines.append("CHEF RECIPE EXECUTION TREE")
-        lines.append("=" * 80)
-        lines.append("")
-        lines.append(f"Total files analyzed: {analysis.get_total_files_analyzed()}")
-        lines.append("")
-
-        # Find the entry recipe (usually default.rb in the main cookbook)
-        entry_recipe = None
-        for recipe_result in analysis.recipes:
-            if (
-                "default.rb" in recipe_result.file_path
-                and cookbook_path in recipe_result.file_path
-            ):
-                entry_recipe = recipe_result.file_path
-                break
-
-        if not entry_recipe and analysis.recipes:
-            # Fallback to first recipe if no default.rb found
-            entry_recipe = analysis.recipes[0].file_path
+        entry_recipe = self._find_entry_recipe(analysis, cookbook_path)
 
         if entry_recipe:
-            # Build execution tree
             tree_builder = ExecutionTreeBuilder(
                 structured_analysis=analysis,
                 path_resolver=self._path_resolver,
                 dependency_paths=dependency_paths,
             )
-
             tree_root = tree_builder.build_tree(entry_recipe)
             tree_formatted = tree_builder.format_tree(tree_root)
 
@@ -472,130 +341,33 @@ class ChefSubagent:
         else:
             lines.append("No entry recipe found (expected default.rb)")
 
-        lines.append("")
-        lines.append("=" * 80)
-        lines.append("")
+        lines.extend(["", "=" * 80, ""])
 
-        # Still show iteration collections summary at the bottom
         if analysis.attribute_collections:
             lines.append("ITERATION COLLECTIONS DETECTED:")
             lines.append("")
             for collection_name, items in analysis.attribute_collections.items():
                 lines.append(f"  {collection_name}: {len(items)} items")
                 lines.append(f"    → {', '.join(items)}")
-            lines.append("")
-            lines.append("=" * 80)
-            lines.append("")
+            lines.extend(["", "=" * 80, ""])
 
         return "\n".join(lines)
 
-    def _cleanup_specification(self, state: ChefState) -> ChefState:
-        """Clean up the messy specification with validation updates."""
-        slog = logger.bind(phase="cleanup_specification")
-        slog.info("Cleaning up migration specification")
+    def _find_entry_recipe(
+        self, analysis: StructuredAnalysis, cookbook_path: str
+    ) -> str | None:
+        """Find the entry recipe (usually default.rb in the main cookbook)."""
+        for recipe_result in analysis.recipes:
+            if (
+                "default.rb" in recipe_result.file_path
+                and cookbook_path in recipe_result.file_path
+            ):
+                return recipe_result.file_path
 
-        with telemetry_context(state.telemetry, "cleanup_specification") as metrics:
-            # Prepare cleanup prompts
-            system_message = get_prompt("chef_analysis_cleanup_system")
-            user_prompt = get_prompt("chef_analysis_cleanup_task").format(
-                messy_specification=state.specification
-            )
+        if analysis.recipes:
+            return analysis.recipes[0].file_path
 
-            agent = create_react_agent(  # type: ignore[deprecated]
-                model=self.model,
-                tools=[],
-            )
-            # Execute cleanup agent
-            result = agent.invoke(
-                {
-                    "messages": [
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_prompt},
-                    ]
-                },
-                config=get_runnable_config(),
-            )
-
-            # Record tool calls (will be empty for this agent)
-            tool_calls = report_tool_calls(result)
-            if metrics:
-                metrics.record_tool_calls(tool_calls)
-
-            message = get_last_ai_message(result)
-            if not message:
-                slog.warning("No valid response from cleanup agent")
-                return state
-
-            state.specification = message.content
-
-        return state
-
-    def _write_report(self, state: ChefState) -> ChefState:
-        """Generate migration specification using structured analysis."""
-        slog = logger.bind(phase="write_report")
-        slog.info("Generating migration specification")
-
-        with telemetry_context(state.telemetry, "write_report") as metrics:
-            data_list = (
-                "\n".join(state.structured_analysis.analyzed_file_paths)
-                if state.structured_analysis
-                else ""
-            )
-
-            # Generate tree-sitter analysis report
-            analyzer = TreeSitterAnalyzer()
-            try:
-                tree_sitter_report = analyzer.report_directory(state.path)
-            except Exception as e:
-                slog.warning(f"Failed to generate tree-sitter report: {e}")
-                tree_sitter_report = "Tree-sitter analysis not available"
-
-            # Build execution tree if available
-            execution_tree_summary = ""
-            if state.structured_analysis:
-                execution_tree_summary = self._build_execution_tree_summary(
-                    state.structured_analysis, state.path, state.dependency_paths
-                )
-                slog.info(
-                    f"Built execution tree from {state.structured_analysis.get_total_files_analyzed()} analyzed files"
-                )
-            else:
-                slog.warning("No structured analysis available")
-
-            # Prepare system and user messages for chef agent
-            system_message = get_prompt("chef_analysis_system")
-            user_prompt = get_prompt("chef_analysis_task").format(
-                path=state.path,
-                user_message=state.user_message,
-                directory_listing=data_list,
-                tree_sitter_report=tree_sitter_report,
-                execution_tree=execution_tree_summary,
-            )
-            # Execute chef agent with both system and user messages
-            result = self.agent.invoke(
-                {
-                    "messages": [
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_prompt},
-                    ]
-                },
-                config=get_runnable_config(),
-            )
-
-            # Record tool calls
-            tool_calls = report_tool_calls(result)
-            slog.info(f"Write report agent tools: {tool_calls.to_string()}")
-            if metrics:
-                metrics.record_tool_calls(tool_calls)
-
-            messages = result.get("messages", [])
-            if len(messages) < 2:
-                raise ChefAgentError("Invalid response from Chef agent")
-
-            state.specification = messages[-1].content
-            slog.info("✓ Migration specification generated")
-
-        return state
+        return None
 
     def invoke(
         self, path: str, user_message: str, telemetry: Telemetry | None = None
@@ -624,4 +396,10 @@ class ChefSubagent:
         )
 
         result = self._workflow.invoke(initial_state, config=get_runnable_config())
+
+        if result.get("failed"):
+            logger.error(
+                f"Chef analysis failed: {result.get('failure_reason', 'unknown')}"
+            )
+
         return result["specification"]

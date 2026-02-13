@@ -8,7 +8,7 @@ Public API:
     ChefDependencyManager - Handles Chef dependency fetching
 """
 
-from .analyzer import ChefAgentError, ChefSubagent
+from .analyzer import ChefSubagent
 from .dependency_fetcher import ChefDependencyManager
 
-__all__ = ["ChefAgentError", "ChefDependencyManager", "ChefSubagent"]
+__all__ = ["ChefDependencyManager", "ChefSubagent"]
