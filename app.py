@@ -274,7 +274,7 @@ def publish(
 @click.option(
     "--artifacts",
     multiple=True,
-    required=True,
+    required=False,
     help="Artifact as type:url (e.g., migration_plan:https://storage.example/migration-plan.md)",
 )
 @handle_exceptions
