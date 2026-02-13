@@ -22,9 +22,10 @@ class TestArtifactType:
         assert ArtifactType.MIGRATION_PLAN.value == "migration_plan"
         assert ArtifactType.MODULE_MIGRATION_PLAN.value == "module_migration_plan"
         assert ArtifactType.MIGRATED_SOURCES.value == "migrated_sources"
+        assert ArtifactType.PROJECT_METADATA.value == "project_metadata"
 
     def test_enum_count(self):
-        assert len(ArtifactType) == 3
+        assert len(ArtifactType) == 4
 
 
 class TestReportClientParseArtifact:
