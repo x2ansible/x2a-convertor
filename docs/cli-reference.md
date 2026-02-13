@@ -264,7 +264,7 @@ uv run app.py report [OPTIONS]
 - `--error-message`
   Error message to report (sets status to error)
 
-- `--artifacts` **[required]** (default: Sentinel.UNSET)
+- `--artifacts` (default: Sentinel.UNSET)
   Artifact as type:url (e.g., migration_plan:https://storage.example/migration-plan.md)
 
 ### Full Help
@@ -280,7 +280,7 @@ Options:
   --error-message TEXT  Error message to report (sets status to error)
   --artifacts TEXT      Artifact as type:url (e.g.,
                         migration_plan:https://storage.example/migration-
-                        plan.md)  [required]
+                        plan.md)
   --help                Show this message and exit.
 ```
 
