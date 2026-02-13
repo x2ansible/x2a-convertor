@@ -18,6 +18,7 @@ class ArtifactType(str, Enum):
     MIGRATION_PLAN = "migration_plan"
     MODULE_MIGRATION_PLAN = "module_migration_plan"
     MIGRATED_SOURCES = "migrated_sources"
+    PROJECT_METADATA = "project_metadata"
 
 
 class ReportClient:
