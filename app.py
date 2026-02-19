@@ -277,14 +277,20 @@ def publish(
     required=False,
     help="Artifact as type:url (e.g., migration_plan:https://storage.example/migration-plan.md)",
 )
+@click.option(
+    "--commit-id",
+    default=None,
+    help="Git commit SHA from the job's push to target repo",
+)
 @handle_exceptions
-def report(url, job_id, error_message, artifacts) -> None:
+def report(url, job_id, error_message, artifacts, commit_id) -> None:
     """Report execution artifacts to the x2a API"""
     report_artifacts(
         url=url,
         job_id=job_id,
         artifacts=list(artifacts),
         error_message=error_message,
+        commit_id=commit_id,
     )
     click.echo("Report sent successfully.")
 
