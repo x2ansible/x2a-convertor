@@ -159,6 +159,31 @@ class TestReportClientPayload:
 
         assert payload["jobId"] == "my-job-uuid"
 
+    def test_commit_id_included_in_payload(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
+        client = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-1",
+            artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            commit_id="abc123def456",
+        )
+        payload = client._build_payload()
+
+        assert payload["commitId"] == "abc123def456"
+
+    def test_commit_id_omitted_when_none(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
+        client = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-1",
+            artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+        )
+        payload = client._build_payload()
+
+        assert "commitId" not in payload
+
     def test_no_telemetry_when_file_missing(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 

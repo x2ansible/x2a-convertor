@@ -39,11 +39,13 @@ class ReportClient:
         job_id: str,
         artifact_pairs: list[str],
         error_message: str | None = None,
+        commit_id: str | None = None,
     ) -> None:
         self._url = url
         self._job_id = job_id
         self._artifact_pairs = artifact_pairs
         self._error_message = error_message
+        self._commit_id = commit_id
 
     def send(self) -> None:
         """Build and POST the artifacts payload to the API."""
@@ -67,6 +69,9 @@ class ReportClient:
 
         if self._error_message:
             payload["errorDetails"] = self._error_message
+
+        if self._commit_id:
+            payload["commitId"] = self._commit_id
 
         telemetry = self._read_telemetry()
         if telemetry:
@@ -118,6 +123,7 @@ def report_artifacts(
     job_id: str,
     artifacts: list[str],
     error_message: str | None = None,
+    commit_id: str | None = None,
 ) -> None:
     """Public entry point to report artifacts to the x2a API.
 
@@ -126,11 +132,13 @@ def report_artifacts(
         job_id: UUID of the completed job
         artifacts: List of "type:url" strings
         error_message: Optional error message (sets status to "error")
+        commit_id: Optional git commit SHA from the job's push
     """
     client = ReportClient(
         url=url,
         job_id=job_id,
         artifact_pairs=artifacts,
         error_message=error_message,
+        commit_id=commit_id,
     )
     client.send()
