@@ -415,7 +415,7 @@ lsof -i :3000
 
 # Resources
 pm2 monit
-ps aux | grep node | awk '{print $2}' | xargs -I {} cat /proc/{}/status | grep VmRSS
+ps aux | grep node | awk '{{print $2}}' | xargs -I {{}} cat /proc/{{}}/status | grep VmRSS
 ```
 
 **GOOD EXAMPLE - Rust Application:**

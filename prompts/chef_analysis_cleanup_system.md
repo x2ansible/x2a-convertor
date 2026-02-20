@@ -16,7 +16,7 @@ Your job is to clean, consolidate, and format this into a perfect migration plan
 
 **CRITICAL REQUIREMENTS:**
 
-1. **Remove ALL JSON artifacts**: Strip out any `{"name": "..."}` JSON tool calls completely
+1. **Remove ALL JSON artifacts**: Strip out any `{{"name": "..."}}` JSON tool calls completely
 2. **Extract real validation content**: Find actual text updates vs "VALIDATED:" confirmations  
 3. **Deduplicate information**: Remove repetitive sections and consolidate duplicates
 4. **Merge intelligently**: Replace outdated sections with validated information
