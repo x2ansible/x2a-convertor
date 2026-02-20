@@ -196,6 +196,7 @@ class ValidationAgent(BaseAgent[ChefState]):
         state.has_errors = self.validation_service.has_errors(results)
 
         if state.has_errors:
+            state.previous_error_report = state.error_report
             error_report = self.validation_service.format_error_report(results)
             state.error_report = error_report
             slog.warning(f"Validation errors found:\n{error_report}")
@@ -263,14 +264,12 @@ class ValidationAgent(BaseAgent[ChefState]):
     def _mark_failed_node(self, state: ValidationAgentState) -> ValidationAgentState:
         """Node: Mark the migration as failed due to validation errors."""
         slog = logger.bind(phase="mark_failed", attempt=state.attempt)
-        slog.error(
-            f"Max validation attempts ({state.max_attempts}) reached, "
-            "marking migration as failed"
-        )
+
+        reason = self._get_failure_reason(state)
+        slog.error(reason)
 
         chef_state = state.chef_state.mark_failed(
-            f"Validation failed after {state.max_attempts} attempts. "
-            f"Errors remain:\n{state.error_report}"
+            f"{reason}\nErrors remain:\n{state.error_report}"
         )
         chef_state = chef_state.update(
             validation_report=(
@@ -281,6 +280,28 @@ class ValidationAgent(BaseAgent[ChefState]):
         state.chef_state = chef_state
 
         return state
+
+    # -------------------------------------------------------------------------
+    # Stall Detection
+    # -------------------------------------------------------------------------
+
+    def _errors_are_stale(self, state: ValidationAgentState) -> bool:
+        """Return True when error_report is unchanged from the previous attempt."""
+        if not state.previous_error_report:
+            return False
+        return state.error_report == state.previous_error_report
+
+    def _get_failure_reason(self, state: ValidationAgentState) -> str:
+        """Return a human-readable reason for validation failure."""
+        if self._errors_are_stale(state):
+            return (
+                f"Stall detected after {state.attempt} attempt(s): "
+                "errors unchanged between attempts, aborting."
+            )
+        return (
+            f"Max validation attempts ({state.max_attempts}) reached, "
+            "marking migration as failed."
+        )
 
     # -------------------------------------------------------------------------
     # Evaluation Edge (Pure Function)
@@ -301,6 +322,10 @@ class ValidationAgent(BaseAgent[ChefState]):
             return "__end__"
 
         if state.attempt >= state.max_attempts:
+            return "mark_failed"
+
+        if self._errors_are_stale(state):
+            slog.warning("Stall detected: errors unchanged after fix attempt")
             return "mark_failed"
 
         slog.info(

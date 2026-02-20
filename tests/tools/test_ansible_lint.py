@@ -1,8 +1,93 @@
 import shutil
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock
 
-from tools.ansible_lint import ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE, AnsibleLintTool
+from tools.ansible_lint import (
+    ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE,
+    CRITICAL_RULE_IDS,
+    AnsibleLintTool,
+    LintClassification,
+    MatchClassifier,
+)
+
+
+def _make_match(rule_id, message="test issue", severity="MEDIUM"):
+    """Create a mock MatchError with the given rule_id."""
+    match = Mock()
+    match.rule = Mock()
+    match.rule.id = rule_id
+    match.rule.severity = severity
+    match.message = message
+    match.details = ""
+    match.filename = "tasks/main.yml"
+    match.lineno = 1
+    return match
+
+
+class TestMatchClassifier:
+    """Tests for MatchClassifier.classify() and LintClassification properties."""
+
+    def test_classify_empty_list(self):
+        """Empty match list produces a clean classification."""
+        result = MatchClassifier.classify([])
+
+        assert result.is_clean
+        assert not result.has_critical_errors
+        assert not result.has_warnings
+        assert result.all_matches == []
+
+    def test_classify_critical_only(self):
+        """Critical matches are classified correctly."""
+        matches = [_make_match("syntax-check"), _make_match("load-failure")]
+        result = MatchClassifier.classify(matches)
+
+        assert result.has_critical_errors
+        assert not result.has_warnings
+        assert not result.is_clean
+        assert len(result.critical_matches) == 2
+        assert len(result.warning_matches) == 0
+
+    def test_classify_warnings_only(self):
+        """Non-critical matches are classified as warnings."""
+        matches = [_make_match("no-changed-when"), _make_match("literal-compare")]
+        result = MatchClassifier.classify(matches)
+
+        assert not result.has_critical_errors
+        assert result.has_warnings
+        assert not result.is_clean
+        assert len(result.critical_matches) == 0
+        assert len(result.warning_matches) == 2
+
+    def test_classify_mixed(self):
+        """Mixed matches are split correctly between critical and warnings."""
+        matches = [
+            _make_match("parser-error"),
+            _make_match("no-changed-when"),
+            _make_match("internal-error"),
+            _make_match("literal-compare"),
+        ]
+        result = MatchClassifier.classify(matches)
+
+        assert result.has_critical_errors
+        assert result.has_warnings
+        assert not result.is_clean
+        assert len(result.critical_matches) == 2
+        assert len(result.warning_matches) == 2
+
+    def test_all_matches_combines_both_lists(self):
+        """all_matches returns critical + warning matches."""
+        matches = [_make_match("syntax-check"), _make_match("no-changed-when")]
+        result = MatchClassifier.classify(matches)
+
+        assert len(result.all_matches) == 2
+
+    def test_all_critical_rule_ids_are_classified(self):
+        """Each CRITICAL_RULE_ID is classified as critical."""
+        for rule_id in CRITICAL_RULE_IDS:
+            result = MatchClassifier.classify([_make_match(rule_id)])
+            assert result.has_critical_errors, f"{rule_id} should be critical"
+            assert not result.has_warnings
 
 
 class TestAnsibleLintTool:
@@ -282,3 +367,71 @@ class TestAnsibleLintTool:
         # The issues should be on specific lines (may vary slightly with formatting)
         # Just verify line numbers are present
         assert "tasks/security.yml:" in result
+
+
+class TestLintAndClassify:
+    """Tests for AnsibleLintTool.lint_and_classify()."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.tool = AnsibleLintTool()
+        self.temp_dir = tempfile.mkdtemp()
+
+    def teardown_method(self) -> None:
+        """Clean up test fixtures."""
+        if Path(self.temp_dir).exists():
+            shutil.rmtree(self.temp_dir)
+
+    def test_lint_and_classify_valid_playbook(self) -> None:
+        """Clean playbook returns is_clean=True."""
+        subdir = Path(self.temp_dir) / "valid"
+        subdir.mkdir(parents=True)
+
+        yaml_content = """---
+- name: Test valid playbook
+  hosts: all
+  become: true
+  tasks:
+    - name: Install nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+"""
+        (subdir / "valid_playbook.yml").write_text(yaml_content)
+
+        result = self.tool.lint_and_classify(str(subdir))
+
+        assert isinstance(result, LintClassification)
+        assert result.is_clean
+        assert not result.has_critical_errors
+        assert not result.has_warnings
+
+    def test_lint_and_classify_unfixable_returns_warnings(self) -> None:
+        """Unfixable best-practice issues are classified as warnings, not critical."""
+        subdir = Path(self.temp_dir) / "unfixable"
+        tasks_dir = subdir / "tasks"
+        tasks_dir.mkdir(parents=True)
+
+        yaml_with_unfixable = """---
+- name: Reload sysctl configuration
+  ansible.builtin.command: sysctl -p /etc/sysctl.d/99-security.conf
+  when: reload_sysctl is defined
+"""
+        (tasks_dir / "main.yml").write_text(yaml_with_unfixable)
+
+        result = self.tool.lint_and_classify(str(subdir))
+
+        assert isinstance(result, LintClassification)
+        assert not result.has_critical_errors
+        assert result.has_warnings
+        assert not result.is_clean
+        warning_rule_ids = [m.rule.id for m in result.warning_matches]
+        assert "no-changed-when" in warning_rule_ids
+
+    def test_lint_and_classify_nonexistent_path(self) -> None:
+        """Nonexistent path returns critical internal-error."""
+        result = self.tool.lint_and_classify("/nonexistent/path")
+
+        assert isinstance(result, LintClassification)
+        assert result.has_critical_errors
+        assert result.critical_matches[0].rule.id == "internal-error"
