@@ -3,19 +3,23 @@
 from unittest.mock import Mock
 
 from src.validation.validators import AnsibleLintValidator, RoleStructureValidator
-from tools.ansible_lint import ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
+from tests.tools.test_ansible_lint import _make_match
+from tools.ansible_lint import (
+    ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE,
+    LintClassification,
+)
 
 
 class TestAnsibleLintValidator:
     """Tests for AnsibleLintValidator."""
 
     def test_validate_success(self):
-        """Test successful validation."""
+        """Test successful validation when lint is clean."""
         validator = AnsibleLintValidator()
-
-        # Mock the tool
         validator.tool = Mock()
-        validator.tool._run.return_value = ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
+        validator.tool.lint_and_classify.return_value = LintClassification(
+            critical_matches=[], warning_matches=[]
+        )
 
         result = validator.validate("/fake/path")
 
@@ -23,35 +27,73 @@ class TestAnsibleLintValidator:
         assert result.validator_name == "ansible-lint"
         assert result.failed is False
         assert result.message == ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
-        # Verify that autofix=True was passed (let ansible-lint fix simple issues)
-        validator.tool._run.assert_called_once_with("/fake/path", autofix=True)
+        validator.tool.lint_and_classify.assert_called_once_with("/fake/path")
 
-    def test_validate_failure(self):
-        """Test failed validation."""
+    def test_validate_warnings_only(self):
+        """Test that warnings-only classification returns success=True."""
         validator = AnsibleLintValidator()
         validator.tool = Mock()
-        validator.tool._run.return_value = "Error: something failed"
+
+        warning_match = _make_match(
+            "no-changed-when", "Commands should have changed_when"
+        )
+        validator.tool.lint_and_classify.return_value = LintClassification(
+            critical_matches=[], warning_matches=[warning_match]
+        )
+
+        result = validator.validate("/fake/path")
+
+        assert result.success
+        assert result.failed is False
+        assert "warning" in result.message.lower()
+        assert result.validator_name == "ansible-lint"
+
+    def test_validate_critical_errors(self):
+        """Test that critical errors return success=False."""
+        validator = AnsibleLintValidator()
+        validator.tool = Mock()
+
+        critical_match = _make_match("syntax-check", "Syntax error", "VERY_HIGH")
+        validator.tool.lint_and_classify.return_value = LintClassification(
+            critical_matches=[critical_match], warning_matches=[]
+        )
 
         result = validator.validate("/fake/path")
 
         assert not result.success
         assert result.failed is True
-        assert "Error" in result.message
         assert result.validator_name == "ansible-lint"
-        # Verify that autofix=True was passed (let ansible-lint fix simple issues)
-        validator.tool._run.assert_called_once_with("/fake/path", autofix=True)
 
-    def test_format_error_on_failure(self):
-        """Test error formatting."""
+    def test_validate_mixed_critical_and_warnings(self):
+        """Test that critical + warnings returns success=False."""
         validator = AnsibleLintValidator()
         validator.tool = Mock()
-        validator.tool._run.return_value = "Found lint issues"
+
+        critical_match = _make_match("load-failure", "Load failure", "VERY_HIGH")
+        warning_match = _make_match("no-changed-when", "Missing changed_when")
+        validator.tool.lint_and_classify.return_value = LintClassification(
+            critical_matches=[critical_match], warning_matches=[warning_match]
+        )
+
+        result = validator.validate("/fake/path")
+
+        assert not result.success
+        assert result.failed is True
+
+    def test_format_error_on_failure(self):
+        """Test error formatting for critical errors."""
+        validator = AnsibleLintValidator()
+        validator.tool = Mock()
+
+        critical_match = _make_match("syntax-check", "Syntax error", "VERY_HIGH")
+        validator.tool.lint_and_classify.return_value = LintClassification(
+            critical_matches=[critical_match], warning_matches=[]
+        )
 
         result = validator.validate("/fake/path")
 
         formatted = result.format_error()
         assert "## ansible-lint Errors" in formatted
-        assert "Found lint issues" in formatted
 
 
 class TestRoleStructureValidator:

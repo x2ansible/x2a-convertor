@@ -21,13 +21,48 @@ logger = get_logger(__name__)
 ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE = (
     "All files pass linting checks, no ansible-lint issues found."
 )
-SYNTAX_ERROR_RULES = ["load-failure", "syntax-check", "parser-error"]
+CRITICAL_RULE_IDS = ["load-failure", "syntax-check", "parser-error", "internal-error"]
+SYNTAX_ERROR_RULES = CRITICAL_RULE_IDS[:3]  # Subset for legacy _run() method
 ERROR_PATH_NOT_EXISTS = "ERROR: Path '{path}' does not exist."
 ERROR_PATH_NOT_DIRECTORY = "ERROR: Path '{path}' must be a directory, not a file."
 ERROR_ANSIBLE_LINT_NOT_INSTALLED = (
     "ERROR: ansible-lint is not installed. Install it with: uv add ansible-lint."
 )
 ERROR_RUNNING_ANSIBLE_LINT = "ERROR: running ansible-lint:\n```{error}```"
+
+
+@dataclass(frozen=True)
+class LintClassification:
+    """Classification of ansible-lint matches by severity."""
+
+    critical_matches: list[MatchError]
+    warning_matches: list[MatchError]
+
+    @property
+    def has_critical_errors(self) -> bool:
+        return len(self.critical_matches) > 0
+
+    @property
+    def has_warnings(self) -> bool:
+        return len(self.warning_matches) > 0
+
+    @property
+    def is_clean(self) -> bool:
+        return not self.has_critical_errors and not self.has_warnings
+
+    @property
+    def all_matches(self) -> list[MatchError]:
+        return self.critical_matches + self.warning_matches
+
+
+class MatchClassifier:
+    """Classifies ansible-lint matches into critical errors vs warnings."""
+
+    @staticmethod
+    def classify(matches: list[MatchError]) -> LintClassification:
+        critical = [m for m in matches if m.rule.id in CRITICAL_RULE_IDS]
+        warnings = [m for m in matches if m.rule.id not in CRITICAL_RULE_IDS]
+        return LintClassification(critical_matches=critical, warning_matches=warnings)
 
 
 class AnsibleLintInput(BaseModel):
@@ -171,6 +206,19 @@ def change_directory(path: Path) -> Iterator[None]:
         logger.debug(f"Restored directory to {original_cwd}")
 
 
+class _InternalErrorRule(BaseRule):
+    """Rule stub for path-validation errors in lint_and_classify."""
+
+    id = "internal-error"
+    severity = "VERY_HIGH"
+    version_changed = "1.0.0"
+
+    def __init__(self, description: str):
+        self._shortdesc = description
+        self.description = description
+        super().__init__()
+
+
 class AnsibleLintTool(X2ATool):
     """Tool to lint Ansible files using ansible-lint."""
 
@@ -295,3 +343,54 @@ class AnsibleLintTool(X2ATool):
             return self._handle_no_autofix(result, base_path)
 
         return self._perform_lint_and_fix_cycle(ansible_path, base_path)
+
+    def lint_and_classify(self, ansible_path: str) -> LintClassification:
+        """Lint and return a structured classification instead of a string.
+
+        Used by AnsibleLintValidator for severity-based acceptance.
+        The existing _run() method is unchanged (LLM tool contract).
+        """
+        self.log.info(f"lint_and_classify in {ansible_path}")
+
+        is_valid, error_message = PathValidator.validate(ansible_path)
+        if not is_valid:
+            assert error_message is not None
+            error_rule = _InternalErrorRule(error_message)
+            error_match = MatchError(message=error_message, rule=error_rule)
+            return LintClassification(
+                critical_matches=[error_match], warning_matches=[]
+            )
+
+        absolute_path = Path(ansible_path).resolve()
+        with change_directory(absolute_path):
+            return self._classify_linting_workflow(ansible_path)
+
+    def _classify_linting_workflow(self, ansible_path: str) -> LintClassification:
+        """Run lint with autofix, then classify remaining matches."""
+        config = LintConfiguration.create()
+        result = self._run_lint(config)
+
+        if not result.matches:
+            self.log.info(f"No issues found for '{ansible_path}'")
+            return LintClassification(critical_matches=[], warning_matches=[])
+
+        classification = MatchClassifier.classify(result.matches)
+
+        if classification.has_critical_errors:
+            self.log.warning(
+                f"Found {len(classification.critical_matches)} critical error(s), skipping autofix"
+            )
+            return classification
+
+        self.log.debug(f"Found {len(result.matches)} matches, attempting fixes")
+        self._apply_fixes(config, result)
+
+        config = LintConfiguration.create()
+        result = self._run_lint(config)
+
+        if not result.matches:
+            self.log.info(f"All issues fixed for '{ansible_path}'")
+            return LintClassification(critical_matches=[], warning_matches=[])
+
+        self.log.info(f"After fixes, {len(result.matches)} matches remain")
+        return MatchClassifier.classify(result.matches)

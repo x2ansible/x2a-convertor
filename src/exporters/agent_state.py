@@ -60,6 +60,7 @@ class ValidationAgentState(BaseAgentState):
 
     validation_results: dict | None = None
     error_report: str = ""
+    previous_error_report: str = ""
     has_errors: bool = False
 
 
