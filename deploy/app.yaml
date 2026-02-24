@@ -120,6 +120,7 @@ data:
           rules:
             - allow: [Template]
     x2a:
+      callbackBaseUrl: http://${SERVICE_NAME}.${NAMESPACE}.svc.cluster.local/api/x2a
       kubernetes:
         image: ${X2A_KUBERNETES_IMAGE:-quay.io/x2ansible/x2a-convertor}
         imageTag: ${X2A_KUBERNETES_IMAGE_TAG:-latest}
@@ -173,6 +174,17 @@ spec:
           spec:
             serviceAccountName: x2a-sa
             automountServiceAccountToken: true
+            containers:
+              - name: backstage-backend
+                env:
+                  - name: NAMESPACE
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.namespace
+                  - name: SERVICE_NAME
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.labels['rhdh.redhat.com/app']
   application:
     dynamicPluginsConfigMapName: dynamic-plugins
     appConfig:
