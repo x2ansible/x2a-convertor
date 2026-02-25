@@ -54,11 +54,13 @@ class ValidationAgentState(BaseAgentState):
 
     Attributes:
         validation_results: Results from validation service (dict of validator results)
+        previous_validation_results: Previous validation results for stall detection
         error_report: Formatted error report for LLM
         has_errors: Whether validation found errors
     """
 
     validation_results: dict | None = None
+    previous_validation_results: dict | None = None
     error_report: str = ""
     previous_error_report: str = ""
     has_errors: bool = False

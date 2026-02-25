@@ -36,6 +36,52 @@ from tools.validated_write import ValidatedWriteTool
 logger = get_logger(__name__)
 
 
+class ErrorFingerprint:
+    """Extracts stable error signatures from validation results.
+
+    Fingerprints capture error types and counts without location-specific
+    information (line numbers, file paths) that can change when code moves.
+    """
+
+    @staticmethod
+    def extract_from_results(results: dict | None) -> frozenset[tuple[str, str]]:
+        """Extract error fingerprints from validation results.
+
+        Args:
+            results: Dictionary mapping validator name to ValidationResult
+
+        Returns:
+            Frozenset of (validator_name, error_type) tuples representing
+            the types of errors present, ignoring locations and counts.
+        """
+        if not results:
+            return frozenset()
+
+        fingerprints = []
+        for validator_name, result in results.items():
+            if result.failed:
+                error_signature = ErrorFingerprint._extract_error_signature(
+                    result.message
+                )
+                fingerprints.append((validator_name, error_signature))
+
+        return frozenset(fingerprints)
+
+    @staticmethod
+    def _extract_error_signature(message: str) -> str:
+        """Extract stable error signature from validation message.
+
+        Extracts rule IDs and error types from messages like:
+        '[severity] filepath:lineno [rule_id] message (details)'
+
+        Returns a normalized signature that ignores line numbers and paths.
+        """
+        import re
+
+        rule_ids = re.findall(r"\[([a-z0-9_-]+)\]", message.lower())
+        return "|".join(sorted(set(rule_ids)))
+
+
 class ValidationAgent(BaseAgent[ChefState]):
     """Agent responsible for validating and fixing migration output.
 
@@ -192,6 +238,7 @@ class ValidationAgent(BaseAgent[ChefState]):
             self._current_metrics.record_metric("validators_passed", validators_passed)
             self._current_metrics.record_metric("validators_failed", validators_failed)
 
+        state.previous_validation_results = state.validation_results
         state.validation_results = results
         state.has_errors = self.validation_service.has_errors(results)
 
@@ -286,10 +333,23 @@ class ValidationAgent(BaseAgent[ChefState]):
     # -------------------------------------------------------------------------
 
     def _errors_are_stale(self, state: ValidationAgentState) -> bool:
-        """Return True when error_report is unchanged from the previous attempt."""
-        if not state.previous_error_report:
+        """Return True when the same error types persist from previous attempt.
+
+        Uses error fingerprints instead of raw string comparison to detect
+        when the LLM makes cosmetic changes (moves code, reformats) without
+        actually fixing validation errors.
+        """
+        if not state.previous_validation_results:
             return False
-        return state.error_report == state.previous_error_report
+
+        current_fingerprint = ErrorFingerprint.extract_from_results(
+            state.validation_results
+        )
+        previous_fingerprint = ErrorFingerprint.extract_from_results(
+            state.previous_validation_results
+        )
+
+        return current_fingerprint == previous_fingerprint
 
     def _get_failure_reason(self, state: ValidationAgentState) -> str:
         """Return a human-readable reason for validation failure."""
@@ -325,7 +385,10 @@ class ValidationAgent(BaseAgent[ChefState]):
             return "mark_failed"
 
         if self._errors_are_stale(state):
-            slog.warning("Stall detected: errors unchanged after fix attempt")
+            slog.warning(
+                f"Stall detected: same error types persist after fix attempt\n"
+                f"Latest errors:\n{state.error_report}"
+            )
             return "mark_failed"
 
         slog.info(

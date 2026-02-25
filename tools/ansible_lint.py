@@ -352,18 +352,37 @@ class AnsibleLintTool(X2ATool):
         """
         self.log.info(f"lint_and_classify in {ansible_path}")
 
-        is_valid, error_message = PathValidator.validate(ansible_path)
-        if not is_valid:
-            assert error_message is not None
-            error_rule = _InternalErrorRule(error_message)
-            error_match = MatchError(message=error_message, rule=error_rule)
+        try:
+            is_valid, error_message = PathValidator.validate(ansible_path)
+            if not is_valid:
+                assert error_message is not None
+                error_rule = _InternalErrorRule(error_message)
+                error_match = MatchError(message=error_message, rule=error_rule)
+                return LintClassification(
+                    critical_matches=[error_match], warning_matches=[]
+                )
+
+            absolute_path = Path(ansible_path).resolve()
+            with change_directory(absolute_path):
+                return self._classify_linting_workflow(ansible_path)
+
+        except ImportError:
+            self.log.error("ansible-lint is not installed")
+            error_rule = _InternalErrorRule(ERROR_ANSIBLE_LINT_NOT_INSTALLED)
+            error_match = MatchError(
+                message=ERROR_ANSIBLE_LINT_NOT_INSTALLED, rule=error_rule
+            )
             return LintClassification(
                 critical_matches=[error_match], warning_matches=[]
             )
-
-        absolute_path = Path(ansible_path).resolve()
-        with change_directory(absolute_path):
-            return self._classify_linting_workflow(ansible_path)
+        except Exception as e:
+            error_msg = ERROR_RUNNING_ANSIBLE_LINT.format(error=str(e))
+            self.log.error(f"Error running ansible-lint: {e!s}")
+            error_rule = _InternalErrorRule(error_msg)
+            error_match = MatchError(message=error_msg, rule=error_rule)
+            return LintClassification(
+                critical_matches=[error_match], warning_matches=[]
+            )
 
     def _classify_linting_workflow(self, ansible_path: str) -> LintClassification:
         """Run lint with autofix, then classify remaining matches."""
