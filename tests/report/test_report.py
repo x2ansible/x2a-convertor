@@ -1,5 +1,7 @@
 """Tests for the report module that posts artifacts to the x2a API."""
 
+import hashlib
+import hmac
 import json
 
 import pytest
@@ -13,6 +15,8 @@ COLLECT_URL = "https://server.example/projects/abc-123/collectArtifacts?phase=in
 PLAN_URL = "https://storage.example/artifacts/migration-plan.md"
 SOURCES_URL = "https://storage.example/artifacts/roles/nginx.tar.gz"
 MODULE_PLAN_URL = "https://storage.example/artifacts/migration-plan-nginx.md"
+
+CALLBACK_TOKEN = "a1b2c3d4e5f67890abcdef1234567890abcdef1234567890abcdef1234567890"
 
 
 class TestArtifactType:
@@ -36,6 +40,7 @@ class TestReportClientParseArtifact:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
         artifacts = client._build_artifacts()
 
@@ -52,6 +57,7 @@ class TestReportClientParseArtifact:
                 f"migration_plan:{PLAN_URL}",
                 f"migrated_sources:{SOURCES_URL}",
             ],
+            callback_token=CALLBACK_TOKEN,
         )
         artifacts = client._build_artifacts()
 
@@ -66,6 +72,7 @@ class TestReportClientParseArtifact:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"invalid_type:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
 
         with pytest.raises(ValueError, match="Invalid artifact type 'invalid_type'"):
@@ -76,6 +83,7 @@ class TestReportClientParseArtifact:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=["no_separator_here"],
+            callback_token=CALLBACK_TOKEN,
         )
 
         with pytest.raises(ValueError, match="Expected 'type:url'"):
@@ -89,6 +97,7 @@ class TestReportClientParseArtifact:
                 f"migration_plan:{PLAN_URL}",
                 f"migration_plan:{PLAN_URL}",
             ],
+            callback_token=CALLBACK_TOKEN,
         )
         artifacts = client._build_artifacts()
 
@@ -101,6 +110,7 @@ class TestReportClientParseArtifact:
                 url=COLLECT_URL,
                 job_id="job-1",
                 artifact_pairs=[f"{artifact_type.value}:{PLAN_URL}"],
+                callback_token=CALLBACK_TOKEN,
             )
             artifacts = client._build_artifacts()
             assert artifacts[0]["type"] == artifact_type.value
@@ -111,6 +121,7 @@ class TestReportClientParseArtifact:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{artifact_url}"],
+            callback_token=CALLBACK_TOKEN,
         )
         artifacts = client._build_artifacts()
 
@@ -127,6 +138,7 @@ class TestReportClientPayload:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
         payload = client._build_payload()
 
@@ -140,6 +152,7 @@ class TestReportClientPayload:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
             error_message="something went wrong",
         )
         payload = client._build_payload()
@@ -154,6 +167,7 @@ class TestReportClientPayload:
             url=COLLECT_URL,
             job_id="my-job-uuid",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
         payload = client._build_payload()
 
@@ -166,6 +180,7 @@ class TestReportClientPayload:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
             commit_id="abc123def456",
         )
         payload = client._build_payload()
@@ -179,6 +194,7 @@ class TestReportClientPayload:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
         payload = client._build_payload()
 
@@ -191,10 +207,60 @@ class TestReportClientPayload:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
         payload = client._build_payload()
 
         assert "telemetry" not in payload
+
+
+class TestReportClientSignature:
+    """Tests for HMAC-SHA256 signature generation."""
+
+    def test_signature_generation(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
+        client = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-1",
+            artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
+        )
+        payload = client._build_payload()
+        signature, body_bytes = client._generate_signature(payload)
+
+        expected_body_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        token_bytes = CALLBACK_TOKEN.encode("utf-8")
+        expected_signature = hmac.new(
+            token_bytes, expected_body_bytes, hashlib.sha256
+        ).hexdigest()
+
+        assert signature == expected_signature
+        assert len(signature) == 64
+        assert body_bytes == expected_body_bytes
+
+    def test_signature_differs_for_different_payloads(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
+        client1 = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-1",
+            artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
+        )
+        client2 = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-2",
+            artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
+        )
+
+        payload1 = client1._build_payload()
+        payload2 = client2._build_payload()
+        signature1, _ = client1._generate_signature(payload1)
+        signature2, _ = client2._generate_signature(payload2)
+
+        assert signature1 != signature2
 
 
 class TestReportClientSend:
@@ -215,6 +281,7 @@ class TestReportClientSend:
             url=COLLECT_URL,
             job_id="job-uuid-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
         client.send()
 
@@ -237,6 +304,7 @@ class TestReportClientSend:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
             error_message="Agent failed",
         )
         client.send()
@@ -263,6 +331,7 @@ class TestReportClientSend:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
         client.send()
 
@@ -282,6 +351,7 @@ class TestReportClientSend:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
 
         with pytest.raises(HTTPError):
@@ -297,6 +367,7 @@ class TestReportClientSend:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
 
         with pytest.raises(HTTPError):
@@ -312,11 +383,31 @@ class TestReportClientSend:
             url=COLLECT_URL,
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
         client.send()
 
         assert responses.calls[0].request.headers is not None
         assert "application/json" in responses.calls[0].request.headers["Content-Type"]
+
+    @responses.activate
+    def test_post_includes_signature_header(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+
+        responses.add(responses.POST, COLLECT_URL, json={"message": "ok"}, status=200)
+
+        client = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-1",
+            artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
+        )
+        client.send()
+
+        assert responses.calls[0].request.headers is not None
+        assert "X-Callback-Signature" in responses.calls[0].request.headers
+        signature = responses.calls[0].request.headers["X-Callback-Signature"]
+        assert len(signature) == 64
 
 
 class TestReportArtifactsFunction:
@@ -332,6 +423,7 @@ class TestReportArtifactsFunction:
             url=COLLECT_URL,
             job_id="job-1",
             artifacts=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
         )
 
         assert len(responses.calls) == 1
@@ -346,6 +438,7 @@ class TestReportArtifactsFunction:
             url=COLLECT_URL,
             job_id="job-1",
             artifacts=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
             error_message="failed",
         )
 
