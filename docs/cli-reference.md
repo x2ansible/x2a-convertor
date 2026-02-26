@@ -281,6 +281,9 @@ uv run app.py report [OPTIONS]
 - `--job-id` **[required]** (default: Sentinel.UNSET)
   UUID of the completed job
 
+- `--callback-token` **[required]** (default: Sentinel.UNSET)
+  HMAC-SHA256 callback token for request signing
+
 - `--error-message`
   Error message to report (sets status to error)
 
@@ -298,14 +301,16 @@ Usage: report [OPTIONS]
   Report execution artifacts to the x2a API
 
 Options:
-  --url TEXT            Full URL to report artifacts to  [required]
-  --job-id TEXT         UUID of the completed job  [required]
-  --error-message TEXT  Error message to report (sets status to error)
-  --artifacts TEXT      Artifact as type:url (e.g.,
-                        migration_plan:https://storage.example/migration-
-                        plan.md)
-  --commit-id TEXT      Git commit SHA from the job's push to target repo
-  --help                Show this message and exit.
+  --url TEXT             Full URL to report artifacts to  [required]
+  --job-id TEXT          UUID of the completed job  [required]
+  --callback-token TEXT  HMAC-SHA256 callback token for request signing
+                         [required]
+  --error-message TEXT   Error message to report (sets status to error)
+  --artifacts TEXT       Artifact as type:url (e.g.,
+                         migration_plan:https://storage.example/migration-
+                         plan.md)
+  --commit-id TEXT       Git commit SHA from the job's push to target repo
+  --help                 Show this message and exit.
 ```
 
 ## validate

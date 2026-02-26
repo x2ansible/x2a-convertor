@@ -1,5 +1,8 @@
 """Report client for posting execution artifacts to the x2a API."""
 
+import hashlib
+import hmac
+import json
 import uuid
 from enum import Enum
 from typing import Any, ClassVar
@@ -38,12 +41,14 @@ class ReportClient:
         url: str,
         job_id: str,
         artifact_pairs: list[str],
+        callback_token: str,
         error_message: str | None = None,
         commit_id: str | None = None,
     ) -> None:
         self._url = url
         self._job_id = job_id
         self._artifact_pairs = artifact_pairs
+        self._callback_token = callback_token
         self._error_message = error_message
         self._commit_id = commit_id
 
@@ -54,7 +59,16 @@ class ReportClient:
             "Posting artifacts", url=self._url, artifact_count=len(payload["artifacts"])
         )
 
-        response = requests.post(self._url, json=payload, timeout=30)
+        signature, body_bytes = self._generate_signature(payload)
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Callback-Signature": signature,
+        }
+
+        response = requests.post(
+            self._url, data=body_bytes, headers=headers, timeout=30
+        )
         response.raise_for_status()
         logger.info("Report accepted", status_code=response.status_code)
 
@@ -117,11 +131,26 @@ class ReportClient:
             return None
         return telemetry.to_api_dict()
 
+    def _generate_signature(self, payload: dict[str, Any]) -> tuple[str, bytes]:
+        """Generate HMAC-SHA256 signature for the payload.
+
+        Args:
+            payload: JSON payload dictionary to sign
+
+        Returns:
+            Tuple of (hexadecimal signature string, JSON body bytes)
+        """
+        body_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        token_bytes = self._callback_token.encode("utf-8")
+        signature = hmac.new(token_bytes, body_bytes, hashlib.sha256)
+        return signature.hexdigest(), body_bytes
+
 
 def report_artifacts(
     url: str,
     job_id: str,
     artifacts: list[str],
+    callback_token: str,
     error_message: str | None = None,
     commit_id: str | None = None,
 ) -> None:
@@ -131,6 +160,7 @@ def report_artifacts(
         url: Full URL to POST to (including query params)
         job_id: UUID of the completed job
         artifacts: List of "type:url" strings
+        callback_token: HMAC-SHA256 callback token for request signing
         error_message: Optional error message (sets status to "error")
         commit_id: Optional git commit SHA from the job's push
     """
@@ -138,6 +168,7 @@ def report_artifacts(
         url=url,
         job_id=job_id,
         artifact_pairs=artifacts,
+        callback_token=callback_token,
         error_message=error_message,
         commit_id=commit_id,
     )

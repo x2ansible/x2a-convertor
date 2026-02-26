@@ -245,6 +245,11 @@ def publish_aap_cmd(target_repo, target_branch, project_id) -> None:
 @click.option("--url", required=True, help="Full URL to report artifacts to")
 @click.option("--job-id", required=True, help="UUID of the completed job")
 @click.option(
+    "--callback-token",
+    required=True,
+    help="HMAC-SHA256 callback token for request signing",
+)
+@click.option(
     "--error-message",
     default=None,
     help="Error message to report (sets status to error)",
@@ -261,12 +266,13 @@ def publish_aap_cmd(target_repo, target_branch, project_id) -> None:
     help="Git commit SHA from the job's push to target repo",
 )
 @handle_exceptions
-def report(url, job_id, error_message, artifacts, commit_id) -> None:
+def report(url, job_id, callback_token, error_message, artifacts, commit_id) -> None:
     """Report execution artifacts to the x2a API"""
     report_artifacts(
         url=url,
         job_id=job_id,
         artifacts=list(artifacts),
+        callback_token=callback_token,
         error_message=error_message,
         commit_id=commit_id,
     )
