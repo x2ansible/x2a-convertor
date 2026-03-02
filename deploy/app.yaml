@@ -177,6 +177,8 @@ spec:
             containers:
               - name: backstage-backend
                 env:
+                  - name: NODE_EXTRA_CA_CERTS
+                    value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
                   - name: NAMESPACE
                     valueFrom:
                       fieldRef:
@@ -194,13 +196,6 @@ spec:
     extraFiles:
       mountPath: /opt/app-root/src
     extraEnvs:
-      envs:
-        # - name: LOG_LEVEL
-        #   value: INFO
-        # - name: NO_PROXY
-        #   value: localhost,127.0.0.1,.cluster.local,.svc,172.31.0.0/16
-        - name: NODE_TLS_REJECT_UNAUTHORIZED
-          value: "0"
       secrets:
         - name: x2a-credentials
     route:
