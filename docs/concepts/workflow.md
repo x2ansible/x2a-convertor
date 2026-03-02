@@ -293,12 +293,14 @@ sequenceDiagram
 
 ### Outputs
 
-**Directory**: `ansible/roles/<module-name>/`
+**Directory**: `ansible/roles/<role-name>/`
+
+Role names are sanitized to comply with Ansible naming standards: hyphens are replaced with underscores and the name is lowercased (e.g., `nginx-multisite` becomes `nginx_multisite`).
 
 Structure:
 
 ```
-ansible/nginx-multisite/
+ansible/roles/nginx_multisite/
 ├── defaults/
 │   └── main.yml          # Converted attributes
 ├── files/
@@ -366,11 +368,13 @@ flowchart TB
 ├── ansible.cfg
 ├── collections/requirements.yml
 ├── inventory/hosts.yml
-├── roles/{role}/
-└── playbooks/run_{role}.yml
+├── roles/{role_name}/
+└── playbooks/run_{role_name}.yml
 ```
 
 On the first module, the full skeleton is created. On subsequent modules, only the role directory and playbook are appended.
+
+**Note:** Role names are sanitized to comply with Ansible naming standards — hyphens are replaced with underscores and names are lowercased. For example, a module named `fastapi-tutorial` produces `roles/fastapi_tutorial/` and `playbooks/run_fastapi_tutorial.yml`.
 
 ### Key Features
 

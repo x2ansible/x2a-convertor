@@ -221,6 +221,9 @@ MODULE_NAME is the module/role to add.
 On the first module, creates the full skeleton (ansible.cfg, collections,
 inventory). On subsequent modules, appends the role and playbook.
 
+Role names are sanitized to comply with Ansible standards: hyphens are
+replaced with underscores (e.g., fastapi-tutorial becomes fastapi_tutorial).
+
 
 ### Usage
 
@@ -253,6 +256,9 @@ Usage: publish-project [OPTIONS] PROJECT_ID MODULE_NAME
 
   On the first module, creates the full skeleton (ansible.cfg, collections,
   inventory). On subsequent modules, appends the role and playbook.
+
+  Role names are sanitized to comply with Ansible standards: hyphens are
+  replaced with underscores (e.g., fastapi-tutorial becomes fastapi_tutorial).
 
 Options:
   --collections-file FILE  Path to YAML/JSON file containing collections list.

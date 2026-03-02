@@ -15,6 +15,7 @@ from src.publishers.tools import (
     sync_to_aap,
     verify_files_exist,
 )
+from src.types.ansible_module import AnsibleModule
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -46,8 +47,9 @@ def publish_project(
         FileNotFoundError: If the source role directory does not exist.
         OSError: If file operations fail.
     """
+    role_name = str(AnsibleModule(module_name))
     source_role_path = (
-        Path(project_id) / "modules" / module_name / "ansible" / "roles" / module_name
+        Path(project_id) / "modules" / module_name / "ansible" / "roles" / role_name
     )
     ansible_project_dir = Path(project_id) / "ansible-project"
 
@@ -94,23 +96,23 @@ def publish_project(
         )
 
     # Copy role directory
-    destination = f"{publish_dir}/roles/{module_name}"
-    logger.info(f"Copying role {module_name} from {source_role_path}")
+    destination = f"{publish_dir}/roles/{role_name}"
+    logger.info(f"Copying role {role_name} from {source_role_path}")
     copy_role_directory(
         source_role_path=str(source_role_path), destination_path=destination
     )
 
     # Generate wrapper playbook
     generate_playbook_yaml(
-        file_path=f"{publish_dir}/playbooks/run_{module_name}.yml",
-        name=f"Run {module_name}",
-        role_name=module_name,
+        file_path=f"{publish_dir}/playbooks/run_{role_name}.yml",
+        name=f"Run {role_name}",
+        role_name=role_name,
     )
 
     # Verify files for this role
     required_files = [
-        f"{publish_dir}/roles/{module_name}",
-        f"{publish_dir}/playbooks/run_{module_name}.yml",
+        f"{publish_dir}/roles/{role_name}",
+        f"{publish_dir}/playbooks/run_{role_name}.yml",
     ]
     verify_files_exist(file_paths=required_files)
 

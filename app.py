@@ -199,6 +199,9 @@ def publish_project_cmd(
 
     On the first module, creates the full skeleton (ansible.cfg, collections,
     inventory). On subsequent modules, appends the role and playbook.
+
+    Role names are sanitized to comply with Ansible standards: hyphens are
+    replaced with underscores (e.g., fastapi-tutorial becomes fastapi_tutorial).
     """
     project_dir = publish_project(
         project_id=project_id,
