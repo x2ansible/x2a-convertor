@@ -5,3 +5,4 @@ class Technology(Enum):
     CHEF = "Chef"
     PUPPET = "Puppet"
     SALT = "Salt"
+    POWERSHELL = "Powershell"

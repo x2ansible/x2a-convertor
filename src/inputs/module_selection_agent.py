@@ -7,8 +7,8 @@ based on user input and LLM analysis of the migration plan.
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
 from src.inputs.analyze_state import MigrationState, ModuleSelection
+from src.types.technology import Technology
 from src.types.telemetry import AgentMetrics
-from src.utils.technology import Technology
 
 
 class ModuleSelectionAgent(BaseAgent[MigrationState]):
@@ -42,7 +42,7 @@ class ModuleSelectionAgent(BaseAgent[MigrationState]):
         assert isinstance(response, ModuleSelection)
 
         normalized_path = self._normalize_path(response.path)
-        technology = Technology(response.technology)
+        technology = response.technology
 
         self._record_metrics(metrics, technology, normalized_path)
 

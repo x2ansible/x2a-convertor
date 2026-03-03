@@ -1,7 +1,7 @@
 """Test cases for analyze.py MigrationState."""
 
 from src.inputs.analyze import MigrationState
-from src.utils.technology import Technology
+from src.types.technology import Technology
 
 
 class TestMigrationStateGetMigrationPlanPath:

@@ -18,7 +18,7 @@ from langchain_core.tools import BaseTool
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
 from src.config import get_settings
-from src.exporters.state import ChefState
+from src.exporters.state import ExportState
 from src.publishers.galaxy_client import AAPCollection, GalaxyClient
 from src.types.aap_discovery import (
     AAPDiscoveryResult,
@@ -74,7 +74,7 @@ class VerificationResult:
 # =============================================================================
 
 
-class AAPDiscoveryAgent(BaseAgent[ChefState]):
+class AAPDiscoveryAgent(BaseAgent[ExportState]):
     """Agent that discovers relevant collections in AAP Private Automation Hub.
 
     This agent uses Galaxy tools to explore the Private Hub and find collections
@@ -102,12 +102,12 @@ class AAPDiscoveryAgent(BaseAgent[ChefState]):
         super().__init__(model)
         self._settings = get_settings().aap
 
-    def extra_tools_from_state(self, state: ChefState) -> list[BaseTool]:
+    def extra_tools_from_state(self, state: ExportState) -> list[BaseTool]:
         if state.checklist is None:
             return []
         return state.checklist.get_tools()
 
-    def execute(self, state: ChefState, metrics: AgentMetrics | None) -> ChefState:
+    def execute(self, state: ExportState, metrics: AgentMetrics | None) -> ExportState:
         """Execute AAP discovery and update state with results."""
         if not self._settings.is_galaxy_enabled():
             self._log.info("AAP discovery skipped (not configured)")
@@ -137,7 +137,7 @@ class AAPDiscoveryAgent(BaseAgent[ChefState]):
     # -------------------------------------------------------------------------
 
     def _run_discovery_agent(
-        self, state: ChefState, metrics: AgentMetrics | None = None
+        self, state: ExportState, metrics: AgentMetrics | None = None
     ) -> str:
         """Run the discovery agent to find relevant collections."""
         system_prompt = get_prompt(self.SYSTEM_PROMPT_NAME).format()

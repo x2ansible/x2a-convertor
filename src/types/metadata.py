@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field
 
+from src.types.technology import Technology
+
 
 class ModuleMetadata(BaseModel):
     """Metadata for a single module/cookbook identified in migration plan.
@@ -12,8 +14,9 @@ class ModuleMetadata(BaseModel):
     name: str = Field(description="Module or cookbook name")
     path: str = Field(description="Relative path to the module/cookbook directory")
     description: str = Field(description="Brief description of what this module does")
-    technology: str = Field(
-        default="Chef", description="Source technology (Chef, Puppet, Salt)"
+    technology: Technology = Field(
+        default=Technology.CHEF,
+        description="Source technology (Chef, Puppet, Salt, Powershell)",
     )
 
 

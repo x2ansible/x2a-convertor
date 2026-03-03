@@ -16,7 +16,7 @@ from langgraph.graph import START, StateGraph
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
 from src.exporters.agent_state import WriteAgentState
-from src.exporters.state import ChefState
+from src.exporters.state import ExportState
 from src.model import get_runnable_config
 from src.types import ChecklistStatus
 from src.types.telemetry import AgentMetrics
@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class WriteAgent(BaseAgent[ChefState]):
+class WriteAgent(BaseAgent[ExportState]):
     """Agent responsible for writing all migration files from checklist.
 
     This agent uses an internal StateGraph to manage file creation loops:
@@ -63,7 +63,7 @@ class WriteAgent(BaseAgent[ChefState]):
         self._graph = self._build_internal_graph()
         self._current_metrics: AgentMetrics | None = None
 
-    def extra_tools_from_state(self, state: ChefState) -> list[BaseTool]:
+    def extra_tools_from_state(self, state: ExportState) -> list[BaseTool]:
         if state.checklist is None:
             return []
         return state.checklist.get_tools()
@@ -294,9 +294,9 @@ galaxy_info:
         )
         return "write_files"
 
-    def execute(self, state: ChefState, metrics: AgentMetrics | None) -> ChefState:
+    def execute(self, state: ExportState, metrics: AgentMetrics | None) -> ExportState:
         """Execute write workflow with internal retry loop."""
-        from src.exporters.chef_to_ansible import MigrationPhase
+        from src.exporters.to_ansible import MigrationPhase
 
         self._log.info("Starting write agent workflow")
 

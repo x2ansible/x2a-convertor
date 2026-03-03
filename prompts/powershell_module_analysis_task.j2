@@ -1,0 +1,15 @@
+FILE PATH: {{ file_path }}
+
+FILE CONTENT:
+```powershell
+{{ file_content }}
+```
+
+Now analyze the module above and return the structured JSON:
+```json
+{% raw %}{
+  "exported_functions": [],
+  "dependencies": [],
+  "parameters": []
+}{% endraw %}
+```

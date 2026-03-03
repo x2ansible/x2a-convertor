@@ -18,7 +18,7 @@ from src.base_agent import BaseAgent
 from src.config import get_settings
 from src.exporters.agent_state import ValidationAgentState
 from src.exporters.services import CollectionManager, InstallResultSummary
-from src.exporters.state import ChefState
+from src.exporters.state import ExportState
 from src.model import get_runnable_config
 from src.types import SUMMARY_SUCCESS_MESSAGE
 from src.types.telemetry import AgentMetrics
@@ -82,7 +82,7 @@ class ErrorFingerprint:
         return "|".join(sorted(set(rule_ids)))
 
 
-class ValidationAgent(BaseAgent[ChefState]):
+class ValidationAgent(BaseAgent[ExportState]):
     """Agent responsible for validating and fixing migration output.
 
     This agent uses an internal StateGraph to manage validation/fix loops:
@@ -119,7 +119,7 @@ class ValidationAgent(BaseAgent[ChefState]):
         self._graph = self._build_internal_graph()
         self._current_metrics: AgentMetrics | None = None
 
-    def extra_tools_from_state(self, state: ChefState) -> list[BaseTool]:
+    def extra_tools_from_state(self, state: ExportState) -> list[BaseTool]:
         if state.checklist is None:
             return []
         return state.checklist.get_tools()
@@ -160,7 +160,7 @@ class ValidationAgent(BaseAgent[ChefState]):
 
         return state
 
-    def _find_requirements_file(self, chef_state: ChefState, slog) -> Path | None:
+    def _find_requirements_file(self, chef_state: ExportState, slog) -> Path | None:
         """Find requirements.yml in standard locations."""
         search_paths = self._get_requirements_search_paths(chef_state)
 
@@ -173,7 +173,7 @@ class ValidationAgent(BaseAgent[ChefState]):
 
         return None
 
-    def _get_requirements_search_paths(self, chef_state: ChefState) -> list[Path]:
+    def _get_requirements_search_paths(self, chef_state: ExportState) -> list[Path]:
         """Get ordered list of paths to search for requirements.yml."""
         ansible_path = Path(chef_state.get_ansible_path())
         ansible_root = ansible_path.parent.parent
@@ -400,9 +400,9 @@ class ValidationAgent(BaseAgent[ChefState]):
     # Main Entry Point
     # -------------------------------------------------------------------------
 
-    def execute(self, state: ChefState, metrics: AgentMetrics | None) -> ChefState:
+    def execute(self, state: ExportState, metrics: AgentMetrics | None) -> ExportState:
         """Execute validation workflow with internal retry loop."""
-        from src.exporters.chef_to_ansible import MigrationPhase
+        from src.exporters.to_ansible import MigrationPhase
 
         self._log.info("Starting validation agent workflow")
 
