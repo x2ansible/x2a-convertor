@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from src.const import MODULE_MIGRATION_PLAN_TEMPLATE
 from src.types import BaseState
-from src.utils.technology import Technology
+from src.types.technology import Technology
 
 
 class ModuleSelection(BaseModel):
@@ -18,7 +18,7 @@ class ModuleSelection(BaseModel):
 
     name: str
     path: str
-    technology: str = "Chef"
+    technology: Technology = Technology.CHEF
 
 
 @dataclass

@@ -11,12 +11,11 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.const import MIGRATION_PLAN_FILE
 from src.inputs.analyze_state import MigrationState
-from src.inputs.chef import ChefSubagent
 from src.inputs.module_selection_agent import ModuleSelectionAgent
 from src.model import get_model, get_runnable_config
 from src.types import Telemetry, telemetry_context
 from src.utils.logging import get_logger
-from src.utils.technology import Technology
+from src.utils.technology_registry import TechnologyRegistry
 
 logger = get_logger(__name__)
 
@@ -24,7 +23,6 @@ logger = get_logger(__name__)
 class MigrationAnalysisWorkflow:
     def __init__(self, model=None) -> None:
         self.model = model or get_model()
-        self.chef_subagent = ChefSubagent(model=self.model)
         self.module_selection_agent = ModuleSelectionAgent(model=self.model)
         self.graph = self._build_graph()
         logger.debug(self.graph.get_graph().draw_mermaid())
@@ -68,35 +66,29 @@ class MigrationAnalysisWorkflow:
         """Choose and execute the appropriate subagent based on technology."""
         technology = state.technology
 
+        if technology is None:
+            logger.error("No technology detected, cannot choose subagent")
+            return state.update(
+                module_migration_plan="Technology detection failed, analysis not available"
+            )
+
         with telemetry_context(state.telemetry, "choose_subagent") as metrics:
-            if technology == Technology.CHEF:
-                module_plan = self.chef_subagent.invoke(
-                    state.path, state.user_message, telemetry=state.telemetry
-                )
+            try:
+                analyzer = TechnologyRegistry.get_analyzer(technology, self.model)
+            except ValueError:
+                logger.error(f"No analyzer registered for technology: {technology}")
                 if metrics:
-                    metrics.record_metric("subagent", "ChefSubagent")
-                return state.update(module_migration_plan=module_plan)
-
-            if technology == Technology.PUPPET:
-                logger.warning("Puppet agent not implemented yet")
-                if metrics:
-                    metrics.record_metric(
-                        "subagent", "PuppetSubagent (not implemented)"
-                    )
+                    metrics.record_metric("subagent", f"{technology} (not registered)")
                 return state.update(
-                    module_migration_plan="Puppet analysis not available"
+                    module_migration_plan=f"{technology.value} analysis not available"
                 )
 
-            if technology == Technology.SALT:
-                logger.warning("Salt agent not implemented yet")
-                if metrics:
-                    metrics.record_metric("subagent", "SaltSubagent (not implemented)")
-                return state.update(module_migration_plan="Salt analysis not available")
-
-            logger.error("Technology not set correctly")
+            module_plan = analyzer.invoke(
+                state.path, state.user_message, telemetry=state.telemetry
+            )
             if metrics:
-                metrics.record_metric("subagent", "unknown")
-            return state.update(module_migration_plan="Technology analysis failed")
+                metrics.record_metric("subagent", analyzer.__class__.__name__)
+            return state.update(module_migration_plan=module_plan)
 
     def write_migration_file(self, state: MigrationState) -> MigrationState:
         """Write the migration plan to a file."""
@@ -138,5 +130,5 @@ def analyze_project(user_requirements: str, source_dir: str = "."):
     telemetry.stop().save()
     logger.info(f"Telemetry summary:\n{telemetry.to_summary()}")
 
-    logger.info("Chef to Ansible migration analysis completed successfully!")
+    logger.info("Migration analysis completed successfully!")
     return result

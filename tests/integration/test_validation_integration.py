@@ -8,8 +8,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.exporters.chef_to_ansible import ChefToAnsibleSubagent, MigrationPhase
-from src.exporters.state import ChefState
+from src.exporters.state import ExportState
+from src.exporters.to_ansible import MigrationPhase, ToAnsibleSubagent
 from src.types import AnsibleModule, DocumentFile
 from src.validation.service import ValidationService
 from src.validation.validators import AnsibleLintValidator, RoleStructureValidator
@@ -21,8 +21,8 @@ class TestValidationIntegration:
 
     @pytest.fixture
     def mock_state(self, tmp_path):
-        """Create a mock ChefState for testing."""
-        state = Mock(spec=ChefState)
+        """Create a mock ExportState for testing."""
+        state = Mock(spec=ExportState)
         state.path = str(tmp_path / "chef")
         state.module = "test_module"
         state.user_message = "test migration"
@@ -124,7 +124,7 @@ class TestValidationIntegration:
         monkeypatch.setenv("USE_NEW_VALIDATION", "true")
 
         # Create agent
-        agent = ChefToAnsibleSubagent(module=AnsibleModule("test_module"))
+        agent = ToAnsibleSubagent(module=AnsibleModule("test_module"))
 
         # Verify validators are initialized in ValidationAgent
         assert hasattr(agent.validation_agent, "validators")
@@ -140,7 +140,7 @@ class TestValidationIntegration:
         monkeypatch.delenv("USE_NEW_VALIDATION", raising=False)
 
         # Create agent
-        agent = ChefToAnsibleSubagent(module=AnsibleModule("test_module"))
+        agent = ToAnsibleSubagent(module=AnsibleModule("test_module"))
 
         # Verify validators are still initialized in ValidationAgent (for future migration)
         assert hasattr(agent.validation_agent, "validators")
@@ -151,7 +151,7 @@ class TestValidationIntegration:
 
     def test_validation_agent_uses_validators_correctly(self, tmp_path):
         """Test that ValidationAgent properly uses its validators."""
-        agent = ChefToAnsibleSubagent(module=AnsibleModule("test_module"))
+        agent = ToAnsibleSubagent(module=AnsibleModule("test_module"))
 
         # Verify ValidationAgent has validators initialized
         assert hasattr(agent.validation_agent, "validators")

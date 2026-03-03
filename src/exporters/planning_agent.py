@@ -13,11 +13,11 @@ from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
-from src.exporters.state import ChefState
+from src.exporters.state import ExportState
 from src.types.telemetry import AgentMetrics
 
 
-class PlanningAgent(BaseAgent[ChefState]):
+class PlanningAgent(BaseAgent[ExportState]):
     """Agent responsible for analyzing migration plans and building checklists.
 
     This agent:
@@ -36,12 +36,12 @@ class PlanningAgent(BaseAgent[ChefState]):
     SYSTEM_PROMPT_NAME = "export_ansible_planning_system"
     USER_PROMPT_NAME = "export_ansible_planning_task"
 
-    def extra_tools_from_state(self, state: ChefState) -> list[BaseTool]:
+    def extra_tools_from_state(self, state: ExportState) -> list[BaseTool]:
         if state.checklist is None:
             return []
         return state.checklist.get_tools()
 
-    def execute(self, state: ChefState, metrics: AgentMetrics | None) -> ChefState:
+    def execute(self, state: ExportState, metrics: AgentMetrics | None) -> ExportState:
         """Execute planning phase."""
         self._log.info(
             "Planning migration: analyzing migration plan and creating checklist"

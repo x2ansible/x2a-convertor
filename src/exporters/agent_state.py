@@ -7,7 +7,7 @@ their work/validation loops independently from the parent workflow.
 from dataclasses import dataclass
 from typing import Any
 
-from src.exporters.state import ChefState
+from src.exporters.state import ExportState
 
 
 @dataclass
@@ -15,7 +15,7 @@ class BaseAgentState:
     """Base internal state for agent workflows.
 
     This state is used within an agent's internal StateGraph to track
-    progress through work/validation loops. It wraps the parent ChefState
+    progress through work/validation loops. It wraps the parent ExportState
     and adds agent-specific tracking fields.
 
     Attributes:
@@ -26,7 +26,7 @@ class BaseAgentState:
         last_result: Last result from agent execution (optional)
     """
 
-    chef_state: ChefState
+    chef_state: ExportState
     attempt: int = 0
     max_attempts: int = 3
     complete: bool = False

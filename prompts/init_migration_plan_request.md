@@ -10,7 +10,7 @@ The current directory structure (max depth 3, excluding hidden files):
 Based on this structure, create a comprehensive `{migration_plan_file}` file that follows the template structure.
 
 Focus on:
-1. Identifying the current technology (Chef, Puppet, Salt, etc.) from file extensions and structure
+1. Identifying the current technology (Chef, Puppet, Salt, Powershell, etc.) from file extensions and structure (.rb for Chef, .ps1/.psm1/.psd1 for Powershell, .pp for Puppet, .sls for Salt)
 2. Cataloging all modules/cookbooks/manifests and their purposes
 3. Mapping dependencies (Berksfile, Policyfile, metadata, etc.)
 4. Identifying configuration files, secrets, and security considerations

@@ -130,7 +130,7 @@ uv run app.py migrate [OPTIONS] USER_REQUIREMENTS
   Source directory to migrate
 
 - `--source-technology` (default: Chef)
-  Source technology to migrate from [Chef, Puppet, Salt]
+  Source technology to migrate from
 
 - `--module-migration-plan` (default: Sentinel.UNSET)
   Module migration plan file produced by the analyze command. Must be in the format: migration-plan-<module_name>.md. Path is relative to the --source-dir. Example: migration-plan-nginx.md
@@ -147,8 +147,8 @@ Usage: migrate [OPTIONS] USER_REQUIREMENTS
 
 Options:
   --source-dir DIRECTORY          Source directory to migrate
-  --source-technology TEXT        Source technology to migrate from [Chef,
-                                  Puppet, Salt]
+  --source-technology [chef|puppet|salt|powershell]
+                                  Source technology to migrate from
   --module-migration-plan FILE    Module migration plan file produced by the
                                   analyze command. Must be in the format:
                                   migration-plan-<module_name>.md. Path is

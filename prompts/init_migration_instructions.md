@@ -19,9 +19,15 @@ The plan must summarize in detail all modules, dependencies, security issues, an
 Follow these steps in order:
 
 1. **Root Directory Scan**: Use `list_directory` on `"."` to see all top-level files and folders.
-2. **Dependency Review**: Use `read_file` on files like `Berksfile`, `Policyfile.rb`, etc., to identify dependencies.
-3. **Metadata Review**: Read `metadata.rb` and `metadata.json` to gather cookbook metadata.
-4. **Recipe and Content Review**: Read all Chef recipes to understand their logic, dependencies, and environment assumptions.
+2. **Dependency Review**: Use `read_file` on dependency files to identify dependencies:
+   - **Chef**: `Berksfile`, `Policyfile.rb`, `metadata.rb`
+   - **Powershell**: `requirements.psd1`, module manifests (`.psd1`), `Import-Module` statements in scripts
+3. **Metadata Review**: Read metadata files to gather module information:
+   - **Chef**: `metadata.rb`, `metadata.json`
+   - **Powershell**: `.psd1` module manifests, script headers, `#Requires` statements
+4. **Content Review**: Read all source files to understand logic, dependencies, and environment assumptions:
+   - **Chef**: `.rb` recipe files in `recipes/`, `providers/`, `attributes/`
+   - **Powershell**: `.ps1` scripts, `.psm1` modules, DSC `Configuration` blocks, `Param()` blocks
 
 Do not use generic examples but base your plan strictly on the actual repository content.
 Do not proceed to plan generation until you have explored the entire repository.
@@ -60,6 +66,18 @@ This repository contains [technology type] that need individual migration planni
     - Path: cookbooks/application-backend
     - Technology: Chef
     - Key Features: New Relic APM, log4j configuration, systemd service management
+
+- **iis-webserver**:
+    - Description: IIS web server provisioning with application pools, site bindings, and SSL certificate deployment
+    - Path: scripts/iis-setup
+    - Technology: Powershell
+    - Key Features: DSC WindowsFeature, xWebsite resource, certificate import via Import-PfxCertificate
+
+- **sql-server-config**:
+    - Description: SQL Server installation and configuration with database creation, user provisioning, and backup scheduling
+    - Path: dsc/sql-server
+    - Technology: Powershell
+    - Key Features: DSC SqlSetup, SqlDatabase resources, scheduled task for backups
 
 **BAD EXAMPLES (DO NOT DO THIS):**
 - **postgres**: Database cookbook (TOO VAGUE - no details about features, version, or purpose)

@@ -8,12 +8,12 @@ from pydantic import BaseModel
 
 from prompts.get_prompt import get_prompt
 from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
-from src.exporters.chef_to_ansible import ChefToAnsibleSubagent
 from src.model import get_model, get_runnable_config
 from src.types import AnsibleModule, DocumentFile
+from src.types.technology import Technology
 from src.utils.list_files import list_files
 from src.utils.logging import get_logger
-from src.utils.technology import Technology
+from src.utils.technology_registry import TechnologyRegistry
 
 logger = get_logger(__name__)
 
@@ -101,42 +101,32 @@ class MigrationAgent:
         return state
 
     def _choose_subagent(self, state: MigrationState) -> MigrationState:
-        """Choose and execute the appropriate subagent based on technology"""
+        """Choose and execute the appropriate subagent based on technology."""
         technology = state.get("source_technology")
         logger.info(f"Choosing subagent based on technology: '{technology}'")
 
-        if technology == Technology.CHEF:
-            chef_to_ansible_subagent = ChefToAnsibleSubagent(
-                model=self.model, module=state["module"]
+        try:
+            exporter = TechnologyRegistry.get_exporter(
+                technology, model=self.model, module=state["module"]
             )
-            result = chef_to_ansible_subagent.invoke(
-                path=state["path"],
-                user_message=state["user_message"],
-                module_migration_plan=state["module_migration_plan"],
-                high_level_migration_plan=state["high_level_migration_plan"],
-                directory_listing=state["directory_listing"],
-            )
-            state["migration_output"] = result.get_output()
-            state["failed"] = result.did_fail()
-            state["failure_reason"] = result.get_failure_reason()
-        elif technology == Technology.PUPPET:
-            logger.warning("Puppet agent not implemented yet")
-            state["module_migration_plan"] = DocumentFile(
-                path=Path("not_available.txt"),
-                content="Export from Puppet not available",
-            )
+        except ValueError:
+            logger.error(f"No exporter registered for technology: {technology}")
             state["failed"] = True
-            state["failure_reason"] = "Puppet migration not implemented yet"
-        elif technology == Technology.SALT:
-            logger.warning("Salt agent not implemented yet")
-            state["module_migration_plan"] = DocumentFile(
-                path=Path("not_available.txt"), content="Export from Salt not available"
+            state["failure_reason"] = (
+                f"{technology.value} migration not implemented yet"
             )
-            state["failed"] = True
-            state["failure_reason"] = "Salt migration not implemented yet"
-        else:
-            logger.error(f"Unknown source technology: {technology}")
-            raise ValueError(f"Unknown source technology: {technology}")
+            return state
+
+        result = exporter.invoke(
+            path=state["path"],
+            user_message=state["user_message"],
+            module_migration_plan=state["module_migration_plan"],
+            high_level_migration_plan=state["high_level_migration_plan"],
+            directory_listing=state["directory_listing"],
+        )
+        state["migration_output"] = result.get_output()
+        state["failed"] = result.did_fail()
+        state["failure_reason"] = result.get_failure_reason()
 
         return state
 

@@ -50,7 +50,7 @@ class MetadataExtractionAgent(BaseAgent[InitState]):
 
         self._log.debug(f"LLM metadata extraction response: {response}")
 
-        metadata_list = [module.model_dump() for module in response.modules]
+        metadata_list = [module.model_dump(mode="json") for module in response.modules]
         self._record_metrics(metrics, response, metadata_list)
         self._write_metadata_file(metadata_list)
 

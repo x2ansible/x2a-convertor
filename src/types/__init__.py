@@ -23,6 +23,7 @@ from .checklist import (
 from .document import DocumentFile
 from .metadata import MetadataCollection, ModuleMetadata
 from .migration_state import MigrationStateInterface
+from .technology import Technology
 from .telemetry import AgentMetrics, Telemetry, telemetry_context
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "MetadataCollection",
     "MigrationStateInterface",
     "ModuleMetadata",
+    "Technology",
     "Telemetry",
     "telemetry_context",
 ]

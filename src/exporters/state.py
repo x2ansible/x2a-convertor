@@ -1,7 +1,7 @@
-"""State management for Chef to Ansible migration workflow.
+"""State management for infrastructure-to-Ansible migration workflow.
 
 This module defines the state object that tracks the migration process
-through its various phases.
+through its various phases. Technology-agnostic.
 """
 
 from dataclasses import dataclass, field, replace
@@ -22,8 +22,8 @@ CHECKLIST_FILENAME = ".checklist.json"
 
 
 @dataclass
-class ChefState(BaseState, MigrationStateInterface):
-    """State object for tracking Chef to Ansible migration workflow.
+class ExportState(BaseState, MigrationStateInterface):
+    """State object for tracking infrastructure-to-Ansible migration workflow.
 
     Inherits from BaseState for common fields (user_message, path, telemetry,
     failed, failure_reason).
@@ -33,7 +33,7 @@ class ChefState(BaseState, MigrationStateInterface):
     and ensuring proper separation of concerns.
 
     This state is passed through the LangGraph workflow and tracks:
-    - Source Chef module information
+    - Source module information
     - Migration plans and documentation
     - Workflow phase and attempt counters
     - Validation reports and outputs
@@ -90,39 +90,28 @@ class ChefState(BaseState, MigrationStateInterface):
         """
         return Path(self.get_ansible_path()) / CHECKLIST_FILENAME
 
-    def update(self, **kwargs) -> "ChefState":
-        """Create a new ChefState instance with updated fields.
-
-        This helper method provides immutable state updates using dataclasses.replace(),
-        making state transformations more functional and explicit.
+    def update(self, **kwargs) -> "ExportState":
+        """Create a new ExportState instance with updated fields.
 
         Args:
-            **kwargs: Fields to update (must be valid ChefState attributes)
+            **kwargs: Fields to update (must be valid ExportState attributes)
 
         Returns:
-            New ChefState instance with updated fields
+            New ExportState instance with updated fields
 
         Example:
             new_state = state.update(checklist=new_checklist, current_phase="writing")
         """
         return replace(self, **kwargs)
 
-    def mark_failed(self, reason: str) -> "ChefState":
+    def mark_failed(self, reason: str) -> "ExportState":
         """Mark this migration as failed with a reason.
-
-        Overrides BaseState.mark_failed() to return ChefState for proper typing.
-
-        This is a convenience method for agents to signal failure in a clean way.
-        The parent workflow can check state.failed to decide whether to continue.
 
         Args:
             reason: Human-readable failure reason
 
         Returns:
-            New ChefState with failed=True and failure_reason set
-
-        Example:
-            return state.mark_failed("Failed to create 5 files after 3 attempts")
+            New ExportState with failed=True and failure_reason set
         """
         return self.update(failed=True, failure_reason=reason)
 

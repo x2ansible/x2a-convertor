@@ -14,6 +14,7 @@ from src.init import init_project
 from src.inputs.analyze import analyze_project
 from src.publishers.publish import publish_aap, publish_project
 from src.report import report_artifacts
+from src.types.technology import Technology
 from src.utils.logging import get_logger, setup_logging
 from src.validate import validate_module
 
@@ -118,8 +119,9 @@ def analyze(user_requirements, source_dir) -> None:
 )
 @click.option(
     "--source-technology",
-    default="Chef",
-    help="Source technology to migrate from [Chef, Puppet, Salt]",
+    type=click.Choice([t.value for t in Technology], case_sensitive=False),
+    default=Technology.CHEF.value,
+    help="Source technology to migrate from",
 )
 @click.option(
     "--module-migration-plan",
