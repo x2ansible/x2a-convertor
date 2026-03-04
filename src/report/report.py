@@ -22,6 +22,7 @@ class ArtifactType(str, Enum):
     MODULE_MIGRATION_PLAN = "module_migration_plan"
     MIGRATED_SOURCES = "migrated_sources"
     PROJECT_METADATA = "project_metadata"
+    ANSIBLE_PROJECT = "ansible_project"
 
 
 class ReportClient:
