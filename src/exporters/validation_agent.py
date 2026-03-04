@@ -150,7 +150,7 @@ class ValidationAgent(BaseAgent[ExportState]):
         """Node: Install collections from requirements.yml before validation."""
         slog = logger.bind(phase="install_collections")
 
-        requirements_file = self._find_requirements_file(state.chef_state, slog)
+        requirements_file = self._find_requirements_file(state.export_state, slog)
         if requirements_file is None:
             slog.info("No requirements.yml found, skipping collection install")
             return state
@@ -160,9 +160,9 @@ class ValidationAgent(BaseAgent[ExportState]):
 
         return state
 
-    def _find_requirements_file(self, chef_state: ExportState, slog) -> Path | None:
+    def _find_requirements_file(self, export_state: ExportState, slog) -> Path | None:
         """Find requirements.yml in standard locations."""
-        search_paths = self._get_requirements_search_paths(chef_state)
+        search_paths = self._get_requirements_search_paths(export_state)
 
         for path in search_paths:
             slog.debug(
@@ -173,9 +173,9 @@ class ValidationAgent(BaseAgent[ExportState]):
 
         return None
 
-    def _get_requirements_search_paths(self, chef_state: ExportState) -> list[Path]:
+    def _get_requirements_search_paths(self, export_state: ExportState) -> list[Path]:
         """Get ordered list of paths to search for requirements.yml."""
-        ansible_path = Path(chef_state.get_ansible_path())
+        ansible_path = Path(export_state.get_ansible_path())
         ansible_root = ansible_path.parent.parent
 
         return [
@@ -218,12 +218,12 @@ class ValidationAgent(BaseAgent[ExportState]):
 
     def _validate_node(self, state: ValidationAgentState) -> ValidationAgentState:
         """Node: Run validation service on the state.get_ansible_path()."""
-        chef_state = state.chef_state
+        export_state = state.export_state
 
         slog = logger.bind(phase="validate", attempt=state.attempt)
         slog.info("Running validation")
 
-        ansible_path = chef_state.get_ansible_path()
+        ansible_path = export_state.get_ansible_path()
 
         results = self.validation_service.validate_all(ansible_path)
 
@@ -254,8 +254,8 @@ class ValidationAgent(BaseAgent[ExportState]):
             f"{SUMMARY_SUCCESS_MESSAGE}\n\n"
             + self.validation_service.get_success_message(results)
         )
-        chef_state = chef_state.update(validation_report=validation_report)
-        state.chef_state = chef_state
+        export_state = export_state.update(validation_report=validation_report)
+        state.export_state = export_state
         state.complete = True
 
         return state
@@ -266,38 +266,38 @@ class ValidationAgent(BaseAgent[ExportState]):
 
     def _fix_errors_node(self, state: ValidationAgentState) -> ValidationAgentState:
         """Node: Use react agent to fix validation errors."""
-        chef_state = state.chef_state
-        assert chef_state.checklist is not None, (
+        export_state = state.export_state
+        assert export_state.checklist is not None, (
             "Checklist must exist before validation"
         )
 
         slog = logger.bind(phase="fix_errors", attempt=state.attempt)
         slog.info("Fixing validation errors")
 
-        ansible_path = chef_state.get_ansible_path()
+        ansible_path = export_state.get_ansible_path()
 
         validation_task = get_prompt(self.USER_PROMPT_NAME).format(
-            module=chef_state.module,
-            chef_path=chef_state.path,
+            module=export_state.module,
+            chef_path=export_state.path,
             ansible_path=ansible_path,
             error_report=state.error_report,
         )
 
         result = self.invoke_react(
-            chef_state,
+            export_state,
             [
                 {"role": "user", "content": validation_task},
             ],
             self._current_metrics,
         )
 
-        chef_state.checklist.save(chef_state.get_checklist_path())
+        export_state.checklist.save(export_state.get_checklist_path())
 
         message = self.get_last_ai_message(result)
         if message:
-            chef_state = chef_state.update(validation_report=message.content)
+            export_state = export_state.update(validation_report=message.content)
 
-        state.chef_state = chef_state
+        state.export_state = export_state
         state.last_result = result
         state.attempt += 1
 
@@ -315,16 +315,16 @@ class ValidationAgent(BaseAgent[ExportState]):
         reason = self._get_failure_reason(state)
         slog.error(reason)
 
-        chef_state = state.chef_state.mark_failed(
+        export_state = state.export_state.mark_failed(
             f"{reason}\nErrors remain:\n{state.error_report}"
         )
-        chef_state = chef_state.update(
+        export_state = export_state.update(
             validation_report=(
                 f"Validation incomplete after {state.attempt} attempts:\n"
                 f"{state.error_report}"
             )
         )
-        state.chef_state = chef_state
+        state.export_state = export_state
 
         return state
 
@@ -412,7 +412,7 @@ class ValidationAgent(BaseAgent[ExportState]):
         self._current_metrics = metrics
 
         internal_state = ValidationAgentState(
-            chef_state=state,
+            export_state=state,
             attempt=0,
             max_attempts=self.max_attempts,
             complete=False,
@@ -429,9 +429,9 @@ class ValidationAgent(BaseAgent[ExportState]):
 
         self._current_metrics = None
 
-        chef_state = final_state.chef_state
-        chef_state = chef_state.update(
-            validation_attempt_counter=chef_state.validation_attempt_counter
+        export_state = final_state.export_state
+        export_state = export_state.update(
+            validation_attempt_counter=export_state.validation_attempt_counter
             + final_state.attempt
         )
 
@@ -440,4 +440,4 @@ class ValidationAgent(BaseAgent[ExportState]):
             f"attempts={final_state.attempt}/{self.max_attempts}"
         )
 
-        return chef_state
+        return export_state

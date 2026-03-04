@@ -19,14 +19,14 @@ class BaseAgentState:
     and adds agent-specific tracking fields.
 
     Attributes:
-        chef_state: Reference to the parent migration state
+        export_state: Reference to the parent migration state
         attempt: Current attempt number (0-indexed)
         max_attempts: Maximum number of attempts before giving up
         complete: Whether the agent has completed its work successfully
         last_result: Last result from agent execution (optional)
     """
 
-    chef_state: ExportState
+    export_state: ExportState
     attempt: int = 0
     max_attempts: int = 3
     complete: bool = False
