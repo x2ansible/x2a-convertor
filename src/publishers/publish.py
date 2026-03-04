@@ -2,14 +2,18 @@
 
 from pathlib import Path
 
+import yaml
+
 from src.publishers.tools import (
     AAPSyncResult,
+    _collect_role_metadata,
     copy_role_directory,
     create_directory_structure,
     generate_ansible_cfg,
     generate_collections_requirements,
     generate_inventory_file,
     generate_playbook_yaml,
+    generate_readme,
     load_collections_file,
     load_inventory_file,
     sync_to_aap,
@@ -109,10 +113,39 @@ def publish_project(
         role_name=role_name,
     )
 
+    # Generate README.md (always regenerated to list all roles)
+    roles_dir = ansible_project_dir / "roles"
+    role_metadata = []
+    if roles_dir.is_dir():
+        for role_subdir in sorted(roles_dir.iterdir()):
+            if role_subdir.is_dir():
+                role_metadata.append(_collect_role_metadata(str(role_subdir)))
+
+    collections_for_readme: list[dict[str, str]] | None = None
+    collections_req = ansible_project_dir / "collections" / "requirements.yml"
+    if collections_req.exists():
+        try:
+            with collections_req.open() as f:
+                req_data = yaml.safe_load(f)
+            if isinstance(req_data, dict) and isinstance(
+                req_data.get("collections"), list
+            ):
+                collections_for_readme = req_data["collections"]
+        except Exception:
+            logger.debug("Could not read collections/requirements.yml for README")
+
+    generate_readme(
+        file_path=f"{publish_dir}/README.md",
+        project_id=project_id,
+        roles=role_metadata,
+        collections=collections_for_readme,
+    )
+
     # Verify files for this role
     required_files = [
         f"{publish_dir}/roles/{role_name}",
         f"{publish_dir}/playbooks/run_{role_name}.yml",
+        f"{publish_dir}/README.md",
     ]
     verify_files_exist(file_paths=required_files)
 
