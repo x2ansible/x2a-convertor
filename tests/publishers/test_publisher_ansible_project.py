@@ -10,12 +10,14 @@ import pytest
 import yaml
 
 from src.publishers.tools import (
+    _collect_role_metadata,
     copy_role_directory,
     create_directory_structure,
     generate_ansible_cfg,
     generate_collections_requirements,
     generate_inventory_file,
     generate_playbook_yaml,
+    generate_readme,
 )
 
 # -----------------------------------------------------------------------------
@@ -407,3 +409,109 @@ def test_full_project_structure_generation(tmp_path, sample_role_dir):
         (base_path / "roles" / "sample_role" / "tasks" / "main.yml").read_text()
     )
     assert isinstance(role_tasks, list)
+
+
+# -----------------------------------------------------------------------------
+# README Generation Tests
+# -----------------------------------------------------------------------------
+
+
+def test_generate_readme_single_role(tmp_path):
+    """Test README generation with a single role including metadata."""
+    readme_path = tmp_path / "README.md"
+
+    roles = [
+        {
+            "name": "web_server",
+            "description": "Install and configure a web server",
+            "defaults": {"http_port": 80, "max_clients": 200},
+            "platforms": ["RHEL", "Ubuntu"],
+        }
+    ]
+    collections = [
+        {"name": "community.general", "version": ">=5.0.0"},
+        {"name": "ansible.posix"},
+    ]
+
+    generate_readme(
+        file_path=str(readme_path),
+        project_id="my_project",
+        roles=roles,
+        collections=collections,
+    )
+
+    assert readme_path.exists()
+    content = readme_path.read_text()
+
+    assert "# my_project" in content
+    assert "web_server" in content
+    assert "Install and configure a web server" in content
+    assert "RHEL" in content
+    assert "ansible-playbook playbooks/run_web_server.yml" in content
+    assert "http_port" in content
+    assert "80" in content
+    assert "community.general" in content
+    assert "ansible.posix" in content
+
+
+def test_generate_readme_no_metadata(tmp_path):
+    """Test README generation with a minimal role (no meta, no defaults)."""
+    readme_path = tmp_path / "README.md"
+
+    roles = [
+        {
+            "name": "basic_role",
+            "description": "",
+            "defaults": {},
+            "platforms": [],
+        }
+    ]
+
+    generate_readme(
+        file_path=str(readme_path),
+        project_id="bare_project",
+        roles=roles,
+    )
+
+    assert readme_path.exists()
+    content = readme_path.read_text()
+
+    assert "# bare_project" in content
+    assert "basic_role" in content
+    assert "ansible-playbook playbooks/run_basic_role.yml" in content
+
+
+# -----------------------------------------------------------------------------
+# Collect Role Metadata Tests
+# -----------------------------------------------------------------------------
+
+
+def test_collect_role_metadata_full(tmp_path):
+    """Test _collect_role_metadata with meta and defaults present."""
+    role_dir = tmp_path / "my_role"
+    (role_dir / "meta").mkdir(parents=True)
+    (role_dir / "defaults").mkdir()
+    (role_dir / "meta" / "main.yml").write_text(
+        "galaxy_info:\n  description: A test role\n  platforms:\n    - name: RHEL\n"
+    )
+    (role_dir / "defaults" / "main.yml").write_text("http_port: 8080\nmax_retries: 3\n")
+
+    result = _collect_role_metadata(str(role_dir))
+
+    assert result["name"] == "my_role"
+    assert result["description"] == "A test role"
+    assert result["platforms"] == ["RHEL"]
+    assert result["defaults"] == {"http_port": 8080, "max_retries": 3}
+
+
+def test_collect_role_metadata_missing_files(tmp_path):
+    """Test _collect_role_metadata with no meta or defaults."""
+    role_dir = tmp_path / "bare_role"
+    role_dir.mkdir()
+
+    result = _collect_role_metadata(str(role_dir))
+
+    assert result["name"] == "bare_role"
+    assert result["description"] == ""
+    assert result["defaults"] == {}
+    assert result["platforms"] == []

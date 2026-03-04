@@ -561,6 +561,102 @@ def generate_inventory_file(file_path: str, inventory: dict | None = None) -> No
         raise OSError(error_msg) from e
 
 
+def _collect_role_metadata(role_path: str) -> dict[str, Any]:
+    """Read available metadata from a role directory.
+
+    Extracts description and platforms from meta/main.yml, and default
+    variable names/values from defaults/main.yml.
+
+    Args:
+        role_path: Path to the role directory.
+
+    Returns:
+        Dict with keys: name, description, defaults, platforms.
+    """
+    role_path_obj = Path(role_path)
+    name = role_path_obj.name
+    description = ""
+    defaults: dict[str, Any] = {}
+    platforms: list[str] = []
+
+    # Read meta/main.yml
+    meta_file = role_path_obj / "meta" / "main.yml"
+    if meta_file.exists():
+        try:
+            meta_data = _load_yaml_or_json(meta_file)
+            if isinstance(meta_data, dict):
+                galaxy_info = meta_data.get("galaxy_info", {})
+                if isinstance(galaxy_info, dict):
+                    description = galaxy_info.get("description", "")
+                    raw_platforms = galaxy_info.get("platforms", [])
+                    if isinstance(raw_platforms, list):
+                        for p in raw_platforms:
+                            if isinstance(p, dict) and "name" in p:
+                                platforms.append(p["name"])
+                            elif isinstance(p, str):
+                                platforms.append(p)
+        except Exception:
+            logger.debug(f"Could not parse meta/main.yml for role {name}")
+
+    # Read defaults/main.yml
+    defaults_file = role_path_obj / "defaults" / "main.yml"
+    if defaults_file.exists():
+        try:
+            defaults_data = _load_yaml_or_json(defaults_file)
+            if isinstance(defaults_data, dict):
+                defaults = defaults_data
+        except Exception:
+            logger.debug(f"Could not parse defaults/main.yml for role {name}")
+
+    return {
+        "name": name,
+        "description": description,
+        "defaults": defaults,
+        "platforms": platforms,
+    }
+
+
+def generate_readme(
+    file_path: str,
+    project_id: str,
+    roles: list[dict[str, Any]],
+    collections: list[dict[str, str]] | None = None,
+) -> None:
+    """Generate a README.md file for the Ansible project.
+
+    Args:
+        file_path: Output file path.
+        project_id: Project identifier used as the title.
+        roles: List of role metadata dicts (from _collect_role_metadata).
+        collections: List of collection dicts with 'name' and optional 'version'.
+
+    Raises:
+        OSError: If file generation fails.
+    """
+    logger.info(f"Generating README.md at {file_path}")
+
+    try:
+        template = get_template("README.md")
+        readme_content = template.render(
+            project_id=project_id,
+            roles=roles,
+            collections=collections or [],
+        )
+
+        file_path_obj = Path(file_path)
+        file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+        with file_path_obj.open("w") as f:
+            f.write(readme_content)
+
+        logger.info(f"Successfully generated README.md: {file_path}")
+
+    except Exception as e:
+        error_msg = f"Failed to generate README.md: {e}"
+        logger.error(error_msg)
+        raise OSError(error_msg) from e
+
+
 def verify_files_exist(file_paths: list[str]) -> None:
     """Verify that all required files exist.
 

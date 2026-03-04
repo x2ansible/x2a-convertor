@@ -27,6 +27,9 @@ class TestPublishProject:
             assert (project / "inventory" / "hosts.yml").exists()
             assert (project / "roles" / module_name / "tasks" / "main.yml").exists()
             assert (project / "playbooks" / f"run_{module_name}.yml").exists()
+            assert (project / "README.md").exists()
+            readme_content = (project / "README.md").read_text()
+            assert module_name in readme_content
         finally:
             os.chdir(old_cwd)
 
@@ -53,6 +56,13 @@ class TestPublishProject:
             assert (ansible_project / "roles" / mod_b).exists()
             assert (ansible_project / "playbooks" / f"run_{mod_a}.yml").exists()
             assert (ansible_project / "playbooks" / f"run_{mod_b}.yml").exists()
+
+            # README should exist and mention both roles
+            readme = ansible_project / "README.md"
+            assert readme.exists()
+            readme_content = readme.read_text()
+            assert mod_a in readme_content
+            assert mod_b in readme_content
         finally:
             os.chdir(old_cwd)
 

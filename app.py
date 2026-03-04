@@ -200,6 +200,10 @@ def publish_project_cmd(
     On the first module, creates the full skeleton (ansible.cfg, collections,
     inventory). On subsequent modules, appends the role and playbook.
 
+    A README.md is generated on every invocation, listing all roles in the
+    project with their descriptions, default variables, playbook commands, and
+    required collections.
+
     Role names are sanitized to comply with Ansible standards: hyphens are
     replaced with underscores (e.g., fastapi-tutorial becomes fastapi_tutorial).
     """
