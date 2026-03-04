@@ -88,14 +88,14 @@ class WriteAgent(BaseAgent[ExportState]):
 
     def _write_standard_files_node(self, state: WriteAgentState) -> WriteAgentState:
         """Node: Create standard boilerplate files before LLM agent runs."""
-        chef_state = state.chef_state
+        export_state = state.export_state
         slog = logger.bind(phase="write_standard_files")
         slog.info("Creating standard boilerplate files")
 
-        ansible_path = chef_state.get_ansible_path()
+        ansible_path = export_state.get_ansible_path()
         meta_file_path = Path(ansible_path) / "meta" / "main.yml"
 
-        role_name = chef_state.module
+        role_name = export_state.module
         meta_content = f"""---
 galaxy_info:
   role_name: {role_name}
@@ -124,10 +124,10 @@ galaxy_info:
         target_path_str = str(meta_file_path)
         source_path = "N/A"
 
-        assert chef_state.checklist is not None, (
+        assert export_state.checklist is not None, (
             "Checklist must exist before writing files"
         )
-        updated = chef_state.checklist.update_task(
+        updated = export_state.checklist.update_task(
             source_path=source_path,
             target_path=target_path_str,
             status=ChecklistStatus.COMPLETE,
@@ -135,7 +135,7 @@ galaxy_info:
         )
 
         if not updated:
-            chef_state.checklist.add_task(
+            export_state.checklist.add_task(
                 category="structure",
                 source_path=source_path,
                 target_path=target_path_str,
@@ -144,37 +144,37 @@ galaxy_info:
             )
             slog.info(f"Added task to checklist: {target_path_str}")
 
-        chef_state.checklist.save(chef_state.get_checklist_path())
-        state.chef_state = chef_state
+        export_state.checklist.save(export_state.get_checklist_path())
+        state.export_state = export_state
         return state
 
     def _write_files_node(self, state: WriteAgentState) -> WriteAgentState:
         """Node: Write files from checklist using react agent."""
-        chef_state = state.chef_state
-        assert chef_state.checklist is not None, (
+        export_state = state.export_state
+        assert export_state.checklist is not None, (
             "Checklist must exist before writing files"
         )
         slog = logger.bind(phase="write_files", attempt=state.attempt)
         slog.info("Writing migration files")
 
-        slog.debug(f"Checklist before writing:\n{chef_state.checklist.to_markdown()}")
+        slog.debug(f"Checklist before writing:\n{export_state.checklist.to_markdown()}")
 
-        ansible_path = chef_state.get_ansible_path()
+        ansible_path = export_state.get_ansible_path()
         system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
-            module=chef_state.module,
-            chef_path=chef_state.path,
+            module=export_state.module,
+            chef_path=export_state.path,
             ansible_path=ansible_path,
-            high_level_migration_plan=chef_state.high_level_migration_plan,
-            migration_plan=chef_state.module_migration_plan.to_document(),
-            checklist=chef_state.checklist.to_markdown()
-            if chef_state.checklist
+            high_level_migration_plan=export_state.high_level_migration_plan,
+            migration_plan=export_state.module_migration_plan.to_document(),
+            checklist=export_state.checklist.to_markdown()
+            if export_state.checklist
             else "",
-            aap_discovery=chef_state.aap_discovery,
+            aap_discovery=export_state.aap_discovery,
         )
 
         result = self.invoke_react(
-            chef_state,
+            export_state,
             [
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_prompt},
@@ -182,17 +182,17 @@ galaxy_info:
             self._current_metrics,
         )
 
-        chef_state.checklist.save(chef_state.get_checklist_path())
+        export_state.checklist.save(export_state.get_checklist_path())
 
-        slog.info(f"Checklist after writing:\n{chef_state.checklist.to_markdown()}")
+        slog.info(f"Checklist after writing:\n{export_state.checklist.to_markdown()}")
         message = self.get_last_ai_message(result)
         if message:
-            chef_state = chef_state.update(last_output=message.content)
+            export_state = export_state.update(last_output=message.content)
             slog.info("Write iteration completed")
         else:
             slog.warning("Write agent did not produce output")
 
-        state.chef_state = chef_state
+        state.export_state = export_state
         state.last_result = result
         state.attempt += 1
 
@@ -200,22 +200,22 @@ galaxy_info:
 
     def _check_files_node(self, state: WriteAgentState) -> WriteAgentState:
         """Node: Check if all checklist files exist."""
-        chef_state = state.chef_state
-        assert chef_state.checklist is not None, (
+        export_state = state.export_state
+        assert export_state.checklist is not None, (
             "Checklist must exist before checking files"
         )
         slog = logger.bind(phase="check_files", attempt=state.attempt)
         slog.info("Checking file creation status")
 
         missing_files = []
-        for item in chef_state.checklist.items:
+        for item in export_state.checklist.items:
             if not item.target_exists():
                 missing_files.append(item.target_path)
-                chef_state.checklist.update_task(
+                export_state.checklist.update_task(
                     item.source_path, item.target_path, ChecklistStatus.MISSING
                 )
 
-        chef_state.checklist.save(chef_state.get_checklist_path())
+        export_state.checklist.save(export_state.get_checklist_path())
 
         if missing_files:
             slog.warning(f"Missing {len(missing_files)} files: {missing_files[:5]}...")
@@ -226,16 +226,16 @@ galaxy_info:
             state.missing_files = []
             state.complete = True
 
-        chef_state = chef_state.update(
-            write_attempt_counter=chef_state.write_attempt_counter + 1
+        export_state = export_state.update(
+            write_attempt_counter=export_state.write_attempt_counter + 1
         )
-        state.chef_state = chef_state
+        state.export_state = export_state
 
         return state
 
     def _lint_files_node(self, state: WriteAgentState) -> WriteAgentState:
         """Node: Run ansible-lint with autofix on generated files."""
-        chef_state = state.chef_state
+        export_state = state.export_state
         slog = logger.bind(phase="lint_files", attempt=state.attempt)
 
         if state.missing_files:
@@ -243,7 +243,7 @@ galaxy_info:
             return state
 
         slog.info("Running ansible-lint with autofix on generated files")
-        ansible_path = chef_state.get_ansible_path()
+        ansible_path = export_state.get_ansible_path()
         lint_tool = AnsibleLintTool()
 
         try:
@@ -268,11 +268,11 @@ galaxy_info:
         if len(state.missing_files) > 5:
             missing_file_list += f" ... and {len(state.missing_files) - 5} more"
 
-        chef_state = state.chef_state.mark_failed(
+        export_state = state.export_state.mark_failed(
             f"Failed to create {len(state.missing_files)} files after {state.max_attempts} attempts. "
             f"Missing files: {missing_file_list}"
         )
-        state.chef_state = chef_state
+        state.export_state = export_state
 
         return state
 
@@ -315,7 +315,7 @@ galaxy_info:
             return state
 
         internal_state = WriteAgentState(
-            chef_state=state,
+            export_state=state,
             attempt=0,
             max_attempts=self.max_attempts,
             complete=False,
@@ -329,8 +329,8 @@ galaxy_info:
             metrics.record_metric("complete", final_state.complete)
             if final_state.missing_files:
                 metrics.record_metric("missing_files", len(final_state.missing_files))
-            if final_state.chef_state.checklist:
-                stats = final_state.chef_state.checklist.get_stats()
+            if final_state.export_state.checklist:
+                stats = final_state.export_state.checklist.get_stats()
                 metrics.record_metric("files_created", stats.get("complete", 0))
                 metrics.record_metric("files_total", stats.get("total", 0))
 
@@ -341,4 +341,4 @@ galaxy_info:
             f"attempts={final_state.attempt}/{self.max_attempts}"
         )
 
-        return final_state.chef_state
+        return final_state.export_state
