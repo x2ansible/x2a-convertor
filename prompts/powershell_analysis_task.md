@@ -1,9 +1,9 @@
-**Analyze the Powershell code at path: {path}**
+**Analyze the PowerShell code at path: {path}**
 **User requirements: {user_message}**
 
 # CRITICAL: ANALYSIS SUMMARY (USE THIS AS YOUR SOURCE OF TRUTH)
 
-The following analysis summary shows the COMPLETE Powershell execution flow.
+The following analysis summary shows the COMPLETE PowerShell execution flow.
 You MUST use this data. Do NOT hallucinate or invent files that aren't listed here.
 
 ```

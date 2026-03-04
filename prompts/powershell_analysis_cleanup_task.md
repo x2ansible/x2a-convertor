@@ -18,6 +18,6 @@
 - All scripts/configs must be mentioned in correct execution order
 - All loops must be expanded with actual item names
 - Pre-flight checks must exist for every managed service
-- All Powershell cmdlets must have Ansible equivalents listed
+- All PowerShell cmdlets must have Ansible equivalents listed
 
 **Output:** Provide ONLY the cleaned, final migration plan following the proper template format. No explanations or commentary.

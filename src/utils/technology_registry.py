@@ -92,12 +92,12 @@ def register_defaults() -> None:
     """
     from src.exporters.to_ansible import ToAnsibleSubagent
     from src.inputs.chef import ChefSubagent
-    from src.inputs.powershell import PowershellSubagent
+    from src.inputs.powershell import PowerShellSubagent
 
     TechnologyRegistry.register_analyzer(Technology.CHEF, ChefSubagent)
     TechnologyRegistry.register_exporter(Technology.CHEF, ToAnsibleSubagent)
 
-    TechnologyRegistry.register_analyzer(Technology.POWERSHELL, PowershellSubagent)
+    TechnologyRegistry.register_analyzer(Technology.POWERSHELL, PowerShellSubagent)
     TechnologyRegistry.register_exporter(Technology.POWERSHELL, ToAnsibleSubagent)
 
 

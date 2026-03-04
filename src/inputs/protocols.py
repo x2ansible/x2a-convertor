@@ -14,7 +14,7 @@ from src.types.migration_state import MigrationStateInterface
 class InfrastructureAnalyzer(Protocol):
     """Common interface for all infrastructure analyzers.
 
-    All analyzers (Chef, Puppet, Salt, Powershell) must implement this protocol.
+    All analyzers (Chef, Puppet, Salt, PowerShell) must implement this protocol.
     This enables polymorphic usage in analyze.py.
 
     Example:
