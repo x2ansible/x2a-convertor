@@ -1,6 +1,6 @@
-"""Powershell analysis services.
+"""PowerShell analysis services.
 
-This module provides services for analyzing Powershell files using LLM.
+This module provides services for analyzing PowerShell files using LLM.
 Each service has a single responsibility (SRP).
 """
 
@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class ScriptAnalysisService:
-    """Service for analyzing Powershell script files using LLM.
+    """Service for analyzing PowerShell script files using LLM.
 
     Responsibility: Extract execution order from .ps1 script files.
     """
@@ -59,7 +59,7 @@ class ScriptAnalysisService:
 
 
 class DSCAnalysisService:
-    """Service for analyzing Powershell DSC configuration files using LLM.
+    """Service for analyzing PowerShell DSC configuration files using LLM.
 
     Responsibility: Extract DSC resources from Configuration blocks.
     """
@@ -95,7 +95,7 @@ class DSCAnalysisService:
 
 
 class ModuleAnalysisService:
-    """Service for analyzing Powershell module files using LLM.
+    """Service for analyzing PowerShell module files using LLM.
 
     Responsibility: Extract exported functions and dependencies from .psm1 files.
     """

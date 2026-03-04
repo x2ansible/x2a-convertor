@@ -1,6 +1,6 @@
-"""Powershell execution domain models.
+"""PowerShell execution domain models.
 
-This module defines Pydantic models for representing Powershell script execution flow
+This module defines Pydantic models for representing PowerShell script execution flow
 and DSC resource configurations. These are pure data structures used for LLM structured outputs.
 """
 
@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 
 class ScriptExecutionItem(BaseModel):
-    """Base execution item for Powershell script operations."""
+    """Base execution item for PowerShell script operations."""
 
     type: str
     command: str
@@ -24,7 +24,7 @@ class ScriptExecutionItem(BaseModel):
 
 
 class ScriptAnalysisResult(BaseModel):
-    """Analysis result for a single Powershell script file."""
+    """Analysis result for a single PowerShell script file."""
 
     file_path: str
     execution_items: list[ScriptExecutionItem] = Field(default_factory=list)
@@ -80,7 +80,7 @@ class DSCExecutionAnalysis(BaseModel):
 
 
 class ParameterDefinition(BaseModel):
-    """A Powershell parameter definition."""
+    """A PowerShell parameter definition."""
 
     name: str
     type: str = "string"
@@ -90,7 +90,7 @@ class ParameterDefinition(BaseModel):
 
 
 class ModuleAnalysisResult(BaseModel):
-    """Analysis result for a Powershell module file."""
+    """Analysis result for a PowerShell module file."""
 
     file_path: str
     exported_functions: list[str] = Field(default_factory=list)
@@ -121,7 +121,7 @@ class ModuleExecutionAnalysis(BaseModel):
 
 
 class FileClassification(BaseModel):
-    """Classification of a Powershell file by type."""
+    """Classification of a PowerShell file by type."""
 
     file_path: str
     file_type: Literal["script", "dsc_config", "module", "data", "unknown"]
@@ -132,8 +132,8 @@ class FileClassification(BaseModel):
 # ============================================================================
 
 
-class PowershellStructuredAnalysis(BaseModel):
-    """Aggregate of all structured analysis results from Powershell code.
+class PowerShellStructuredAnalysis(BaseModel):
+    """Aggregate of all structured analysis results from PowerShell code.
 
     Combines analysis from scripts, DSC configs, and modules into
     a single typed structure.

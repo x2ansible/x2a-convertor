@@ -16,7 +16,7 @@ class ModuleMetadata(BaseModel):
     description: str = Field(description="Brief description of what this module does")
     technology: Technology = Field(
         default=Technology.CHEF,
-        description="Source technology (Chef, Puppet, Salt, Powershell)",
+        description="Source technology (Chef, Puppet, Salt, PowerShell)",
     )
 
 

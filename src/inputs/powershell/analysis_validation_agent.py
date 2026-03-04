@@ -1,4 +1,4 @@
-"""Analysis validation agent for Powershell analysis workflow.
+"""Analysis validation agent for PowerShell analysis workflow.
 
 This module contains the agent that validates the migration plan
 against the structured analysis from scripts, DSC configs, and modules.
@@ -6,11 +6,11 @@ against the structured analysis from scripts, DSC configs, and modules.
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
-from src.inputs.powershell.state import PowershellAnalysisState
+from src.inputs.powershell.state import PowerShellAnalysisState
 from src.types.telemetry import AgentMetrics
 
 
-class AnalysisValidationAgent(BaseAgent[PowershellAnalysisState]):
+class AnalysisValidationAgent(BaseAgent[PowerShellAnalysisState]):
     """Agent that validates migration plan against structured analysis.
 
     Uses direct LLM invocation (no tools) to check consistency
@@ -21,8 +21,8 @@ class AnalysisValidationAgent(BaseAgent[PowershellAnalysisState]):
     USER_PROMPT_NAME = "powershell_analysis_validation_task"
 
     def execute(
-        self, state: PowershellAnalysisState, metrics: AgentMetrics | None
-    ) -> PowershellAnalysisState:
+        self, state: PowerShellAnalysisState, metrics: AgentMetrics | None
+    ) -> PowerShellAnalysisState:
         """Validate migration plan against structured analysis."""
         self._log.info("Validating migration plan against structured analysis")
 
@@ -43,7 +43,7 @@ class AnalysisValidationAgent(BaseAgent[PowershellAnalysisState]):
         )
         return state.update(specification=updated_spec)
 
-    def _build_messages(self, state: PowershellAnalysisState) -> list[dict[str, str]]:
+    def _build_messages(self, state: PowerShellAnalysisState) -> list[dict[str, str]]:
         """Build LLM messages for validation."""
         system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(

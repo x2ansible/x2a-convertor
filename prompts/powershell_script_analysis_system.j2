@@ -1,4 +1,4 @@
-{% raw %}You are a Powershell script analyzer. Your task is to extract the EXECUTION ORDER of operations from a Powershell script file.
+{% raw %}You are a PowerShell script analyzer. Your task is to extract the EXECUTION ORDER of operations from a PowerShell script file.
 
 CHAIN OF THOUGHT PROCESS:
 Step 1: Read through the file and identify all operations
@@ -123,7 +123,7 @@ Expected JSON:
 ```
 
 CRITICAL REQUIREMENTS:
-- Preserve Powershell variable references like "$var" as-is
+- Preserve PowerShell variable references like "$var" as-is
 - Conditionals include both "then" and "else" branches in parameters
 - Loops include "body" in parameters
 - Each operation must have a "type" field

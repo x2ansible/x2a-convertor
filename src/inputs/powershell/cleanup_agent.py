@@ -1,4 +1,4 @@
-"""Cleanup agent for Powershell analysis workflow.
+"""Cleanup agent for PowerShell analysis workflow.
 
 This module contains the agent that cleans up the migration
 specification after validation notes have been appended.
@@ -6,11 +6,11 @@ specification after validation notes have been appended.
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
-from src.inputs.powershell.state import PowershellAnalysisState
+from src.inputs.powershell.state import PowerShellAnalysisState
 from src.types.telemetry import AgentMetrics
 
 
-class CleanupAgent(BaseAgent[PowershellAnalysisState]):
+class CleanupAgent(BaseAgent[PowerShellAnalysisState]):
     """Agent that cleans up the migration specification.
 
     Uses direct LLM invocation (no tools) to consolidate and clean
@@ -21,8 +21,8 @@ class CleanupAgent(BaseAgent[PowershellAnalysisState]):
     USER_PROMPT_NAME = "powershell_analysis_cleanup_task"
 
     def execute(
-        self, state: PowershellAnalysisState, metrics: AgentMetrics | None
-    ) -> PowershellAnalysisState:
+        self, state: PowerShellAnalysisState, metrics: AgentMetrics | None
+    ) -> PowerShellAnalysisState:
         """Clean up the specification with validation updates."""
         self._log.info("Cleaning up migration specification")
 

@@ -8,6 +8,6 @@ Extract the following for each module:
 1. name: The module or cookbook name
 2. path: Relative path to the module directory
 3. description: Brief description of what this module does (1-2 sentences)
-4. technology: Source technology (usually "Chef", but could be "Puppet", "Salt", or "Powershell")
+4. technology: Source technology (usually "Chef", but could be "Puppet", "Salt", or "PowerShell")
 
 Return a structured list of all modules found.

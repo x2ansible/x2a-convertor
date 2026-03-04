@@ -1,7 +1,7 @@
-"""Powershell infrastructure analyzer.
+"""PowerShell infrastructure analyzer.
 
-This module implements the main PowershellSubagent that orchestrates all
-Powershell analysis. It composes services and BaseAgent subclasses as graph
+This module implements the main PowerShellSubagent that orchestrates all
+PowerShell analysis. It composes services and BaseAgent subclasses as graph
 nodes following the pattern from src/inputs/chef/analyzer.py.
 """
 
@@ -15,7 +15,7 @@ from src.inputs.powershell.cleanup_agent import CleanupAgent
 from src.inputs.powershell.models import (
     DSCAnalysisResult,
     ModuleAnalysisResult,
-    PowershellStructuredAnalysis,
+    PowerShellStructuredAnalysis,
     ScriptAnalysisResult,
 )
 from src.inputs.powershell.report_writer_agent import ReportWriterAgent
@@ -24,7 +24,7 @@ from src.inputs.powershell.services import (
     ModuleAnalysisService,
     ScriptAnalysisService,
 )
-from src.inputs.powershell.state import PowershellAnalysisState
+from src.inputs.powershell.state import PowerShellAnalysisState
 from src.model import get_model, get_runnable_config
 from src.types import Telemetry
 from src.utils.logging import get_logger
@@ -32,10 +32,10 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-class PowershellSubagent:
-    """Main Powershell analyzer - implements InfrastructureAnalyzer protocol.
+class PowerShellSubagent:
+    """Main PowerShell analyzer - implements InfrastructureAnalyzer protocol.
 
-    This class orchestrates all Powershell analysis using a LangGraph workflow.
+    This class orchestrates all PowerShell analysis using a LangGraph workflow.
 
     Workflow phases:
     1. scan_files - Scan for .ps1, .psm1, .psd1 files; classify by type
@@ -63,7 +63,7 @@ class PowershellSubagent:
 
     def _create_workflow(self):
         """Create LangGraph workflow composing agents as nodes."""
-        workflow = StateGraph(PowershellAnalysisState)
+        workflow = StateGraph(PowerShellAnalysisState)
 
         workflow.add_node("scan_files", lambda state: self._scan_files(state))
         workflow.add_node(
@@ -91,7 +91,7 @@ class PowershellSubagent:
         return workflow.compile()
 
     def _check_failure_after_agent(
-        self, state: PowershellAnalysisState
+        self, state: PowerShellAnalysisState
     ) -> Literal["continue", "failed"]:
         """Conditional edge: check if agent failed."""
         if state.failed:
@@ -99,10 +99,10 @@ class PowershellSubagent:
             return "failed"
         return "continue"
 
-    def _scan_files(self, state: PowershellAnalysisState) -> PowershellAnalysisState:
-        """Scan for Powershell files and classify them."""
+    def _scan_files(self, state: PowerShellAnalysisState) -> PowerShellAnalysisState:
+        """Scan for PowerShell files and classify them."""
         slog = logger.bind(phase="scan_files")
-        slog.info(f"Scanning for Powershell files in {state.path}")
+        slog.info(f"Scanning for PowerShell files in {state.path}")
 
         base_path = Path(state.path)
         ps1_files = list(base_path.rglob("*.ps1"))
@@ -116,8 +116,8 @@ class PowershellSubagent:
         )
 
         if not all_files:
-            slog.warning("No Powershell files found")
-            return state.mark_failed("No Powershell files found in the repository")
+            slog.warning("No PowerShell files found")
+            return state.mark_failed("No PowerShell files found in the repository")
 
         dependency_modules = self._extract_import_modules(all_files, slog)
 
@@ -154,11 +154,11 @@ class PowershellSubagent:
             return False
 
     def _analyze_structure(
-        self, state: PowershellAnalysisState
-    ) -> PowershellAnalysisState:
-        """Analyze all Powershell files using analysis services."""
+        self, state: PowerShellAnalysisState
+    ) -> PowerShellAnalysisState:
+        """Analyze all PowerShell files using analysis services."""
         slog = logger.bind(phase="analyze_structure")
-        slog.info("Starting structured analysis of Powershell files")
+        slog.info("Starting structured analysis of PowerShell files")
 
         base_path = Path(state.path)
         ps1_files = list(base_path.rglob("*.ps1"))
@@ -167,7 +167,7 @@ class PowershellSubagent:
         scripts, dsc_configs = self._analyze_scripts_and_dsc(ps1_files, slog)
         modules = self._analyze_modules(psm1_files, slog)
 
-        structured_analysis = PowershellStructuredAnalysis(
+        structured_analysis = PowerShellStructuredAnalysis(
             scripts=scripts,
             dsc_configs=dsc_configs,
             modules=modules,
@@ -242,8 +242,8 @@ class PowershellSubagent:
 
         return modules
 
-    def _build_execution_summary(self, analysis: PowershellStructuredAnalysis) -> str:
-        """Build summary of all analyzed Powershell code."""
+    def _build_execution_summary(self, analysis: PowerShellStructuredAnalysis) -> str:
+        """Build summary of all analyzed PowerShell code."""
         lines = [
             "=" * 80,
             "POWERSHELL ANALYSIS SUMMARY",
@@ -314,21 +314,21 @@ class PowershellSubagent:
     def invoke(
         self, path: str, user_message: str, telemetry: Telemetry | None = None
     ) -> str:
-        """Analyze Powershell code and return migration plan.
+        """Analyze PowerShell code and return migration plan.
 
         This method satisfies the InfrastructureAnalyzer protocol.
 
         Args:
-            path: Path to Powershell code directory
+            path: Path to PowerShell code directory
             user_message: User's migration requirements
             telemetry: Optional telemetry collector
 
         Returns:
             Migration specification as markdown string
         """
-        logger.info("Using Powershell agent for migration analysis...")
+        logger.info("Using PowerShell agent for migration analysis...")
 
-        initial_state = PowershellAnalysisState(
+        initial_state = PowerShellAnalysisState(
             path=path,
             user_message=user_message,
             specification="",
@@ -340,7 +340,7 @@ class PowershellSubagent:
 
         if result.get("failed"):
             logger.error(
-                f"Powershell analysis failed: {result.get('failure_reason', 'unknown')}"
+                f"PowerShell analysis failed: {result.get('failure_reason', 'unknown')}"
             )
 
         return result["specification"]

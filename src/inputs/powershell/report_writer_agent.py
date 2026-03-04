@@ -1,4 +1,4 @@
-"""Report writer agent for Powershell analysis workflow.
+"""Report writer agent for PowerShell analysis workflow.
 
 This module contains the ReAct agent that generates migration
 specifications using structured analysis and file exploration tools.
@@ -14,12 +14,12 @@ from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
-from src.inputs.powershell.state import PowershellAnalysisState
+from src.inputs.powershell.state import PowerShellAnalysisState
 from src.types.telemetry import AgentMetrics
 
 
-class ReportWriterAgent(BaseAgent[PowershellAnalysisState]):
-    """Agent that generates migration specification from Powershell analysis.
+class ReportWriterAgent(BaseAgent[PowerShellAnalysisState]):
+    """Agent that generates migration specification from PowerShell analysis.
 
     Uses file management tools to explore the source and generates
     a detailed migration specification based on the structured analysis.
@@ -35,8 +35,8 @@ class ReportWriterAgent(BaseAgent[PowershellAnalysisState]):
     USER_PROMPT_NAME = "powershell_analysis_task"
 
     def execute(
-        self, state: PowershellAnalysisState, metrics: AgentMetrics | None
-    ) -> PowershellAnalysisState:
+        self, state: PowerShellAnalysisState, metrics: AgentMetrics | None
+    ) -> PowerShellAnalysisState:
         """Generate migration specification using structured analysis."""
         self._log.info("Generating migration specification")
 
@@ -47,12 +47,12 @@ class ReportWriterAgent(BaseAgent[PowershellAnalysisState]):
 
         response_messages = result.get("messages", [])
         if len(response_messages) < 2:
-            return state.mark_failed("Invalid response from Powershell agent")
+            return state.mark_failed("Invalid response from PowerShell agent")
 
         self._log.info("Migration specification generated")
         return state.update(specification=response_messages[-1].content)
 
-    def _build_file_listing(self, state: PowershellAnalysisState) -> str:
+    def _build_file_listing(self, state: PowerShellAnalysisState) -> str:
         """Build file listing from structured analysis."""
         if not state.structured_analysis:
             return ""
@@ -60,7 +60,7 @@ class ReportWriterAgent(BaseAgent[PowershellAnalysisState]):
 
     def _build_messages(
         self,
-        state: PowershellAnalysisState,
+        state: PowerShellAnalysisState,
         file_listing: str,
     ) -> list[dict[str, str]]:
         """Build LLM messages for report generation."""
