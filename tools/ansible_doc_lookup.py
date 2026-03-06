@@ -1,9 +1,13 @@
-import importlib
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from __future__ import annotations
 
-import yaml
+import re
+import threading
+from typing import Any, cast
+
+from ansible import context
+from ansible.cli import CLI
+from ansible.cli.doc import DocCLI
+from ansible.utils.context_objects import CLIArgs
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
@@ -11,269 +15,119 @@ from tools.base_tool import X2ATool
 
 logger = get_logger(__name__)
 
-ANSIBLE_BUILTIN_COLLECTION = "ansible.builtin"
-MODULE_NAME_PREFIX = f"{ANSIBLE_BUILTIN_COLLECTION}."
+_MARKUP_RE = re.compile(r"[BCILOMRUEV]\(([^)]*)\)")
 
 
-@dataclass
-class ModuleParameter:
-    """Value object representing an Ansible module parameter."""
-
-    name: str
-    description: str
-    param_type: str | None = None
-    required: bool = False
-    default: Any | None = None
-    choices: list[str] | None = None
-
-    @classmethod
-    def from_dict(cls, name: str, param_dict: dict[str, Any]) -> "ModuleParameter":
-        """Create ModuleParameter from Ansible's parameter dictionary."""
-        description = param_dict.get("description", "")
-        if isinstance(description, list):
-            description = " ".join(description)
-
-        return cls(
-            name=name,
-            description=description,
-            param_type=param_dict.get("type"),
-            required=param_dict.get("required", False),
-            default=param_dict.get("default"),
-            choices=param_dict.get("choices"),
-        )
+def _strip_markup(text: str) -> str:
+    """Strip Ansible rst-ish markup like C(), V(), O(), I() to plain text."""
+    return _MARKUP_RE.sub(r"\1", text)
 
 
-@dataclass
-class ReturnValue:
-    """Value object representing an Ansible module return value."""
+class DocCLIBridge:
+    """Bridge to ansible's DocCLI for loading module documentation.
 
-    name: str
-    description: str
-    return_type: str | None = None
+    Performs one-time DocCLI initialization (plugin loader, collection finder)
+    then exposes fast in-process lookups via ``_get_plugins_docs``.
+    Works for ALL installed collections -- builtin, community, windows, etc.
+    """
 
-    @classmethod
-    def from_dict(cls, name: str, return_dict: dict[str, Any]) -> "ReturnValue":
-        """Create ReturnValue from Ansible's return value dictionary."""
-        description = return_dict.get("description", "")
-        if isinstance(description, list):
-            description = " ".join(description)
+    _context_lock = threading.Lock()
 
-        return cls(
-            name=name,
-            description=description,
-            return_type=return_dict.get("type"),
-        )
+    def __init__(self) -> None:
+        self._cli = DocCLI(["ansible-doc", "--snippet", "dummy"])
+        self._cli.parse()
+        CLI.run(self._cli)
 
+    def get_module_docs(self, fqcn: str) -> dict | None:
+        """Get full doc dict for a single module FQCN."""
+        docs = self._cli._get_plugins_docs("module", [fqcn])
+        return docs.get(fqcn)
 
-@dataclass
-class ModuleInfo:
-    """Domain entity representing an Ansible module with its documentation."""
+    def format_module_docs(self, fqcn: str) -> str | None:
+        """Format module docs as compact plaintext for LLM consumption.
 
-    name: str
-    fqcn: str
-    short_description: str
-    description: str | None = None
-    parameters: list[ModuleParameter] = field(default_factory=list)
-    examples: str | None = None
-    return_values: list[ReturnValue] = field(default_factory=list)
+        Output is one line per parameter with inline metadata (type,
+        required, default, choices). Only the first description sentence
+        is kept. Ansible markup like C(), V(), O() is stripped.
+        """
+        plugin_docs = self.get_module_docs(fqcn)
+        if not plugin_docs:
+            return None
 
-    @classmethod
-    def create(
-        cls,
-        base_name: str,
-        doc_dict: dict[str, Any],
-        examples: str | None = None,
-        return_dict: dict[str, Any] | None = None,
-    ) -> "ModuleInfo":
-        """Factory method to create ModuleInfo from parsed Ansible documentation."""
-        description = doc_dict.get("description")
-        if isinstance(description, list):
-            description = " ".join(description)
+        doc = plugin_docs["doc"]
+        return self._format_doc(doc)
 
-        parameters = [
-            ModuleParameter.from_dict(name, param_dict)
-            for name, param_dict in doc_dict.get("options", {}).items()
-        ]
+    def list_collection_modules(self, collection_fqcn: str) -> dict[str, str]:
+        """List modules in a collection with short descriptions.
 
-        return_values = []
-        if return_dict:
-            return_values = [
-                ReturnValue.from_dict(name, ret_dict)
-                for name, ret_dict in return_dict.items()
-                if isinstance(ret_dict, dict)
-            ]
+        Returns a dict of ``{fqcn: short_description}``.
+        """
+        return self._list_with_args([collection_fqcn])
 
-        return cls(
-            name=base_name,
-            fqcn=f"{MODULE_NAME_PREFIX}{base_name}",
-            short_description=doc_dict.get("short_description", ""),
-            description=description,
-            parameters=parameters,
-            examples=examples,
-            return_values=return_values,
-        )
+    def list_all_modules(self) -> dict[str, str]:
+        """List all installed modules with short descriptions."""
+        return self._list_with_args([])
 
+    def _list_with_args(self, args: list[str]) -> dict[str, str]:
+        """Temporarily override CLIARGS to call ``_list_plugins``.
 
-class ModuleDocumentationFormatter:
-    """Formats module documentation as markdown for LLM consumption."""
+        GlobalCLIArgs is a singleton that cannot be re-created, so we
+        swap ``context.CLIARGS`` directly with a plain CLIArgs instance.
 
-    @staticmethod
-    def format_header(info: ModuleInfo) -> list[str]:
-        """Format module header section."""
-        return [f"# {info.fqcn}", "", info.short_description, ""]
+        Thread-safe: Uses a class-level lock to serialize global state mutations.
+        """
 
-    @staticmethod
-    def format_description(description: str | None) -> list[str]:
-        """Format module description section."""
-        if not description:
-            return []
-        return ["## Description", description, ""]
-
-    @staticmethod
-    def format_parameter(param: ModuleParameter) -> list[str]:
-        """Format a single parameter."""
-        lines = []
-        req_marker = " (required)" if param.required else ""
-        lines.append(f"### {param.name}{req_marker}")
-        lines.append(param.description)
-
-        if param.param_type:
-            lines.append(f"- Type: {param.param_type}")
-        if param.default is not None:
-            lines.append(f"- Default: {param.default}")
-        if param.choices:
-            choices = ", ".join(str(c) for c in param.choices)
-            lines.append(f"- Choices: {choices}")
-
-        lines.append("")
-        return lines
-
-    @staticmethod
-    def format_parameters(parameters: list[ModuleParameter]) -> list[str]:
-        """Format all parameters section."""
-        if not parameters:
-            return []
-
-        lines = ["## Parameters", ""]
-        for param in parameters:
-            lines.extend(ModuleDocumentationFormatter.format_parameter(param))
-        return lines
-
-    @staticmethod
-    def format_examples(examples: str | None) -> list[str]:
-        """Format examples section."""
-        if not examples:
-            return []
-        return ["## Examples", "", "```yaml", examples.strip(), "```", ""]
-
-    @staticmethod
-    def format_return_value(ret_val: ReturnValue) -> list[str]:
-        """Format a single return value."""
-        lines = [f"### {ret_val.name}", ret_val.description]
-        if ret_val.return_type:
-            lines.append(f"- Type: {ret_val.return_type}")
-        lines.append("")
-        return lines
-
-    @staticmethod
-    def format_return_values(return_values: list[ReturnValue]) -> list[str]:
-        """Format all return values section."""
-        if not return_values:
-            return []
-
-        lines = ["## Return Values", ""]
-        for ret_val in return_values:
-            lines.extend(ModuleDocumentationFormatter.format_return_value(ret_val))
-        return lines
-
-    def format_module_documentation(self, info: ModuleInfo) -> str:
-        """Format complete module documentation."""
-        output = []
-        output.extend(self.format_header(info))
-        output.extend(self.format_description(info.description))
-        output.extend(self.format_parameters(info.parameters))
-        output.extend(self.format_examples(info.examples))
-        output.extend(self.format_return_values(info.return_values))
-        return "\n".join(output)
-
-
-class ModuleDiscoveryService:
-    """Infrastructure service for discovering and loading Ansible modules."""
-
-    def __init__(self):
-        self._modules_list: list[str] | None = None
-
-    def discover_builtin_modules(self) -> list[str]:
-        """Discover all builtin Ansible modules from filesystem."""
-        if self._modules_list is not None:
-            return self._modules_list
-
-        try:
-            import ansible.modules
-
-            modules_path = Path(ansible.modules.__file__).parent
-            py_files = modules_path.glob("*.py")
-
-            self._modules_list = sorted(
-                [
-                    f.stem
-                    for f in py_files
-                    if f.stem != "__init__" and not f.stem.startswith("_")
-                ]
+        with self._context_lock:
+            original = context.CLIARGS
+            context.CLIARGS = CLIArgs(
+                {
+                    **dict(original),
+                    "args": args,
+                    "list_dir": True,
+                    "list_files": False,
+                }
             )
-            return self._modules_list
-
-        except Exception as e:
-            logger.error(f"Failed to discover builtin modules: {e}")
-            return []
-
-    def load_module_documentation(self, base_name: str) -> ModuleInfo | None:
-        """Load documentation for a specific module."""
-        try:
-            mod = importlib.import_module(f"ansible.modules.{base_name}")
-
-            if not hasattr(mod, "DOCUMENTATION"):
-                return None
-
-            doc_dict = yaml.safe_load(mod.DOCUMENTATION)
-            examples = getattr(mod, "EXAMPLES", None)
-            return_dict = self._parse_return_values(mod)
-
-            return ModuleInfo.create(base_name, doc_dict, examples, return_dict)
-
-        except ModuleNotFoundError:
-            logger.debug(f"Module not found: {base_name}")
-            return None
-        except Exception as e:
-            logger.error(f"Failed to load module doc for {base_name}: {e}")
-            return None
+            try:
+                # "dir" branch always returns dict[str, str]
+                return cast(dict[str, str], self._cli._list_plugins("module", "dir"))
+            finally:
+                context.CLIARGS = original
 
     @staticmethod
-    def _parse_return_values(mod: Any) -> dict[str, Any] | None:
-        """Parse return values from module, handling malformed YAML."""
-        if not hasattr(mod, "RETURN"):
-            return None
+    def _format_doc(doc: dict) -> str:
+        """Render a doc dict as compact plaintext."""
+        fqcn = doc.get("plugin_name", doc.get("module", "unknown"))
+        short = _strip_markup(doc.get("short_description", ""))
+        lines = [f"{fqcn} -- {short}", "", "Parameters:"]
 
-        try:
-            return yaml.safe_load(mod.RETURN)
-        except Exception:
-            return None
+        for name, opt in sorted(doc.get("options", {}).items()):
+            meta = _build_param_meta(opt)
+            desc = _flatten_description(opt.get("description", ""))
+            tag = f" ({', '.join(meta)})" if meta else ""
+            lines.append(f"  {name}{tag}: {desc}")
+
+        return "\n".join(lines)
 
 
-class ModuleNameNormalizer:
-    """Domain service for normalizing module names."""
+def _build_param_meta(opt: dict) -> list[str]:
+    """Build inline metadata tags for a parameter."""
+    meta: list[str] = []
+    if opt.get("required"):
+        meta.append("required")
+    if opt.get("type"):
+        meta.append(opt["type"])
+    if "default" in opt and opt["default"] is not None:
+        meta.append(f"default={opt['default']}")
+    if "choices" in opt:
+        meta.append(f"choices={opt['choices']}")
+    return meta
 
-    @staticmethod
-    def normalize(module_name: str) -> str:
-        """Normalize module name to base name without FQCN prefix."""
-        if module_name.startswith(MODULE_NAME_PREFIX):
-            return module_name.replace(MODULE_NAME_PREFIX, "")
-        return module_name
 
-    @staticmethod
-    def to_fqcn(base_name: str) -> str:
-        """Convert base module name to FQCN."""
-        return f"{MODULE_NAME_PREFIX}{base_name}"
+def _flatten_description(raw: str | list) -> str:
+    """Join all description sentences and strip Ansible markup."""
+    if isinstance(raw, list):
+        raw = " ".join(raw)
+    return _strip_markup(raw)
 
 
 class AnsibleDocLookupInput(BaseModel):
@@ -289,37 +143,12 @@ class AnsibleDocLookupInput(BaseModel):
     )
 
 
-class ModuleListFormatter:
-    """Formats module lists for LLM consumption."""
-
-    def __init__(self, discovery_service: ModuleDiscoveryService):
-        self._discovery_service = discovery_service
-
-    def format_module_list(
-        self, modules: list[str], filter_pattern: str | None = None
-    ) -> str:
-        """Format a list of modules with descriptions."""
-        if not modules:
-            return f"No modules found matching filter: {filter_pattern}"
-
-        output = [f"# Available Ansible Builtin Modules ({len(modules)})", ""]
-
-        for module_name in modules:
-            info = self._discovery_service.load_module_documentation(module_name)
-            if info:
-                output.append(f"- {info.fqcn}: {info.short_description}")
-            else:
-                output.append(f"- {ModuleNameNormalizer.to_fqcn(module_name)}")
-
-        return "\n".join(output)
-
-
 class AnsibleDocLookupTool(X2ATool):
-    """Lookup Ansible module documentation using pure Python API.
+    """Lookup Ansible module documentation via DocCLI (in-process).
 
-    This tool provides access to Ansible's builtin module documentation without
-    subprocess calls. It can list available modules or provide detailed documentation
-    for specific modules.
+    This tool provides access to documentation for ALL installed Ansible
+    collections without subprocess calls. It can list available modules or
+    provide snippet-format documentation for specific modules.
     """
 
     name: str = "ansible_doc_lookup"
@@ -334,44 +163,40 @@ class AnsibleDocLookupTool(X2ATool):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self._discovery_service = ModuleDiscoveryService()
-        self._doc_formatter = ModuleDocumentationFormatter()
-        self._list_formatter = ModuleListFormatter(self._discovery_service)
-
-    def _load_module(self, module_name: str) -> ModuleInfo | None:
-        """Load module documentation."""
-        base_name = ModuleNameNormalizer.normalize(module_name)
-        return self._discovery_service.load_module_documentation(base_name)
-
-    def _filter_modules(
-        self, modules: list[str], filter_pattern: str | None
-    ) -> list[str]:
-        """Filter module list by pattern."""
-        if not filter_pattern:
-            return modules
-
-        filter_lower = filter_pattern.lower()
-        return [m for m in modules if filter_lower in m.lower()]
+        self._bridge = DocCLIBridge()
 
     def _handle_module_lookup(self, module_name: str) -> str:
-        """Handle detailed module documentation lookup."""
+        """Return compact plaintext documentation for a single module."""
         self.log.debug(f"Looking up documentation for module: {module_name}")
-        info = self._load_module(module_name)
+        result = self._bridge.format_module_docs(module_name)
 
-        if info is None:
+        if result is None:
             return (
-                f"ERROR: Module '{module_name}' not found in {ANSIBLE_BUILTIN_COLLECTION} collection.\n"
+                f"ERROR: Module '{module_name}' not found.\n"
                 f"Try listing modules with list_filter to find the correct name."
             )
 
-        return self._doc_formatter.format_module_documentation(info)
+        return result
 
     def _handle_module_list(self, filter_pattern: str | None) -> str:
-        """Handle module listing."""
+        """Return a filtered list of modules with short descriptions."""
         self.log.debug(f"Listing modules with filter: {filter_pattern}")
-        all_modules = self._discovery_service.discover_builtin_modules()
-        filtered_modules = self._filter_modules(all_modules, filter_pattern)
-        return self._list_formatter.format_module_list(filtered_modules, filter_pattern)
+        all_modules = self._bridge.list_all_modules()
+
+        if filter_pattern:
+            filter_lower = filter_pattern.lower()
+            all_modules = {
+                fqcn: desc
+                for fqcn, desc in all_modules.items()
+                if filter_lower in fqcn.lower()
+            }
+
+        if not all_modules:
+            return f"No modules found matching filter: {filter_pattern}"
+
+        header = f"# Available Ansible Modules ({len(all_modules)})\n"
+        lines = [f"- {fqcn}: {desc}" for fqcn, desc in sorted(all_modules.items())]
+        return header + "\n".join(lines)
 
     def _run(self, *args: Any, **kwargs: Any) -> str:
         """Execute the ansible_doc_lookup tool.
