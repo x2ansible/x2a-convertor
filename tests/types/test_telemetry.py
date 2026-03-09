@@ -26,6 +26,8 @@ class TestAgentMetrics:
         assert metrics.started_at is None
         assert metrics.ended_at is None
         assert metrics.duration_seconds == 0.0
+        assert metrics.input_tokens == 0
+        assert metrics.output_tokens == 0
         assert metrics.metrics == {}
         assert metrics.tool_calls == {}
 
@@ -124,6 +126,32 @@ class TestAgentMetrics:
             "ansible_lint": 10,
         }
 
+    def test_record_tokens_basic(self):
+        """Test recording token usage."""
+        metrics = AgentMetrics(name="TestAgent")
+        result = metrics.record_tokens(100, 50)
+
+        assert metrics.input_tokens == 100
+        assert metrics.output_tokens == 50
+        assert result is metrics  # Method chaining
+
+    def test_record_tokens_accumulates(self):
+        """Test that multiple record_tokens calls accumulate."""
+        metrics = AgentMetrics(name="TestAgent")
+        metrics.record_tokens(100, 50)
+        metrics.record_tokens(200, 75)
+
+        assert metrics.input_tokens == 300
+        assert metrics.output_tokens == 125
+
+    def test_record_tokens_zero_values(self):
+        """Test recording zero tokens."""
+        metrics = AgentMetrics(name="TestAgent")
+        metrics.record_tokens(0, 0)
+
+        assert metrics.input_tokens == 0
+        assert metrics.output_tokens == 0
+
     def test_to_dict_complete(self):
         """Test serialization to dict with complete data."""
         metrics = AgentMetrics(name="TestAgent")
@@ -132,6 +160,7 @@ class TestAgentMetrics:
         metrics.stop()
         metrics.record_metric("files_created", 5)
         metrics.record_tool_calls(ToolCallCounter({"read_file": 10}))
+        metrics.record_tokens(1000, 500)
 
         result = metrics.to_dict()
 
@@ -139,6 +168,8 @@ class TestAgentMetrics:
         assert "started_at" in result
         assert "ended_at" in result
         assert result["duration_seconds"] > 0
+        assert result["input_tokens"] == 1000
+        assert result["output_tokens"] == 500
         assert result["metrics"] == {"files_created": 5}
         assert result["tool_calls"] == {"read_file": 10}
 
@@ -153,6 +184,8 @@ class TestAgentMetrics:
             "started_at": "2026-01-15T10:00:00",
             "ended_at": "2026-01-15T10:05:00",
             "duration_seconds": 300.0,
+            "input_tokens": 2000,
+            "output_tokens": 800,
             "metrics": {"files_processed": 10},
             "tool_calls": {"read_file": 5, "write_file": 3},
         }
@@ -162,6 +195,8 @@ class TestAgentMetrics:
         assert metrics.started_at == datetime.fromisoformat("2026-01-15T10:00:00")
         assert metrics.ended_at == datetime.fromisoformat("2026-01-15T10:05:00")
         assert metrics.duration_seconds == 300.0
+        assert metrics.input_tokens == 2000
+        assert metrics.output_tokens == 800
         assert metrics.metrics == {"files_processed": 10}
         assert metrics.tool_calls == {"read_file": 5, "write_file": 3}
 
@@ -174,6 +209,8 @@ class TestAgentMetrics:
         assert metrics.started_at is None
         assert metrics.ended_at is None
         assert metrics.duration_seconds == 1.0
+        assert metrics.input_tokens == 0
+        assert metrics.output_tokens == 0
         assert metrics.metrics == {}
         assert metrics.tool_calls == {}
 
@@ -185,11 +222,14 @@ class TestAgentMetrics:
         metrics.stop()
         metrics.record_metric("files_created", 5)
         metrics.record_tool_calls(ToolCallCounter({"read_file": 10}))
+        metrics.record_tokens(1500, 750)
 
         result = metrics.to_api_dict()
 
         assert result["name"] == "TestAgent"
         assert result["durationSeconds"] > 0
+        assert result["inputTokens"] == 1500
+        assert result["outputTokens"] == 750
         assert "startedAt" in result
         assert "endedAt" in result
         assert result["metrics"] == {"files_created": 5}
@@ -202,6 +242,8 @@ class TestAgentMetrics:
 
         assert result["name"] == "MinimalAgent"
         assert result["durationSeconds"] == 0.0
+        assert result["inputTokens"] == 0
+        assert result["outputTokens"] == 0
         assert "startedAt" not in result
         assert "endedAt" not in result
         assert "metrics" not in result
@@ -451,6 +493,7 @@ class TestTelemetry:
         agent.stop()
         agent.record_metric("files_created", 5)
         agent.record_tool_calls(ToolCallCounter({"read_file": 10, "write_file": 5}))
+        agent.record_tokens(2500, 1200)
         telemetry.stop()
 
         summary = telemetry.to_summary()
@@ -458,8 +501,22 @@ class TestTelemetry:
         assert "Phase: migrate" in summary
         assert "Duration:" in summary
         assert "TestAgent:" in summary
+        assert "Tokens: 2500 in, 1200 out" in summary
         assert "Tools: read_file: 10, write_file: 5" in summary
         assert "files_created: 5" in summary
+
+    def test_to_summary_without_tokens(self):
+        """Test to_summary doesn't show tokens when they're zero."""
+        telemetry = Telemetry(phase="test")
+        agent = telemetry.get_or_create_agent("TestAgent")
+        agent.start()
+        agent.stop()
+        telemetry.stop()
+
+        summary = telemetry.to_summary()
+
+        assert "TestAgent:" in summary
+        assert "Tokens:" not in summary
 
 
 class TestTelemetryContext:
