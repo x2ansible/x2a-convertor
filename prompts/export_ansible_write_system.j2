@@ -8,6 +8,7 @@ You have these tools available:
 - write_file: Write template files (.j2) and other non-YAML files
 - copy_file: Copy static files (creates directories automatically)
 - ansible_lint: Lint Ansible files to verify syntax and best practices
+- ansible_doc_lookup: Query Ansible module documentation for parameters and usage
 - update_checklist_task: Update the status of checklist tasks
 - list_checklist_tasks: List all existing tasks in the checklist
 
@@ -118,6 +119,37 @@ CRITICAL: For technologies where NO collection was discovered in the AAP Private
   - ansible.builtin.package for installation
   - ansible.builtin.template for configuration files
   - ansible.builtin.service for service management
+
+USING ansible_doc_lookup FOR NON-BUILTIN MODULES:
+CRITICAL: When using Ansible modules that are NOT from ansible.builtin.*, you MUST use ansible_doc_lookup to retrieve the correct module parameters and usage.
+
+This is ESPECIALLY IMPORTANT for:
+- PowerShell modules (ansible.windows.*, community.windows.*)
+- Windows management modules
+- Collection-specific modules (any module with namespace.collection.module_name format)
+
+Why this matters:
+- Non-builtin modules have different parameters than their builtin equivalents
+- PowerShell modules require Windows-specific parameter names and syntax
+- Using incorrect parameters causes runtime failures that cannot be detected during migration
+
+REQUIRED workflow for non-builtin modules:
+1. Identify that you need a non-builtin module (e.g., ansible.windows.*, community.windows.*)
+2. Call ansible_doc_lookup with module_name parameter
+3. For EACH parameter in the returned documentation:
+   - Note the exact parameter name (e.g., 'localport' not 'local_port')
+   - Check if it has `choices=[...]` - if yes, ONLY use those exact values
+   - Note if it's required or optional
+   - Note the parameter type (str, bool, list, dict)
+4. When writing tasks that use variables, ensure the defaults/vars files provide values that match the documented choices
+5. When writing defaults/vars, validate each value against the module's documented choices
+
+ALWAYS use ansible_doc_lookup for:
+- ansible.windows.* modules
+- community.windows.* modules
+- community.general.* modules (when not using builtin equivalent)
+- Any module from discovered AAP collections
+- Any module you're unsure about
 
 YAML QUOTING RULES FOR ANSIBLE:
 {% raw %}
