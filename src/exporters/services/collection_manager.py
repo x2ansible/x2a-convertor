@@ -449,7 +449,17 @@ class CollectionManager:
         parsed = [CollectionSpec.from_requirement(item) for item in collections_data]
         valid = [spec for spec in parsed if spec is not None]
 
-        invalid_count = len(parsed) - len(valid)
+        # Filter out ansible.builtin — it's a pseudo-collection that ships with
+        # ansible-core and cannot be installed from Galaxy.
+        skipped_builtin = [spec for spec in valid if spec.fqcn == "ansible.builtin"]
+        if skipped_builtin:
+            slog.info(
+                "Skipping ansible.builtin — it ships with ansible-core "
+                "and cannot be installed from Galaxy"
+            )
+        valid = [spec for spec in valid if spec.fqcn != "ansible.builtin"]
+
+        invalid_count = len(parsed) - len(valid) - len(skipped_builtin)
         if invalid_count > 0:
             slog.warning(f"Skipped {invalid_count} invalid collection specs")
 
