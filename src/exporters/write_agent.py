@@ -22,6 +22,7 @@ from src.types import ChecklistStatus
 from src.types.telemetry import AgentMetrics
 from src.utils.config import get_config_int
 from src.utils.logging import get_logger
+from tools.ansible_doc_lookup import AnsibleDocLookupTool
 from tools.ansible_lint import AnsibleLintTool
 from tools.ansible_write import AnsibleWriteTool
 from tools.copy_file import CopyFileWithMkdirTool
@@ -52,6 +53,7 @@ class WriteAgent(BaseAgent[ExportState]):
         lambda: CopyFileWithMkdirTool(),
         lambda: AnsibleWriteTool(),
         lambda: AnsibleLintTool(),
+        lambda: AnsibleDocLookupTool(),
     ]
 
     SYSTEM_PROMPT_NAME = "export_ansible_write_system"

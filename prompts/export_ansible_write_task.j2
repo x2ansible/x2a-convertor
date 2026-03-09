@@ -64,6 +64,9 @@ Process every item that is NOT marked "complete". For EACH pending item, execute
 2. **Check existence**: If target file exists, skip to next item
 3. **Read source**: Call read_file with source path (skip if source is "N/A")
 4. **Convert content**: Apply conversion rules from system prompt
+   - For tasks using non-builtin modules: Call ansible_doc_lookup FIRST
+   - Validate all parameter names match documentation
+   - For parameters with `choices=[...]`, ensure defaults/vars use ONLY those exact values
 5. **Write file**: Call appropriate tool:
    - `ansible_write`: For tasks, handlers, defaults, vars, meta (YAML files)
    - `write_file`: For templates (.j2) and other non-YAML files
