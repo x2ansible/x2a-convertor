@@ -85,6 +85,26 @@ class BaseAgent[S: BaseState](ABC):
             for tool in tools
         ]
 
+    def _extract_token_usage(self, result: dict) -> tuple[int, int]:
+        """Extract total input and output tokens from AIMessage objects.
+
+        Returns:
+            Tuple of (input_tokens, output_tokens)
+        """
+        input_tokens = 0
+        output_tokens = 0
+
+        for msg in result.get("messages", []):
+            if not isinstance(msg, AIMessage):
+                continue
+            if not hasattr(msg, "usage_metadata") or not msg.usage_metadata:
+                continue
+
+            input_tokens += msg.usage_metadata.get("input_tokens", 0)
+            output_tokens += msg.usage_metadata.get("output_tokens", 0)
+
+        return input_tokens, output_tokens
+
     def invoke_react(
         self,
         state: S,
@@ -111,6 +131,8 @@ class BaseAgent[S: BaseState](ABC):
 
         if metrics:
             metrics.record_tool_calls(tool_calls)
+            input_tokens, output_tokens = self._extract_token_usage(result)
+            metrics.record_tokens(input_tokens, output_tokens)
 
         return result
 

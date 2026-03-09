@@ -24,7 +24,7 @@ TELEMETRY_FILENAME = ".x2a-telemetry.json"
 class AgentMetrics:
     """Telemetry data for a single agent execution.
 
-    Tracks timing, tool calls, and custom metrics for each agent
+    Tracks timing, tool calls, token usage, and custom metrics for each agent
     in the migration workflow.
 
     Attributes:
@@ -32,6 +32,8 @@ class AgentMetrics:
         started_at: When agent execution started
         ended_at: When agent execution completed
         duration_seconds: Calculated duration (set by stop())
+        input_tokens: Total input tokens consumed
+        output_tokens: Total output tokens generated
         metrics: Custom key-value metrics recorded by the agent
         tool_calls: Tool call counts (tool_name -> count)
     """
@@ -40,6 +42,8 @@ class AgentMetrics:
     started_at: datetime | None = None
     ended_at: datetime | None = None
     duration_seconds: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
     metrics: dict[str, Any] = field(default_factory=dict)
     tool_calls: dict[str, int] = field(default_factory=dict)
 
@@ -90,6 +94,20 @@ class AgentMetrics:
         self.metrics[key] = value
         return self
 
+    def record_tokens(self, input_tokens: int, output_tokens: int) -> "AgentMetrics":
+        """Record token usage.
+
+        Args:
+            input_tokens: Input tokens consumed
+            output_tokens: Output tokens generated
+
+        Returns:
+            Self for method chaining
+        """
+        self.input_tokens += input_tokens
+        self.output_tokens += output_tokens
+        return self
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AgentMetrics":
         """Reconstruct an AgentMetrics instance from a snake_case dict.
@@ -109,6 +127,8 @@ class AgentMetrics:
             if data.get("ended_at")
             else None,
             duration_seconds=data.get("duration_seconds", 0.0),
+            input_tokens=data.get("input_tokens", 0),
+            output_tokens=data.get("output_tokens", 0),
             metrics=data.get("metrics", {}),
             tool_calls=data.get("tool_calls", {}),
         )
@@ -120,6 +140,8 @@ class AgentMetrics:
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "ended_at": self.ended_at.isoformat() if self.ended_at else None,
             "duration_seconds": self.duration_seconds,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
             "metrics": self.metrics,
             "tool_calls": self.tool_calls,
         }
@@ -134,6 +156,8 @@ class AgentMetrics:
         result: dict[str, Any] = {
             "name": self.name,
             "durationSeconds": self.duration_seconds,
+            "inputTokens": self.input_tokens,
+            "outputTokens": self.output_tokens,
         }
 
         if self.started_at:
@@ -302,6 +326,10 @@ class Telemetry:
             lines.append("Agent Metrics:")
             for agent in self.agents.values():
                 lines.append(f"  {agent.name}: {agent.duration_seconds:.2f}s")
+                if agent.input_tokens or agent.output_tokens:
+                    lines.append(
+                        f"    Tokens: {agent.input_tokens} in, {agent.output_tokens} out"
+                    )
                 if agent.tool_calls:
                     tool_summary = ", ".join(
                         f"{k}: {v}" for k, v in sorted(agent.tool_calls.items())
