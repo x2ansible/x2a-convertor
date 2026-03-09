@@ -343,6 +343,36 @@ class TestReportClientSend:
         assert body["telemetry"]["startedAt"] == "2026-01-15T10:00:00"
 
     @responses.activate
+    def test_post_with_telemetry_from_source_dir(self, tmp_path):
+        """Telemetry is read from source_dir, not CWD."""
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        telemetry_data = {
+            "phase": "analyze",
+            "started_at": "2026-02-01T12:00:00",
+            "summary": "Analyzed",
+            "agents": {},
+        }
+        (source_dir / ".x2a-telemetry.json").write_text(json.dumps(telemetry_data))
+
+        responses.add(responses.POST, COLLECT_URL, json={"message": "ok"}, status=200)
+
+        client = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-1",
+            artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
+            source_dir=str(source_dir),
+        )
+        client.send()
+
+        assert responses.calls[0].request.body is not None
+        body = json.loads(responses.calls[0].request.body)
+        assert "telemetry" in body
+        assert body["telemetry"]["phase"] == "analyze"
+        assert body["telemetry"]["startedAt"] == "2026-02-01T12:00:00"
+
+    @responses.activate
     def test_post_raises_on_server_error(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 

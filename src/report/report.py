@@ -5,6 +5,7 @@ import hmac
 import json
 import uuid
 from enum import Enum
+from pathlib import Path
 from typing import Any, ClassVar
 
 import requests
@@ -45,6 +46,7 @@ class ReportClient:
         callback_token: str,
         error_message: str | None = None,
         commit_id: str | None = None,
+        source_dir: str | None = None,
     ) -> None:
         self._url = url
         self._job_id = job_id
@@ -52,6 +54,7 @@ class ReportClient:
         self._callback_token = callback_token
         self._error_message = error_message
         self._commit_id = commit_id
+        self._source_dir = Path(source_dir) / TELEMETRY_FILENAME if source_dir else None
 
     def send(self) -> None:
         """Build and POST the artifacts payload to the API."""
@@ -126,9 +129,9 @@ class ReportClient:
 
     def _read_telemetry(self) -> dict[str, Any] | None:
         """Read telemetry from .x2a-telemetry.json and map to API schema."""
-        telemetry = Telemetry.load_from()
+        telemetry = Telemetry.load_from(self._source_dir)
         if not telemetry:
-            logger.debug("No telemetry file found", path=TELEMETRY_FILENAME)
+            logger.warning("No telemetry file found", path=TELEMETRY_FILENAME)
             return None
         return telemetry.to_api_dict()
 
@@ -154,6 +157,7 @@ def report_artifacts(
     callback_token: str,
     error_message: str | None = None,
     commit_id: str | None = None,
+    source_dir: str | None = None,
 ) -> None:
     """Public entry point to report artifacts to the x2a API.
 
@@ -164,6 +168,7 @@ def report_artifacts(
         callback_token: HMAC-SHA256 callback token for request signing
         error_message: Optional error message (sets status to "error")
         commit_id: Optional git commit SHA from the job's push
+        source_dir: Directory where telemetry file was written by init/analyze/migrate
     """
     client = ReportClient(
         url=url,
@@ -172,5 +177,6 @@ def report_artifacts(
         callback_token=callback_token,
         error_message=error_message,
         commit_id=commit_id,
+        source_dir=source_dir,
     )
     client.send()

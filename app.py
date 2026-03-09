@@ -274,8 +274,16 @@ def publish_aap_cmd(target_repo, target_branch, project_id) -> None:
     default=None,
     help="Git commit SHA from the job's push to target repo",
 )
+@click.option(
+    "--source-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=None,
+    help="Source directory where telemetry was written by init/analyze/migrate phases",
+)
 @handle_exceptions
-def report(url, job_id, callback_token, error_message, artifacts, commit_id) -> None:
+def report(
+    url, job_id, callback_token, error_message, artifacts, commit_id, source_dir
+) -> None:
     """Report execution artifacts to the x2a API"""
     report_artifacts(
         url=url,
@@ -284,6 +292,7 @@ def report(url, job_id, callback_token, error_message, artifacts, commit_id) -> 
         callback_token=callback_token,
         error_message=error_message,
         commit_id=commit_id,
+        source_dir=source_dir,
     )
     click.echo("Report sent successfully.")
 
