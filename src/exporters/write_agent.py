@@ -102,9 +102,9 @@ class WriteAgent(BaseAgent[ExportState]):
 galaxy_info:
   role_name: {role_name}
   author: Migration Tool
-  description: Migrated from Chef to Ansible
+  description: Migrated to modern Ansible
   license: Apache-2.0
-  min_ansible_version: "2.9"
+  min_ansible_version: "2.10"
   platforms:
     - name: Ubuntu
       versions:

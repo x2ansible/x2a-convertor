@@ -6,3 +6,4 @@ class Technology(Enum):
     PUPPET = "Puppet"
     SALT = "Salt"
     POWERSHELL = "PowerShell"
+    ANSIBLE = "Ansible"
