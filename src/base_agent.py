@@ -146,8 +146,20 @@ class BaseAgent[S: BaseState](ABC):
 
         Returns the parsed schema instance.
         """
-        structured_model = self.model.with_structured_output(schema)
-        return structured_model.invoke(messages, config=get_runnable_config())
+        structured_model = self.model.with_structured_output(schema, include_raw=True)
+        result = structured_model.invoke(messages, config=get_runnable_config())
+        if (
+            metrics
+            and isinstance(result, dict)
+            and isinstance(result.get("raw"), AIMessage)
+            and hasattr(result["raw"], "usage_metadata")
+            and result["raw"].usage_metadata
+        ):
+            input_tokens = result["raw"].usage_metadata.get("input_tokens", 0)
+            output_tokens = result["raw"].usage_metadata.get("output_tokens", 0)
+            metrics.record_tokens(input_tokens, output_tokens)
+
+        return result.get("parsed") if isinstance(result, dict) else result
 
     def invoke_llm(
         self,
@@ -156,6 +168,16 @@ class BaseAgent[S: BaseState](ABC):
     ) -> str:
         """Direct model invocation, returns content string."""
         result = self.model.invoke(messages, config=get_runnable_config())
+        if (
+            metrics
+            and isinstance(result, AIMessage)
+            and hasattr(result, "usage_metadata")
+            and result.usage_metadata
+        ):
+            input_tokens = result.usage_metadata.get("input_tokens", 0)
+            output_tokens = result.usage_metadata.get("output_tokens", 0)
+            metrics.record_tokens(input_tokens, output_tokens)
+
         if isinstance(result.content, str):
             return result.content
         return str(result.content)
