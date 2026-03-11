@@ -5,7 +5,7 @@ metadata:
   name: developer-hub-operator-subscription
   namespace: openshift-operators
 spec:
-  channel: fast
+  channel: "fast-1.8"
   installPlanApproval: Automatic
   name: rhdh
   source: redhat-operators
