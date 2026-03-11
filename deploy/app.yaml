@@ -69,9 +69,9 @@ data:
     includes:
       - dynamic-plugins.default.yaml
     plugins:
-      - package: "oci://quay.io/x2ansible/red-hat-developer-hub-backstage-plugin-x2a:1.0.1!red-hat-developer-hub-backstage-plugin-x2a"
-      - package: "oci://quay.io/x2ansible/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:0.1.1!red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a"
-      - package: "oci://quay.io/x2ansible/red-hat-developer-hub-backstage-plugin-x2a-backend:1.0.1!red-hat-developer-hub-backstage-plugin-x2a-backend"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:bs_1.45.3__1.0.2!red-hat-developer-hub-backstage-plugin-x2a"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:bs_1.45.3__0.1.2!red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:bs_1.45.3__1.0.2!red-hat-developer-hub-backstage-plugin-x2a-backend"
 ---
 # ConfigMap: Application Configuration
 kind: ConfigMap
@@ -115,7 +115,7 @@ data:
     catalog:
       locations:
         # x2a Create Project template
-        - type: file
+        - type: url
           target: https://raw.githubusercontent.com/redhat-developer/rhdh-plugins/refs/heads/main/workspaces/x2a/templates/conversion-project-template.yaml
           rules:
             - allow: [Template]
@@ -167,6 +167,19 @@ kind: Backstage
 metadata:
   name: developer-hub
 spec:
+  application:
+    dynamicPluginsConfigMapName: dynamic-plugins
+    appConfig:
+      mountPath: /opt/app-root/src
+      configMaps:
+        - name: app-config-rhdh
+    extraFiles:
+      mountPath: /opt/app-root/src
+    extraEnvs:
+      secrets:
+        - name: x2a-credentials
+    route:
+      enabled: true
   deployment:
     patch:
       spec:
@@ -187,16 +200,3 @@ spec:
                     valueFrom:
                       fieldRef:
                         fieldPath: metadata.labels['rhdh.redhat.com/app']
-  application:
-    dynamicPluginsConfigMapName: dynamic-plugins
-    appConfig:
-      mountPath: /opt/app-root/src
-      configMaps:
-        - name: app-config-rhdh
-    extraFiles:
-      mountPath: /opt/app-root/src
-    extraEnvs:
-      secrets:
-        - name: x2a-credentials
-    route:
-      enabled: true
