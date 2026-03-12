@@ -28,7 +28,7 @@ This example uses the AWS Bedrock provider. You'll need to configure the followi
 
 ## Initialization
 
-The first thing we need to do is create the migration plan and project metadata:
+The first thing we need to do is create the migration-plan.md file which will be used as a reference file:
 
 ```bash
 podman run --rm -ti \
@@ -40,11 +40,9 @@ podman run --rm -ti \
   init --source-dir /app/source "Migrate to Ansible"
 ```
 
-This creates:
-- **migration-plan.md** — high-level migration plan covering the entire repository
-- **generated-project-metadata.json** — structured metadata used by the migrate phase to resolve module paths
+This will create a **migration-plan.md** with a lot of details.
 
-## Analyze
+## Analyze:
 
 ```bash
 podman run --rm -ti \
@@ -53,14 +51,12 @@ podman run --rm -ti \
   -e AWS_REGION=$AWS_REGION \
   -e AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK \
   quay.io/x2ansible/x2a-convertor:latest \
-  analyze --source-dir /app/source/ "Please make a detailed plan for the nginx module"
+  analyze "please make a detailed plan for nginx-multisite"  --source-dir /app/source/
 ```
 
-This creates a **migration-plan-\<module-name\>.md** with a detailed blueprint of what needs to be migrated or modernized for that specific module.
+This will make a blueprint of what the model understands about the migration of that cookbook. In this case, it will create a **migration-plan-nginx-multisite.md**
 
 ## Migrate
-
-The `--source-technology` flag tells X2A which input agent to use. Supported values: `Chef`, `Ansible`, `PowerShell`.
 
 ```bash
 podman run --rm -ti \
@@ -73,10 +69,10 @@ podman run --rm -ti \
   -e AAP_OAUTH_TOKEN=$AAP_OAUTH_TOKEN \
   -e AAP_GALAXY_REPOSITORY=$AAP_GALAXY_REPOSITORY \
   quay.io/x2ansible/x2a-convertor:latest \
-  migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx.md "Convert the 'nginx' module"
+  migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the 'nginx-multisite' module"
 ```
 
-This generates Ansible code in `ansible/roles/<module_name>/`. When AAP env vars are set, it will also search your Private Automation Hub for reusable collections (see [AAP Discovery Agent]({% link concepts/export-agents.md %}#aap-discovery-agent-optional)).
+This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details. When AAP env vars are set, it will also search your Private Automation Hub for reusable collections (see [AAP Discovery Agent]({% link concepts/export-agents.md %}#aap-discovery-agent-optional)).
 
 ## Publish Project
 
@@ -84,7 +80,7 @@ This generates Ansible code in `ansible/roles/<module_name>/`. When AAP env vars
 podman run --rm -ti \
   -v $(pwd)/:/app/source:Z \
   quay.io/x2ansible/x2a-convertor:latest \
-  publish-project my-migration-project nginx
+  publish-project my-migration-project nginx_multisite
 ```
 
 This creates (or appends to) an Ansible project under `<project-id>/ansible-project/`. On the first module it creates the full skeleton (ansible.cfg, collections, inventory). On subsequent modules it adds the role and playbook.
@@ -92,8 +88,8 @@ This creates (or appends to) an Ansible project under `<project-id>/ansible-proj
 - ansible.cfg: `./<project-id>/ansible-project/ansible.cfg`
 - Collections requirements: `./<project-id>/ansible-project/collections/requirements.yml`
 - Inventory: `./<project-id>/ansible-project/inventory/hosts.yml`
-- Role: `./<project-id>/ansible-project/roles/<module_name>/`
-- Playbook: `./<project-id>/ansible-project/playbooks/run_<module_name>.yml`
+- Role: `./<project-id>/ansible-project/roles/nginx_multisite/`
+- Playbook: `./<project-id>/ansible-project/playbooks/run_nginx_multisite.yml`
 
 ## Publish to AAP (Optional)
 
