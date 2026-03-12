@@ -27,6 +27,8 @@ flowchart TB
 
     subgraph InputAgents["Input Agents (Analysis)"]
         ChefAgent["Chef Agent<br/>Tree-sitter + Chef CLI"]
+        PSAgent["PowerShell Agent<br/>DSC + Script analysis"]
+        AnsibleAgent["Ansible Agent<br/>Role modernization"]
         PuppetAgent["Puppet Agent<br/>(Framework ready)"]
         SaltAgent["Salt Agent<br/>(Framework ready)"]
     end
@@ -46,6 +48,8 @@ flowchart TB
     Init --> InitAgent
     Analyze --> AnalysisRouter
     AnalysisRouter --> ChefAgent
+    AnalysisRouter --> PSAgent
+    AnalysisRouter --> AnsibleAgent
     AnalysisRouter --> PuppetAgent
     AnalysisRouter --> SaltAgent
     Migrate --> MigrationAgent
@@ -53,6 +57,8 @@ flowchart TB
 
     InitAgent -.-> LLM
     ChefAgent -.-> LLM
+    PSAgent -.-> LLM
+    AnsibleAgent -.-> LLM
     PuppetAgent -.-> LLM
     SaltAgent -.-> LLM
     MigrationAgent -.-> LLM
@@ -97,10 +103,14 @@ Technology-specific agents that analyze source configurations.
 flowchart LR
     Source[Source Repo] --> Detect{Technology<br/>Detection}
     Detect -->|Chef| Chef[Chef Agent]
+    Detect -->|PowerShell| PS[PowerShell Agent]
+    Detect -->|Ansible| Ansible[Ansible Agent]
     Detect -->|Puppet| Puppet[Puppet Agent]
     Detect -->|Salt| Salt[Salt Agent]
 
     Chef --> Plan[Module Migration Plan]
+    PS --> Plan
+    Ansible --> Plan
     Puppet --> Plan
     Salt --> Plan
 
@@ -114,6 +124,15 @@ flowchart LR
 - Analyzes recipes, templates, attributes
 - Resolves external cookbook dependencies
 
+**PowerShell Agent** (`src/inputs/powershell/`)
+- Analyzes PowerShell scripts, modules, and DSC configurations
+- Maps DSC resources to Ansible Windows modules
+
+**Ansible Agent** (`src/inputs/ansible/`)
+- Modernizes legacy Ansible roles to current best practices
+- Structured analysis of tasks, handlers, vars, meta, and templates
+- 21-category modernization taxonomy (FQCN, loops, facts, argument specs, etc.)
+
 **Puppet/Salt Agents**
 - Framework not yet implemented
 - Technology-specific implementation pending
@@ -121,6 +140,7 @@ flowchart LR
 ### 4. Export Agents (Migration)
 
 **Migration Agent** (`src/exporters/migrate.py`)
+- Resolves module paths from `generated-project-metadata.json` (with LLM fallback)
 - Reads migration specifications
 - Generates Ansible playbooks and roles
 - Converts templates (`.erb` → `.j2`)

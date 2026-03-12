@@ -7,28 +7,28 @@ has_children: true
 
 # Getting Started
 
-Get X2A Convertor running and migrate your first cookbook.
+Get X2A Convertor running and migrate your first cookbook or modernize a legacy Ansible role.
 
 ## Prerequisites
 
 - **Docker** (recommended) OR **Python 3.12+** with uv
 - **LLM API access**: AWS Bedrock, OpenAI, or local Ollama
-- **Source repository**: Chef, Puppet, or Salt code to migrate
+- **Source repository**: Chef, PowerShell, or legacy Ansible code to migrate/modernize
 
 ## Quick Start
 
 1. **Install**: See [Installation](installation.html)
 2. **Configure**: See [Configuration](configuration.html)
-3. **Run**: Migrate a cookbook step by step
+3. **Run**: Migrate or modernize a module step by step
 
 ```bash
 # 1. Initialize - scan repository and create migration plan
 uv run app.py init --source-dir ./chef-repo "Migrate to Ansible"
 
-# 2. Analyze - detailed analysis of a specific cookbook
-uv run app.py analyze --source-dir ./chef-repo "Analyze nginx cookbook"
+# 2. Analyze - detailed analysis of a specific module
+uv run app.py analyze --source-dir ./chef-repo "Analyze nginx module"
 
-# 3. Migrate - generate Ansible code
+# 3. Migrate - generate Ansible code (set --source-technology to Chef, Ansible, or PowerShell)
 uv run app.py migrate \
   --source-dir ./chef-repo \
   --source-technology Chef \

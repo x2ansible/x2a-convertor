@@ -38,9 +38,18 @@ You will receive:
    - Native type enforcement
 4. **Template Coverage**: Template modernization needs documented
 5. **No Hallucinations**: Nothing in the plan contradicts the structured analysis
-6. **Handler Completeness**: All handlers from the legacy role are preserved in the migration plan (e.g., both restart and reload handlers)
-7. **Vars Preservation**: All variables from vars/main.yml are documented and will be preserved during migration
+6. **Handler Completeness**: ALL handlers from the legacy role are preserved in the migration plan — if the legacy has both `restart` and `reload` handlers, both MUST appear. Flag any dropped handlers as a validation error
+7. **Vars Preservation**: ALL variable definitions from vars/main.yml are documented and will be preserved during migration — check that specific variable names (e.g., package lists, paths, OS-specific mappings) are listed, not replaced with generic descriptions or comments
 8. **Requirements Sanity**: Collection dependencies do NOT include `ansible.builtin` (it ships with ansible-core and cannot be installed from Galaxy)
+9. **Value-Type Integrity**: If variable values are rendered into
+   application config files via templates, verify the plan preserves
+   their original string type (not converted to boolean).
+10. **Task-Level Directive Preservation**: ALL task-level directives
+    (environment, register, changed_when, tags, etc.) from the
+    structured analysis are documented in the migration plan.
+11. **Variable Separation**: Variables from vars/main.yml stay in
+    vars/, defaults/ stay in defaults/. Flag any plan that moves
+    variables between directories.
 
 ## Response Format
 

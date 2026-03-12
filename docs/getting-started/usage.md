@@ -54,7 +54,7 @@ export AAP_VERIFY_SSL=true
 
 ## Initialization
 
-The first thing we need to do is create the migration-plan.md file which will be used as a reference file:
+The first thing we need to do is create the migration plan and project metadata:
 
 ```bash
 uv run app.py init \
@@ -63,37 +63,47 @@ uv run app.py init \
 
 ```
 
-This will create a **migration-plan.md** with a lot of details.
+This creates:
+- **migration-plan.md** — high-level migration plan covering the entire repository
+- **generated-project-metadata.json** — structured metadata used by the migrate phase to resolve module paths
 
-## Analyze:
+## Analyze
 
 ```bash
 uv run app.py analyze \
   --source-dir . \
-  "please make a detailed plan for nginx-multisite"
+  "Please make a detailed plan for the nginx module"
 
 ```
 
-This will make a blueprint of what the model understands about the migration of that cookbook. In this case, it will create a **migration-plan-nginx-multisite.md**
+This creates a **migration-plan-\<module-name\>.md** with a detailed blueprint of what needs to be migrated or modernized for that specific module.
 
 ## Migrate
+
+The `--source-technology` flag tells X2A which input agent to use. Supported values: `Chef`, `Ansible`, `PowerShell`.
 
 ```bash
 uv run app.py migrate \
   --source-dir . \
   --source-technology Chef \
   --high-level-migration-plan migration-plan.md \
-  --module-migration-plan migration-plan-nginx-multisite.md \
-  "Convert the 'nginx-multisite' module"
+  --module-migration-plan migration-plan-nginx.md \
+  "Convert the 'nginx' module"
 
 ```
 
-This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details. When AAP env vars are set, it will also search your Private Automation Hub for reusable collections (see [AAP Discovery Agent]({% link concepts/export-agents.md %}#aap-discovery-agent-optional)).
+This generates Ansible code in `ansible/roles/<module_name>/`. The pipeline will:
+- Read the module path from `generated-project-metadata.json` (created by init)
+- Route to the appropriate migration agent based on `--source-technology`
+- Generate a modern Ansible role with tasks, handlers, templates, variables, and meta
+- Validate with `ansible-lint` and auto-fix issues
+
+When AAP env vars are set, it will also search your Private Automation Hub for reusable collections (see [AAP Discovery Agent]({% link concepts/export-agents.md %}#aap-discovery-agent-optional)).
 
 ## Publish Project
 
 ```bash
-uv run app.py publish-project my-migration-project nginx_multisite
+uv run app.py publish-project my-migration-project nginx
 
 ```
 
@@ -102,8 +112,8 @@ This creates (or appends to) an Ansible project under `<project-id>/ansible-proj
 - ansible.cfg: `./<project-id>/ansible-project/ansible.cfg`
 - Collections requirements: `./<project-id>/ansible-project/collections/requirements.yml`
 - Inventory: `./<project-id>/ansible-project/inventory/hosts.yml`
-- Role: `./<project-id>/ansible-project/roles/nginx_multisite/`
-- Playbook: `./<project-id>/ansible-project/playbooks/run_nginx_multisite.yml`
+- Role: `./<project-id>/ansible-project/roles/<module_name>/`
+- Playbook: `./<project-id>/ansible-project/playbooks/run_<module_name>.yml`
 
 ## Publish to AAP (Optional)
 
@@ -116,6 +126,8 @@ uv run app.py publish-aap \
 ```
 
 This creates or updates an AAP Project pointing to the given repository and branch, then triggers a project sync.
+
+---
 
 ## Notes
 

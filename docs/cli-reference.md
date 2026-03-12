@@ -147,7 +147,7 @@ Usage: migrate [OPTIONS] USER_REQUIREMENTS
 
 Options:
   --source-dir DIRECTORY          Source directory to migrate
-  --source-technology [chef|puppet|salt|powershell]
+  --source-technology [chef|puppet|salt|powershell|ansible]
                                   Source technology to migrate from
   --module-migration-plan FILE    Module migration plan file produced by the
                                   analyze command. Must be in the format:
