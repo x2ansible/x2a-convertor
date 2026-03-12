@@ -12,7 +12,9 @@ class ModuleMetadata(BaseModel):
     """
 
     name: str = Field(description="Module or cookbook name")
-    path: str = Field(description="Relative path to the module/cookbook directory. Use '.' for the source root directory.")
+    path: str = Field(
+        description="Relative path to the module/cookbook directory. Use '.' for the source root directory."
+    )
     description: str = Field(description="Brief description of what this module does")
     technology: Technology = Field(
         default=Technology.CHEF,

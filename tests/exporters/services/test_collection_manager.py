@@ -94,9 +94,7 @@ class TestParseRequirements:
     def test_missing_file(self, tmp_path):
         """Missing requirements file should return empty results."""
         manager = self._make_manager()
-        results = manager.install_from_requirements(
-            tmp_path / "nonexistent.yml"
-        )
+        results = manager.install_from_requirements(tmp_path / "nonexistent.yml")
         assert results == []
 
 
