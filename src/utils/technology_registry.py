@@ -91,6 +91,7 @@ def register_defaults() -> None:
     are available when the application starts.
     """
     from src.exporters.to_ansible import ToAnsibleSubagent
+    from src.inputs.ansible import AnsibleSubagent
     from src.inputs.chef import ChefSubagent
     from src.inputs.powershell import PowerShellSubagent
 
@@ -99,6 +100,9 @@ def register_defaults() -> None:
 
     TechnologyRegistry.register_analyzer(Technology.POWERSHELL, PowerShellSubagent)
     TechnologyRegistry.register_exporter(Technology.POWERSHELL, ToAnsibleSubagent)
+
+    TechnologyRegistry.register_analyzer(Technology.ANSIBLE, AnsibleSubagent)
+    TechnologyRegistry.register_exporter(Technology.ANSIBLE, ToAnsibleSubagent)
 
 
 register_defaults()
