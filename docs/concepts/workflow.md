@@ -18,7 +18,7 @@ nav_order: 2
 
 # Migration Workflow
 
-Complete end-to-end process for migrating infrastructure code from Chef/Puppet/Salt to Ansible.
+Complete end-to-end process for migrating infrastructure code from Chef/PowerShell/legacy Ansible to modern Ansible.
 
 ## Overview
 
@@ -238,14 +238,18 @@ uv run app.py migrate \
 ```mermaid
 flowchart TB
     Start([Start Migration]) --> Read[Read Migration Plans]
-    Read --> Meta[Extract Source Metadata]
+    Read --> Meta[Extract Source Metadata<br/>from generated-project-metadata.json]
     Meta --> Choose{Choose<br/>Strategy}
 
     Choose -->|Chef| ChefMigrate[Chef Migration Agent]
+    Choose -->|PowerShell| PSMigrate[PowerShell Migration Agent]
+    Choose -->|Ansible| AnsibleMigrate[Ansible Modernization Agent]
     Choose -->|Puppet| PuppetMigrate[Puppet Migration Agent]
     Choose -->|Salt| SaltMigrate[Salt Migration Agent]
 
     ChefMigrate --> Generate[Generate Ansible Code]
+    PSMigrate --> Generate
+    AnsibleMigrate --> Generate
     PuppetMigrate --> Generate
     SaltMigrate --> Generate
 

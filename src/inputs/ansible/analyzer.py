@@ -374,9 +374,12 @@ class AnsibleSubagent:
                 if task.privilege_escalation:
                     priv_info = f" [priv: {task.privilege_escalation}]"
                 note_info = f" NOTE: {task.note}" if task.note else ""
+                directives_info = ""
+                if task.extra_directives:
+                    directives_info = f" [directives: {task.extra_directives}]"
                 lines.append(
                     f"    - [{task.module}] {task.name}"
-                    f"{loop_info}{priv_info}{note_info}"
+                    f"{loop_info}{priv_info}{directives_info}{note_info}"
                 )
         lines.append("")
         return lines
@@ -414,6 +417,14 @@ class AnsibleSubagent:
         ]
         for dep in meta.analysis.dependencies:
             lines.append(f"    - {dep}")
+        if meta.analysis.galaxy_info.get("author"):
+            lines.append(f"    Author: {meta.analysis.galaxy_info['author']}")
+        if meta.analysis.galaxy_info.get("license"):
+            lines.append(f"    License: {meta.analysis.galaxy_info['license']}")
+        if meta.analysis.galaxy_info.get("description"):
+            lines.append(f"    Description: {meta.analysis.galaxy_info['description']}")
+        if meta.analysis.platforms:
+            lines.append(f"    Platforms: {meta.analysis.platforms}")
         lines.append("")
         return lines
 

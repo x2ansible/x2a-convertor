@@ -12,7 +12,7 @@ X2A Convertor addresses critical challenges faced by multiple devops teams, wher
 
 ### 1. Accelerate Infrastructure Modernization
 
-**Challenge**: Legacy infrastructure-as-code tools (Chef, Puppet, Salt) require manual migration to modern platforms like Ansible. Manual migration is slow, error-prone, and resource-intensive.
+**Challenge**: Legacy infrastructure-as-code tools (Chef, PowerShell, legacy Ansible) require manual migration or modernization to current Ansible best practices. Manual migration is slow, error-prone, and resource-intensive.
 
 **Solution**: Automated AI-powered migration reduces conversion time from **weeks to hours per module**.
 
@@ -84,13 +84,20 @@ Organizations with:
 - Multiple teams managing infrastructure
 - Compliance and audit requirements
 
-### Secondary: Puppet and Salt Support
+### Secondary: Ansible Role Modernization
+
+Organizations with legacy Ansible roles that need modernization:
+- Non-FQCN module names, deprecated `with_items` loops, `sudo: yes` patterns
+- Missing argument specs, bare variables, legacy fact access
+- Automated modernization across 21 categories of best-practice improvements
+
+### Tertiary: PowerShell/DSC Migrations
+
+Migrate Windows PowerShell scripts and DSC configurations to Ansible.
+
+### Future: Puppet and Salt Support
 
 Framework supports Puppet and Salt migrations (implementation in progress).
-
-### Tertiary: Greenfield Ansible Development
-
-AI-powered analysis can assist in creating Ansible roles from specifications or existing server configurations.
 
 ## Success Metrics
 

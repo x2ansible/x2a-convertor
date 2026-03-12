@@ -8,6 +8,10 @@ Step 4: Note any loop directives (with_items, with_dict, with_nested, with_subel
 Step 5: Note any conditions (when clauses)
 Step 6: Note handler notifications (notify)
 Step 7: Note privilege escalation (become, sudo, become_user, sudo_user)
+Step 7b: Capture any other task-level directives NOT already captured:
+  environment, register, changed_when, failed_when, retries, delay,
+  until, tags, ignore_errors, no_log, delegate_to, run_once, vars, args.
+  Put these in the "extra_directives" field as a dict.
 Step 8: In the "note" field, flag any notable patterns or issues observed
 Step 9: Return valid JSON
 
@@ -58,7 +62,8 @@ Expected JSON:
       "condition": null,
       "notify": [],
       "privilege_escalation": {},
-      "note": "uses short module name 'yum' instead of 'ansible.builtin.yum'"
+      "note": "uses short module name 'yum' instead of 'ansible.builtin.yum'",
+      "extra_directives": {}
     },
     {
       "name": "Start nginx",
@@ -68,7 +73,8 @@ Expected JSON:
       "condition": null,
       "notify": [],
       "privilege_escalation": {"sudo": true},
-      "note": "uses short module name 'service'; uses sudo: yes instead of become: true; uses yes instead of true for enabled"
+      "note": "uses short module name 'service'; uses sudo: yes instead of become: true; uses yes instead of true for enabled",
+      "extra_directives": {}
     }
   ]
 }
@@ -108,7 +114,8 @@ Expected JSON:
       "condition": null,
       "notify": [],
       "privilege_escalation": {},
-      "note": "uses short module name 'apt'; uses with_items instead of loop"
+      "note": "uses short module name 'apt'; uses with_items instead of loop",
+      "extra_directives": {}
     },
     {
       "name": "Deploy configs",
@@ -118,7 +125,38 @@ Expected JSON:
       "condition": "ansible_os_family == \"Debian\"",
       "notify": ["restart services"],
       "privilege_escalation": {},
-      "note": "uses short module name 'template'; uses with_dict instead of loop with dict2items filter; uses legacy fact access ansible_os_family; unquoted octal mode 0644"
+      "note": "uses short module name 'template'; uses with_dict instead of loop with dict2items filter; uses legacy fact access ansible_os_family; unquoted octal mode 0644",
+      "extra_directives": {}
+    }
+  ]
+}
+```
+
+Example 3 - With environment directive:
+```yaml
+---
+- name: Install packages
+  apt:
+    name: "{{ item }}"
+    state: present
+  with_items: ubuntu_pkg
+  environment: env
+```
+
+Expected JSON:
+```json
+{
+  "tasks": [
+    {
+      "name": "Install packages",
+      "module": "apt",
+      "parameters": {"name": "{{ item }}", "state": "present"},
+      "loop": "with_items",
+      "condition": null,
+      "notify": [],
+      "privilege_escalation": {},
+      "note": "uses short module name 'apt'; uses with_items instead of loop; bare variable 'ubuntu_pkg' in with_items; bare variable 'env' in environment",
+      "extra_directives": {"environment": "env"}
     }
   ]
 }

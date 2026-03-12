@@ -25,6 +25,7 @@ class TaskExecution(BaseModel):
     notify: list[str] = Field(default_factory=list)
     privilege_escalation: dict[str, Any] = Field(default_factory=dict)
     note: str | None = None
+    extra_directives: dict[str, Any] = Field(default_factory=dict)
 
 
 class TaskFileExecutionAnalysis(BaseModel):

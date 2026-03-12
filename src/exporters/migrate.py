@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 from typing import TypedDict
@@ -7,7 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
 from prompts.get_prompt import get_prompt
-from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
+from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE, METADATA_FILENAME
 from src.model import get_model, get_runnable_config
 from src.types import AnsibleModule, DocumentFile
 from src.types.technology import Technology
@@ -64,6 +65,52 @@ class MigrationAgent:
     def _read_source_metadata(self, state: MigrationState) -> MigrationState:
         """Read the source technology from the migration plan"""
         logger.info("MigrationAgent is reading source metadata")
+
+        # Try reading path from generated-project-metadata.json first
+        raw_path = self._read_path_from_metadata(state["module"])
+
+        # Fall back to LLM extraction if metadata file doesn't have the path
+        if not raw_path:
+            raw_path = self._extract_path_via_llm(state)
+
+        if not raw_path or not Path(raw_path).exists():
+            raise ValueError(
+                f"Module path from the module migration plan not found: {raw_path}"
+            )
+
+        state["path"] = raw_path
+        state["directory_listing"] = list_files(path=state["path"])
+
+        logger.info(
+            f"Gathered metadata:\n- module path: {state['path']}\n- directory listing: {state['directory_listing']}"
+        )
+
+        return state
+
+    def _read_path_from_metadata(self, module: AnsibleModule) -> str | None:
+        """Try to read module path from generated-project-metadata.json."""
+        metadata_path = Path(METADATA_FILENAME)
+        if not metadata_path.exists():
+            return None
+        try:
+            metadata_list = json.loads(metadata_path.read_text())
+            for entry in metadata_list:
+                if entry.get("name") == str(module):
+                    path = entry.get("path", "")
+                    if not path:
+                        continue
+                    # Normalize LLM-generated root directory descriptions to "."
+                    if not Path(path).exists() and "root" in path.lower():
+                        path = "."
+                    if Path(path).exists():
+                        logger.info(f"Read module path '{path}' from {METADATA_FILENAME}")
+                        return path
+        except Exception as e:
+            logger.warning(f"Failed to read {METADATA_FILENAME}: {e}")
+        return None
+
+    def _extract_path_via_llm(self, state: MigrationState) -> str | None:
+        """Fall back to LLM extraction of path from migration plan."""
         prompt = get_prompt("export_source_metadata_system")
         system_message = prompt.format(
             module_migration_plan=state["module_migration_plan"].content,
@@ -82,23 +129,7 @@ class MigrationAgent:
         logger.debug(f"LLM read_source_metadata response: {response}")
 
         assert isinstance(response, SourceMetadata)
-        raw_path = response.path
-
-        if not raw_path or not Path(raw_path).exists():
-            raise ValueError(
-                f"Module path from the module migration plan not found: {raw_path}"
-            )
-
-        state["path"] = raw_path
-
-        # Get the directory listing
-        state["directory_listing"] = list_files(path=state["path"])
-
-        logger.info(
-            f"Gathered metadata:\n- module path: {state['path']}\n- directory listing: {state['directory_listing']}"
-        )
-
-        return state
+        return response.path
 
     def _choose_subagent(self, state: MigrationState) -> MigrationState:
         """Choose and execute the appropriate subagent based on technology."""

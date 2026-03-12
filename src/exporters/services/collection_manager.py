@@ -546,17 +546,39 @@ class CollectionManager:
     def _install_all_with_galaxy(
         self, requirements_file: Path, collections: list[CollectionSpec]
     ) -> list[InstallResult]:
-        """Install all collections using standard ansible-galaxy."""
-        cmd = [
-            "ansible-galaxy",
-            "collection",
-            "install",
-            "-r",
-            str(requirements_file),
-            "--force",
-        ]
+        """Install all collections using standard ansible-galaxy.
+
+        Uses the filtered collections list (not the raw file) to avoid
+        attempting to install pseudo-collections like ansible.builtin.
+        """
+        if not collections:
+            return []
+
+        # Write a filtered requirements file that excludes pseudo-collections
+        # (e.g., ansible.builtin) already removed by _parse_requirements.
+        filtered_data: dict = {
+            "collections": [
+                {"name": c.fqcn, **({"version": c.version} if c.version else {})}
+                for c in collections
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yml", delete=False, dir=requirements_file.parent
+        ) as tmp:
+            yaml.safe_dump(filtered_data, tmp, default_flow_style=False)
+            filtered_path = Path(tmp.name)
 
         try:
+            cmd = [
+                "ansible-galaxy",
+                "collection",
+                "install",
+                "-r",
+                str(filtered_path),
+                "--force",
+            ]
+
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=120, check=False
             )
@@ -569,6 +591,8 @@ class CollectionManager:
 
         except subprocess.TimeoutExpired:
             return [InstallResult.failed(c, "timeout") for c in collections]
+        finally:
+            filtered_path.unlink(missing_ok=True)
 
     def _download_tarball(
         self,
