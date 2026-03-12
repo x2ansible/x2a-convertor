@@ -97,7 +97,7 @@ class WriteAgent(BaseAgent[ExportState]):
         ansible_path = export_state.get_ansible_path()
         meta_file_path = Path(ansible_path) / "meta" / "main.yml"
 
-        role_name = export_state.module
+        role_name = str(export_state.module)
         meta_content = self._generate_meta_content(role_name, export_state.path, slog)
 
         meta_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -138,13 +138,19 @@ class WriteAgent(BaseAgent[ExportState]):
             try:
                 import yaml
 
-                source_meta = yaml.safe_load(source_meta_path.read_text(encoding="utf-8"))
+                source_meta = yaml.safe_load(
+                    source_meta_path.read_text(encoding="utf-8")
+                )
                 if isinstance(source_meta, dict):
                     galaxy_info = source_meta.get("galaxy_info", {})
                     author = galaxy_info.get("author", "Migration Tool")
-                    description = galaxy_info.get("description", "Migrated to modern Ansible")
+                    description = galaxy_info.get(
+                        "description", "Migrated to modern Ansible"
+                    )
                     license_val = galaxy_info.get("license", "Apache-2.0")
-                    galaxy_tags = galaxy_info.get("galaxy_tags", galaxy_info.get("categories", []))
+                    galaxy_tags = galaxy_info.get(
+                        "galaxy_tags", galaxy_info.get("categories", [])
+                    )
                     if galaxy_tags is None:
                         galaxy_tags = []
 
@@ -152,7 +158,7 @@ class WriteAgent(BaseAgent[ExportState]):
                     platforms_str = ""
                     source_platforms = galaxy_info.get("platforms", [])
                     if source_platforms:
-                        platform_lines = []
+                        platform_lines: list[str] = []
                         for plat in source_platforms:
                             if isinstance(plat, dict):
                                 name = plat.get("name", "Unknown")
@@ -160,7 +166,11 @@ class WriteAgent(BaseAgent[ExportState]):
                                 platform_lines.append(f"    - name: {name}")
                                 platform_lines.append("      versions:")
                                 for v in versions:
-                                    platform_lines.append(f"        - \"{v}\"" if isinstance(v, (int, float)) else f"        - {v}")
+                                    platform_lines.append(
+                                        f'        - "{v}"'
+                                        if isinstance(v, (int, float))
+                                        else f"        - {v}"
+                                    )
                         platforms_str = "\n".join(platform_lines)
 
                     if not platforms_str:

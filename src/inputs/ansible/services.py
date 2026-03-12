@@ -49,9 +49,7 @@ class TaskFileAnalysisService:
             result = structured_model.invoke(
                 combined_prompt, config=get_runnable_config()
             )
-            logger.info(
-                f"Extracted {len(result.tasks)} tasks from {file_path.name}"
-            )
+            logger.info(f"Extracted {len(result.tasks)} tasks from {file_path.name}")
             return result
         except Exception as e:
             logger.error(f"Failed to analyze {file_path}: {e}")

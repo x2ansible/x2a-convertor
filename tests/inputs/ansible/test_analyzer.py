@@ -9,14 +9,13 @@ from src.inputs.ansible.state import AnsibleAnalysisState
 class TestScanFiles:
     """Test _scan_files node of the analyzer workflow."""
 
-    def _make_state(self, path, **overrides):
-        defaults = {
-            "user_message": "Modernize this role",
-            "path": str(path),
-            "specification": "",
-        }
-        defaults.update(overrides)
-        return AnsibleAnalysisState(**defaults)
+    def _make_state(self, path, **overrides) -> AnsibleAnalysisState:
+        return AnsibleAnalysisState(
+            user_message=overrides.pop("user_message", "Modernize this role"),
+            path=str(path),
+            specification=overrides.pop("specification", ""),
+            **overrides,
+        )
 
     def test_scan_fails_without_tasks_dir(self, tmp_path):
         """Role without tasks/ directory should fail."""
@@ -149,9 +148,7 @@ class TestAnalyzeStructureHelpers:
         from src.utils.logging import get_logger
 
         slog = get_logger(__name__)
-        result = subagent._analyze_yaml_files(
-            tmp_path / "nonexistent", "tasks", slog
-        )
+        result = subagent._analyze_yaml_files(tmp_path / "nonexistent", "tasks", slog)
         assert result == []
 
     def test_analyze_vars_files_missing_dir(self, tmp_path):
@@ -258,9 +255,7 @@ class TestBuildExecutionSummary:
                     file_path="handlers/main.yml",
                     file_type="handlers",
                     analysis=TaskFileExecutionAnalysis(
-                        tasks=[
-                            TaskExecution(name="Restart nginx", module="service")
-                        ]
+                        tasks=[TaskExecution(name="Restart nginx", module="service")]
                     ),
                 )
             ]
@@ -347,9 +342,7 @@ class TestBuildExecutionSummary:
         from src.inputs.ansible.models import AnsibleStructuredAnalysis
 
         subagent = AnsibleSubagent.__new__(AnsibleSubagent)
-        analysis = AnsibleStructuredAnalysis(
-            static_files=["files/index.html"]
-        )
+        analysis = AnsibleStructuredAnalysis(static_files=["files/index.html"])
         summary = subagent._build_execution_summary(analysis)
         assert "STATIC FILES:" in summary
         assert "files/index.html" in summary
@@ -358,14 +351,13 @@ class TestBuildExecutionSummary:
 class TestCheckFailure:
     """Test conditional edge for failure checking."""
 
-    def _make_state(self, **overrides):
-        defaults = {
-            "user_message": "test",
-            "path": "/tmp/test",
-            "specification": "",
-        }
-        defaults.update(overrides)
-        return AnsibleAnalysisState(**defaults)
+    def _make_state(self, **overrides) -> AnsibleAnalysisState:
+        return AnsibleAnalysisState(
+            user_message=overrides.pop("user_message", "test"),
+            path=overrides.pop("path", "/tmp/test"),
+            specification=overrides.pop("specification", ""),
+            **overrides,
+        )
 
     def test_continue_when_not_failed(self):
         subagent = AnsibleSubagent.__new__(AnsibleSubagent)

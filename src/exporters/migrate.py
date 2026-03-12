@@ -103,7 +103,9 @@ class MigrationAgent:
                     if not Path(path).exists() and "root" in path.lower():
                         path = "."
                     if Path(path).exists():
-                        logger.info(f"Read module path '{path}' from {METADATA_FILENAME}")
+                        logger.info(
+                            f"Read module path '{path}' from {METADATA_FILENAME}"
+                        )
                         return path
         except Exception as e:
             logger.warning(f"Failed to read {METADATA_FILENAME}: {e}")

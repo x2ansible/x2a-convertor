@@ -155,9 +155,7 @@ class AnsibleSubagent:
 
         return deps
 
-    def _analyze_structure(
-        self, state: AnsibleAnalysisState
-    ) -> AnsibleAnalysisState:
+    def _analyze_structure(self, state: AnsibleAnalysisState) -> AnsibleAnalysisState:
         """Analyze all Ansible role files using analysis services."""
         slog = logger.bind(phase="analyze_structure")
         slog.info("Starting structured analysis of Ansible role files")
@@ -165,9 +163,7 @@ class AnsibleSubagent:
         base_path = Path(state.path)
 
         # Analyze tasks
-        tasks_files = self._analyze_yaml_files(
-            base_path / "tasks", "tasks", slog
-        )
+        tasks_files = self._analyze_yaml_files(base_path / "tasks", "tasks", slog)
 
         # Analyze handlers
         handlers_files = self._analyze_yaml_files(
@@ -180,9 +176,7 @@ class AnsibleSubagent:
         )
 
         # Analyze vars
-        vars_files = self._analyze_vars_files(
-            base_path / "vars", "vars", slog
-        )
+        vars_files = self._analyze_vars_files(base_path / "vars", "vars", slog)
 
         # Analyze meta
         meta = self._analyze_meta(base_path / "meta", slog)
@@ -275,9 +269,7 @@ class AnsibleSubagent:
 
         return results
 
-    def _analyze_meta(
-        self, directory: Path, slog
-    ) -> MetaAnalysisResult | None:
+    def _analyze_meta(self, directory: Path, slog) -> MetaAnalysisResult | None:
         """Analyze meta/main.yml if it exists."""
         if not directory.exists():
             return None
@@ -299,9 +291,7 @@ class AnsibleSubagent:
             slog.warning(f"Failed to analyze meta {meta_file}: {e}")
             return None
 
-    def _analyze_templates(
-        self, directory: Path, slog
-    ) -> list[TemplateAnalysisResult]:
+    def _analyze_templates(self, directory: Path, slog) -> list[TemplateAnalysisResult]:
         """Analyze .j2 template files."""
         results: list[TemplateAnalysisResult] = []
 
@@ -332,9 +322,7 @@ class AnsibleSubagent:
         slog.info(f"Found {len(static_files)} static files")
         return static_files
 
-    def _build_execution_summary(
-        self, analysis: AnsibleStructuredAnalysis
-    ) -> str:
+    def _build_execution_summary(self, analysis: AnsibleStructuredAnalysis) -> str:
         """Build summary of all analyzed Ansible role code."""
         lines = [
             "=" * 80,
@@ -346,9 +334,7 @@ class AnsibleSubagent:
         ]
 
         lines.extend(self._format_tasks_summary(analysis.tasks_files, "TASKS"))
-        lines.extend(
-            self._format_tasks_summary(analysis.handlers_files, "HANDLERS")
-        )
+        lines.extend(self._format_tasks_summary(analysis.handlers_files, "HANDLERS"))
         lines.extend(self._format_vars_summary(analysis.defaults_files, "DEFAULTS"))
         lines.extend(self._format_vars_summary(analysis.vars_files, "VARS"))
         lines.extend(self._format_meta_summary(analysis.meta))
@@ -437,9 +423,7 @@ class AnsibleSubagent:
         lines = ["TEMPLATES:"]
         for tmpl in templates:
             lines.append(f"  {tmpl.file_path}")
-            lines.append(
-                f"    Variables: {len(tmpl.analysis.variables_used)}"
-            )
+            lines.append(f"    Variables: {len(tmpl.analysis.variables_used)}")
             if tmpl.analysis.bare_variables:
                 lines.append(
                     f"    Bare variables: {', '.join(tmpl.analysis.bare_variables)}"

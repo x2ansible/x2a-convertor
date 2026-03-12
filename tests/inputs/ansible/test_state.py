@@ -7,14 +7,13 @@ from src.inputs.ansible.state import AnsibleAnalysisState
 class TestAnsibleAnalysisState:
     """Test AnsibleAnalysisState dataclass."""
 
-    def _make_state(self, **overrides):
-        defaults = {
-            "user_message": "Modernize this role",
-            "path": "/tmp/legacy-role",
-            "specification": "",
-        }
-        defaults.update(overrides)
-        return AnsibleAnalysisState(**defaults)
+    def _make_state(self, **overrides) -> AnsibleAnalysisState:
+        return AnsibleAnalysisState(
+            user_message=overrides.pop("user_message", "Modernize this role"),
+            path=overrides.pop("path", "/tmp/legacy-role"),
+            specification=overrides.pop("specification", ""),
+            **overrides,
+        )
 
     def test_defaults(self):
         state = self._make_state()
