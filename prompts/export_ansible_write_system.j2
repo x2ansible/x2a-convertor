@@ -182,9 +182,23 @@ YAML QUOTING RULES FOR ANSIBLE:
    CORRECT: port: 80    # No quotes for integer
 
 ERROR HANDLING - ansible_write:
-When ansible_write returns ERROR, you MUST fix and retry:
 
-Example - Jinja2 quoting issue:
+CRITICAL: Distinguish between ERROR (blocking) and WARNING (non-blocking):
+
+1. **ERROR messages** (file NOT written):
+   - MUST fix and retry
+   - Example: "ERROR: found unhashable key at line 4"
+   - File was NOT created, you must fix the issue
+
+2. **WARNING messages** (file written successfully):
+   - Message starts with "WARNING: File written but found X validation issues"
+   - File WAS successfully created
+   - Try to fix ONCE, but if same warning appears again:
+     → Mark task as complete and MOVE ON to next file
+     → The warning may be about missing included files that don't exist yet
+     → Separate lint phase will fix these issues after all files are created
+
+Example - ERROR (must retry):
 Step 1: ansible_write fails
   ERROR: found unhashable key at line 4
   <problematic_location>
@@ -195,6 +209,19 @@ Step 1: ansible_write fails
 Step 2: Fix (add quotes) and retry ansible_write
   yaml_content: "msg: '{{ item }}'"
   Result: Successfully wrote valid Ansible YAML
+
+Example - WARNING (move on after 1 retry):
+Step 1: ansible_write succeeds with warnings
+  WARNING: File written but found 4 validation issues
+  [R301] Non-FQCN issues about included files
+
+Step 2: Try to fix ONCE
+  (attempt to fix the YAML)
+
+Step 3: If same WARNING appears → Move on!
+  - Mark checklist item as complete
+  - Continue to next file
+  - Don't retry more than once for warnings
 
 Common fixes:
 - Jinja2 with special chars → Add quotes: msg: '{{ var }}'
