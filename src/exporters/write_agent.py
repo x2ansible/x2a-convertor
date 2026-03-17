@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 import yaml
 from ansible.parsing.dataloader import DataLoader
 from ansible.parsing.yaml.dumper import AnsibleDumper
-
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
@@ -168,9 +167,14 @@ class WriteAgent(BaseAgent[ExportState]):
         meta_data = {"galaxy_info": galaxy_info}
 
         slog.info(f"Using source meta from {source_meta_path}")
-        return "---\n" + yaml.dump(
-            meta_data, Dumper=AnsibleDumper, default_flow_style=False
+        content = yaml.dump(
+            meta_data,
+            Dumper=AnsibleDumper,
+            default_flow_style=False,
+            explicit_start=True,
         )
+        assert isinstance(content, str)
+        return content
 
     @staticmethod
     def _default_meta_template(role_name: str) -> str:
@@ -189,9 +193,14 @@ class WriteAgent(BaseAgent[ExportState]):
                 "galaxy_tags": [],
             }
         }
-        return "---\n" + yaml.dump(
-            meta_data, Dumper=AnsibleDumper, default_flow_style=False
+        content = yaml.dump(
+            meta_data,
+            Dumper=AnsibleDumper,
+            default_flow_style=False,
+            explicit_start=True,
         )
+        assert isinstance(content, str)
+        return content
 
     def _write_files_node(self, state: WriteAgentState) -> WriteAgentState:
         """Node: Write files from checklist using react agent."""
