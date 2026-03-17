@@ -140,7 +140,8 @@ flowchart LR
 ### 4. Export Agents (Migration)
 
 **Migration Agent** (`src/exporters/migrate.py`)
-- Resolves module paths from `generated-project-metadata.json` (with LLM fallback)
+- Resolves module paths using LLM extraction from migration plans
+- Passes `source_technology` to the export subagent for technology-specific prompts
 - Reads migration specifications
 - Generates Ansible playbooks and roles
 - Converts templates (`.erb` → `.j2`)

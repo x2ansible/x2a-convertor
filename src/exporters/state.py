@@ -15,6 +15,7 @@ from src.types import (
     DocumentFile,
     MigrationStateInterface,
 )
+from src.types.technology import Technology
 
 # Constants
 ANSIBLE_PATH_TEMPLATE = "ansible/roles/{module}"
@@ -73,6 +74,7 @@ class ExportState(BaseState, MigrationStateInterface):
     last_output: str = field(kw_only=True)
     checklist: Checklist | None = field(default=None, kw_only=True)
     aap_discovery: AAPDiscoveryResult | None = field(default=None, kw_only=True)
+    source_technology: Technology = field(default=Technology.CHEF, kw_only=True)
 
     def get_ansible_path(self) -> str:
         """Get the Ansible output path for this module.
