@@ -449,8 +449,10 @@ class CollectionManager:
         parsed = [CollectionSpec.from_requirement(item) for item in collections_data]
         valid = [spec for spec in parsed if spec is not None]
 
-        # Filter out ansible.builtin — it's a pseudo-collection that ships with
-        # ansible-core and cannot be installed from Galaxy.
+        # ansible.builtin is a pseudo-collection bundled with ansible-core itself.
+        # It cannot be installed via ansible-galaxy and attempting to do so always
+        # fails.  LLM-generated requirements.yml files sometimes include it, so we
+        # silently filter it out here rather than letting the install step error.
         skipped_builtin = [spec for spec in valid if spec.fqcn == "ansible.builtin"]
         if skipped_builtin:
             slog.info(
@@ -548,8 +550,12 @@ class CollectionManager:
     ) -> list[InstallResult]:
         """Install all collections using standard ansible-galaxy.
 
-        Uses the filtered collections list (not the raw file) to avoid
-        attempting to install pseudo-collections like ansible.builtin.
+        Instead of passing the original requirements.yml directly to
+        ansible-galaxy, this writes a temporary file from the already-filtered
+        ``collections`` list.  This is necessary because _parse_requirements
+        strips entries like ``ansible.builtin`` that would cause ansible-galaxy
+        to fail (it is a pseudo-collection shipped with ansible-core, not an
+        installable Galaxy artifact).
         """
         if not collections:
             return []

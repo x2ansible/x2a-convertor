@@ -23,6 +23,7 @@ from src.types import (
     DocumentFile,
     Telemetry,
 )
+from src.types.technology import Technology
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -228,6 +229,7 @@ class ToAnsibleSubagent:
         module_migration_plan: DocumentFile,
         high_level_migration_plan: DocumentFile,
         directory_listing: list[str],
+        source_technology=None,
     ) -> ExportState:
         """Execute the complete migration workflow.
 
@@ -254,6 +256,7 @@ class ToAnsibleSubagent:
             last_output="",
             checklist=None,
             aap_discovery=None,
+            source_technology=source_technology or Technology.CHEF,
             failed=False,
             failure_reason="",
             telemetry=Telemetry(phase="migrate"),

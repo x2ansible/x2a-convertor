@@ -7,6 +7,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Literal
 
+import yaml
+from ansible.parsing.dataloader import DataLoader
+from ansible.parsing.yaml.dumper import AnsibleDumper
+
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
@@ -134,100 +138,60 @@ class WriteAgent(BaseAgent[ExportState]):
     def _generate_meta_content(self, role_name: str, source_path: str, slog) -> str:
         """Generate meta/main.yml content, using source meta if available."""
         source_meta_path = Path(source_path) / "meta" / "main.yml"
-        if source_meta_path.exists():
-            try:
-                import yaml
+        if not source_meta_path.exists():
+            return self._default_meta_template(role_name)
 
-                source_meta = yaml.safe_load(
-                    source_meta_path.read_text(encoding="utf-8")
-                )
-                if isinstance(source_meta, dict):
-                    galaxy_info = source_meta.get("galaxy_info", {})
-                    author = galaxy_info.get("author", "Migration Tool")
-                    description = galaxy_info.get(
-                        "description", "Migrated to modern Ansible"
-                    )
-                    license_val = galaxy_info.get("license", "Apache-2.0")
-                    galaxy_tags = galaxy_info.get(
-                        "galaxy_tags", galaxy_info.get("categories", [])
-                    )
-                    if galaxy_tags is None:
-                        galaxy_tags = []
+        try:
+            loader = DataLoader()
+            source_meta = loader.load_from_file(str(source_meta_path))
+        except Exception as e:
+            slog.warning(f"Failed to parse source meta {source_meta_path}: {e}")
+            return self._default_meta_template(role_name)
 
-                    # Build platforms from source, keeping original
-                    platforms_str = ""
-                    source_platforms = galaxy_info.get("platforms", [])
-                    if source_platforms:
-                        platform_lines: list[str] = []
-                        for plat in source_platforms:
-                            if isinstance(plat, dict):
-                                name = plat.get("name", "Unknown")
-                                versions = plat.get("versions", ["all"])
-                                platform_lines.append(f"    - name: {name}")
-                                platform_lines.append("      versions:")
-                                for v in versions:
-                                    platform_lines.append(
-                                        f'        - "{v}"'
-                                        if isinstance(v, (int, float))
-                                        else f"        - {v}"
-                                    )
-                        platforms_str = "\n".join(platform_lines)
+        if not isinstance(source_meta, dict):
+            return self._default_meta_template(role_name)
 
-                    if not platforms_str:
-                        platforms_str = (
-                            "    - name: Ubuntu\n"
-                            "      versions:\n"
-                            "        - bionic\n"
-                            "        - focal\n"
-                            "    - name: EL\n"
-                            "      versions:\n"
-                            '        - "7"\n'
-                            '        - "8"\n'
-                            '        - "9"\n'
-                            '        - "10"'
-                        )
+        galaxy_info = source_meta.get("galaxy_info", {})
+        galaxy_info["role_name"] = role_name
+        galaxy_info.setdefault("author", "Migration Tool")
+        galaxy_info.setdefault("description", "Migrated to modern Ansible")
+        galaxy_info.setdefault("license", "Apache-2.0")
+        galaxy_info["min_ansible_version"] = "2.10"
+        if not galaxy_info.get("platforms"):
+            galaxy_info["platforms"] = [
+                {"name": "Ubuntu", "versions": ["bionic", "focal"]},
+                {"name": "EL", "versions": ["7", "8", "9", "10"]},
+            ]
+        if galaxy_info.get("galaxy_tags") is None:
+            galaxy_info["galaxy_tags"] = []
 
-                    tags_str = "[]"
-                    if galaxy_tags:
-                        tag_lines = [f"    - {t}" for t in galaxy_tags]
-                        tags_str = "\n" + "\n".join(tag_lines)
+        meta_data = {"galaxy_info": galaxy_info}
 
-                    slog.info(f"Using source meta from {source_meta_path}")
-                    return f"""---
-galaxy_info:
-  role_name: {role_name}
-  author: "{author}"
-  description: "{description}"
-  license: "{license_val}"
-  min_ansible_version: "2.10"
-  platforms:
-{platforms_str}
-  galaxy_tags: {tags_str}
-"""
-            except Exception as e:
-                slog.warning(f"Failed to parse source meta {source_meta_path}: {e}")
+        slog.info(f"Using source meta from {source_meta_path}")
+        return "---\n" + yaml.dump(
+            meta_data, Dumper=AnsibleDumper, default_flow_style=False
+        )
 
-        # Fallback: hardcoded template (Chef path or missing source meta)
-        return f"""---
-galaxy_info:
-  role_name: {role_name}
-  author: Migration Tool
-  description: Migrated to modern Ansible
-  license: Apache-2.0
-  min_ansible_version: "2.10"
-  platforms:
-    - name: Ubuntu
-      versions:
-        - bionic
-        - focal
-    - name: EL
-      versions:
-        - "7"
-        - "8"
-        - "9"
-        - "10"
-  galaxy_tags: []
-"""
+    @staticmethod
+    def _default_meta_template(role_name: str) -> str:
+        """Return fallback meta/main.yml content."""
+        meta_data = {
+            "galaxy_info": {
+                "role_name": role_name,
+                "author": "Migration Tool",
+                "description": "Migrated to modern Ansible",
+                "license": "Apache-2.0",
+                "min_ansible_version": "2.10",
+                "platforms": [
+                    {"name": "Ubuntu", "versions": ["bionic", "focal"]},
+                    {"name": "EL", "versions": ["7", "8", "9", "10"]},
+                ],
+                "galaxy_tags": [],
+            }
+        }
+        return "---\n" + yaml.dump(
+            meta_data, Dumper=AnsibleDumper, default_flow_style=False
+        )
 
     def _write_files_node(self, state: WriteAgentState) -> WriteAgentState:
         """Node: Write files from checklist using react agent."""
@@ -241,7 +205,9 @@ galaxy_info:
         slog.debug(f"Checklist before writing:\n{export_state.checklist.to_markdown()}")
 
         ansible_path = export_state.get_ansible_path()
-        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
+        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format(
+            source_technology=export_state.source_technology.value,
+        )
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
             module=export_state.module,
             chef_path=export_state.path,

@@ -88,7 +88,7 @@ stateDiagram-v2
 
 **Extraction**:
 
-- Source technology (Chef/Puppet/Salt)
+- Source technology (Chef/Ansible/PowerShell/Puppet/Salt)
 - Source directory path
 - Module name
 - Dependencies
@@ -101,13 +101,17 @@ stateDiagram-v2
 def choose_migration_strategy(source_technology: str):
     if source_technology == "Chef":
         return chef_to_ansible_agent
+    elif source_technology == "Ansible":
+        return ansible_modernization_agent
+    elif source_technology == "PowerShell":
+        return powershell_to_ansible_agent
     elif source_technology == "Puppet":
         return puppet_to_ansible_agent
     elif source_technology == "Salt":
         return salt_to_ansible_agent
 ```
 
-Currently implemented: Chef → Ansible
+Currently implemented: Chef → Ansible, Ansible → Ansible (modernization), PowerShell → Ansible
 
 ### Stage 3: AAP Discovery (Optional)
 
