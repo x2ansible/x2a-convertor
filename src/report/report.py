@@ -129,9 +129,11 @@ class ReportClient:
 
     def _read_telemetry(self) -> dict[str, Any] | None:
         """Read telemetry from .x2a-telemetry.json and map to API schema."""
+        if self._source_dir is None:
+            return None
         telemetry = Telemetry.load_from(self._source_dir)
         if not telemetry:
-            logger.warning("No telemetry file found", path=TELEMETRY_FILENAME)
+            logger.warning("No telemetry file found", path=self._source_dir)
             return None
         return telemetry.to_api_dict()
 

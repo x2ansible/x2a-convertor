@@ -316,8 +316,7 @@ class TestReportClientSend:
         assert body["errorDetails"] == "Agent failed"
 
     @responses.activate
-    def test_post_with_telemetry(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+    def test_post_with_telemetry(self, tmp_path):
         telemetry_data = {
             "phase": "init",
             "started_at": "2026-01-15T10:00:00",
@@ -333,6 +332,7 @@ class TestReportClientSend:
             job_id="job-1",
             artifact_pairs=[f"migration_plan:{PLAN_URL}"],
             callback_token=CALLBACK_TOKEN,
+            source_dir=str(tmp_path),
         )
         client.send()
 
@@ -341,6 +341,23 @@ class TestReportClientSend:
         assert "telemetry" in body
         assert body["telemetry"]["phase"] == "init"
         assert body["telemetry"]["startedAt"] == "2026-01-15T10:00:00"
+
+    @responses.activate
+    def test_no_telemetry_when_no_source_dir(self):
+        """Init phase: --source-dir omitted, telemetry is simply not included."""
+        responses.add(responses.POST, COLLECT_URL, json={"message": "ok"}, status=200)
+
+        client = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-1",
+            artifact_pairs=[f"migration_plan:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
+        )
+        client.send()
+
+        assert responses.calls[0].request.body is not None
+        body = json.loads(responses.calls[0].request.body)
+        assert "telemetry" not in body
 
     @responses.activate
     def test_post_with_telemetry_from_source_dir(self, tmp_path):
