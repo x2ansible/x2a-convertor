@@ -308,7 +308,7 @@ uv run app.py report [OPTIONS]
   Git commit SHA from the job's push to target repo
 
 - `--source-dir`
-  Source directory where telemetry was written by init/analyze/migrate phases
+  Source directory where telemetry was written. Optional for init phase; required for analyze/migrate/publish to include telemetry in the report.
 
 ### Full Help
 
@@ -327,8 +327,10 @@ Options:
                           migration_plan:https://storage.example/migration-
                           plan.md)
   --commit-id TEXT        Git commit SHA from the job's push to target repo
-  --source-dir DIRECTORY  Source directory where telemetry was written by
-                          init/analyze/migrate phases
+  --source-dir DIRECTORY  Source directory where telemetry was written.
+                          Optional for init phase; required for
+                          analyze/migrate/publish to include telemetry in the
+                          report.
   --help                  Show this message and exit.
 ```
 

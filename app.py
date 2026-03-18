@@ -278,7 +278,8 @@ def publish_aap_cmd(target_repo, target_branch, project_id) -> None:
     "--source-dir",
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
     default=None,
-    help="Source directory where telemetry was written by init/analyze/migrate phases",
+    required=False,
+    help="Source directory where telemetry was written. Optional for init phase; required for analyze/migrate/publish to include telemetry in the report.",
 )
 @handle_exceptions
 def report(
