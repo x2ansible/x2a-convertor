@@ -8,6 +8,7 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 
+from src.config.settings import get_settings
 from src.const import METADATA_FILENAME
 from src.error_details import get_error_human_message
 from src.exporters.migrate import migrate_module
@@ -44,7 +45,7 @@ def handle_exceptions(func):
         except Exception as e:
             human_message = get_error_human_message(e)
 
-            error_file = os.environ.get("X2A_ERROR_FILE")
+            error_file = get_settings().processing.error_file
             if error_file:
                 Path(error_file).write_text(human_message)
 

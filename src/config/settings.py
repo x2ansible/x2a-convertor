@@ -222,6 +222,11 @@ class ProcessingSettings(BaseSettings):
         validation_alias="MAX_VALIDATION_ATTEMPTS",
         description="Maximum number of attempts to fix validation errors",
     )
+    error_file: str | None = Field(
+        default=None,
+        validation_alias="X2A_ERROR_FILE",
+        description="File path to write error details on failure. Used by the job script to propagate errors.",
+    )
 
 
 class LoggingSettings(BaseSettings):
