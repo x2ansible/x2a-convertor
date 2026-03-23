@@ -1,0 +1,84 @@
+---
+apiVersion: org.eclipse.che/v2
+kind: CheCluster
+metadata:
+  name: devspaces
+  namespace: openshift-devspaces
+spec:
+  components:
+    cheServer:
+      debug: false
+      logLevel: INFO
+      deployment:
+        containers:
+          - name: che-server
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: 2
+                memory: 2Gi
+
+    dashboard:
+
+      deployment:
+        containers:
+          - name: dashboard
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+
+    devWorkspace:
+      defaultStorageSize:
+        persistentVolumeClaim: 10Gi
+
+      runningLimit: "10"
+
+    devfileRegistry:
+      disableInternalRegistry: false
+
+    pluginRegistry:
+      disableInternalRegistry: false
+
+  containerRegistry: {}
+
+  devEnvironments:
+    containerBuildConfiguration:
+      openShiftSecurityContextConstraint: container-build
+    defaultEditor: che-incubator/che-code/latest
+
+    defaultComponents:
+      - name: universal-developer-image
+        container:
+          image: registry.redhat.io/devspaces/udi-rhel9:latest
+
+    defaultNamespace:
+      autoProvision: true
+      template: <username>-devspaces
+    disableContainerBuildCapabilities: false
+    idleTimeoutMinutes: 30
+    maxNumberOfRunningWorkspacesPerUser: 5
+    maxNumberOfWorkspacesPerUser: -1
+    persistentVolumeClaimStorage:
+      storageClass: ""
+    startTimeoutMinutes: 5
+    storage:
+      pvcStrategy: per-workspace
+      pvcClaimSize: 10Gi
+  gitServices: {}
+
+  networking:
+    annotations: {}
+    auth:
+      gatewayAuthenticationTimeout: 30s
+      gatewayAuthorizationTimeout: 30s
+      identityProviderURL: ""
+      oAuthClientName: devspaces
+      oAuthSecret: ""
+    domain: ""
+    tlsSecretName: ""
