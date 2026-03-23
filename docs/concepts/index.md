@@ -27,8 +27,8 @@ End-to-end migration process from initialization through publishing to productio
 ### [Human Checkpoints]({% link concepts/human-checkpoints.md %})
 Review points and decision gates throughout the migration lifecycle.
 
-### [Input Agents]({% link concepts/input-agents.md %})
-Chef, Puppet, and Salt analysis agents that parse and understand source code.
+### [Input Agents]({% link input-agents/index.md %})
+Chef, PowerShell, and Ansible analysis agents that parse and understand source code.
 
 ### [Export Agents]({% link concepts/export-agents.md %})
 Ansible migration agents that generate production-ready playbooks and GitOps deployments.

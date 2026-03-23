@@ -1,10 +1,11 @@
 ---
 layout: default
-title: UX Deployment
-parent: Developing
+title: Installation
+parent: UI Documentation
+nav_order: 1
 ---
 
-# X2A Backstage Plugin Deployment
+# Installation
 
 This guide covers deploying the X2A Backstage plugin on OpenShift using Red Hat Developer Hub.
 
