@@ -3,6 +3,7 @@
 import os
 import sys
 from functools import wraps
+from pathlib import Path
 
 import click
 from dotenv import load_dotenv
@@ -42,6 +43,11 @@ def handle_exceptions(func):
             return func(*args, **kwargs)
         except Exception as e:
             human_message = get_error_human_message(e)
+
+            error_file = os.environ.get("X2A_ERROR_FILE")
+            if error_file:
+                Path(error_file).write_text(human_message)
+
             error_label = click.style("Error: ", fg="red", bold=True)
             click.echo(
                 "\n\n" + error_label + human_message,
