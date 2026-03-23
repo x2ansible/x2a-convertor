@@ -29,6 +29,9 @@ OAuth setup, providers, and user management.
 ### [Authorization]({% link ui/authorization.md %})
 RBAC permissions and access control policies.
 
+### [CSV Bulk Import]({% link ui/csv-bulk-import.md %})
+Create multiple conversion projects at once by uploading a CSV file.
+
 ### [API Reference]({% link ui/api-reference.md %})
 Swagger UI for exploring the OpenAPI specification.
 
