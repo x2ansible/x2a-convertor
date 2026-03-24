@@ -4,7 +4,7 @@ JEKYLL_IMAGE = minhng/jekyll:4.4.1
 PROJECT_ROOT = $(shell dirname $(PWD))
 JEKYLL_CMD = podman run --rm -ti -p 4000:4000 \
 	-v $(PWD):/srv/jekyll:Z,U \
-	-v $(PROJECT_ROOT)/deploy:/srv/jekyll/_includes/deploy:Z,U \
+	-v $(PROJECT_ROOT)/deploy:/srv/deploy:Z,U \
 	-w /srv/jekyll $(JEKYLL_IMAGE) bash -c
 
 HTMLPROOFER_IMAGE = klakegg/html-proofer:3.19.2
