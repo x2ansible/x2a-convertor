@@ -234,6 +234,102 @@ class AAPClient(BaseAAPClient):
             json={},
         )
 
+    def upsert_execution_environment(
+        self,
+        *,
+        name: str,
+        image: str,
+        org_id: int,
+        pull: str = "always",
+    ) -> dict[str, Any]:
+        """Create or update an Execution Environment on AAP.
+
+        Args:
+            name: EE display name
+            image: Container image URL (e.g., quay.io/org/ee:latest)
+            org_id: Organization ID
+            pull: Image pull policy (always, missing, never)
+
+        Returns:
+            EE resource dict from AAP API
+        """
+        # Search by name only — EE may exist with organization=null
+        data = self._request(
+            "GET",
+            "/execution_environments/",
+            params={"name": name},
+        )
+        results = data.get("results", [])
+
+        if not results:
+            return self._request(
+                "POST",
+                "/execution_environments/",
+                json={
+                    "name": name,
+                    "image": image,
+                    "organization": org_id,
+                    "pull": pull,
+                },
+            )
+
+        ee_id = int(results[0]["id"])
+        if results[0].get("image") != image:
+            return self._request(
+                "PATCH",
+                f"/execution_environments/{ee_id}/",
+                json={"image": image, "pull": pull},
+            )
+        return results[0]
+
+    def upsert_job_template(
+        self,
+        *,
+        org_id: int,
+        name: str,
+        project_id: int,
+        playbook: str,
+        execution_environment_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Create or update a Job Template on AAP.
+
+        Args:
+            org_id: Organization ID
+            name: Job template name
+            project_id: AAP project ID
+            playbook: Playbook path relative to project root
+            execution_environment_id: EE to use (optional)
+
+        Returns:
+            Job template resource dict from AAP API
+        """
+        data = self._request(
+            "GET",
+            "/job_templates/",
+            params={"name": name, "organization": org_id},
+        )
+        results = data.get("results", [])
+
+        payload: dict[str, Any] = {
+            "name": name,
+            "project": project_id,
+            "playbook": playbook,
+            "ask_inventory_on_launch": True,
+        }
+        if execution_environment_id:
+            payload["execution_environment"] = execution_environment_id
+
+        if not results:
+            payload["organization"] = org_id
+            return self._request("POST", "/job_templates/", json=payload)
+
+        template_id = int(results[0]["id"])
+        return self._request(
+            "PATCH",
+            f"/job_templates/{template_id}/",
+            json=payload,
+        )
+
 
 def infer_aap_project_name(repository_url: str) -> str:
     """Infer a stable AAP project name from a git clone URL."""

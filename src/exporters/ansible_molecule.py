@@ -6,7 +6,6 @@ generated Ansible roles. Uses Molecule's Python API directly.
 
 import io
 import os
-import shutil
 import signal
 import uuid
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
@@ -26,7 +25,6 @@ from molecule.command import (
 )
 from molecule.config import Config
 
-from src.config import get_settings
 
 logger = structlog.get_logger(__name__)
 
@@ -84,23 +82,14 @@ class AnsibleMolecule:
         ("verify", verify.Verify),
     ]
 
-    # Default configuration
-    DEFAULT_CONTAINER_IMAGE = "docker.io/geerlingguy/docker-fedora40-ansible:latest"
     DEFAULT_PHASE_TIMEOUT = 600  # 10 minutes per phase
 
-    def __init__(self, container_image: str | None = None, phase_timeout: int = 600):
+    def __init__(self, phase_timeout: int = 600):
         """Initialize Molecule test executor
 
         Args:
-            container_image: Container image to use for testing (default: from MOLECULE_DOCKER_IMAGE env or Fedora 40)
             phase_timeout: Timeout in seconds for each test phase (default: 600)
         """
-        # @TODO maybe we should inject the podman via dependency? I guess tthat users will trigger this using EC2 and other drivers
-        # https://ansible.readthedocs.io/projects/molecule/pre-ansible-native/?h=drivers#driver
-        # Even tough, the class shold support withtout a lot of changes.
-
-        self.podman_cmd = shutil.which("podman")
-        self.container_image = container_image or get_settings().molecule.docker_image
         self.phase_timeout = phase_timeout
 
     def _get_molecule_file(
@@ -118,14 +107,12 @@ class AnsibleMolecule:
         return role_path / "molecule" / scenario_name / "molecule.yml"
 
     def _check_dependencies(self) -> str | None:
-        """Check if Podman is installed
+        """Check if required dependencies are available
 
         Returns:
             Error message if dependencies missing, None if all present
         """
-        if not self.podman_cmd:
-            return "Podman not found. Install podman package for your system"
-
+        # Delegated driver has no external dependencies
         return None
 
     def _setup_molecule_files(
@@ -145,41 +132,25 @@ class AnsibleMolecule:
 
         logger.info(f"Regenerating Molecule files for {role_name}")
 
-        # Generate molecule.yml
-        molecule_config = f"""---
-# Molecule configuration for {role_name} role
-# Auto-generated for Chef to Ansible migration validation
-
-dependency:
-  name: galaxy
-
+        # Generate molecule.yml — delegated driver for AAP/OpenShift
+        molecule_config = """---
 driver:
-  name: podman
+  name: default
 
 platforms:
-  - name: {role_name}-test
-    image: {self.container_image}
-    pre_build_image: true
-    privileged: true
-    command: /usr/sbin/init
-    volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw
-    cgroupns_mode: host
-    tmpfs:
-      - /run
-      - /tmp
+  - name: molecule-test-instance
+    groups:
+      - all
 
 provisioner:
   name: ansible
-  config_options:
-    defaults:
-      callbacks_enabled: yaml,timer
-      stdout_callback: yaml
+  env:
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../"
   inventory:
     hosts:
       all:
         hosts:
-          {role_name}-test:
+          molecule-test-instance:
             ansible_connection: local
 
 verifier:
@@ -187,54 +158,43 @@ verifier:
 """
         (molecule_dir / "molecule.yml").write_text(molecule_config)
 
-        # Generate converge.yml - no become needed in container
+        # Generate converge.yml — container-safe, no include_role, no become
+        # All paths use /tmp/molecule_test/ prefix. WriteAgent generates the real one.
         converge_playbook = f"""---
 - name: Converge
   hosts: all
   gather_facts: true
-
   tasks:
-    - name: Include role
-      ansible.builtin.include_role:
-        name: {role_name}
+    - name: Placeholder — WriteAgent generates container-safe converge
+      ansible.builtin.debug:
+        msg: "Role {role_name} converge placeholder — use /tmp/molecule_test/ paths"
 """
         (molecule_dir / "converge.yml").write_text(converge_playbook)
 
-        # Create roles symlink for Ansible to find the role
-        roles_dir = molecule_dir / "roles"
-        roles_dir.mkdir(exist_ok=True)
+        # Generate no-op create.yml and destroy.yml for delegated driver
+        for playbook_name in ("create", "destroy"):
+            noop_playbook = f"""---
+- name: {playbook_name.capitalize()}
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks: []
+"""
+            (molecule_dir / f"{playbook_name}.yml").write_text(noop_playbook)
 
-        role_link = roles_dir / role_name
-        # Remove existing symlink/file/directory if present
-        if role_link.is_symlink():
-            role_link.unlink()
-        elif role_link.exists():
-            if role_link.is_dir():
-                shutil.rmtree(role_link)
-            else:
-                role_link.unlink()
-        # Create symlink pointing to parent role directory
-        role_link.symlink_to(role_path.resolve())
-
-        # Generate verify.yml with basic checks
+        # Generate verify.yml placeholder — WriteAgent generates the real one
         verify_playbook = f"""---
 - name: Verify
   hosts: all
   gather_facts: true
-
   tasks:
-    - name: Verify role execution completed
+    - name: Verify role {role_name} executed successfully
       ansible.builtin.debug:
         msg: "Role {role_name} applied successfully"
-
-    # Role-specific verification tasks would go here
-    # These should be added by the migration agent based on the role content
 """
         (molecule_dir / "verify.yml").write_text(verify_playbook)
 
-        logger.info(
-            f"Generated Molecule files in {molecule_dir} with symlink to {role_path}"
-        )
+        logger.info(f"Generated Molecule files in {molecule_dir}")
 
     def _execute_single_phase(
         self,
@@ -428,23 +388,18 @@ verifier:
     def run(
         cls,
         role_path: str,
-        container_image: str | None = None,
         phase_timeout: int = 600,
     ) -> MoleculeTestResult:
         """Run Molecule test suite on an Ansible role
 
-        This is a convenience classmethod that creates an instance and runs the test.
-        Users can call this directly without instantiating the class.
-
         Args:
             role_path: Path to the Ansible role directory
-            container_image: Container image to use for testing (default: Fedora 40)
             phase_timeout: Timeout in seconds for each test phase (default: 600)
 
         Returns:
             Test results with success status and detailed output
         """
-        instance = cls(container_image=container_image, phase_timeout=phase_timeout)
+        instance = cls(phase_timeout=phase_timeout)
         return instance._run(role_path)
 
     def _run(self, role_path: str) -> MoleculeTestResult:
@@ -465,7 +420,6 @@ verifier:
         log.info(
             "Starting Molecule test run",
             role_path=str(role_path_obj),
-            container_image=self.container_image,
             phase_timeout=self.phase_timeout,
         )
 

@@ -12,6 +12,7 @@ from src.publishers.tools import (
     generate_ansible_cfg,
     generate_collections_requirements,
     generate_inventory_file,
+    generate_molecule_playbook,
     generate_playbook_yaml,
     generate_readme,
     load_collections_file,
@@ -112,6 +113,14 @@ def publish_project(
         name=f"Run {role_name}",
         role_name=role_name,
     )
+
+    # Generate molecule wrapper playbook if role has molecule tests
+    molecule_dir = Path(destination) / "molecule" / "default"
+    if molecule_dir.is_dir():
+        generate_molecule_playbook(
+            file_path=f"{publish_dir}/playbooks/molecule_{role_name}.yml",
+            role_name=role_name,
+        )
 
     # Generate README.md (always regenerated to list all roles)
     roles_dir = ansible_project_dir / "roles"

@@ -147,6 +147,10 @@ class AAPSettings(BaseSettings):
         default="published",
         description="Galaxy repository to search (published, staging, community)",
     )
+    molecule_ee_image: str = Field(
+        default="quay.io/eshalev/ee-molecule:latest",
+        description="Molecule Execution Environment container image for AAP",
+    )
 
     @field_validator("api_prefix")
     @classmethod

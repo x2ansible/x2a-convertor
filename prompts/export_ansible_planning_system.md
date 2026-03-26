@@ -48,6 +48,15 @@ Dependencies (requirements.yml):
 - These will be added to requirements.yml during the write phase
 - DO NOT add community collections (e.g., community.nginx, community.crypto, community.general, ansible.posix) — only collections discovered in AAP Private Hub
 
+Molecule Testing:
+- Molecule scenario files for testing the role on AAP (delegated driver, local connection)
+- These are generated based on the migration plan's pre-flight checks
+- Format: N/A → molecule/default/molecule.yml  (scenario configuration — delegated driver, NOT docker/podman)
+- Format: N/A → molecule/default/converge.yml  (creates expected filesystem state under /tmp/molecule_test/ — NOT include_role)
+- Format: N/A → molecule/default/verify.yml    (verification tasks checking /tmp/molecule_test/ paths)
+- Format: N/A → molecule/default/create.yml    (no-op instance create)
+- Format: N/A → molecule/default/destroy.yml   (no-op instance destroy)
+
 ## AAP Private Hub Collections (STRICT RULES)
 
 When AAP discovery results are provided in the task prompt:

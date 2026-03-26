@@ -368,6 +368,42 @@ def generate_playbook_yaml(
         raise OSError(error_msg) from e
 
 
+def generate_molecule_playbook(file_path: str, role_name: str) -> None:
+    """Generate a wrapper playbook that runs molecule tests for a role.
+
+    Args:
+        file_path: Output file path
+        role_name: Name of the role to test
+    """
+    logger.info(f"Generating molecule wrapper playbook for {role_name}")
+
+    content = f"""---
+- name: Run Molecule tests for {role_name}
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Run molecule test
+      ansible.builtin.command:
+        cmd: molecule test -s default
+        chdir: "{{{{ playbook_dir }}}}/../roles/{role_name}"
+      environment:
+        ANSIBLE_FORCE_COLOR: "true"
+      register: molecule_result
+
+    - name: Display molecule output
+      ansible.builtin.debug:
+        var: molecule_result.stdout_lines
+"""
+
+    file_path_obj = Path(file_path)
+    file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+    file_path_obj.write_text(content)
+
+    logger.info(f"Successfully generated molecule playbook: {file_path}")
+
+
 def generate_job_template_yaml(
     file_path: str,
     name: str,
@@ -745,6 +781,20 @@ def sync_to_aap(
 
         update = client.start_project_update(project_id=aap_project_id)
 
+        # Register molecule EE and create molecule test job templates
+        molecule_ee_image = settings.aap.molecule_ee_image
+        if molecule_ee_image and project_id:
+            try:
+                _setup_molecule_on_aap(
+                    client=client,
+                    org_id=org_id,
+                    aap_project_id=aap_project_id,
+                    project_id=project_id,
+                    molecule_ee_image=molecule_ee_image,
+                )
+            except Exception as e:
+                logger.warning(f"Molecule AAP setup failed (non-fatal): {e}")
+
         return AAPSyncResult(
             enabled=True,
             project_name=project_name,
@@ -754,3 +804,61 @@ def sync_to_aap(
         )
     except (requests.exceptions.RequestException, RuntimeError, ValueError) as e:
         return AAPSyncResult.from_error(str(e))
+
+
+def _setup_molecule_on_aap(
+    client: "AAPClient",
+    org_id: int,
+    aap_project_id: int,
+    project_id: str,
+    molecule_ee_image: str,
+) -> None:
+    """Register molecule EE and create molecule test job templates on AAP.
+
+    Scans the ansible-project for molecule wrapper playbooks and creates
+    corresponding job templates on AAP.
+
+    Args:
+        client: Authenticated AAP client
+        org_id: AAP organization ID
+        aap_project_id: AAP project ID
+        project_id: Migration project ID (used to find ansible-project dir)
+        molecule_ee_image: Container image URL for the molecule EE
+    """
+    # Find molecule wrapper playbooks
+    ansible_project = Path(project_id) / "ansible-project"
+    playbooks_dir = ansible_project / "playbooks"
+    if not playbooks_dir.is_dir():
+        return
+
+    molecule_playbooks = sorted(playbooks_dir.glob("molecule_*.yml"))
+    if not molecule_playbooks:
+        return
+
+    # Register molecule EE
+    ee = client.upsert_execution_environment(
+        name="Molecule EE",
+        image=molecule_ee_image,
+        org_id=org_id,
+        pull="always",
+    )
+    ee_id = int(ee["id"])
+    logger.info(f"Registered Molecule EE (id={ee_id}, image={molecule_ee_image})")
+
+    # Create job templates for each molecule playbook
+    for playbook_path in molecule_playbooks:
+        role_name = playbook_path.stem.removeprefix("molecule_")
+        # Playbook path relative to repo root
+        relative_playbook = f"{project_id}/ansible-project/playbooks/{playbook_path.name}"
+        template_name = f"Molecule — {role_name}"
+
+        jt = client.upsert_job_template(
+            org_id=org_id,
+            name=template_name,
+            project_id=aap_project_id,
+            playbook=relative_playbook,
+            execution_environment_id=ee_id,
+        )
+        logger.info(
+            f"Created job template '{template_name}' (id={jt.get('id')})"
+        )
