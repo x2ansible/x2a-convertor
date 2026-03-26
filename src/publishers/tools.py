@@ -2,6 +2,7 @@
 
 import json
 import shutil
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -429,45 +430,8 @@ def generate_molecule_instructions(file_path: str, role_names: list[str]) -> Non
         f"- **Molecule — {name}** — tests the `{name}` role" for name in role_names
     )
 
-    content = f"""# Molecule Testing Instructions
-
-## Overview
-
-This project includes [Molecule](https://ansible.readthedocs.io/projects/molecule/)
-tests for validating the generated Ansible roles. The tests run inside an
-Execution Environment (EE) container on AAP and verify that each role produces
-the expected filesystem state.
-
-## Available Molecule Job Templates
-
-{template_list}
-
-## How to Launch from the AAP UI
-
-1. Log in to the AAP Controller web interface.
-2. Navigate to **Resources → Templates**.
-3. Find the template named **Molecule — <role_name>**.
-4. Click the **Launch** (rocket) button.
-   - The template is pre-configured with the correct inventory, execution
-     environment, and playbook — no additional settings are needed.
-5. Monitor the job output. A successful run shows all Molecule phases passing:
-   - **dependency** — resolves role/collection dependencies
-   - **syntax** — validates playbook syntax
-   - **create** — provisions the test instance (no-op for delegated driver)
-   - **converge** — creates expected filesystem state under `/tmp/molecule_test/`
-   - **idempotence** — re-runs converge to confirm no changes
-   - **verify** — asserts expected files and directories exist
-   - **destroy** — cleans up (no-op for delegated driver)
-
-## Troubleshooting
-
-| Symptom | Likely Cause | Fix |
-|---------|-------------|-----|
-| converge fails with "permission denied" | Paths outside `/tmp/` | All test paths must use `/tmp/molecule_test/` prefix |
-| verify fails with "file does not exist" | Mismatch between converge and verify paths | Ensure verify checks the same `/tmp/molecule_test/` paths that converge creates |
-| "sudo: command not found" | `become: true` in molecule playbook | Remove all `become: true` — the EE container has no sudo |
-| Project sync error on first launch | Receptor timing issue | Re-launch the job — `scm_update_on_launch` triggers a fresh sync |
-"""
+    template = get_template("molecule_instructions.md")
+    content = template.render(template_list=template_list)
 
     file_path_obj = Path(file_path)
     file_path_obj.parent.mkdir(parents=True, exist_ok=True)
@@ -855,11 +819,17 @@ def sync_to_aap(
             return AAPSyncResult.from_error("AAP API did not return a project id")
 
         update = client.start_project_update(project_id=aap_project_id)
+        update_id = int(update["id"]) if "id" in update else None
 
         # Register molecule EE, inventory, and create run-ready job templates
         molecule_templates: list[MoleculeTemplateInfo] = []
         molecule_ee_image = settings.aap.molecule_ee_image
         if molecule_ee_image and project_id:
+            # Wait for project sync to complete — AAP validates playbook
+            # paths against the synced repo, so templates can't be created
+            # until the sync finishes.
+            if update_id:
+                _wait_for_project_sync(client, update_id)
             try:
                 molecule_templates = _setup_molecule_on_aap(
                     client=client,
@@ -878,11 +848,44 @@ def sync_to_aap(
             project_name=project_name,
             molecule_templates=molecule_templates,
             project_id=aap_project_id,
-            project_update_id=int(update["id"]) if "id" in update else None,
+            project_update_id=update_id,
             project_update_status=update.get("status", ""),
         )
     except (requests.exceptions.RequestException, RuntimeError, ValueError) as e:
         return AAPSyncResult.from_error(str(e))
+
+
+def _wait_for_project_sync(
+    client: "AAPClient",
+    update_id: int,
+    timeout_s: int = 120,
+    poll_interval_s: int = 5,
+) -> None:
+    """Poll AAP until a project update job finishes.
+
+    AAP validates playbook paths against the synced repo content, so
+    job templates cannot be created until the sync completes.
+
+    Raises:
+        RuntimeError: If sync fails or times out.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        data = client.get_project_update(update_id=update_id)
+        status = data.get("status", "")
+        if status == "successful":
+            logger.info(f"Project sync completed (update_id={update_id})")
+            return
+        if status in ("failed", "error", "canceled"):
+            raise RuntimeError(
+                f"Project sync {status} (update_id={update_id}): "
+                f"{data.get('result_traceback', 'no details')}"
+            )
+        logger.debug(f"Project sync status: {status}, waiting...")
+        time.sleep(poll_interval_s)
+    raise RuntimeError(
+        f"Project sync timed out after {timeout_s}s (update_id={update_id})"
+    )
 
 
 def _setup_molecule_on_aap(

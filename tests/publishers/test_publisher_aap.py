@@ -87,6 +87,10 @@ def test_sync_to_aap_happy_flow(monkeypatch):
             assert project_id == 42
             return {"id": 100, "status": "successful"}
 
+        def get_project_update(self, *, update_id: int):
+            assert update_id == 100
+            return {"id": 100, "status": "successful"}
+
     monkeypatch.setattr(tools_module, "AAPClient", FakeClient)
 
     result = sync_to_aap(
@@ -391,6 +395,9 @@ def test_molecule_instructions_generated(tmp_path):
     assert "Molecule — cache" in content
     assert "How to Launch" in content
     assert "/tmp/molecule_test/" in content
+    assert "Prerequisites" in content
+    assert "AAP_MOLECULE_EE_IMAGE" in content
+    assert "receptor-data" in content
 
 
 def test_aap_sync_result_includes_molecule_templates():

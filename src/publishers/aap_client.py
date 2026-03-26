@@ -234,6 +234,10 @@ class AAPClient(BaseAAPClient):
             json={},
         )
 
+    def get_project_update(self, *, update_id: int) -> dict[str, Any]:
+        """Get the status of a project update job."""
+        return self._request("GET", f"/project_updates/{update_id}/")
+
     def upsert_execution_environment(
         self,
         *,
