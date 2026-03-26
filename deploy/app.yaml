@@ -69,9 +69,12 @@ data:
     includes:
       - dynamic-plugins.default.yaml
     plugins:
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:bs_1.45.3__1.0.2!red-hat-developer-hub-backstage-plugin-x2a"
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:bs_1.45.3__0.1.2!red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a"
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:bs_1.45.3__1.0.2!red-hat-developer-hub-backstage-plugin-x2a-backend"
+      # X2A Plugins for RHDH 1.9
+      # The x2a did not make it overlays' branching out release-1.9, so there is the PR 2063 workaround.
+      # The 1.10+ should be tagged normally
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:pr_2063__1.1.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:pr_2063__1.1.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:pr_2063__0.2.0"
 ---
 # ConfigMap: Application Configuration
 kind: ConfigMap
@@ -85,6 +88,10 @@ data:
       reading:
         allow:
           - host: raw.githubusercontent.com
+
+    integrations:
+      github:
+      - host: github.com
 
     auth:
       # see https://backstage.io/docs/auth/ to learn about auth providers
@@ -105,6 +112,8 @@ data:
     dynamicPlugins:
       frontend:
         red-hat-developer-hub.backstage-plugin-x2a:
+          scaffolderFieldExtensions:
+            - importName: RepoAuthenticationExtension
           dynamicRoutes:
             - path: /x2a/
               importName: X2APage
@@ -115,8 +124,8 @@ data:
     catalog:
       locations:
         # x2a Create Project template
-        - type: url
-          target: https://raw.githubusercontent.com/redhat-developer/rhdh-plugins/refs/heads/main/workspaces/x2a/templates/conversion-project-template.yaml
+        - type: file
+          target: /opt/app-root/src/dynamic-plugins-root/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a/templates/conversion-project-template.yaml
           rules:
             - allow: [Template]
     x2a:
@@ -157,6 +166,7 @@ spec:
   #   - Azure: managed-premium
   #   - GCP: standard or standard-rwo
   # List available storage classes: oc get storageclass
+  # storageClassName: kubevirt-csi-infra-default
   storageClassName: crc-csi-hostpath-provisioner
   resources:
     requests:
@@ -167,19 +177,6 @@ kind: Backstage
 metadata:
   name: developer-hub
 spec:
-  application:
-    dynamicPluginsConfigMapName: dynamic-plugins
-    appConfig:
-      mountPath: /opt/app-root/src
-      configMaps:
-        - name: app-config-rhdh
-    extraFiles:
-      mountPath: /opt/app-root/src
-    extraEnvs:
-      secrets:
-        - name: x2a-credentials
-    route:
-      enabled: true
   deployment:
     patch:
       spec:
@@ -200,3 +197,16 @@ spec:
                     valueFrom:
                       fieldRef:
                         fieldPath: metadata.labels['rhdh.redhat.com/app']
+  application:
+    dynamicPluginsConfigMapName: dynamic-plugins
+    appConfig:
+      mountPath: /opt/app-root/src
+      configMaps:
+        - name: app-config-rhdh
+    extraFiles:
+      mountPath: /opt/app-root/src
+    extraEnvs:
+      secrets:
+        - name: x2a-credentials
+    route:
+      enabled: true
