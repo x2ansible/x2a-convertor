@@ -1,0 +1,9 @@
+---
+galaxy_info:
+  role_name: molecule_test_role
+  author: x2a-convertor
+  description: Test role for validating Molecule on AAP/OpenShift
+  license: Apache-2.0
+  min_ansible_version: "2.15"
+
+dependencies: []

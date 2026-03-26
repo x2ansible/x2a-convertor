@@ -1,0 +1,14 @@
+---
+- name: Create test file to prove role execution
+  ansible.builtin.copy:
+    content: "Molecule test role executed successfully at {{ ansible_date_time.iso8601 }}\n"
+    dest: /tmp/molecule_test_marker
+    mode: "0644"
+
+- name: Gather package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Display OS information
+  ansible.builtin.debug:
+    msg: "Running on {{ ansible_distribution }} {{ ansible_distribution_version }}"

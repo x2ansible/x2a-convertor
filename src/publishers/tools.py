@@ -2,7 +2,7 @@
 
 import json
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,15 @@ logger = get_logger(__name__)
 
 
 @dataclass
+class MoleculeTemplateInfo:
+    """Info about a molecule job template created on AAP."""
+
+    name: str
+    template_id: int
+    role_name: str
+
+
+@dataclass
 class AAPSyncResult:
     """Result of syncing a repository to AAP."""
 
@@ -32,6 +41,7 @@ class AAPSyncResult:
     project_update_id: int | None = None
     project_update_status: str = ""
     error: str = ""
+    molecule_templates: list[MoleculeTemplateInfo] = field(default_factory=list)
 
     @classmethod
     def disabled(cls) -> "AAPSyncResult":
@@ -64,6 +74,10 @@ class AAPSyncResult:
             lines.append(f"  Sync job ID: {self.project_update_id}")
         if self.project_update_status:
             lines.append(f"  Sync job status: {self.project_update_status}")
+        if self.molecule_templates:
+            lines.append("  Molecule job templates (run-ready):")
+            for t in self.molecule_templates:
+                lines.append(f"    - {t.name} (id={t.template_id})")
         return lines
 
 
@@ -404,6 +418,64 @@ def generate_molecule_playbook(file_path: str, role_name: str) -> None:
     logger.info(f"Successfully generated molecule playbook: {file_path}")
 
 
+def generate_molecule_instructions(file_path: str, role_names: list[str]) -> None:
+    """Generate user-facing instructions for running molecule tests on AAP.
+
+    Args:
+        file_path: Output file path for the markdown instructions
+        role_names: List of role names that have molecule tests
+    """
+    template_list = "\n".join(
+        f"- **Molecule — {name}** — tests the `{name}` role" for name in role_names
+    )
+
+    content = f"""# Molecule Testing Instructions
+
+## Overview
+
+This project includes [Molecule](https://ansible.readthedocs.io/projects/molecule/)
+tests for validating the generated Ansible roles. The tests run inside an
+Execution Environment (EE) container on AAP and verify that each role produces
+the expected filesystem state.
+
+## Available Molecule Job Templates
+
+{template_list}
+
+## How to Launch from the AAP UI
+
+1. Log in to the AAP Controller web interface.
+2. Navigate to **Resources → Templates**.
+3. Find the template named **Molecule — <role_name>**.
+4. Click the **Launch** (rocket) button.
+   - The template is pre-configured with the correct inventory, execution
+     environment, and playbook — no additional settings are needed.
+5. Monitor the job output. A successful run shows all Molecule phases passing:
+   - **dependency** — resolves role/collection dependencies
+   - **syntax** — validates playbook syntax
+   - **create** — provisions the test instance (no-op for delegated driver)
+   - **converge** — creates expected filesystem state under `/tmp/molecule_test/`
+   - **idempotence** — re-runs converge to confirm no changes
+   - **verify** — asserts expected files and directories exist
+   - **destroy** — cleans up (no-op for delegated driver)
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| converge fails with "permission denied" | Paths outside `/tmp/` | All test paths must use `/tmp/molecule_test/` prefix |
+| verify fails with "file does not exist" | Mismatch between converge and verify paths | Ensure verify checks the same `/tmp/molecule_test/` paths that converge creates |
+| "sudo: command not found" | `become: true` in molecule playbook | Remove all `become: true` — the EE container has no sudo |
+| Project sync error on first launch | Receptor timing issue | Re-launch the job — `scm_update_on_launch` triggers a fresh sync |
+"""
+
+    file_path_obj = Path(file_path)
+    file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+    file_path_obj.write_text(content)
+
+    logger.info(f"Generated molecule instructions: {file_path}")
+
+
 def generate_job_template_yaml(
     file_path: str,
     name: str,
@@ -721,7 +793,10 @@ def verify_files_exist(file_paths: list[str]) -> None:
 
 
 def sync_to_aap(
-    repository_url: str, branch: str, project_id: str = ""
+    repository_url: str,
+    branch: str,
+    project_id: str = "",
+    molecule_role_names: list[str] | None = None,
 ) -> AAPSyncResult:
     """Upsert an AAP Project pointing at the provided repository and trigger a sync.
 
@@ -781,16 +856,19 @@ def sync_to_aap(
 
         update = client.start_project_update(project_id=aap_project_id)
 
-        # Register molecule EE and create molecule test job templates
+        # Register molecule EE, inventory, and create run-ready job templates
+        molecule_templates: list[MoleculeTemplateInfo] = []
         molecule_ee_image = settings.aap.molecule_ee_image
         if molecule_ee_image and project_id:
             try:
-                _setup_molecule_on_aap(
+                molecule_templates = _setup_molecule_on_aap(
                     client=client,
                     org_id=org_id,
                     aap_project_id=aap_project_id,
                     project_id=project_id,
                     molecule_ee_image=molecule_ee_image,
+                    inventory_name=settings.aap.inventory_name,
+                    role_names=molecule_role_names,
                 )
             except Exception as e:
                 logger.warning(f"Molecule AAP setup failed (non-fatal): {e}")
@@ -798,6 +876,7 @@ def sync_to_aap(
         return AAPSyncResult(
             enabled=True,
             project_name=project_name,
+            molecule_templates=molecule_templates,
             project_id=aap_project_id,
             project_update_id=int(update["id"]) if "id" in update else None,
             project_update_status=update.get("status", ""),
@@ -812,28 +891,45 @@ def _setup_molecule_on_aap(
     aap_project_id: int,
     project_id: str,
     molecule_ee_image: str,
-) -> None:
-    """Register molecule EE and create molecule test job templates on AAP.
+    inventory_name: str = "Molecule Local",
+    role_names: list[str] | None = None,
+) -> list[MoleculeTemplateInfo]:
+    """Register molecule EE, ensure inventory, and create run-ready job templates.
 
-    Scans the ansible-project for molecule wrapper playbooks and creates
-    corresponding job templates on AAP.
+    Creates fully configured job templates on AAP (with EE and inventory pre-set)
+    for each role that has molecule tests.
 
     Args:
         client: Authenticated AAP client
         org_id: AAP organization ID
         aap_project_id: AAP project ID
-        project_id: Migration project ID (used to find ansible-project dir)
+        project_id: Migration project ID (used to construct playbook paths)
         molecule_ee_image: Container image URL for the molecule EE
-    """
-    # Find molecule wrapper playbooks
-    ansible_project = Path(project_id) / "ansible-project"
-    playbooks_dir = ansible_project / "playbooks"
-    if not playbooks_dir.is_dir():
-        return
+        inventory_name: Name of the inventory to find or create
+        role_names: Role names with molecule tests. If not provided, scans
+            the ansible-project directory for molecule_*.yml playbooks.
 
-    molecule_playbooks = sorted(playbooks_dir.glob("molecule_*.yml"))
-    if not molecule_playbooks:
-        return
+    Returns:
+        List of created/updated molecule job template info
+    """
+    templates: list[MoleculeTemplateInfo] = []
+
+    # Determine which roles have molecule tests
+    if role_names:
+        discovered_roles = sorted(role_names)
+    else:
+        # Fall back to filesystem scan
+        ansible_project = Path(project_id) / "ansible-project"
+        playbooks_dir = ansible_project / "playbooks"
+        if not playbooks_dir.is_dir():
+            return templates
+        discovered_roles = sorted(
+            p.stem.removeprefix("molecule_")
+            for p in playbooks_dir.glob("molecule_*.yml")
+        )
+
+    if not discovered_roles:
+        return templates
 
     # Register molecule EE
     ee = client.upsert_execution_environment(
@@ -845,11 +941,18 @@ def _setup_molecule_on_aap(
     ee_id = int(ee["id"])
     logger.info(f"Registered Molecule EE (id={ee_id}, image={molecule_ee_image})")
 
-    # Create job templates for each molecule playbook
-    for playbook_path in molecule_playbooks:
-        role_name = playbook_path.stem.removeprefix("molecule_")
+    # Find or create localhost inventory
+    inventory = client.find_or_create_inventory(
+        org_id=org_id,
+        name=inventory_name,
+    )
+    inventory_id = int(inventory["id"])
+    logger.info(f"Using inventory '{inventory_name}' (id={inventory_id})")
+
+    # Create fully configured job templates for each molecule role
+    for role_name in discovered_roles:
         # Playbook path relative to repo root
-        relative_playbook = f"{project_id}/ansible-project/playbooks/{playbook_path.name}"
+        relative_playbook = f"{project_id}/ansible-project/playbooks/molecule_{role_name}.yml"
         template_name = f"Molecule — {role_name}"
 
         jt = client.upsert_job_template(
@@ -858,7 +961,16 @@ def _setup_molecule_on_aap(
             project_id=aap_project_id,
             playbook=relative_playbook,
             execution_environment_id=ee_id,
+            inventory_id=inventory_id,
         )
+        jt_id = int(jt.get("id", 0))
+        templates.append(MoleculeTemplateInfo(
+            name=template_name,
+            template_id=jt_id,
+            role_name=role_name,
+        ))
         logger.info(
-            f"Created job template '{template_name}' (id={jt.get('id')})"
+            f"Created run-ready job template '{template_name}' (id={jt_id})"
         )
+
+    return templates

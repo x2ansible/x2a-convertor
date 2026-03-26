@@ -1,0 +1,30 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Check test marker file exists
+      ansible.builtin.stat:
+        path: /tmp/molecule_test_marker
+      register: marker_file
+
+    - name: Assert marker file was created
+      ansible.builtin.assert:
+        that:
+          - marker_file.stat.exists
+          - marker_file.stat.size > 0
+        fail_msg: "Role did not create the expected marker file at /tmp/molecule_test_marker"
+        success_msg: "Marker file exists and is non-empty"
+
+    - name: Read marker file content
+      ansible.builtin.slurp:
+        src: /tmp/molecule_test_marker
+      register: marker_content
+
+    - name: Verify marker file content
+      ansible.builtin.assert:
+        that:
+          - "'Molecule test role executed successfully' in (marker_content.content | b64decode)"
+        fail_msg: "Marker file does not contain expected content"
+        success_msg: "Marker file content verified successfully"

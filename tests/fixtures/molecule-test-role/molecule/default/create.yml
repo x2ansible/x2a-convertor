@@ -1,0 +1,58 @@
+---
+- name: Create test instance on OpenShift
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    molecule_namespace: eloytest
+    molecule_pod_name: molecule-test-pod
+    kubeconfig_path: "{{ lookup('env', 'KUBECONFIG') | default('~/.kube/aap/config', true) }}"
+
+  tasks:
+    - name: Create molecule test pod
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig_path }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: "{{ molecule_pod_name }}"
+            namespace: "{{ molecule_namespace }}"
+            labels:
+              app: molecule-test
+              managed-by: molecule
+          spec:
+            containers:
+              - name: test-container
+                image: registry.access.redhat.com/ubi9/ubi:latest
+                command:
+                  - /bin/bash
+                  - -c
+                  - "while true; do sleep 3600; done"
+                resources:
+                  limits:
+                    memory: "512Mi"
+                    cpu: "500m"
+                  requests:
+                    memory: "256Mi"
+                    cpu: "250m"
+        wait: true
+        wait_timeout: 120
+        wait_condition:
+          type: Ready
+          status: "True"
+
+    - name: Wait for pod to be fully ready
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig_path }}"
+        kind: Pod
+        namespace: "{{ molecule_namespace }}"
+        name: "{{ molecule_pod_name }}"
+      register: pod_info
+      until: >-
+        pod_info.resources | length > 0 and
+        pod_info.resources[0].status.phase == 'Running'
+      retries: 30
+      delay: 5

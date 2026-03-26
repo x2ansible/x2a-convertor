@@ -151,6 +151,10 @@ class AAPSettings(BaseSettings):
         default="quay.io/eshalev/ee-molecule:latest",
         description="Molecule Execution Environment container image for AAP",
     )
+    inventory_name: str = Field(
+        default="Molecule Local",
+        description="AAP inventory name for molecule tests (created if missing)",
+    )
 
     @field_validator("api_prefix")
     @classmethod

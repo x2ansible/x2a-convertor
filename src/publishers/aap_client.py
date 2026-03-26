@@ -282,6 +282,50 @@ class AAPClient(BaseAAPClient):
             )
         return results[0]
 
+    def find_or_create_inventory(
+        self,
+        *,
+        org_id: int,
+        name: str = "Molecule Local",
+    ) -> dict[str, Any]:
+        """Find an existing inventory or create a localhost one.
+
+        Args:
+            org_id: Organization ID
+            name: Inventory name to search for / create
+
+        Returns:
+            Inventory resource dict from AAP API
+        """
+        data = self._request(
+            "GET",
+            "/inventories/",
+            params={"name": name, "organization": org_id},
+        )
+        results = data.get("results", [])
+        if results:
+            return results[0]
+
+        # Create inventory
+        inventory = self._request(
+            "POST",
+            "/inventories/",
+            json={"name": name, "organization": org_id},
+        )
+        inventory_id = int(inventory["id"])
+
+        # Add localhost host with local connection
+        self._request(
+            "POST",
+            f"/inventories/{inventory_id}/hosts/",
+            json={
+                "name": "localhost",
+                "variables": '{"ansible_connection": "local"}',
+            },
+        )
+        logger.info(f"Created inventory '{name}' (id={inventory_id}) with localhost")
+        return inventory
+
     def upsert_job_template(
         self,
         *,
@@ -290,6 +334,7 @@ class AAPClient(BaseAAPClient):
         project_id: int,
         playbook: str,
         execution_environment_id: int | None = None,
+        inventory_id: int | None = None,
     ) -> dict[str, Any]:
         """Create or update a Job Template on AAP.
 
@@ -299,6 +344,8 @@ class AAPClient(BaseAAPClient):
             project_id: AAP project ID
             playbook: Playbook path relative to project root
             execution_environment_id: EE to use (optional)
+            inventory_id: Inventory to assign (optional). When set,
+                ask_inventory_on_launch is disabled for one-click launch.
 
         Returns:
             Job template resource dict from AAP API
@@ -314,8 +361,13 @@ class AAPClient(BaseAAPClient):
             "name": name,
             "project": project_id,
             "playbook": playbook,
-            "ask_inventory_on_launch": True,
         }
+        if inventory_id:
+            payload["inventory"] = inventory_id
+            payload["ask_inventory_on_launch"] = False
+        else:
+            payload["ask_inventory_on_launch"] = True
+
         if execution_environment_id:
             payload["execution_environment"] = execution_environment_id
 
