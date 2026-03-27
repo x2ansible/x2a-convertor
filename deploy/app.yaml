@@ -114,12 +114,15 @@ data:
         red-hat-developer-hub.backstage-plugin-x2a:
           scaffolderFieldExtensions:
             - importName: RepoAuthenticationExtension
+          appIcons:
+            - name: x2aIcon
+              importName: X2AIcon
           dynamicRoutes:
             - path: /x2a/
               importName: X2APage
               menuItem:
-                text: X2A
-                # icon: CloudQueue
+                text: Conversion Hub
+                icon: x2aIcon
 
     catalog:
       locations:
