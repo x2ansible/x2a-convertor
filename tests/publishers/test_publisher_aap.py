@@ -409,7 +409,9 @@ def test_aap_sync_result_includes_molecule_templates():
         project_name="test",
         project_id=42,
         molecule_templates=[
-            MoleculeTemplateInfo(name="Molecule — nginx", template_id=43, role_name="nginx"),
+            MoleculeTemplateInfo(
+                name="Molecule — nginx", template_id=43, role_name="nginx"
+            ),
         ],
     )
     summary = result.report_summary()

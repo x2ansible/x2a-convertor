@@ -25,7 +25,6 @@ from molecule.command import (
 )
 from molecule.config import Config
 
-
 logger = structlog.get_logger(__name__)
 
 

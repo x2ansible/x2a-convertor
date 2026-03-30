@@ -125,10 +125,14 @@ def publish_project(
 
     # Generate molecule instructions (regenerated to list all molecule roles)
     playbooks_dir = ansible_project_dir / "playbooks"
-    molecule_roles = sorted(
-        p.stem.removeprefix("molecule_")
-        for p in playbooks_dir.glob("molecule_*.yml")
-    ) if playbooks_dir.is_dir() else []
+    molecule_roles = (
+        sorted(
+            p.stem.removeprefix("molecule_")
+            for p in playbooks_dir.glob("molecule_*.yml")
+        )
+        if playbooks_dir.is_dir()
+        else []
+    )
     if molecule_roles:
         generate_molecule_instructions(
             file_path=f"{publish_dir}/molecule-instructions.md",
