@@ -69,12 +69,9 @@ data:
     includes:
       - dynamic-plugins.default.yaml
     plugins:
-      # X2A Plugins for RHDH 1.9
-      # The x2a did not make it overlays' branching out release-1.9, so there is the PR 2063 workaround.
-      # The 1.10+ should be tagged normally
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:pr_2071__1.1.1"
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:pr_2071__1.2.0"
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:pr_2071__0.2.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:next__1.2.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:next__1.3.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:next__0.3.0"
 ---
 # ConfigMap: Application Configuration
 kind: ConfigMap
