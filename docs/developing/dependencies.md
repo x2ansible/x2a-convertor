@@ -1,3 +1,10 @@
+---
+layout: default
+title: Dependencies
+parent: Developing
+nav_order: 1
+---
+
 # Development Dependencies
 
 ## Ansible Automation Platform on OpenShift (CRC)
