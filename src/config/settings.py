@@ -41,6 +41,11 @@ class LLMSettings(BaseSettings):
         validation_alias="RATE_LIMIT_REQUESTS",
         description="Rate limit requests per second",
     )
+    max_retries: int = Field(
+        default=6,
+        validation_alias="LLM_MAX_RETRIES",
+        description="Maximum retry attempts on throttling (429) and server errors",
+    )
 
 
 class OpenAISettings(BaseSettings):

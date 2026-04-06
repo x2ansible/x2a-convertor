@@ -1,6 +1,7 @@
 from collections import Counter
 from typing import Any
 
+from botocore.config import Config as BotoConfig
 from langchain.chat_models import init_chat_model
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -129,6 +130,15 @@ def get_model() -> BaseChatModel:
         region_name = settings.aws.region
         kwargs["region_name"] = region_name
         logger.debug(f"AWS_REGION: {region_name}")
+
+        # Configure botocore-level retry for throttling (429) and server errors
+        max_retries = settings.llm.max_retries
+        kwargs["config"] = BotoConfig(
+            retries={"max_attempts": max_retries, "mode": "adaptive"},
+        )
+        logger.info(
+            f"Bedrock retry enabled: {max_retries} max attempts with adaptive backoff"
+        )
 
         # If we have access keys, pass them as SecretStr
         if settings.aws.access_key_id and settings.aws.secret_access_key:

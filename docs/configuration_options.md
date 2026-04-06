@@ -27,6 +27,7 @@ Auto-generated from `src/config/settings.py`.
 | `TEMPERATURE` | float | `0.1` | Model temperature (creativity) |
 | `REASONING_EFFORT` | string | - | Claude reasoning effort level |
 | `RATE_LIMIT_REQUESTS` | integer | - | Rate limit requests per second |
+| `LLM_MAX_RETRIES` | integer | `6` | Maximum retry attempts on throttling (429) and server errors |
 
 ## OpenAI Configuration
 
