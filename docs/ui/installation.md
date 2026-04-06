@@ -32,11 +32,12 @@ oc apply -f deploy/operator.yaml
 # 3. Create your namespace (or use existing)
 oc create namespace <your-namespace>
 
-# 4. Deploy application resources
+# 4. Configure and apply secrets
+cp deploy/secrets.yaml.template deploy/secrets.yaml
+
+# 5. Deploy application resources
 oc apply -n <your-namespace> -f deploy/app.yaml
 
-# 5. Configure and apply secrets
-cp deploy/secrets.yaml.template deploy/secrets.yaml
 # Edit deploy/secrets.yaml with your actual credentials
 oc apply -n <your-namespace> -f deploy/secrets.yaml
 
