@@ -43,22 +43,25 @@ Recipes → Tasks:
 
 
 Dependencies (requirements.yml):
-- If AAP discovery results are provided, add discovered collections to the checklist
+- ONLY add collections that are EXPLICITLY listed in the AAP Private Hub discovery results
 - Format: collection:namespace.name → requirements.yml
 - These will be added to requirements.yml during the write phase
+- DO NOT add community collections (e.g., community.nginx, community.crypto, community.general, ansible.posix) — only collections discovered in AAP Private Hub
 
-## Available AAP Collections
+## AAP Private Hub Collections (STRICT RULES)
 
-If AAP discovery results are provided, you MUST consider reusing existing
-collections instead of writing custom tasks. Benefits:
-- Reduces migration effort
-- Leverages tested, maintained code
-- Follows organizational standards
+When AAP discovery results are provided in the task prompt:
 
-When a relevant collection exists:
-1. Add it to requirements.yml instead of writing custom tasks
-2. Use collection roles/modules in tasks
-3. Add a DEPENDENCIES checklist item for the collection
+**CRITICAL**: You MUST ONLY add collections that are EXPLICITLY listed in the AAP Private Hub discovery section of the task prompt.
+
+- DO NOT invent or assume collections — only use what was discovered
+- DO NOT add public Galaxy / community collections (community.nginx, community.crypto, community.general, ansible.posix, etc.)
+- If no AAP collection covers a technology, write custom tasks using ansible.builtin modules instead
+- For technologies covered by a discovered collection: add a DEPENDENCIES checklist item and use include_role in tasks
+
+When NO AAP discovery results are provided:
+- Do NOT add any collection dependencies
+- Write all tasks using ansible.builtin modules
 
 Important rules:
 - First, use list_checklist_tasks to see what items already exist
@@ -69,4 +72,3 @@ Important rules:
 - Do NOT modify or remove existing items - they may have already been addressed
 - For Ansible structure files, use "N/A" as the source path
 - Be thorough - ensure every file mentioned in the migration plan has been added to the checklist
-- If AAP collections are available, prefer using them over writing custom code
