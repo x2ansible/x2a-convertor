@@ -54,6 +54,7 @@ class PlanningAgent(BaseAgent[ExportState]):
             module_migration_plan=state.module_migration_plan.to_document(),
             path=state.path,
             existing_checklist=state.checklist.to_markdown() if state.checklist else "",
+            aap_discovery=state.aap_discovery,
         )
 
         self.invoke_react(
