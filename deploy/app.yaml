@@ -95,7 +95,7 @@ data:
       environment: development
       providers:
         # See https://backstage.io/docs/auth/guest/provider
-        guest: {}
+        # guest: {}
 
         github:
           development:
@@ -105,7 +105,29 @@ data:
               resolvers:
                 - resolver: usernameMatchingUserEntityName
                   dangerouslyAllowSignInWithoutUserInCatalog: true
+        # Bitbucket example for authentication
+        # bitbucket:
+        #   development:
+        #     clientId: ${AUTH_BITBUCKET_CLIENT_ID:-}
+        #     clientSecret: ${AUTH_BITBUCKET_CLIENT_SECRET:-}
+        #     signIn:
+        #       resolvers:
+        #         - resolver: usernameMatchingUserEntityAnnotation
+        #           dangerouslyAllowSignInWithoutUserInCatalog: true
 
+        # Gitlab example for authentication
+        # gitlab:
+        #   development:
+        #     clientId: ${AUTH_GITLAB_CLIENT_ID}
+        #     clientSecret: ${AUTH_GITLAB_CLIENT_SECRET}
+        #     signIn:
+        #       resolvers:
+        #         - resolver: emailMatchingUserEntityProfileEmail
+        #           dangerouslyAllowSignInWithoutUserInCatalog: true
+    signInPage:
+      - github
+      # - gitlab
+      # - bitbucket
     dynamicPlugins:
       frontend:
         red-hat-developer-hub.backstage-plugin-x2a:
@@ -151,6 +173,7 @@ data:
           url: ${AAP_URL:-https://aap.example.com}
           orgName: ${AAP_ORG_NAME:-MyOrganization}
           oauthToken: ${AAP_OAUTH_TOKEN:-your-oauth-token}
+          skipSSLVerification: ${AAP_SKIP_SSL_VERIFICATION:-false}
 ---
 kind: PersistentVolumeClaim
 apiVersion: v1
