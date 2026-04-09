@@ -1,0 +1,27 @@
+<script>
+  (function () {
+    function openSvgInNewTab(svg) {
+      var serializer = new XMLSerializer();
+      var svgString = serializer.serializeToString(svg);
+      var blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    }
+
+    function attachClickHandlers() {
+      document.querySelectorAll('svg[id^="mermaid-"]').forEach(function (svg) {
+        var container = svg.closest('pre') || svg.parentElement;
+        if (container.dataset.zoomAttached) return;
+        container.dataset.zoomAttached = 'true';
+        container.classList.add('mermaid-zoom-target');
+
+        container.addEventListener('click', function () {
+          openSvgInNewTab(svg);
+        });
+      });
+    }
+
+    var observer = new MutationObserver(function () { attachClickHandlers(); });
+    observer.observe(document.body, { childList: true, subtree: true });
+  })();
+</script>
