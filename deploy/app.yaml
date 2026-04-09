@@ -69,9 +69,24 @@ data:
     includes:
       - dynamic-plugins.default.yaml
     plugins:
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:next__1.2.0"
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:next__1.3.0"
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:next__0.3.0"
+      # The plugin-x2a-dcr is for RHDH 1.9 only. To be replaced by backstage-plugin-auth in 1.10:
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-dcr:pr_2279__0.2.0"
+
+      # We need https://github.com/backstage/backstage/blob/master/plugins/mcp-actions-backend/CHANGELOG.md#0112-next2 or later
+      # which contains required fix: https://github.com/backstage/backstage/issues/33062
+      # To match RHDH 1.10 (will be based on Backstage 1.49.4 compatible with mcp-actions-backend:0.1.11), following build is based on mcp-actions-backend:0.1.11 patched for the issues/33062 fix.
+      # This image works well in both RHDH 1.9 (Backstage 1.45.3) and the upcoming RHDH 1.10.
+      # We should not need this custom build in a RHDH 1.10 releases (will be with mcp-actions-backend:0.1.12 or later).
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-mcp-actions-backend:pr_2236__0.1.11"
+
+      # All X2A plugins
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:pr_2279__1.2.1"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:pr_2279__1.4.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-mcp-extras:pr_2279__0.2.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:pr_2279__0.3.1"
+
+      # In addition, the backstage-plugin-auth-backend 0.25.6 or later is required, should be met since RHDH 1.9. Keeping this note here for a reference in case of issues.
+
 ---
 # ConfigMap: Application Configuration
 kind: ConfigMap
@@ -82,13 +97,28 @@ data:
   app-config-rhdh.yaml: |
 
     backend:
+      cors:
+        origin:
+          # for @modelcontextprotocol/inspector, remove if not needed
+          - http://localhost:6274
+        credentials: true
+      actions:
+        pluginSources:
+          - 'x2a-mcp-extras'
       reading:
         allow:
           - host: raw.githubusercontent.com
 
+    # Disable namespaced tool names for MCP actions
+    # Workaround for recent MCP server returning `undefined` for tool namespaces
+    # Will be solved by later @backstage/backend-defaults.
+    mcpActions:
+      namespacedToolNames: false
+
     integrations:
       github:
       - host: github.com
+      # CUSTOMIZE:
       # gitlab:
       # - host: gitlab.com
       # - host: gitlab.internal.io # Self-hosted GitLab
@@ -97,12 +127,22 @@ data:
       # - host: bitbucket.org
 
     auth:
+      experimentalDynamicClientRegistration:
+        # enable the feature
+        enabled: true
+        allowedRedirectUriPatterns:
+          - cursor://*
+          # CUSTOMIZE:
+          - https://*
+          - http://*
+
       # see https://backstage.io/docs/auth/ to learn about auth providers
       environment: development
       providers:
         # See https://backstage.io/docs/auth/guest/provider
         # guest: {}
 
+        # CUSTOMIZE:
         github:
           development:
             clientId: ${AUTH_GITHUB_CLIENT_ID}
@@ -136,6 +176,11 @@ data:
       # - bitbucket
     dynamicPlugins:
       frontend:
+        red-hat-developer-hub.backstage-plugin-x2a-dcr:
+          dynamicRoutes:
+            - path: /oauth2/*
+              importName: DcrConsentPage
+
         red-hat-developer-hub.backstage-plugin-x2a:
           scaffolderFieldExtensions:
             - importName: RepoAuthenticationExtension
