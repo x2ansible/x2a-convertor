@@ -1,0 +1,28 @@
+<style>
+  .mermaid-zoom-target {
+    cursor: zoom-in;
+    position: relative;
+    width: 100%;
+  }
+
+  .mermaid-zoom-target svg {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .mermaid-zoom-target::after {
+    content: 'Click to open full size';
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.75rem;
+    color: #6b7280;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+
+  .mermaid-zoom-target:hover::after {
+    opacity: 1;
+  }
+</style>
