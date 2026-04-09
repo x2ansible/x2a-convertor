@@ -89,6 +89,12 @@ data:
     integrations:
       github:
       - host: github.com
+      # gitlab:
+      # - host: gitlab.com
+      # - host: gitlab.internal.io # Self-hosted GitLab
+      #   apiBaseUrl: https://gitlab.internal.io/api/v4
+      # bitbucketCloud:
+      # - host: bitbucket.org
 
     auth:
       # see https://backstage.io/docs/auth/ to learn about auth providers
