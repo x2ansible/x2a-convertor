@@ -1,0 +1,26 @@
+Review the generated Ansible role for semantic correctness issues.
+
+## Context
+
+Module: {{ module }}
+Source technology: {{ source_technology }}
+Source path: {{ source_path }}
+Ansible role path: {{ ansible_path }}
+
+## Migration Checklist
+
+{{ checklist }}
+
+## Instructions
+
+1. List the contents of `{{ ansible_path }}` to understand the role structure
+2. Read ALL task files under `{{ ansible_path }}/tasks/`
+3. Read `{{ ansible_path }}/defaults/main.yml` and `{{ ansible_path }}/vars/main.yml` if they exist
+4. Read `{{ ansible_path }}/handlers/main.yml` if it exists
+5. For each task file, check for:
+   - Missing prerequisites (users, groups, directories referenced but never created)
+   - Missing package dependencies (config files for packages not installed in the role)
+   - Idempotency failures (commands without creates/removes guards)
+   - Ordering issues (config before package install, service start before config)
+6. Fix each issue you find by rewriting the affected file with minimal changes
+7. Produce a review summary report
