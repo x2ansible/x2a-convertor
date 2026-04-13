@@ -148,7 +148,7 @@ class AAPSettings(BaseSettings):
         description="Galaxy repository to search (published, staging, community)",
     )
     molecule_ee_image: str = Field(
-        default="quay.io/eshalev/ee-molecule:latest",
+        default="quay.io/x2ansible/ee-molecule:latest",
         description="Molecule Execution Environment container image for AAP",
     )
     inventory_name: str = Field(

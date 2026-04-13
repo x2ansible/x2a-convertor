@@ -62,7 +62,7 @@ Auto-generated from `src/config/settings.py`.
 | `AAP_PROJECT_NAME` | string | - | Project name in AAP |
 | `AAP_SCM_CREDENTIAL_ID` | integer | - | Credential ID for private repos |
 | `AAP_GALAXY_REPOSITORY` | string | `published` | Galaxy repository to search (published, staging, community) |
-| `AAP_MOLECULE_EE_IMAGE` | string | `quay.io/eshalev/ee-molecule:latest` | Molecule Execution Environment container image for AAP |
+| `AAP_MOLECULE_EE_IMAGE` | string | `quay.io/x2ansible/ee-molecule:latest` | Molecule Execution Environment container image for AAP |
 | `AAP_INVENTORY_NAME` | string | `Molecule Local` | AAP inventory name for molecule tests (created if missing) |
 
 ## Processing Configuration

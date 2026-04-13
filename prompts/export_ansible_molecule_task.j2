@@ -1,0 +1,27 @@
+Generate molecule test files for role "{{ module }}" at {{ ansible_path }}.
+
+The static files (molecule.yml, create.yml, destroy.yml) are already created under
+{{ ansible_path }}/molecule/default/. You need to create:
+
+1. {{ ansible_path }}/molecule/default/converge.yml — recreate expected filesystem state under /tmp/molecule_test/
+2. {{ ansible_path }}/molecule/default/verify.yml — verify the role's expected outcomes
+
+## How to build these files
+
+**converge.yml**: Read the role's tasks (at {{ ansible_path }}/tasks/) to understand what
+files, directories, configs, and symlinks the role creates. Recreate that state
+under /tmp/molecule_test/. For example, if the role creates /etc/nginx/nginx.conf,
+create /tmp/molecule_test/etc/nginx/nginx.conf with representative content.
+
+**verify.yml**: Use the pre-flight checks below as your primary source.
+Each bash check should become an Ansible verification task. For checks that cannot
+run in a container (service status, ports, HTTP endpoints), include the task but add
+`tags: molecule-notest` so molecule skips them.
+
+## Pre-flight checks from migration plan
+
+{{ preflight_checks }}
+
+## Checklist
+
+{{ checklist }}

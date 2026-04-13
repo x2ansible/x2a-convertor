@@ -49,7 +49,8 @@ stateDiagram-v2
     ChooseSubagent --> AAPDiscovery
     AAPDiscovery --> GenerateAnsible
     GenerateAnsible --> WriteMigration
-    WriteMigration --> [*]
+    WriteMigration --> MoleculeTests
+    MoleculeTests --> [*]
 
     note right of ReadMetadata
         Load both migration plans
@@ -74,6 +75,11 @@ stateDiagram-v2
     note right of WriteMigration
         Write with ansible-lint
         validation (up to 5 retries)
+    end note
+
+    note right of MoleculeTests
+        Generate molecule test
+        scenarios (non-fatal)
     end note
 ```
 
@@ -369,6 +375,13 @@ ansible/roles/<module-name>/
 │   └── main.yml          # Event handlers
 ├── meta/
 │   └── main.yml          # Role metadata and dependencies
+├── molecule/
+│   └── default/
+│       ├── molecule.yml  # Molecule scenario config (delegated driver)
+│       ├── create.yml    # No-op instance create
+│       ├── destroy.yml   # No-op instance destroy
+│       ├── converge.yml  # Recreates expected filesystem state
+│       └── verify.yml    # Verification tasks from pre-flight checks
 ├── requirements.yml      # Collection dependencies (if AAP enabled)
 ├── tasks/
 │   └── main.yml          # Primary task list
@@ -377,6 +390,45 @@ ansible/roles/<module-name>/
 └── vars/
     └── main.yml          # Higher-precedence variables (optional)
 ```
+
+## Molecule Agent
+
+**Location**: `src/exporters/molecule_agent.py`
+
+### Purpose
+
+The Molecule Agent generates [Molecule](https://ansible.readthedocs.io/projects/molecule/)
+test scenarios for each migrated role. It runs **after** the Write Agent and **before** the
+Validation Agent, so it can read the completed role structure.
+
+### Workflow
+
+```mermaid
+flowchart LR
+    Static[Scaffold Static Files] --> Dynamic[Generate Dynamic Files]
+    Dynamic --> Check{All Files Exist?}
+    Check -->|Yes| Done[Complete]
+    Check -->|No| Dynamic
+
+    style Static fill:#e8f5e9
+    style Dynamic fill:#e3f2fd
+    style Done fill:#fff3e0
+```
+
+**Phase 1 — Static scaffold** (deterministic, no LLM):
+- `molecule.yml` — delegated driver configuration
+- `create.yml` / `destroy.yml` — no-op playbooks
+
+**Phase 2 — Dynamic generation** (LLM-powered):
+- `converge.yml` — recreates expected filesystem state under `/tmp/molecule_test/` by reading the role's tasks
+- `verify.yml` — translates pre-flight checks from the migration plan into Ansible assertion tasks
+
+### Key Design Decisions
+
+- **Separate from WriteAgent**: Molecule playbooks have `hosts:` keys that fail the `ValidatedWriteTool`'s ansible task validation. The Molecule Agent uses raw `WriteFileTool` instead.
+- **Pre-flight checks drive verify.yml**: The migration plan's `## Pre-flight checks` section (bash commands generated during analysis) is the primary input for verification tasks.
+- **Non-fatal**: Molecule generation failures are logged but do not block the migration pipeline.
+- **Container-safe constraints**: No `become: true`, no `include_role`, all paths under `/tmp/molecule_test/`. Service/port checks are tagged `molecule-notest`.
 
 ## AAP Discovery Agent (Optional)
 
