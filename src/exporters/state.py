@@ -55,6 +55,7 @@ class ExportState(BaseState, MigrationStateInterface):
         checklist: Migration checklist tracking file transformations
         aap_discovery: Result of AAP collection discovery for deduplication
         credential_config: Extracted credential configuration for AAP
+        review_report: Semantic review findings and fixes from ReviewAgent
     """
 
     # Fields inherited from BaseState:
@@ -78,6 +79,7 @@ class ExportState(BaseState, MigrationStateInterface):
     aap_discovery: AAPDiscoveryResult | None = field(default=None, kw_only=True)
     credential_config: CredentialConfig | None = field(default=None, kw_only=True)
     source_technology: Technology = field(default=Technology.CHEF, kw_only=True)
+    review_report: str = field(default="", kw_only=True)
 
     def get_ansible_path(self) -> str:
         """Get the Ansible output path for this module.
