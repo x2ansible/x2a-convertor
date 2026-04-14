@@ -151,6 +151,8 @@ class MoleculeAgent(BaseAgent[ExportState]):
             get_prompt(self.USER_PROMPT_NAME).format(
                 module=export_state.module,
                 ansible_path=ansible_path,
+                high_level_migration_plan=export_state.high_level_migration_plan,
+                migration_plan=export_state.module_migration_plan.to_document(),
                 preflight_checks=preflight_checks,
                 checklist=(
                     export_state.checklist.to_markdown()
@@ -205,7 +207,6 @@ class MoleculeAgent(BaseAgent[ExportState]):
             state.missing_files = []
             state.complete = True
 
-        state.export_state = export_state
         return state
 
     def _evaluate_node(
@@ -240,9 +241,8 @@ class MoleculeAgent(BaseAgent[ExportState]):
             self._current_metrics = None
             return state
 
-        has_molecule_items = any(
-            "molecule" in (item.target_path or "").lower()
-            for item in state.checklist.items
+        has_molecule_items = bool(
+            state.checklist.items_by_category(include={"molecule"})
         )
         if not has_molecule_items:
             self._log.info("No molecule items in checklist, skipping")

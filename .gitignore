@@ -15,7 +15,7 @@ wheels/
 publish_results*/
 
 # Molecule EE build artifacts
-ee-molecule/
+ee-molecule/context/
 
 # Deployment secrets - NEVER commit real credentials!
 deploy/secrets.yaml
