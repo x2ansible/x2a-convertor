@@ -67,6 +67,19 @@ class ValidationAgentState(BaseAgentState):
 
 
 @dataclass
+class MoleculeAgentState(BaseAgentState):
+    """Internal state for MoleculeAgent workflow.
+
+    Tracks molecule test file creation progress.
+
+    Attributes:
+        missing_files: List of molecule file paths that haven't been created yet
+    """
+
+    missing_files: list[str] | None = None
+
+
+@dataclass
 class PlanningAgentState(BaseAgentState):
     """Internal state for PlanningAgent workflow.
 

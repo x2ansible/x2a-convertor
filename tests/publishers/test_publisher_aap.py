@@ -87,6 +87,10 @@ def test_sync_to_aap_happy_flow(monkeypatch):
             assert project_id == 42
             return {"id": 100, "status": "successful"}
 
+        def get_project_update(self, *, update_id: int):
+            assert update_id == 100
+            return {"id": 100, "status": "successful"}
+
     monkeypatch.setattr(tools_module, "AAPClient", FakeClient)
 
     result = sync_to_aap(
@@ -257,3 +261,159 @@ def test_aapconfig_explicit_overrides_env(monkeypatch):
     assert cfg.organization_name == "explicit-org"
     # oauth_token not passed, so comes from env
     assert cfg.oauth_token == "env-token"
+
+
+def test_find_or_create_inventory_existing(monkeypatch):
+    """find_or_create_inventory returns existing inventory without creating."""
+    cfg = aap_client.AAPConfig(
+        controller_url="https://aap.example",
+        organization_name="Default",
+        oauth_token="t",
+    )
+    client = aap_client.AAPClient(cfg)
+
+    calls: list[tuple[str, str]] = []
+
+    def fake_request(method: str, path: str, *, json=None, params=None):
+        calls.append((method, path))
+        if method == "GET" and "/inventories/" in path:
+            return {"results": [{"id": 5, "name": "Molecule Local"}]}
+        return {}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    result = client.find_or_create_inventory(org_id=1, name="Molecule Local")
+    assert result["id"] == 5
+    # Only a GET, no POST
+    assert len(calls) == 1
+    assert calls[0][0] == "GET"
+
+
+def test_find_or_create_inventory_creates_new(monkeypatch):
+    """find_or_create_inventory creates inventory + localhost host when missing."""
+    cfg = aap_client.AAPConfig(
+        controller_url="https://aap.example",
+        organization_name="Default",
+        oauth_token="t",
+    )
+    client = aap_client.AAPClient(cfg)
+
+    calls: list[tuple[str, str, Any]] = []
+
+    def fake_request(method: str, path: str, *, json=None, params=None):
+        calls.append((method, path, json))
+        if method == "GET" and "/inventories/" in path:
+            return {"results": []}
+        if method == "POST" and path == "/inventories/":
+            return {"id": 10, "name": "Molecule Local"}
+        if method == "POST" and "/hosts/" in path:
+            return {"id": 20}
+        return {}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    result = client.find_or_create_inventory(org_id=1, name="Molecule Local")
+    assert result["id"] == 10
+    # GET (search) + POST (inventory) + POST (host)
+    assert len(calls) == 3
+    assert calls[1][0] == "POST"
+    assert calls[1][1] == "/inventories/"
+    assert calls[2][0] == "POST"
+    assert "/hosts/" in calls[2][1]
+    assert "localhost" in str(calls[2][2])
+
+
+def test_upsert_job_template_with_inventory(monkeypatch):
+    """upsert_job_template sets inventory and disables ask_inventory_on_launch."""
+    cfg = aap_client.AAPConfig(
+        controller_url="https://aap.example",
+        organization_name="Default",
+        oauth_token="t",
+    )
+    client = aap_client.AAPClient(cfg)
+
+    called: dict[str, Any] = {}
+
+    def fake_request(method: str, path: str, *, json=None, params=None):
+        if method == "GET":
+            return {"results": []}
+        called["json"] = json
+        return {"id": 99}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    result = client.upsert_job_template(
+        org_id=1,
+        name="Molecule — test",
+        project_id=42,
+        playbook="playbooks/molecule_test.yml",
+        inventory_id=5,
+    )
+    assert result["id"] == 99
+    assert called["json"]["inventory"] == 5
+    assert called["json"]["ask_inventory_on_launch"] is False
+
+
+def test_upsert_job_template_without_inventory(monkeypatch):
+    """upsert_job_template keeps ask_inventory_on_launch when no inventory."""
+    cfg = aap_client.AAPConfig(
+        controller_url="https://aap.example",
+        organization_name="Default",
+        oauth_token="t",
+    )
+    client = aap_client.AAPClient(cfg)
+
+    called: dict[str, Any] = {}
+
+    def fake_request(method: str, path: str, *, json=None, params=None):
+        if method == "GET":
+            return {"results": []}
+        called["json"] = json
+        return {"id": 99}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    client.upsert_job_template(
+        org_id=1,
+        name="Test",
+        project_id=42,
+        playbook="playbooks/run_test.yml",
+    )
+    assert "inventory" not in called["json"]
+    assert called["json"]["ask_inventory_on_launch"] is True
+
+
+def test_molecule_instructions_generated(tmp_path):
+    """generate_molecule_instructions creates a valid markdown file."""
+    from src.publishers.tools import generate_molecule_instructions
+
+    out_path = str(tmp_path / "molecule-instructions.md")
+    generate_molecule_instructions(out_path, ["nginx", "cache"])
+
+    content = (tmp_path / "molecule-instructions.md").read_text()
+    assert "Molecule — nginx" in content
+    assert "Molecule — cache" in content
+    assert "How to Launch" in content
+    assert "/tmp/molecule_test/" in content
+    assert "Prerequisites" in content
+    assert "AAP_MOLECULE_EE_IMAGE" in content
+    assert "receptor-data" in content
+
+
+def test_aap_sync_result_includes_molecule_templates():
+    """AAPSyncResult.report_summary includes molecule template info."""
+    from src.publishers.tools import AAPSyncResult, MoleculeTemplateInfo
+
+    result = AAPSyncResult(
+        enabled=True,
+        project_name="test",
+        project_id=42,
+        molecule_templates=[
+            MoleculeTemplateInfo(
+                name="Molecule — nginx", template_id=43, role_name="nginx"
+            ),
+        ],
+    )
+    summary = result.report_summary()
+    assert any("Molecule — nginx" in line for line in summary)
+    assert any("id=43" in line for line in summary)

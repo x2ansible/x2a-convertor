@@ -1,0 +1,105 @@
+# Molecule Testing Instructions
+
+## Overview
+
+This project includes [Molecule](https://ansible.readthedocs.io/projects/molecule/)
+tests for validating the generated Ansible roles. The tests run inside an
+Execution Environment (EE) container on AAP and verify that each role produces
+the expected filesystem state.
+
+## Prerequisites
+
+### 1. Molecule Ansible Execution Environment (EE)
+
+Molecule tests require a custom Ansible execution environment (EE) with `molecule`
+and `kubernetes` Python packages installed. The x2a convertor ships a ready-to-build
+EE definition in `ee-molecule/`.
+
+**Build and push the EE image:**
+
+```bash
+# Using ansible-builder (recommended)
+cd ee-molecule
+ansible-builder build --tag <your-registry>/ee-molecule:latest
+
+# Or using the simplified Containerfile directly
+podman build -t <your-registry>/ee-molecule:latest -f Containerfile .
+
+# Push to your registry
+podman push <your-registry>/ee-molecule:latest
+```
+
+**Configure x2a to use your EE image:**
+
+```bash
+export AAP_MOLECULE_EE_IMAGE=<your-registry>/ee-molecule:latest
+```
+
+The `publish-aap` command will automatically register the EE on AAP.
+
+### 2. AAP Cluster: Shared Receptor Data Directory
+
+AAP's receptor process (in the `aap-controller-ee` container) writes work unit
+results to `/tmp/receptor/`. The task container must be able to read these
+results. By default each container has its own `/tmp`, so a shared volume is
+required.
+
+**Patch the AutomationController CR** (one-time cluster setup):
+
+```bash
+oc patch automationcontroller <your-controller-name> -n <namespace> --type=merge -p '{
+  "spec": {
+    "extra_volumes": "- name: receptor-data\n  emptyDir: {}\n",
+    "ee_extra_volume_mounts": "- name: receptor-data\n  mountPath: /tmp/receptor\n",
+    "task_extra_volume_mounts": "- name: receptor-data\n  mountPath: /tmp/receptor\n"
+  }
+}'
+```
+
+Without this, project syncs will fail with:
+`Failed to JSON parse a line from worker stream`
+
+### 3. AAP Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AAP_CONTROLLER_URL` | Yes | AAP Controller base URL |
+| `AAP_ORG_NAME` | Yes | AAP organization name |
+| `AAP_USERNAME` + `AAP_PASSWORD` | Yes* | Basic auth credentials |
+| `AAP_OAUTH_TOKEN` | Yes* | Alternative: OAuth token |
+| `AAP_MOLECULE_EE_IMAGE` | Yes | Molecule EE container image URL |
+| `AAP_VERIFY_SSL` | No | Set `false` for self-signed certs |
+| `AAP_SCM_CREDENTIAL_ID` | No | Credential ID for private git repos |
+
+\* One of basic auth or OAuth token is required.
+
+## Available Molecule Job Templates
+
+{{ template_list }}
+
+## How to Launch from the AAP UI
+
+1. Log in to the AAP Controller web interface.
+2. Navigate to **Resources → Templates**.
+3. Find the template named **Molecule — <role_name>**.
+4. Click the **Launch** (rocket) button.
+   - The template is pre-configured with the correct inventory, execution
+     environment, and playbook — no additional settings are needed.
+5. Monitor the job output. A successful run shows all Molecule phases passing:
+   - **dependency** — resolves role/collection dependencies
+   - **syntax** — validates playbook syntax
+   - **create** — provisions the test instance (no-op for delegated driver)
+   - **converge** — creates expected filesystem state under `/tmp/molecule_test/`
+   - **idempotence** — re-runs converge to confirm no changes
+   - **verify** — asserts expected files and directories exist
+   - **destroy** — cleans up (no-op for delegated driver)
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| `Failed to JSON parse a line from worker stream` | `/tmp/receptor` not shared between containers | Apply the receptor volume patch above |
+| converge fails with "permission denied" | Paths outside `/tmp/` | All test paths must use `/tmp/molecule_test/` prefix |
+| verify fails with "file does not exist" | Mismatch between converge and verify paths | Ensure verify checks the same `/tmp/molecule_test/` paths that converge creates |
+| "sudo: command not found" | `become: true` in molecule playbook | Remove all `become: true` — the EE container has no sudo |
+| Project sync error on first launch | Receptor timing issue | Re-launch the job — `scm_update_on_launch` triggers a fresh sync |

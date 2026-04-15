@@ -164,18 +164,23 @@ class Checklist:
         else:
             status_enum = status
 
-        for item in self._items:
-            if item.source_path == source_path and item.target_path == target_path:
-                item.status = status_enum
-                if notes:
-                    item.notes = notes
-                logger.debug(
-                    f"Updated task: {source_path} → {target_path} to {status_enum.value}"
-                )
-                return True
+        item = self.find_task(source_path, target_path)
+        if item:
+            item.status = status_enum
+            if notes:
+                item.notes = notes
+            logger.debug(
+                f"Updated task: {source_path} → {target_path} to {status_enum.value}"
+            )
+            return True
 
         logger.warning(f"Task not found: {source_path} → {target_path}")
         return False
+
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        """Normalize path for comparison (strip leading ./)."""
+        return path.lstrip("./") if path not in ("N/A", "") else path
 
     def find_task(self, source_path: str, target_path: str) -> ChecklistItem | None:
         """Find a specific task by source and target paths
@@ -183,8 +188,12 @@ class Checklist:
         Returns:
             The task item if found, None otherwise
         """
+        norm_target = self._normalize_path(target_path)
         for item in self._items:
-            if item.source_path == source_path and item.target_path == target_path:
+            if (
+                item.source_path == source_path
+                and self._normalize_path(item.target_path) == norm_target
+            ):
                 return item
         return None
 
@@ -223,6 +232,20 @@ class Checklist:
     def items(self) -> tuple[ChecklistItem, ...]:
         """Get all checklist items (immutable view)"""
         return tuple(self._items)
+
+    def items_by_category(
+        self,
+        *,
+        include: set[str] | None = None,
+        exclude: set[str] | None = None,
+    ) -> tuple[ChecklistItem, ...]:
+        """Filter items by category inclusion/exclusion."""
+        result = list(self._items)
+        if include is not None:
+            result = [i for i in result if i.category in include]
+        if exclude is not None:
+            result = [i for i in result if i.category not in exclude]
+        return tuple(result)
 
     def __len__(self) -> int:
         """Return number of items in checklist"""

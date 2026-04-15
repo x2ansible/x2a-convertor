@@ -1,0 +1,22 @@
+---
+- name: Destroy test instance on OpenShift
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    molecule_namespace: eloytest
+    molecule_pod_name: molecule-test-pod
+    kubeconfig_path: "{{ lookup('env', 'KUBECONFIG') | default('~/.kube/aap/config', true) }}"
+
+  tasks:
+    - name: Delete molecule test pod
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig_path }}"
+        state: absent
+        kind: Pod
+        namespace: "{{ molecule_namespace }}"
+        name: "{{ molecule_pod_name }}"
+        wait: true
+        wait_timeout: 60
+      ignore_errors: true

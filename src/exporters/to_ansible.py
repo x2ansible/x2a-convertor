@@ -11,6 +11,7 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 
 from src.exporters.aap_discovery_agent import AAPDiscoveryAgent
+from src.exporters.molecule_agent import MoleculeAgent
 from src.exporters.planning_agent import PlanningAgent
 from src.exporters.state import ExportState
 from src.exporters.types import MigrationCategory
@@ -35,6 +36,7 @@ class MigrationPhase(str, Enum):
     INITIALIZING = "initializing"
     PLANNING = "planning"
     WRITING = "writing"
+    MOLECULE_TESTING = "molecule_testing"
     VALIDATING = "validating"
     COMPLETE = "complete"
     FAILED = "failed"
@@ -62,6 +64,7 @@ class ToAnsibleSubagent:
         self.discovery_agent = AAPDiscoveryAgent(model=self.model)
         self.planning_agent = PlanningAgent(model=self.model)
         self.write_agent = WriteAgent(model=self.model)
+        self.molecule_agent = MoleculeAgent(model=self.model)
         self.validation_agent = ValidationAgent(model=self.model)
 
         self._workflow = self._create_workflow()
@@ -87,6 +90,7 @@ class ToAnsibleSubagent:
         workflow.add_node("discover_collections", self.discovery_agent)
         workflow.add_node("plan_migration", self.planning_agent)
         workflow.add_node("write_migration", self.write_agent)
+        workflow.add_node("molecule_testing", self.molecule_agent)
         workflow.add_node("validate_migration", self.validation_agent)
         workflow.add_node("finalize", self._finalize)
 
@@ -99,6 +103,9 @@ class ToAnsibleSubagent:
         )
         workflow.add_conditional_edges(
             "write_migration", self._check_failure_after_agent
+        )
+        workflow.add_conditional_edges(
+            "molecule_testing", self._check_failure_after_agent
         )
         workflow.add_conditional_edges(
             "validate_migration", self._check_failure_after_agent
@@ -121,7 +128,9 @@ class ToAnsibleSubagent:
 
     def _check_failure_after_agent(
         self, state: ExportState
-    ) -> Literal["write_migration", "validate_migration", "finalize"]:
+    ) -> Literal[
+        "write_migration", "molecule_testing", "validate_migration", "finalize"
+    ]:
         """Check if current agent failed, route to next phase or finalize."""
         if state.failed:
             logger.error(
@@ -133,6 +142,11 @@ class ToAnsibleSubagent:
         if state.current_phase == MigrationPhase.PLANNING:
             return "write_migration"
         if state.current_phase in (MigrationPhase.WRITING, "writing"):
+            return "molecule_testing"
+        if state.current_phase in (
+            MigrationPhase.MOLECULE_TESTING,
+            "molecule_testing",
+        ):
             return "validate_migration"
         return "finalize"
 

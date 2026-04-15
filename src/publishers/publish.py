@@ -12,6 +12,8 @@ from src.publishers.tools import (
     generate_ansible_cfg,
     generate_collections_requirements,
     generate_inventory_file,
+    generate_molecule_instructions,
+    generate_molecule_playbook,
     generate_playbook_yaml,
     generate_readme,
     load_collections_file,
@@ -113,6 +115,30 @@ def publish_project(
         role_name=role_name,
     )
 
+    # Generate molecule wrapper playbook if role has molecule tests
+    molecule_dir = Path(destination) / "molecule" / "default"
+    if molecule_dir.is_dir():
+        generate_molecule_playbook(
+            file_path=f"{publish_dir}/playbooks/molecule_{role_name}.yml",
+            role_name=role_name,
+        )
+
+    # Generate molecule instructions (regenerated to list all molecule roles)
+    playbooks_dir = ansible_project_dir / "playbooks"
+    molecule_roles = (
+        sorted(
+            p.stem.removeprefix("molecule_")
+            for p in playbooks_dir.glob("molecule_*.yml")
+        )
+        if playbooks_dir.is_dir()
+        else []
+    )
+    if molecule_roles:
+        generate_molecule_instructions(
+            file_path=f"{publish_dir}/molecule-instructions.md",
+            role_names=molecule_roles,
+        )
+
     # Generate README.md (always regenerated to list all roles)
     roles_dir = ansible_project_dir / "roles"
     role_metadata = []
@@ -153,13 +179,20 @@ def publish_project(
     return str(ansible_project_dir.resolve())
 
 
-def publish_aap(target_repo: str, target_branch: str, project_id: str) -> AAPSyncResult:
+def publish_aap(
+    target_repo: str,
+    target_branch: str,
+    project_id: str,
+    molecule_role_names: list[str] | None = None,
+) -> AAPSyncResult:
     """Connect to AAP Controller and create/update a project pointing to the given repo.
 
     Args:
         target_repo: Git repository URL (e.g., https://github.com/org/repo.git).
         target_branch: Git branch name.
         project_id: Migration project ID, used for AAP project naming and subdirectory reference.
+        molecule_role_names: Role names with molecule tests. When provided, creates
+            run-ready job templates on AAP without needing filesystem access.
 
     Returns:
         AAPSyncResult with sync outcome.
@@ -172,7 +205,10 @@ def publish_aap(target_repo: str, target_branch: str, project_id: str) -> AAPSyn
     )
 
     result = sync_to_aap(
-        repository_url=target_repo, branch=target_branch, project_id=project_id
+        repository_url=target_repo,
+        branch=target_branch,
+        project_id=project_id,
+        molecule_role_names=molecule_role_names,
     )
 
     if not result.enabled:

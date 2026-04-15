@@ -234,6 +234,158 @@ class AAPClient(BaseAAPClient):
             json={},
         )
 
+    def get_project_update(self, *, update_id: int) -> dict[str, Any]:
+        """Get the status of a project update job."""
+        return self._request("GET", f"/project_updates/{update_id}/")
+
+    def upsert_execution_environment(
+        self,
+        *,
+        name: str,
+        image: str,
+        org_id: int,
+        pull: str = "always",
+    ) -> dict[str, Any]:
+        """Create or update an Execution Environment on AAP.
+
+        Args:
+            name: EE display name
+            image: Container image URL (e.g., quay.io/org/ee:latest)
+            org_id: Organization ID
+            pull: Image pull policy (always, missing, never)
+
+        Returns:
+            EE resource dict from AAP API
+        """
+        # Search by name only — EE may exist with organization=null
+        data = self._request(
+            "GET",
+            "/execution_environments/",
+            params={"name": name},
+        )
+        results = data.get("results", [])
+
+        if not results:
+            return self._request(
+                "POST",
+                "/execution_environments/",
+                json={
+                    "name": name,
+                    "image": image,
+                    "organization": org_id,
+                    "pull": pull,
+                },
+            )
+
+        ee_id = int(results[0]["id"])
+        if results[0].get("image") != image:
+            return self._request(
+                "PATCH",
+                f"/execution_environments/{ee_id}/",
+                json={"image": image, "pull": pull},
+            )
+        return results[0]
+
+    def find_or_create_inventory(
+        self,
+        *,
+        org_id: int,
+        name: str = "Molecule Local",
+    ) -> dict[str, Any]:
+        """Find an existing inventory or create a localhost one.
+
+        Args:
+            org_id: Organization ID
+            name: Inventory name to search for / create
+
+        Returns:
+            Inventory resource dict from AAP API
+        """
+        data = self._request(
+            "GET",
+            "/inventories/",
+            params={"name": name, "organization": org_id},
+        )
+        results = data.get("results", [])
+        if results:
+            return results[0]
+
+        # Create inventory
+        inventory = self._request(
+            "POST",
+            "/inventories/",
+            json={"name": name, "organization": org_id},
+        )
+        inventory_id = int(inventory["id"])
+
+        # Add localhost host with local connection
+        self._request(
+            "POST",
+            f"/inventories/{inventory_id}/hosts/",
+            json={
+                "name": "localhost",
+                "variables": '{"ansible_connection": "local"}',
+            },
+        )
+        logger.info(f"Created inventory '{name}' (id={inventory_id}) with localhost")
+        return inventory
+
+    def upsert_job_template(
+        self,
+        *,
+        org_id: int,
+        name: str,
+        project_id: int,
+        playbook: str,
+        execution_environment_id: int | None = None,
+        inventory_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Create or update a Job Template on AAP.
+
+        Args:
+            org_id: Organization ID
+            name: Job template name
+            project_id: AAP project ID
+            playbook: Playbook path relative to project root
+            execution_environment_id: EE to use (optional)
+            inventory_id: Inventory to assign (optional). When set,
+                ask_inventory_on_launch is disabled for one-click launch.
+
+        Returns:
+            Job template resource dict from AAP API
+        """
+        data = self._request(
+            "GET",
+            "/job_templates/",
+            params={"name": name, "organization": org_id},
+        )
+        results = data.get("results", [])
+
+        payload: dict[str, Any] = {
+            "name": name,
+            "project": project_id,
+            "playbook": playbook,
+        }
+        if inventory_id:
+            payload["inventory"] = inventory_id
+            payload["ask_inventory_on_launch"] = False
+        else:
+            payload["ask_inventory_on_launch"] = True
+
+        if execution_environment_id:
+            payload["execution_environment"] = execution_environment_id
+
+        if not results:
+            payload["organization"] = org_id
+            return self._request("POST", "/job_templates/", json=payload)
+
+        template_id = int(results[0]["id"])
+        return self._request(
+            "PATCH",
+            f"/job_templates/{template_id}/",
+            json=payload,
+        )
+
 
 def infer_aap_project_name(repository_url: str) -> str:
     """Infer a stable AAP project name from a git clone URL."""

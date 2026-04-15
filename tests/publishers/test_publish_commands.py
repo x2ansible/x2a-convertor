@@ -149,4 +149,5 @@ class TestPublishAAP:
             repository_url="https://github.com/org/repo.git",
             branch="main",
             project_id="proj-1",
+            molecule_role_names=None,
         )

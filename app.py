@@ -241,8 +241,14 @@ def publish_project_cmd(
     required=True,
     help="Migration project ID, used for AAP project naming and subdirectory reference.",
 )
+@click.option(
+    "--molecule-roles",
+    multiple=True,
+    required=False,
+    help="Role names that have molecule tests (repeatable). Used to create run-ready job templates on AAP.",
+)
 @handle_exceptions
-def publish_aap_cmd(target_repo, target_branch, project_id) -> None:
+def publish_aap_cmd(target_repo, target_branch, project_id, molecule_roles) -> None:
     """Sync a git repository to Ansible Automation Platform.
 
     Creates or updates an AAP Project pointing to the given repository URL
@@ -252,7 +258,10 @@ def publish_aap_cmd(target_repo, target_branch, project_id) -> None:
     (AAP_CONTROLLER_URL, AAP_ORG_NAME, and authentication credentials).
     """
     result = publish_aap(
-        target_repo=target_repo, target_branch=target_branch, project_id=project_id
+        target_repo=target_repo,
+        target_branch=target_branch,
+        project_id=project_id,
+        molecule_role_names=list(molecule_roles) if molecule_roles else None,
     )
     click.echo(f"\nAAP project synced: {result.project_name} (ID: {result.project_id})")
 

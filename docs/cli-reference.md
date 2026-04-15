@@ -189,6 +189,9 @@ uv run app.py publish-aap [OPTIONS]
 - `--project-id` **[required]** (default: Sentinel.UNSET)
   Migration project ID, used for AAP project naming and subdirectory reference.
 
+- `--molecule-roles` (default: Sentinel.UNSET)
+  Role names that have molecule tests (repeatable). Used to create run-ready job templates on AAP.
+
 ### Full Help
 
 ```
@@ -203,12 +206,14 @@ Usage: publish-aap [OPTIONS]
   AAP_ORG_NAME, and authentication credentials).
 
 Options:
-  --target-repo TEXT    Git repository URL for the AAP project (e.g.,
-                        https://github.com/org/repo.git).  [required]
-  --target-branch TEXT  Git branch for the AAP project.  [required]
-  --project-id TEXT     Migration project ID, used for AAP project naming and
-                        subdirectory reference.  [required]
-  --help                Show this message and exit.
+  --target-repo TEXT     Git repository URL for the AAP project (e.g.,
+                         https://github.com/org/repo.git).  [required]
+  --target-branch TEXT   Git branch for the AAP project.  [required]
+  --project-id TEXT      Migration project ID, used for AAP project naming and
+                         subdirectory reference.  [required]
+  --molecule-roles TEXT  Role names that have molecule tests (repeatable).
+                         Used to create run-ready job templates on AAP.
+  --help                 Show this message and exit.
 ```
 
 ## publish-project

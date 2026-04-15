@@ -1,0 +1,26 @@
+---
+driver:
+  name: default
+
+platforms:
+  - name: molecule-test-instance
+    groups:
+      - all
+
+provisioner:
+  name: ansible
+  env:
+    KUBECONFIG: ${KUBECONFIG:-~/.kube/aap/config}
+  inventory:
+    hosts:
+      all:
+        hosts:
+          molecule-test-instance:
+            ansible_connection: kubectl
+            ansible_kubectl_namespace: eloytest
+            ansible_kubectl_pod: molecule-test-pod
+            ansible_kubectl_container: test-container
+            ansible_python_interpreter: /usr/bin/python3
+
+verifier:
+  name: ansible

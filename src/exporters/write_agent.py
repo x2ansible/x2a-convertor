@@ -264,7 +264,7 @@ class WriteAgent(BaseAgent[ExportState]):
         slog.info("Checking file creation status")
 
         missing_files = []
-        for item in export_state.checklist.items:
+        for item in export_state.checklist.items_by_category(exclude={"molecule"}):
             if not item.target_exists():
                 missing_files.append(item.target_path)
                 export_state.checklist.update_task(
@@ -365,7 +365,10 @@ class WriteAgent(BaseAgent[ExportState]):
         assert state.checklist is not None, (
             "Checklist must exist before write agent execution"
         )
-        if all(item.target_exists() for item in state.checklist.items):
+        if all(
+            item.target_exists()
+            for item in state.checklist.items_by_category(exclude={"molecule"})
+        ):
             self._log.info("All files already created, skipping write agent")
             self._current_metrics = None
             return state

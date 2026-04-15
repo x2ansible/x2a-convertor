@@ -1,0 +1,30 @@
+# Context
+
+**Module:** {{ module }}
+**Ansible Output:** {{ ansible_path }}
+
+## Migration Plans
+
+A high-level migration plan describing all modules in the repository is available at: {{ high_level_migration_plan.path }}
+(Read this file if you need context about how this module relates to other modules in the migration)
+
+**Module Plan:**
+<migration_plan>
+{{ migration_plan }}
+</migration_plan>
+
+## Task
+
+Generate molecule test files for role "{{ module }}" at {{ ansible_path }}.
+
+The static files (molecule.yml, create.yml, destroy.yml) are already created under
+{{ ansible_path }}/molecule/default/. You need to create:
+
+1. {{ ansible_path }}/molecule/default/converge.yml — recreate expected filesystem state under /tmp/molecule_test/
+2. {{ ansible_path }}/molecule/default/verify.yml — verify the role's expected outcomes
+
+## Checklist
+
+<checklist>
+{{ checklist }}
+</checklist>

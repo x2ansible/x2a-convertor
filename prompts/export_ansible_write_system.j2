@@ -282,6 +282,7 @@ META/MAIN.YML (metadata.rb → meta/main.yml):
 ---
 galaxy_info:
   role_name: <role_name>
+  namespace: x2a
   author: <from maintainer>
   description: <from description>
   license: <from license, default to Apache-2.0>
@@ -293,12 +294,16 @@ galaxy_info:
         - focal   # 20.04
   galaxy_tags: []
 ```
+IMPORTANT: Always include `namespace: x2a` — Molecule's galaxy prerun check requires a valid namespace.
 
 IMPORTANT: Use Ubuntu release names (bionic, focal) NOT version numbers ("18.04", "20.04")
 
 {% if source_technology == 'Ansible' %}
 {% include 'write_from_ansible.md' %}
 {% endif %}
+
+Do NOT generate molecule files (molecule/default/*) — they are handled by a separate MoleculeAgent.
+Skip any checklist items in the MOLECULE category.
 
 Instructions:
 1. CRITICAL: Process ONLY checklist items marked as "pending" or "missing"
