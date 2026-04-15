@@ -71,6 +71,24 @@ The cookbook performs operations in this order:
 **System package dependencies**: [list]
 **Service dependencies**: [list]
 
+## Credentials
+
+**Detection Summary**: [N credentials detected across M files]
+
+**Source**:
+  - **Provider**: [provider name or "None detected"]
+  - **URL**: [if applicable]
+  - **Path**: [if applicable]
+
+### [Credential Purpose - e.g., "Database Password"]
+- **Variable(s)**: [names]
+- **Source file(s)**: [paths]
+- **Current storage**: [method]
+- **Usage context**: [description]
+
+**If no credentials detected:**
+No credentials or secrets were detected in this cookbook. All configuration values appear to be non-sensitive.
+
 ## Checks for the Migration
 
 **Files to verify**: [list ALL files]
@@ -106,4 +124,6 @@ Respond with ONLY the cleaned, final migration plan. No explanations, no preambl
 - All recipes mentioned in correct order
 - All .each loops expanded with actual item names
 - Pre-flight checks for every instance individually
+- Credentials section preserved with all detected secrets documented
+- Source provider information retained
 - Proper template formatting throughout

@@ -109,7 +109,12 @@ Analyze the source repository to determine target environment specifications:
 [Identify security configurations that need special attention]
 - Security practice 1: Migration approach
 - Security practice 2: Migration approach
-- Vault/secrets management: Migration strategy
+- Vault/secrets management: For each module, identify credential patterns:
+  - Chef encrypted data bags, Chef Vault usage, vault attributes
+  - Hardcoded credentials in attributes or templates
+  - SSL/TLS certificate references
+  - Environment variable secrets
+  - Document the count and type of credentials detected per module
 
 ### Technical Challenges
 [Identify potential roadblocks and complex migrations]
