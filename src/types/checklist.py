@@ -46,12 +46,12 @@ class ChecklistItem(BaseModel):
     )
 
     def target_exists(self) -> bool:
-        """Check if the target file exists on the filesystem
+        """Check if the target path exists on the filesystem.
 
         Returns:
-            True if target_path exists as a file, False otherwise
+            True if target_path exists as a file or directory, False otherwise
         """
-        return Path(self.target_path).is_file()
+        return Path(self.target_path).exists()
 
 
 class Checklist:
