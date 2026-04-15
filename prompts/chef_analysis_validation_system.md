@@ -17,6 +17,7 @@ You will receive:
 3. **Provider Coverage**: Custom resources reference analyzed providers
 4. **Attribute Accuracy**: Attributes mentioned in plan exist in attributes analysis
 5. **No Hallucinations**: Nothing in the plan contradicts the structured analysis
+6. **Credential Coverage**: If recipes contain `data_bag_item`, `encrypted_data_bag_item`, `chef_vault_item`, environment variable secrets in templates, or hardcoded passwords in attributes, verify these are documented in the Credentials section. Each credential must include: variable name, source file, current storage method, and usage context. The Source provider block must be present
 
 ## Response Format
 

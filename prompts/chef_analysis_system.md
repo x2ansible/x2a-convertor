@@ -38,6 +38,18 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
    - Note variables and how many times each template renders
    - Check for static files being deployed
 
+6. **Detect credentials and secrets:**
+   - Look for `data_bag_item` and `encrypted_data_bag_item` calls in recipes
+   - Check for Chef Vault usage: `chef_vault_item`, `ChefVault::Item`
+   - Check for CyberArk integration: `conjur_variable`, `cyberark` data bags, Conjur cookbook usage
+   - Identify vault attribute patterns: `node['vault']`, `node['secrets']`
+   - Find environment variables in .erb templates referencing secrets: `ENV['PASSWORD']`, `ENV['API_KEY']`
+   - Look for hardcoded passwords, tokens, or API keys in attribute files
+   - Check for SSL/TLS certificate references: paths to .pem, .key, .crt files
+   - Identify database connection strings with embedded credentials
+   - Note `secrets` or `credentials` related attribute namespaces
+   - For EACH detected credential, record: variable name, source file, and how it is used (data bag, vault, hardcoded, environment variable)
+
 **USING STRUCTURED ANALYSIS DATA:**
 
 You will receive detailed structured analysis showing:
@@ -308,6 +320,30 @@ The cookbook performs operations in this order:
 **System package dependencies**: [packages installed: postgresql, redis-server, nginx, etc]
 **Service dependencies**: [systemd services managed]
 
+## Credentials
+
+[Document ALL credentials, secrets, and sensitive data detected in the cookbook.
+This section guides the Solutions Architect on configuring credentials in AAP.]
+
+**Detection Summary**: [N credentials detected across M files]
+
+**Source**:
+  - **Provider**: [HashiCorp Vault / CyberArk / AWS Secrets Manager / Internal / Hardcoded / None detected]
+  - **URL**: [vault address or secret manager endpoint, if detected]
+  - **Path**: [secret path or data bag name, if detected]
+
+### [Credential Purpose - e.g., "Database Password"]
+
+- **Variable(s)**: [variable names as used in source, e.g., `node['postgresql']['password']`]
+- **Source file(s)**: [paths where credential is referenced]
+- **Current storage**: [encrypted_data_bag / data_bag / chef_vault / environment_variable / hardcoded / attribute]
+- **Usage context**: [what this credential is used for: DB connection, API auth, SSH key, TLS cert, etc.]
+
+[Repeat for each detected credential]
+
+**If no credentials detected:**
+No credentials or secrets were detected in this cookbook. All configuration values appear to be non-sensitive.
+
 ## Checks for the Migration
 
 **Files to verify**:
@@ -518,6 +554,9 @@ tail -f /var/log/*.log  # WRONG - which specific log file?
 - Pre-flight checks for EVERY site/instance individually
 - Actual package names that exist (nginx, fail2ban, openssl - NOT "sysctl")
 - Port numbers for each service instance
+- Credentials section present with all detected secrets listed explicitly
+- Each credential includes: variable name, source file, current storage method, and usage context
+- Source provider documented (HashiCorp Vault / CyberArk / AWS Secrets Manager / Internal / Hardcoded / None detected)
 
 If you write "for each site" or "for each instance", you FAILED.
 If you skip any recipe file, you FAILED.
