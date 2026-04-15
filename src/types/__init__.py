@@ -20,6 +20,7 @@ from .checklist import (
     ChecklistItem,
     ChecklistStatus,
 )
+from .credential import CredentialConfig
 from .document import DocumentFile
 from .metadata import MetadataCollection, ModuleMetadata
 from .migration_state import MigrationStateInterface
@@ -35,6 +36,7 @@ __all__ = [
     "Checklist",
     "ChecklistItem",
     "ChecklistStatus",
+    "CredentialConfig",
     "DocumentFile",
     "MetadataCollection",
     "MigrationStateInterface",

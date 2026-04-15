@@ -227,6 +227,7 @@ class WriteAgent(BaseAgent[ExportState]):
             if export_state.checklist
             else "",
             aap_discovery=export_state.aap_discovery,
+            credential_config=export_state.credential_config,
         )
 
         result = self.invoke_react(

@@ -11,6 +11,7 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 
 from src.exporters.aap_discovery_agent import AAPDiscoveryAgent
+from src.exporters.credential_agent import CredentialAgent
 from src.exporters.molecule_agent import MoleculeAgent
 from src.exporters.planning_agent import PlanningAgent
 from src.exporters.state import ExportState
@@ -62,6 +63,7 @@ class ToAnsibleSubagent:
         self.module = module
 
         self.discovery_agent = AAPDiscoveryAgent(model=self.model)
+        self.credential_agent = CredentialAgent(model=self.model)
         self.planning_agent = PlanningAgent(model=self.model)
         self.write_agent = WriteAgent(model=self.model)
         self.molecule_agent = MoleculeAgent(model=self.model)
@@ -88,6 +90,7 @@ class ToAnsibleSubagent:
         workflow = StateGraph(ExportState)
         workflow.add_node("initialize", self._initialize)
         workflow.add_node("discover_collections", self.discovery_agent)
+        workflow.add_node("extract_credentials", self.credential_agent)
         workflow.add_node("plan_migration", self.planning_agent)
         workflow.add_node("write_migration", self.write_agent)
         workflow.add_node("molecule_testing", self.molecule_agent)
@@ -96,7 +99,8 @@ class ToAnsibleSubagent:
 
         workflow.add_edge(START, "initialize")
         workflow.add_edge("initialize", "discover_collections")
-        workflow.add_edge("discover_collections", "plan_migration")
+        workflow.add_edge("discover_collections", "extract_credentials")
+        workflow.add_edge("extract_credentials", "plan_migration")
 
         workflow.add_conditional_edges(
             "plan_migration", self._check_failure_after_agent
@@ -270,6 +274,7 @@ class ToAnsibleSubagent:
             last_output="",
             checklist=None,
             aap_discovery=None,
+            credential_config=None,
             source_technology=source_technology or Technology.CHEF,
             failed=False,
             failure_reason="",
