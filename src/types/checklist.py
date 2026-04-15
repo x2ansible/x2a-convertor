@@ -104,6 +104,13 @@ class Checklist:
         Raises:
             ValueError: If category is not valid for the injected enum
         """
+        # Reject glob patterns -- each entry must reference a concrete file
+        glob_chars = ("*", "?", "[")
+        if any(c in target_path for c in glob_chars):
+            raise ValueError(
+                f"target_path must be a concrete file path, not a glob pattern: '{target_path}'"
+            )
+
         # Check if task already exists
         existing_item = self.find_task(source_path, target_path)
         if existing_item:
@@ -456,10 +463,14 @@ class Checklist:
         ) -> str:
             """Add a new task to the migration checklist.
 
+            Each entry must reference ONE specific file. Never use glob patterns
+            (*, ?, []) in paths. If a directory contains multiple files, add a
+            separate task for each file.
+
             Args:
                 category: Category of the task (e.g., 'templates', 'recipes', 'attributes')
                 source_path: Source file path in Chef
-                target_path: Target file path in Ansible
+                target_path: Target file path in Ansible (must be a concrete path, no globs)
                 description: Optional description of the task
                 status: Task status (pending, complete, missing, error)
                 notes: Optional notes about the task
