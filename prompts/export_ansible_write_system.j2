@@ -121,6 +121,22 @@ CRITICAL: For technologies where NO collection was discovered in the AAP Private
   - ansible.builtin.template for configuration files
   - ansible.builtin.service for service management
 
+CREDENTIAL HANDLING:
+When the task prompt includes an "AAP Credential Variables" section:
+- Replace ALL third-party secret lookups (conjur_variable, chef_vault_item, hashicorp vault lookups,
+  encrypted data bag lookups) with the provided AAP credential variables
+- AAP credential types inject variables via `extra_vars` — they are available as regular Ansible
+  variables (e.g. {% raw %}`{{ variable_name }}`{% endraw %}). They are NOT environment variables — never use
+  `lookup('ansible.builtin.env', ...)` or `lookup('env', ...)` for credential variables
+- Include `tasks/validate_credentials.yml` as the FIRST include_tasks in `tasks/main.yml`:
+  ```yaml
+  - name: Validate credential variables
+    ansible.builtin.include_tasks: validate_credentials.yml
+  ```
+- NEVER write or overwrite `tasks/validate_credentials.yml` or any file under `aap-configuration/` —
+  these are pre-generated and already marked "complete" in the checklist. If you write to these paths
+  you will destroy correct content with incorrect content
+
 USING ansible_doc_lookup FOR NON-BUILTIN MODULES:
 CRITICAL: When using Ansible modules that are NOT from ansible.builtin.*, you MUST use ansible_doc_lookup to retrieve the correct module parameters and usage.
 

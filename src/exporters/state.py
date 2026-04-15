@@ -12,6 +12,7 @@ from src.types import (
     AnsibleModule,
     BaseState,
     Checklist,
+    CredentialConfig,
     DocumentFile,
     MigrationStateInterface,
 )
@@ -53,6 +54,7 @@ class ExportState(BaseState, MigrationStateInterface):
         last_output: Last output from the workflow
         checklist: Migration checklist tracking file transformations
         aap_discovery: Result of AAP collection discovery for deduplication
+        credential_config: Extracted credential configuration for AAP
     """
 
     # Fields inherited from BaseState:
@@ -74,6 +76,7 @@ class ExportState(BaseState, MigrationStateInterface):
     last_output: str = field(kw_only=True)
     checklist: Checklist | None = field(default=None, kw_only=True)
     aap_discovery: AAPDiscoveryResult | None = field(default=None, kw_only=True)
+    credential_config: CredentialConfig | None = field(default=None, kw_only=True)
     source_technology: Technology = field(default=Technology.CHEF, kw_only=True)
 
     def get_ansible_path(self) -> str:

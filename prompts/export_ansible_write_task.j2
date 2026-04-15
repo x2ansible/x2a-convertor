@@ -38,6 +38,24 @@ Write this content to `{{ ansible_path }}/requirements.yml` using ansible_write.
 {% endif %}
 {% endif %}
 
+{% if credential_config and credential_config.has_credentials %}
+## AAP Credential Variables (USE THESE!)
+
+The following credential variables are injected by AAP credential types at runtime.
+Use these variables directly in your tasks instead of any third-party secret lookups.
+
+**Available variables:**
+{% for var in credential_config.variable_names %}
+- `{{ '{{' }} {{ var }} {{ '}}' }}`
+{% endfor %}
+
+**CRITICAL RULES:**
+1. Replace ALL third-party secret lookups (CyberArk Conjur, HashiCorp Vault, Chef Vault, encrypted data bags) with the AAP credential variables listed above
+2. Reference these variables directly using standard Jinja2 syntax: `{{ '{{' }} variable_name {{ '}}' }}`
+3. Include `tasks/validate_credentials.yml` as the FIRST include in `tasks/main.yml`
+4. Do NOT recreate `aap-configuration/` files or `tasks/validate_credentials.yml` - they are pre-generated
+{% endif %}
+
 ## Current Checklist
 
 <checklist>
