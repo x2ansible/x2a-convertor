@@ -55,7 +55,8 @@ Format:
 
 ## How to generate verify.yml
 
-Use the **pre-flight checks** from the migration plan as your primary source. Each bash
+The **module migration plan** (provided in the task prompt inside `<migration_plan>` tags) is your
+source of truth. Read the `## Pre-flight checks` section from the migration plan — each bash
 check should become an Ansible verification task.
 
 Translation guide — bash pre-flight commands → Ansible modules:
@@ -106,9 +107,10 @@ Use the stat → assert → slurp → assert pattern for file verification:
 
 ## Instructions
 
-1. Read the role's tasks to understand what filesystem state it creates
-2. Read the pre-flight checks from the task prompt to understand what to verify
-3. Generate converge.yml that recreates the expected filesystem state under /tmp/molecule_test/
-4. Generate verify.yml that translates pre-flight checks into Ansible assertions
-5. Use write_file (NOT ansible_write) for all molecule YAML files — they are playbooks, not task files
-6. Mark each completed file in the checklist using update_checklist_task
+1. Read the **module migration plan** (in `<migration_plan>` tags) — this is your source of truth for what the role does and what tests to generate
+2. Read the role's tasks to understand what filesystem state it creates
+3. Read the **pre-flight checks** section from the migration plan to understand what to verify
+4. Generate converge.yml that recreates the expected filesystem state under /tmp/molecule_test/
+5. Generate verify.yml that translates pre-flight checks into Ansible assertions
+6. Use write_file (NOT ansible_write) for all molecule YAML files — they are playbooks, not task files
+7. Mark each completed file in the checklist using update_checklist_task
