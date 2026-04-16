@@ -7,6 +7,7 @@ from migration plans and generating AAP-style credential configuration files
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import yaml
@@ -208,8 +209,6 @@ def _inject_unsafe_tags(content: str) -> str:
     placeholder string and post-process. yaml.dump outputs the values
     unquoted, so we match without surrounding quotes.
     """
-    import re
-
     return re.sub(
         r"UNSAFE_PLACEHOLDER \{\{(\w+)\}\}",
         r"!unsafe '{{ \1 }}'",
