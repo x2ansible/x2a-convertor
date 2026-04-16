@@ -172,14 +172,7 @@ class ToAnsibleSubagent:
         assert state.checklist is not None, (
             "Checklist must be initialized before finalize"
         )
-        checklist = state.checklist
-        stats = checklist.get_stats()
-
-        summary_lines = (
-            self._build_failure_summary(state, stats, checklist)
-            if state.failed
-            else self._build_success_summary(state, stats, checklist)
-        )
+        stats = state.checklist.get_stats()
 
         if state.failed:
             slog.error(f"Migration failed: {state.failure_reason}")
@@ -194,64 +187,12 @@ class ToAnsibleSubagent:
                 f"Migration finalized: {stats['complete']}/{stats['total']} completed"
             )
 
-        if state.telemetry:
-            summary_lines.extend(["", "Telemetry:", state.telemetry.to_summary()])
-
-        summary_text = "\n".join(summary_lines)
+        summary_text = state.report_status()
 
         if state.telemetry:
             state.telemetry.stop().with_summary(summary_text).save()
 
         return state.update(last_output=summary_text)
-
-    def _build_failure_summary(
-        self, state: ExportState, stats: dict, checklist: Checklist
-    ) -> list[str]:
-        """Build summary lines for a failed migration."""
-        lines = [
-            f"MIGRATION FAILED for {state.module}",
-            "",
-            "Failure Reason:",
-            f"  {state.failure_reason}",
-            "",
-            "Migration Summary:",
-            f"  Total items: {stats['total']}",
-            f"  Completed: {stats['complete']}",
-            f"  Pending: {stats['pending']}",
-            f"  Missing: {stats['missing']}",
-            f"  Errors: {stats['error']}",
-            f"  Write attempts: {state.write_attempt_counter}",
-            f"  Validation attempts: {state.validation_attempt_counter}",
-            "",
-            "Partial Validation Report:",
-            state.validation_report or "Not run",
-        ]
-        if state.review_report:
-            lines.extend(["", "Review Report:", state.review_report])
-        lines.extend(["", "Partial Checklist:", checklist.to_markdown()])
-        return lines
-
-    def _build_success_summary(
-        self, state: ExportState, stats: dict, checklist: Checklist
-    ) -> list[str]:
-        """Build summary lines for a successful migration."""
-        lines = [
-            f"Migration Summary for {state.module}:",
-            f"  Total items: {stats['total']}",
-            f"  Completed: {stats['complete']}",
-            f"  Pending: {stats['pending']}",
-            f"  Missing: {stats['missing']}",
-            f"  Errors: {stats['error']}",
-            f"  Write attempts: {state.write_attempt_counter}",
-            f"  Validation attempts: {state.validation_attempt_counter}",
-            "",
-            "Final Validation Report:",
-            state.validation_report,
-        ]
-        if state.review_report:
-            lines.extend(["", "Review Report:", state.review_report])
-        lines.extend(["", "Final checklist:", checklist.to_markdown()])
-        return lines
 
     def invoke(
         self,
