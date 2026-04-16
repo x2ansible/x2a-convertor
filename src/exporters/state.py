@@ -145,3 +145,67 @@ class ExportState(BaseState, MigrationStateInterface):
             Migration output string (success or failure summary)
         """
         return self.last_output
+
+    def report_status(self) -> str:
+        """Build the full human-readable migration report."""
+        assert self.checklist is not None, (
+            "Checklist must be initialized before reporting"
+        )
+        checklist = self.checklist
+        stats = checklist.get_stats()
+
+        lines = (
+            self._failure_report(stats, checklist)
+            if self.failed
+            else self._success_report(stats, checklist)
+        )
+
+        if self.telemetry:
+            lines.extend(["", "Telemetry:", self.telemetry.to_summary()])
+
+        return "\n".join(lines)
+
+    def _failure_report(self, stats: dict, checklist: Checklist) -> list[str]:
+        """Build summary lines for a failed migration."""
+        lines = [
+            f"MIGRATION FAILED for {self.module}",
+            "",
+            "Failure Reason:",
+            f"  {self.failure_reason}",
+            "",
+            "Migration Summary:",
+            f"  Total items: {stats['total']}",
+            f"  Completed: {stats['complete']}",
+            f"  Pending: {stats['pending']}",
+            f"  Missing: {stats['missing']}",
+            f"  Errors: {stats['error']}",
+            f"  Write attempts: {self.write_attempt_counter}",
+            f"  Validation attempts: {self.validation_attempt_counter}",
+            "",
+            "Partial Validation Report:",
+            self.validation_report or "Not run",
+        ]
+        if self.review_report:
+            lines.extend(["", "Review Report:", self.review_report])
+        lines.extend(["", "Partial Checklist:", checklist.to_markdown()])
+        return lines
+
+    def _success_report(self, stats: dict, checklist: Checklist) -> list[str]:
+        """Build summary lines for a successful migration."""
+        lines = [
+            f"Migration Summary for {self.module}:",
+            f"  Total items: {stats['total']}",
+            f"  Completed: {stats['complete']}",
+            f"  Pending: {stats['pending']}",
+            f"  Missing: {stats['missing']}",
+            f"  Errors: {stats['error']}",
+            f"  Write attempts: {self.write_attempt_counter}",
+            f"  Validation attempts: {self.validation_attempt_counter}",
+            "",
+            "Final Validation Report:",
+            self.validation_report,
+        ]
+        if self.review_report:
+            lines.extend(["", "Review Report:", self.review_report])
+        lines.extend(["", "Final checklist:", checklist.to_markdown()])
+        return lines
