@@ -22,5 +22,11 @@ Ansible role path: {{ ansible_path }}
    - Missing package dependencies (config files for packages not installed in the role)
    - Idempotency failures (commands without creates/removes guards)
    - Ordering issues (config before package install, service start before config)
-6. Fix each issue you find by rewriting the affected file with minimal changes
-7. Produce a review summary report
+6. Read `{{ ansible_path }}/molecule/default/converge.yml` and `{{ ansible_path }}/molecule/default/verify.yml` if they exist, and check for:
+   - `become: true` usage (not allowed in molecule container)
+   - `include_role` in converge.yml (role tasks fail in container)
+   - File paths not using `/tmp/molecule_test/` prefix
+   - Missing `tags: molecule-notest` on service/port/HTTP/DB checks
+   - `prepare.yml` existence (should not exist)
+7. Fix each issue you find by rewriting the affected file with minimal changes. Use `write_file` for molecule files, `ansible_write` for role files.
+8. Produce a review summary report

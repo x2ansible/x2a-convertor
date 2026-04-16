@@ -53,6 +53,7 @@ class ReviewAgent(BaseAgent[ExportState]):
         report is stored in validation_report for downstream visibility.
         """
         self._log.info("Reviewing generated role for semantic correctness")
+        state = state.update(current_phase="reviewing")
 
         ansible_path = state.get_ansible_path()
 

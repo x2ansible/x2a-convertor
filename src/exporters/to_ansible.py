@@ -14,6 +14,7 @@ from src.exporters.aap_discovery_agent import AAPDiscoveryAgent
 from src.exporters.credential_agent import CredentialAgent
 from src.exporters.molecule_agent import MoleculeAgent
 from src.exporters.planning_agent import PlanningAgent
+from src.exporters.review_agent import ReviewAgent
 from src.exporters.state import ExportState
 from src.exporters.types import MigrationCategory
 from src.exporters.validation_agent import ValidationAgent
@@ -38,6 +39,7 @@ class MigrationPhase(str, Enum):
     PLANNING = "planning"
     WRITING = "writing"
     MOLECULE_TESTING = "molecule_testing"
+    REVIEWING = "reviewing"
     VALIDATING = "validating"
     COMPLETE = "complete"
     FAILED = "failed"
@@ -67,6 +69,7 @@ class ToAnsibleSubagent:
         self.planning_agent = PlanningAgent(model=self.model)
         self.write_agent = WriteAgent(model=self.model)
         self.molecule_agent = MoleculeAgent(model=self.model)
+        self.review_agent = ReviewAgent(model=self.model)
         self.validation_agent = ValidationAgent(model=self.model)
 
         self._workflow = self._create_workflow()
@@ -94,6 +97,7 @@ class ToAnsibleSubagent:
         workflow.add_node("plan_migration", self.planning_agent)
         workflow.add_node("write_migration", self.write_agent)
         workflow.add_node("molecule_testing", self.molecule_agent)
+        workflow.add_node("review_role", self.review_agent)
         workflow.add_node("validate_migration", self.validation_agent)
         workflow.add_node("finalize", self._finalize)
 
@@ -111,6 +115,7 @@ class ToAnsibleSubagent:
         workflow.add_conditional_edges(
             "molecule_testing", self._check_failure_after_agent
         )
+        workflow.add_conditional_edges("review_role", self._check_failure_after_agent)
         workflow.add_conditional_edges(
             "validate_migration", self._check_failure_after_agent
         )
@@ -133,7 +138,11 @@ class ToAnsibleSubagent:
     def _check_failure_after_agent(
         self, state: ExportState
     ) -> Literal[
-        "write_migration", "molecule_testing", "validate_migration", "finalize"
+        "write_migration",
+        "molecule_testing",
+        "review_role",
+        "validate_migration",
+        "finalize",
     ]:
         """Check if current agent failed, route to next phase or finalize."""
         if state.failed:
@@ -151,6 +160,8 @@ class ToAnsibleSubagent:
             MigrationPhase.MOLECULE_TESTING,
             "molecule_testing",
         ):
+            return "review_role"
+        if state.current_phase in (MigrationPhase.REVIEWING, "reviewing"):
             return "validate_migration"
         return "finalize"
 
@@ -197,7 +208,7 @@ class ToAnsibleSubagent:
         self, state: ExportState, stats: dict, checklist: Checklist
     ) -> list[str]:
         """Build summary lines for a failed migration."""
-        return [
+        lines = [
             f"MIGRATION FAILED for {state.module}",
             "",
             "Failure Reason:",
@@ -214,16 +225,17 @@ class ToAnsibleSubagent:
             "",
             "Partial Validation Report:",
             state.validation_report or "Not run",
-            "",
-            "Partial Checklist:",
-            checklist.to_markdown(),
         ]
+        if state.review_report:
+            lines.extend(["", "Review Report:", state.review_report])
+        lines.extend(["", "Partial Checklist:", checklist.to_markdown()])
+        return lines
 
     def _build_success_summary(
         self, state: ExportState, stats: dict, checklist: Checklist
     ) -> list[str]:
         """Build summary lines for a successful migration."""
-        return [
+        lines = [
             f"Migration Summary for {state.module}:",
             f"  Total items: {stats['total']}",
             f"  Completed: {stats['complete']}",
@@ -235,10 +247,11 @@ class ToAnsibleSubagent:
             "",
             "Final Validation Report:",
             state.validation_report,
-            "",
-            "Final checklist:",
-            checklist.to_markdown(),
         ]
+        if state.review_report:
+            lines.extend(["", "Review Report:", state.review_report])
+        lines.extend(["", "Final checklist:", checklist.to_markdown()])
+        return lines
 
     def invoke(
         self,
