@@ -7,6 +7,7 @@ import yaml
 from src.publishers.tools import (
     AAPSyncResult,
     _collect_role_metadata,
+    copy_aap_configuration,
     copy_role_directory,
     create_directory_structure,
     generate_ansible_cfg,
@@ -75,7 +76,13 @@ def publish_project(
         # Create directory structure
         create_directory_structure(
             base_path=publish_dir,
-            structure=["collections", "inventory", "roles", "playbooks"],
+            structure=[
+                "aap-configuration",
+                "collections",
+                "inventory",
+                "roles",
+                "playbooks",
+            ],
         )
 
         # Generate ansible.cfg
@@ -106,6 +113,12 @@ def publish_project(
     logger.info(f"Copying role {role_name} from {source_role_path}")
     copy_role_directory(
         source_role_path=str(source_role_path), destination_path=destination
+    )
+
+    # Copy aap-configuration to top-level project directory
+    copy_aap_configuration(
+        source_role_path=str(source_role_path),
+        destination_path=f"{publish_dir}/aap-configuration/{role_name}",
     )
 
     # Generate wrapper playbook

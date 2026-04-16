@@ -327,6 +327,42 @@ def copy_role_directory(source_role_path: str, destination_path: str) -> None:
         raise OSError(error_msg) from e
 
 
+def copy_aap_configuration(source_role_path: str, destination_path: str) -> None:
+    """Copy AAP configuration from a role to a top-level project directory.
+
+    Copies {source_role_path}/aap-configuration/ to {destination_path}/,
+    merging into any existing content. No-op if the source directory
+    does not exist.
+
+    Args:
+        source_role_path: Source role directory path containing aap-configuration/
+        destination_path: Destination path (e.g., ansible-project/aap-configuration/{role})
+
+    Raises:
+        OSError: If copy operation fails
+    """
+    source = Path(source_role_path) / "aap-configuration"
+    if not source.is_dir():
+        logger.debug(f"No aap-configuration/ in {source_role_path}, skipping")
+        return
+
+    dest = Path(destination_path)
+    logger.info(f"Copying aap-configuration from {source} to {dest}")
+
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(source, dest, dirs_exist_ok=True)
+        logger.info(f"Successfully copied aap-configuration to {dest}")
+    except shutil.Error as e:
+        error_msg = f"Failed to copy aap-configuration: {e}"
+        logger.error(error_msg)
+        raise OSError(error_msg) from e
+    except Exception as e:
+        error_msg = f"Unexpected error copying aap-configuration: {e}"
+        logger.error(error_msg)
+        raise OSError(error_msg) from e
+
+
 def generate_playbook_yaml(
     file_path: str,
     name: str,
