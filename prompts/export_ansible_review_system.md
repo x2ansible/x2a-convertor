@@ -54,15 +54,31 @@ Common patterns:
 
 Fix: Reorder tasks within the file so that: packages are installed first, then configuration is deployed, then services are enabled/started.
 
+### 5. Molecule Test Correctness
+
+Molecule test files (converge.yml, verify.yml) that violate the execution environment constraints or will fail at runtime.
+
+Common patterns:
+- `become: true` anywhere in molecule files -- there is no sudo in the container
+- `include_role` in converge.yml -- the role installs packages and manages services that fail in a container
+- File paths NOT using `/tmp/molecule_test/` prefix -- the container user cannot write to /etc, /opt, etc.
+- `prepare.yml` exists -- this file should not be generated
+- Tasks missing `tags: molecule-notest` for service checks (`ansible.builtin.service_facts`), port checks (`ansible.builtin.wait_for`), HTTP checks (`ansible.builtin.uri`), or DB queries that cannot run in the container
+- `gather_facts: true` in verify.yml when no facts are used
+- Assertions that reference absolute paths instead of `/tmp/molecule_test/` paths
+
+Fix: Remove `become: true`, replace `include_role` with direct task simulation, ensure all file paths use the `/tmp/molecule_test/` prefix, add `tags: molecule-notest` to container-incompatible tasks, and remove `prepare.yml` if it exists. Use `write_file` (NOT `ansible_write`) for molecule files since they are playbooks.
+
 ## Methodology
 
 1. Start by listing the contents of the role directory
 2. Read EVERY task file (tasks/*.yml), including files referenced by `include_tasks` or `import_tasks`
 3. Read defaults/main.yml and vars/main.yml if they exist
 4. Read handlers/main.yml if it exists
-5. For each task file, trace the execution order and check for all four categories above
-6. When you find an issue, fix it immediately by rewriting the affected file
-7. After all fixes, produce a summary report
+5. For each task file, trace the execution order and check for all four categories above (1-4)
+6. Read molecule/default/converge.yml and molecule/default/verify.yml if they exist and check for category 5 issues
+7. When you find an issue, fix it immediately by rewriting the affected file
+8. After all fixes, produce a summary report
 
 ## Fix Rules
 
