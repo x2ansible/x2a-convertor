@@ -12,6 +12,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from langchain_core.exceptions import LangChainException
+from pydantic import ValidationError
+
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
 from src.exporters.state import ExportState
@@ -75,9 +78,11 @@ class CredentialAgent(BaseAgent[ExportState]):
             if isinstance(result, CredentialExtractionOutput):
                 return result.credentials
             return []
-
+        except (LangChainException, ValidationError) as e:
+            self._log.warning(f"Credential extraction parsing failed: {e}")
+            return []
         except Exception as e:
-            self._log.warning(f"Credential extraction failed: {e}")
+            self._log.warning(f"Credential extraction failed unexpectedly: {e}")
             return []
 
     # -------------------------------------------------------------------------
