@@ -49,9 +49,19 @@ class DocCLIBridge:
         Output is one line per parameter with inline metadata (type,
         required, default, choices). Only the first description sentence
         is kept. Ansible markup like C(), V(), O() is stripped.
+
+        When a module has been removed from its collection, Ansible
+        raises an exception whose message typically contains replacement
+        guidance.  That message is returned as an error string instead
+        of propagating the exception.
         """
-        plugin_docs = self.get_module_docs(fqcn)
-        if not plugin_docs:
+        try:
+            plugin_docs = self.get_module_docs(fqcn)
+        except Exception as exc:
+            logger.warning("ansible doc lookup failed for %s: %s", fqcn, exc)
+            return f"ERROR: Module '{fqcn}' documentation unavailable: {exc}"
+
+        if plugin_docs is None:
             return None
 
         doc = plugin_docs["doc"]
