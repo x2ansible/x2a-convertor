@@ -101,6 +101,54 @@ class TestBuildParamMeta:
         assert _build_param_meta(opt) == ["str"]
 
 
+class TestDocCLIBridgeFormatModuleDocs:
+    """Tests for DocCLIBridge.format_module_docs error handling."""
+
+    def setup_method(self) -> None:
+        with patch.object(DocCLIBridge, "__init__", lambda self: None):
+            self.bridge = DocCLIBridge()
+
+    def test_returns_formatted_docs_on_success(self) -> None:
+        docs = {
+            "doc": {
+                "plugin_name": "test.module",
+                "short_description": "Test",
+                "options": {},
+            }
+        }
+        with patch.object(self.bridge, "get_module_docs", return_value=docs):
+            result = self.bridge.format_module_docs("test.module")
+
+        assert result is not None
+        assert "test.module -- Test" in result
+
+    def test_returns_none_when_not_found(self) -> None:
+        with patch.object(self.bridge, "get_module_docs", return_value=None):
+            result = self.bridge.format_module_docs("fake.module")
+
+        assert result is None
+
+    def test_returns_error_string_on_exception(self) -> None:
+        exc = Exception("module removed: Use replacement.module instead")
+        with patch.object(self.bridge, "get_module_docs", side_effect=exc):
+            result = self.bridge.format_module_docs("removed.module")
+
+        assert result is not None
+        assert "ERROR" in result
+        assert "Use replacement.module instead" in result
+
+    def test_surfaces_replacement_guidance_from_exception(self) -> None:
+        exc = Exception("Missing documentation: Use microsoft.ad.membership instead.")
+        with patch.object(self.bridge, "get_module_docs", side_effect=exc):
+            result = self.bridge.format_module_docs(
+                "ansible.windows.win_domain_membership"
+            )
+
+        assert result is not None
+        assert "ERROR" in result
+        assert "microsoft.ad.membership" in result
+
+
 class TestFormatDoc:
     """Tests for DocCLIBridge._format_doc -- renders compact plaintext."""
 
@@ -243,6 +291,18 @@ class TestAnsibleDocLookupTool:
         assert "ERROR" in result
         assert "fake.nonexistent" in result
 
+    def test_removed_module_returns_error_with_guidance(self) -> None:
+        self.mock_format.return_value = (
+            "ERROR: Module 'ansible.windows.win_domain_membership' "
+            "documentation unavailable: module ansible.windows.win_domain_membership "
+            "Missing documentation: Use microsoft.ad.membership instead."
+        )
+
+        result = self.tool._run(module_name="ansible.windows.win_domain_membership")
+
+        assert "ERROR" in result
+        assert "microsoft.ad.membership" in result
+
     def test_list_no_filter_returns_all(self) -> None:
         result = self.tool._run()
 
@@ -302,12 +362,12 @@ class TestDocCLIBridgeIntegration:
 
     def test_builtin_module_docs(self) -> None:
         docs = self.bridge.get_module_docs("ansible.builtin.copy")
-
         assert docs is not None
-        assert "doc" in docs
-        assert docs["doc"]["plugin_name"] == "ansible.builtin.copy"
-        assert "options" in docs["doc"]
-        assert "dest" in docs["doc"]["options"]
+
+        doc = docs["doc"]
+        assert doc["plugin_name"] == "ansible.builtin.copy"
+        assert "options" in doc
+        assert "dest" in doc["options"]
 
     def test_builtin_format(self) -> None:
         result = self.bridge.format_module_docs("ansible.builtin.copy")
@@ -335,6 +395,14 @@ class TestDocCLIBridgeIntegration:
         result = self.bridge.format_module_docs("fake.collection.nonexistent")
 
         assert result is None
+
+    def test_removed_module_returns_error_string(self) -> None:
+        """Modules removed from collections should return an error, not raise."""
+        result = self.bridge.format_module_docs("ansible.windows.win_domain_membership")
+
+        # Should not raise; returns either None or an error string
+        if result is not None:
+            assert "ERROR" in result
 
     def test_list_all_modules_returns_dict(self) -> None:
         modules = self.bridge.list_all_modules()
