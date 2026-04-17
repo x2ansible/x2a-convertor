@@ -48,6 +48,8 @@ class WriteAgent(BaseAgent[ExportState]):
     The agent returns only when complete or max attempts exhausted.
     """
 
+    _NAME = "Ansible Role Writer"
+
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),
         lambda: ListDirectoryTool(),

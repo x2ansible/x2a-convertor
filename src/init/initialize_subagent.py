@@ -28,6 +28,8 @@ class InitializeSubAgent(BaseAgent[InitState]):
     and generate a high-level migration plan document.
     """
 
+    _NAME = "Migration Plan Writer"
+
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),
         lambda: ListDirectoryTool(),

@@ -35,6 +35,7 @@ class BaseAgent[S: BaseState](ABC):
     """
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = []
+    _NAME: ClassVar[str | None] = None
 
     def __init__(self, model: BaseChatModel | None = None):
         self.model = model or get_model()
@@ -42,6 +43,8 @@ class BaseAgent[S: BaseState](ABC):
 
     @property
     def agent_name(self) -> str:
+        if self._NAME:
+            return self._NAME
         return self.__class__.__name__
 
     def extra_tools_from_state(self, state: S) -> list[BaseTool]:

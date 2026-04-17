@@ -27,6 +27,8 @@ class PlanningAgent(BaseAgent[ExportState]):
     - Categorizes items (templates, recipes, attributes, files, structure)
     """
 
+    _NAME = "Export Planner"
+
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ListDirectoryTool(),
         lambda: ReadFileTool(),

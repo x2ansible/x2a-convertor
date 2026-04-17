@@ -47,6 +47,8 @@ class MoleculeAgent(BaseAgent[ExportState]):
     block the migration pipeline.
     """
 
+    _NAME = "Molecule Test Generator"
+
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ReadFileTool(),
         lambda: WriteFileTool(),
