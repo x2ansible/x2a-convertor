@@ -22,6 +22,8 @@ class MetadataExtractionAgent(BaseAgent[InitState]):
     and generate generated-project-metadata.json.
     """
 
+    _NAME = "Metadata Extractor"
+
     SYSTEM_PROMPT_NAME = "init_metadata_extraction_system"
     USER_PROMPT_NAME = "init_metadata_extraction_task"
 

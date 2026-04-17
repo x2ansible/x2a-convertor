@@ -18,6 +18,28 @@ class ConcreteAgent(BaseAgent[BaseState]):
         return state
 
 
+class NamedAgent(BaseAgent[BaseState]):
+    """Agent with a custom _NAME for testing."""
+
+    _NAME = "My Custom Agent"
+
+    def execute(self, state: BaseState, metrics):
+        """Minimal execute implementation."""
+        return state
+
+
+class TestBaseAgentName:
+    """Tests for BaseAgent.agent_name property."""
+
+    def test_agent_name_defaults_to_class_name(self):
+        agent = ConcreteAgent()
+        assert agent.agent_name == "ConcreteAgent"
+
+    def test_agent_name_uses_custom_name_when_defined(self):
+        agent = NamedAgent()
+        assert agent.agent_name == "My Custom Agent"
+
+
 class TestBaseAgentTokenExtraction:
     """Tests for BaseAgent._extract_token_usage method."""
 

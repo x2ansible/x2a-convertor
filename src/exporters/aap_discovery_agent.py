@@ -88,6 +88,8 @@ class AAPDiscoveryAgent(BaseAgent[ExportState]):
     5. Returns collections that can be reused in the migration
     """
 
+    _NAME = "AAP Collection Discovery"
+
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: AAPListCollectionsTool(),
         lambda: AAPSearchCollectionsTool(),

@@ -17,6 +17,8 @@ class CleanupAgent(BaseAgent[AnsibleAnalysisState]):
     the specification after validation notes have been appended.
     """
 
+    _NAME = "Ansible Analysis Cleanup"
+
     SYSTEM_PROMPT_NAME = "ansible_analysis_cleanup_system"
     USER_PROMPT_NAME = "ansible_analysis_cleanup_task"
 

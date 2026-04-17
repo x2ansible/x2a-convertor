@@ -17,6 +17,8 @@ class AnalysisValidationAgent(BaseAgent[PowerShellAnalysisState]):
     between the migration specification and the structured analysis.
     """
 
+    _NAME = "PowerShell Analysis Validator"
+
     SYSTEM_PROMPT_NAME = "powershell_analysis_validation_system"
     USER_PROMPT_NAME = "powershell_analysis_validation_task"
 

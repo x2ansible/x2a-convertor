@@ -34,6 +34,8 @@ class CredentialAgent(BaseAgent[ExportState]):
     then writes the credential files and updates the checklist.
     """
 
+    _NAME = "Credential Extractor"
+
     EXTRACTION_PROMPT_NAME = "export_credential_extraction_system"
 
     def execute(self, state: ExportState, metrics: AgentMetrics | None) -> ExportState:

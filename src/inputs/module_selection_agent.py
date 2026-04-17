@@ -18,6 +18,8 @@ class ModuleSelectionAgent(BaseAgent[MigrationState]):
     and identify the target module path, technology, and name.
     """
 
+    _NAME = "Module Selector"
+
     SYSTEM_PROMPT_NAME = "analyze_select_module_system"
     USER_PROMPT_NAME = "analyze_select_module_task"
 

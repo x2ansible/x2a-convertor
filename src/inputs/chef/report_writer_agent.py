@@ -26,6 +26,8 @@ class ReportWriterAgent(BaseAgent[ChefState]):
     a detailed migration specification based on the structured analysis.
     """
 
+    _NAME = "Chef Report Writer"
+
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),
         lambda: ListDirectoryTool(),

@@ -17,6 +17,8 @@ class AnalysisValidationAgent(BaseAgent[AnsibleAnalysisState]):
     between the migration specification and the structured analysis.
     """
 
+    _NAME = "Ansible Analysis Validator"
+
     SYSTEM_PROMPT_NAME = "ansible_analysis_validation_system"
     USER_PROMPT_NAME = "ansible_analysis_validation_task"
 

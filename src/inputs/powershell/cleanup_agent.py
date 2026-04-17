@@ -17,6 +17,8 @@ class CleanupAgent(BaseAgent[PowerShellAnalysisState]):
     the specification after validation notes have been appended.
     """
 
+    _NAME = "PowerShell Analysis Cleanup"
+
     SYSTEM_PROMPT_NAME = "powershell_analysis_cleanup_system"
     USER_PROMPT_NAME = "powershell_analysis_cleanup_task"
 

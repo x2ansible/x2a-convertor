@@ -94,6 +94,8 @@ class ValidationAgent(BaseAgent[ExportState]):
     The agent returns only when validation passes or max attempts exhausted.
     """
 
+    _NAME = "Ansible Lint Validator"
+
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ReadFileTool(),
         lambda: DiffFileTool(),
