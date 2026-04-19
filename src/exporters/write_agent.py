@@ -154,6 +154,7 @@ class WriteAgent(BaseAgent[ExportState]):
 
         galaxy_info = source_meta.get("galaxy_info", {})
         galaxy_info["role_name"] = role_name
+        galaxy_info.setdefault("namespace", "x2a")
         galaxy_info.setdefault("author", "Migration Tool")
         galaxy_info.setdefault("description", "Migrated to modern Ansible")
         galaxy_info.setdefault("license", "Apache-2.0")
@@ -184,6 +185,7 @@ class WriteAgent(BaseAgent[ExportState]):
         meta_data = {
             "galaxy_info": {
                 "role_name": role_name,
+                "namespace": "x2a",
                 "author": "Migration Tool",
                 "description": "Migrated to modern Ansible",
                 "license": "Apache-2.0",
