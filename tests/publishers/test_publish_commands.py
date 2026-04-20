@@ -26,7 +26,7 @@ class TestPublishProject:
             assert (project / "collections" / "requirements.yml").exists()
             assert (project / "inventory" / "hosts.yml").exists()
             assert (project / "roles" / module_name / "tasks" / "main.yml").exists()
-            assert (project / "playbooks" / f"run_{module_name}.yml").exists()
+            assert (project / f"run_{module_name}.yml").exists()
             assert (project / "README.md").exists()
             readme_content = (project / "README.md").read_text()
             assert module_name in readme_content
@@ -54,8 +54,8 @@ class TestPublishProject:
             # Both roles and playbooks should exist
             assert (ansible_project / "roles" / mod_a).exists()
             assert (ansible_project / "roles" / mod_b).exists()
-            assert (ansible_project / "playbooks" / f"run_{mod_a}.yml").exists()
-            assert (ansible_project / "playbooks" / f"run_{mod_b}.yml").exists()
+            assert (ansible_project / f"run_{mod_a}.yml").exists()
+            assert (ansible_project / f"run_{mod_b}.yml").exists()
 
             # README should exist and mention both roles
             readme = ansible_project / "README.md"

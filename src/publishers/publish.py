@@ -75,7 +75,7 @@ def publish_project(
         # Create directory structure
         create_directory_structure(
             base_path=publish_dir,
-            structure=["collections", "inventory", "roles", "playbooks"],
+            structure=["collections", "inventory", "roles"],
         )
 
         # Generate ansible.cfg
@@ -110,7 +110,7 @@ def publish_project(
 
     # Generate wrapper playbook
     generate_playbook_yaml(
-        file_path=f"{publish_dir}/playbooks/run_{role_name}.yml",
+        file_path=f"{publish_dir}/run_{role_name}.yml",
         name=f"Run {role_name}",
         role_name=role_name,
     )
@@ -119,18 +119,17 @@ def publish_project(
     molecule_dir = Path(destination) / "molecule" / "default"
     if molecule_dir.is_dir():
         generate_molecule_playbook(
-            file_path=f"{publish_dir}/playbooks/molecule_{role_name}.yml",
+            file_path=f"{publish_dir}/molecule_{role_name}.yml",
             role_name=role_name,
         )
 
     # Generate molecule instructions (regenerated to list all molecule roles)
-    playbooks_dir = ansible_project_dir / "playbooks"
     molecule_roles = (
         sorted(
             p.stem.removeprefix("molecule_")
-            for p in playbooks_dir.glob("molecule_*.yml")
+            for p in ansible_project_dir.glob("molecule_*.yml")
         )
-        if playbooks_dir.is_dir()
+        if ansible_project_dir.is_dir()
         else []
     )
     if molecule_roles:
@@ -170,7 +169,7 @@ def publish_project(
     # Verify files for this role
     required_files = [
         f"{publish_dir}/roles/{role_name}",
-        f"{publish_dir}/playbooks/run_{role_name}.yml",
+        f"{publish_dir}/run_{role_name}.yml",
         f"{publish_dir}/README.md",
     ]
     verify_files_exist(file_paths=required_files)

@@ -374,12 +374,13 @@ flowchart TB
 ├── collections/requirements.yml
 ├── inventory/hosts.yml
 ├── roles/{role_name}/
-└── playbooks/run_{role_name}.yml
+├── run_{role_name}.yml
+└── molecule_{role_name}.yml  (if role has molecule tests)
 ```
 
 On the first module, the full skeleton is created. On subsequent modules, only the role directory and playbook are appended. The `README.md` is regenerated on every invocation so it always lists all roles in the project, along with their descriptions, default variables, target platforms, and required collections.
 
-**Note:** Role names are sanitized to comply with Ansible naming standards — hyphens are replaced with underscores and names are lowercased. For example, a module named `fastapi-tutorial` produces `roles/fastapi_tutorial/` and `playbooks/run_fastapi_tutorial.yml`.
+**Note:** Role names are sanitized to comply with Ansible naming standards — hyphens are replaced with underscores and names are lowercased. For example, a module named `fastapi-tutorial` produces `roles/fastapi_tutorial/` and `run_fastapi_tutorial.yml`.
 
 ### Key Features
 
