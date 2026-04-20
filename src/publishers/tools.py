@@ -402,7 +402,7 @@ def generate_molecule_playbook(file_path: str, role_name: str) -> None:
     - name: Run molecule test
       ansible.builtin.command:
         cmd: molecule test -s default
-        chdir: "{{{{ playbook_dir }}}}/../roles/{role_name}"
+        chdir: "{{{{ playbook_dir }}}}/roles/{role_name}"
       environment:
         ANSIBLE_FORCE_COLOR: "true"
       register: molecule_result
@@ -923,12 +923,11 @@ def _setup_molecule_on_aap(
     else:
         # Fall back to filesystem scan
         ansible_project = Path(project_id) / "ansible-project"
-        playbooks_dir = ansible_project / "playbooks"
-        if not playbooks_dir.is_dir():
+        if not ansible_project.is_dir():
             return templates
         discovered_roles = sorted(
             p.stem.removeprefix("molecule_")
-            for p in playbooks_dir.glob("molecule_*.yml")
+            for p in ansible_project.glob("molecule_*.yml")
         )
 
     if not discovered_roles:
@@ -956,7 +955,7 @@ def _setup_molecule_on_aap(
     for role_name in discovered_roles:
         # Playbook path relative to repo root
         relative_playbook = (
-            f"{project_id}/ansible-project/playbooks/molecule_{role_name}.yml"
+            f"{project_id}/ansible-project/molecule_{role_name}.yml"
         )
         template_name = f"Molecule — {role_name}"
 

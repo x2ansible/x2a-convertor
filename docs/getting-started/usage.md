@@ -103,7 +103,7 @@ This creates (or appends to) an Ansible project under `<project-id>/ansible-proj
 - Collections requirements: `./<project-id>/ansible-project/collections/requirements.yml`
 - Inventory: `./<project-id>/ansible-project/inventory/hosts.yml`
 - Role: `./<project-id>/ansible-project/roles/nginx_multisite/`
-- Playbook: `./<project-id>/ansible-project/playbooks/run_nginx_multisite.yml`
+- Playbook: `./<project-id>/ansible-project/run_nginx_multisite.yml`
 
 ## Publish to AAP (Optional)
 

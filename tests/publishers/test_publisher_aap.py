@@ -346,7 +346,7 @@ def test_upsert_job_template_with_inventory(monkeypatch):
         org_id=1,
         name="Molecule — test",
         project_id=42,
-        playbook="playbooks/molecule_test.yml",
+        playbook="molecule_test.yml",
         inventory_id=5,
     )
     assert result["id"] == 99
@@ -377,7 +377,7 @@ def test_upsert_job_template_without_inventory(monkeypatch):
         org_id=1,
         name="Test",
         project_id=42,
-        playbook="playbooks/run_test.yml",
+        playbook="run_test.yml",
     )
     assert "inventory" not in called["json"]
     assert called["json"]["ask_inventory_on_launch"] is True

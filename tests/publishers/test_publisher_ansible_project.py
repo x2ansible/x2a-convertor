@@ -28,7 +28,7 @@ from src.publishers.tools import (
 def test_create_directory_structure_creates_all_dirs(tmp_path):
     """Test that all required directories are created."""
     base_path = tmp_path / "ansible_project"
-    structure = ["collections", "inventory", "roles", "playbooks"]
+    structure = ["collections", "inventory", "roles"]
 
     create_directory_structure(base_path=str(base_path), structure=structure)
 
@@ -357,7 +357,7 @@ def test_full_project_structure_generation(tmp_path, sample_role_dir):
     # 1. Create directory structure
     create_directory_structure(
         base_path=str(base_path),
-        structure=["collections", "inventory", "roles", "playbooks"],
+        structure=["collections", "inventory", "roles"],
     )
 
     # 2. Copy role
@@ -368,7 +368,7 @@ def test_full_project_structure_generation(tmp_path, sample_role_dir):
 
     # 3. Generate playbook
     generate_playbook_yaml(
-        file_path=str(base_path / "playbooks" / "run_sample_role.yml"),
+        file_path=str(base_path / "run_sample_role.yml"),
         name="Run sample_role",
         role_name="sample_role",
     )
@@ -392,7 +392,7 @@ def test_full_project_structure_generation(tmp_path, sample_role_dir):
     assert (base_path / "ansible.cfg").exists()
 
     playbook = yaml.safe_load(
-        (base_path / "playbooks" / "run_sample_role.yml").read_text()
+        (base_path / "run_sample_role.yml").read_text()
     )
     assert isinstance(playbook, list)
     assert playbook[0]["name"] == "Run sample_role"
@@ -447,7 +447,7 @@ def test_generate_readme_single_role(tmp_path):
     assert "web_server" in content
     assert "Install and configure a web server" in content
     assert "RHEL" in content
-    assert "ansible-playbook playbooks/run_web_server.yml" in content
+    assert "ansible-playbook run_web_server.yml" in content
     assert "http_port" in content
     assert "80" in content
     assert "community.general" in content
@@ -478,7 +478,7 @@ def test_generate_readme_no_metadata(tmp_path):
 
     assert "# bare_project" in content
     assert "basic_role" in content
-    assert "ansible-playbook playbooks/run_basic_role.yml" in content
+    assert "ansible-playbook run_basic_role.yml" in content
 
 
 # -----------------------------------------------------------------------------
