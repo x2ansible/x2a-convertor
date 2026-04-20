@@ -954,9 +954,7 @@ def _setup_molecule_on_aap(
     # Create fully configured job templates for each molecule role
     for role_name in discovered_roles:
         # Playbook path relative to repo root
-        relative_playbook = (
-            f"{project_id}/ansible-project/molecule_{role_name}.yml"
-        )
+        relative_playbook = f"{project_id}/ansible-project/molecule_{role_name}.yml"
         template_name = f"Molecule — {role_name}"
 
         jt = client.upsert_job_template(

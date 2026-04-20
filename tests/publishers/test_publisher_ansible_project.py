@@ -391,9 +391,7 @@ def test_full_project_structure_generation(tmp_path, sample_role_dir):
     # Verify all files exist and are valid YAML where applicable
     assert (base_path / "ansible.cfg").exists()
 
-    playbook = yaml.safe_load(
-        (base_path / "run_sample_role.yml").read_text()
-    )
+    playbook = yaml.safe_load((base_path / "run_sample_role.yml").read_text())
     assert isinstance(playbook, list)
     assert playbook[0]["name"] == "Run sample_role"
 
