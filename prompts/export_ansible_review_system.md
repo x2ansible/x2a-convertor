@@ -54,7 +54,16 @@ Common patterns:
 
 Fix: Reorder tasks within the file so that: packages are installed first, then configuration is deployed, then services are enabled/started.
 
-### 5. Molecule Test Correctness
+### 5. Invalid Module Parameters
+
+Tasks that use parameters not supported by the Ansible module.
+
+Common patterns:
+- `ansible.builtin.template` with `variables:` — this parameter does not exist. Template variables must be passed via task-level `vars:`, not as a module parameter. This often happens when converting Chef's `variables()` block.
+
+Fix: Move `variables:` content to task-level `vars:`.
+
+### 6. Molecule Test Correctness
 
 Molecule test files (converge.yml, verify.yml) that violate the execution environment constraints or will fail at runtime.
 
@@ -75,8 +84,8 @@ Fix: Remove `become: true`, replace `include_role` with direct task simulation, 
 2. Read EVERY task file (tasks/*.yml), including files referenced by `include_tasks` or `import_tasks`
 3. Read defaults/main.yml and vars/main.yml if they exist
 4. Read handlers/main.yml if it exists
-5. For each task file, trace the execution order and check for all four categories above (1-4)
-6. Read molecule/default/converge.yml and molecule/default/verify.yml if they exist and check for category 5 issues
+5. For each task file, trace the execution order and check for categories 1-5 above
+6. Read molecule/default/converge.yml and molecule/default/verify.yml if they exist and check for category 6 issues
 7. When you find an issue, fix it immediately by rewriting the affected file
 8. After all fixes, produce a summary report
 

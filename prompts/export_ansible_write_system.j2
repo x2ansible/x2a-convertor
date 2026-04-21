@@ -69,47 +69,35 @@ task-level `vars:` — NOT a `variables:` parameter on the module (which does no
 
 CORRECT — task-level vars:
 ```yaml{% raw %}
-- name: Create site configuration
+- name: Deploy configuration
   ansible.builtin.template:
-    src: site.conf.j2
-    dest: "/etc/nginx/conf.d/{{ item.key }}.conf"
+    src: app.conf.j2
+    dest: "/etc/app/{{ item.key }}.conf"
     mode: "0644"
   vars:
-    server_name: "{{ item.key }}"
-    document_root: "{{ item.value.document_root }}"
-  loop: "{{ sites | dict2items }}"{% endraw %}
+    app_name: "{{ item.key }}"
+    app_port: "{{ item.value.port }}"
+  loop: "{{ apps | dict2items }}"{% endraw %}
 ```
 
 WRONG — `variables` is not a valid module parameter:
 ```yaml{% raw %}
-- name: Create site configuration
+- name: Deploy configuration
   ansible.builtin.template:
-    src: site.conf.j2
-    dest: "/etc/nginx/conf.d/{{ item.key }}.conf"
+    src: app.conf.j2
+    dest: "/etc/app/{{ item.key }}.conf"
     variables:
-      server_name: "{{ item.key }}"{% endraw %}
+      app_name: "{{ item.key }}"{% endraw %}
 ```
 
 Chef's `template` resource uses `variables(...)` — in Ansible, the equivalent is `vars:` at the task level.
 
-CROSS-PLATFORM / OS-FAMILY AWARENESS:
-Migrated roles must work on both Debian/Ubuntu AND RHEL/Rocky/CentOS unless the source
-explicitly targets only one family. Apply these rules:
-
-1. **Service users differ by OS family:**
-   - nginx runs as `www-data` on Debian but `nginx` on RHEL
-   - Apache runs as `www-data` on Debian but `apache` on RHEL
-   - Use a variable with a conditional default:
-   ```yaml{% raw %}
-   nginx_user: "{{ 'www-data' if ansible_os_family == 'Debian' else 'nginx' }}"{% endraw %}
-   ```
-
-2. **Package manager modules:**
-   - Use `ansible.builtin.package` (generic) instead of `ansible.builtin.apt` or `ansible.builtin.dnf`
-     unless you need distro-specific parameters
-
-3. **Templates with OS-specific values:**
-   Put OS-dependent values in defaults/main.yml as variables, not hardcoded in templates.
+CROSS-PLATFORM COMPATIBILITY:
+Migrated roles should be portable across OS families unless the source explicitly targets one.
+- Use `ansible.builtin.package` instead of distro-specific modules (`apt`, `dnf`) when possible
+- When service users, paths, or package names differ across OS families, use variables with
+  `ansible_os_family` conditionals in defaults/main.yml rather than hardcoding values
+- Put OS-dependent values in defaults/main.yml as variables, not hardcoded in templates or tasks
 
 RECIPES (.rb → .yml tasks):
 - Convert Chef resources to Ansible modules using FQCN (Fully Qualified Collection Names)
