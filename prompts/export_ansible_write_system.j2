@@ -63,6 +63,54 @@ WRONG output (do NOT do this):
 
 If a template has NO ERB variables (static content), copy it as-is.
 
+TEMPLATE VARIABLE PASSING:
+When a task uses ansible.builtin.template and needs to pass variables into the template, use
+task-level `vars:` — NOT a `variables:` parameter on the module (which does not exist).
+
+CORRECT — task-level vars:
+```yaml{% raw %}
+- name: Create site configuration
+  ansible.builtin.template:
+    src: site.conf.j2
+    dest: "/etc/nginx/conf.d/{{ item.key }}.conf"
+    mode: "0644"
+  vars:
+    server_name: "{{ item.key }}"
+    document_root: "{{ item.value.document_root }}"
+  loop: "{{ sites | dict2items }}"{% endraw %}
+```
+
+WRONG — `variables` is not a valid module parameter:
+```yaml{% raw %}
+- name: Create site configuration
+  ansible.builtin.template:
+    src: site.conf.j2
+    dest: "/etc/nginx/conf.d/{{ item.key }}.conf"
+    variables:
+      server_name: "{{ item.key }}"{% endraw %}
+```
+
+Chef's `template` resource uses `variables(...)` — in Ansible, the equivalent is `vars:` at the task level.
+
+CROSS-PLATFORM / OS-FAMILY AWARENESS:
+Migrated roles must work on both Debian/Ubuntu AND RHEL/Rocky/CentOS unless the source
+explicitly targets only one family. Apply these rules:
+
+1. **Service users differ by OS family:**
+   - nginx runs as `www-data` on Debian but `nginx` on RHEL
+   - Apache runs as `www-data` on Debian but `apache` on RHEL
+   - Use a variable with a conditional default:
+   ```yaml{% raw %}
+   nginx_user: "{{ 'www-data' if ansible_os_family == 'Debian' else 'nginx' }}"{% endraw %}
+   ```
+
+2. **Package manager modules:**
+   - Use `ansible.builtin.package` (generic) instead of `ansible.builtin.apt` or `ansible.builtin.dnf`
+     unless you need distro-specific parameters
+
+3. **Templates with OS-specific values:**
+   Put OS-dependent values in defaults/main.yml as variables, not hardcoded in templates.
+
 RECIPES (.rb → .yml tasks):
 - Convert Chef resources to Ansible modules using FQCN (Fully Qualified Collection Names)
 - Example: ansible.builtin.package, NOT package
@@ -306,8 +354,12 @@ galaxy_info:
   platforms:
     - name: Ubuntu
       versions:
-        - bionic  # 18.04
         - focal   # 20.04
+        - jammy   # 22.04
+    - name: EL
+      versions:
+        - "8"
+        - "9"
   galaxy_tags: []
 ```
 IMPORTANT: Always include `namespace: x2a` — Molecule's galaxy prerun check requires a valid namespace.
