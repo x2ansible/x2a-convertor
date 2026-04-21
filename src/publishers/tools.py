@@ -821,10 +821,10 @@ def sync_to_aap(
         update = client.start_project_update(project_id=aap_project_id)
         update_id = int(update["id"]) if "id" in update else None
 
-        # Register molecule EE, inventory, and create run-ready job templates
+        # Register x2a EE, inventory, and create run-ready job templates
         molecule_templates: list[MoleculeTemplateInfo] = []
-        molecule_ee_image = settings.aap.molecule_ee_image
-        if molecule_ee_image and project_id:
+        ee_image = settings.aap.ee_image
+        if ee_image and project_id:
             # Wait for project sync to complete — AAP validates playbook
             # paths against the synced repo, so templates can't be created
             # until the sync finishes.
@@ -836,7 +836,7 @@ def sync_to_aap(
                     org_id=org_id,
                     aap_project_id=aap_project_id,
                     project_id=project_id,
-                    molecule_ee_image=molecule_ee_image,
+                    ee_image=ee_image,
                     inventory_name=settings.aap.inventory_name,
                     role_names=molecule_role_names,
                 )
@@ -893,11 +893,11 @@ def _setup_molecule_on_aap(
     org_id: int,
     aap_project_id: int,
     project_id: str,
-    molecule_ee_image: str,
+    ee_image: str,
     inventory_name: str = "Molecule Local",
     role_names: list[str] | None = None,
 ) -> list[MoleculeTemplateInfo]:
-    """Register molecule EE, ensure inventory, and create run-ready job templates.
+    """Register x2a EE, ensure inventory, and create run-ready job templates.
 
     Creates fully configured job templates on AAP (with EE and inventory pre-set)
     for each role that has molecule tests.
@@ -907,7 +907,7 @@ def _setup_molecule_on_aap(
         org_id: AAP organization ID
         aap_project_id: AAP project ID
         project_id: Migration project ID (used to construct playbook paths)
-        molecule_ee_image: Container image URL for the molecule EE
+        ee_image: Container image URL for the x2a EE
         inventory_name: Name of the inventory to find or create
         role_names: Role names with molecule tests. If not provided, scans
             the ansible-project directory for molecule_*.yml playbooks.
@@ -933,15 +933,15 @@ def _setup_molecule_on_aap(
     if not discovered_roles:
         return templates
 
-    # Register molecule EE
+    # Register x2a EE
     ee = client.upsert_execution_environment(
-        name="Molecule EE",
-        image=molecule_ee_image,
+        name="x2a EE",
+        image=ee_image,
         org_id=org_id,
         pull="always",
     )
     ee_id = int(ee["id"])
-    logger.info(f"Registered Molecule EE (id={ee_id}, image={molecule_ee_image})")
+    logger.info(f"Registered x2a EE (id={ee_id}, image={ee_image})")
 
     # Find or create localhost inventory
     inventory = client.find_or_create_inventory(

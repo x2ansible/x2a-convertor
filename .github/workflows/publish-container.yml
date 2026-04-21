@@ -17,9 +17,9 @@ jobs:
           - image: x2a-convertor
             context: .
             dockerfile: Dockerfile
-          - image: ee-molecule
-            context: ./ee-molecule
-            dockerfile: ./ee-molecule/Containerfile
+          - image: ee-x2a
+            context: ./ee-x2a
+            dockerfile: ./ee-x2a/Containerfile
 
     steps:
     - uses: actions/checkout@v4
