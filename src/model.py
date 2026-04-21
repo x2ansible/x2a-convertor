@@ -103,6 +103,7 @@ def get_model() -> BaseChatModel:
     kwargs: dict[str, Any] = {
         "max_tokens": settings.llm.max_tokens,
         "temperature": settings.llm.temperature,
+        "timeout": settings.llm.read_timeout,
     }
 
     if settings.llm.reasoning_effort:
@@ -131,13 +132,18 @@ def get_model() -> BaseChatModel:
         kwargs["region_name"] = region_name
         logger.debug(f"AWS_REGION: {region_name}")
 
-        # Configure botocore-level retry for throttling (429) and server errors
+        # Configure botocore-level retry and timeout for throttling (429) and server errors
         max_retries = settings.llm.max_retries
+        read_timeout = settings.llm.read_timeout
+        connect_timeout = settings.llm.connect_timeout
         kwargs["config"] = BotoConfig(
             retries={"max_attempts": max_retries, "mode": "adaptive"},
+            read_timeout=read_timeout,
+            connect_timeout=connect_timeout,
         )
         logger.info(
-            f"Bedrock retry enabled: {max_retries} max attempts with adaptive backoff"
+            f"Bedrock config: {max_retries} max attempts with adaptive backoff, "
+            f"read_timeout={read_timeout}s, connect_timeout={connect_timeout}s"
         )
 
         # If we have access keys, pass them as SecretStr
@@ -171,6 +177,7 @@ def get_model() -> BaseChatModel:
         if not kwargs["base_url"]:
             logger.warning("OPENAI_API_BASE is not set")
         logger.debug(f"OPENAI_API_BASE: {kwargs['base_url']}")
+        logger.info(f"OpenAI timeout: {settings.llm.read_timeout}s")
 
     kwargs["model_provider"] = provider
     logger.info(
