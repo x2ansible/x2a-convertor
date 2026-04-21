@@ -396,7 +396,7 @@ def test_molecule_instructions_generated(tmp_path):
     assert "How to Launch" in content
     assert "/tmp/molecule_test/" in content
     assert "Prerequisites" in content
-    assert "AAP_MOLECULE_EE_IMAGE" in content
+    assert "AAP_EE_IMAGE" in content
     assert "receptor-data" in content
 
 
