@@ -28,6 +28,8 @@ Auto-generated from `src/config/settings.py`.
 | `REASONING_EFFORT` | string | - | Claude reasoning effort level |
 | `RATE_LIMIT_REQUESTS` | integer | - | Rate limit requests per second |
 | `LLM_MAX_RETRIES` | integer | `6` | Maximum retry attempts on throttling (429) and server errors |
+| `LLM_READ_TIMEOUT` | integer | `900` | Read timeout in seconds for LLM API responses (applies to both Bedrock and OpenAI) |
+| `LLM_CONNECT_TIMEOUT` | integer | `60` | Connection timeout in seconds for LLM API connections (applies to both Bedrock and OpenAI) |
 
 ## OpenAI Configuration
 

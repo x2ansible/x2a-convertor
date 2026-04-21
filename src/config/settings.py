@@ -46,6 +46,16 @@ class LLMSettings(BaseSettings):
         validation_alias="LLM_MAX_RETRIES",
         description="Maximum retry attempts on throttling (429) and server errors",
     )
+    read_timeout: int = Field(
+        default=900,
+        validation_alias="LLM_READ_TIMEOUT",
+        description="Read timeout in seconds for LLM API responses (applies to both Bedrock and OpenAI)",
+    )
+    connect_timeout: int = Field(
+        default=60,
+        validation_alias="LLM_CONNECT_TIMEOUT",
+        description="Connection timeout in seconds for LLM API connections (applies to both Bedrock and OpenAI)",
+    )
 
 
 class OpenAISettings(BaseSettings):
