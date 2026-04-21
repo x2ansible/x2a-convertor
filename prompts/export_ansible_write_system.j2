@@ -63,6 +63,42 @@ WRONG output (do NOT do this):
 
 If a template has NO ERB variables (static content), copy it as-is.
 
+TEMPLATE VARIABLE PASSING:
+When a task uses ansible.builtin.template and needs to pass variables into the template, use
+task-level `vars:` — NOT a `variables:` parameter on the module (which does not exist).
+
+CORRECT — task-level vars:
+```yaml{% raw %}
+- name: Deploy configuration
+  ansible.builtin.template:
+    src: app.conf.j2
+    dest: "/etc/app/{{ item.key }}.conf"
+    mode: "0644"
+  vars:
+    app_name: "{{ item.key }}"
+    app_port: "{{ item.value.port }}"
+  loop: "{{ apps | dict2items }}"{% endraw %}
+```
+
+WRONG — `variables` is not a valid module parameter:
+```yaml{% raw %}
+- name: Deploy configuration
+  ansible.builtin.template:
+    src: app.conf.j2
+    dest: "/etc/app/{{ item.key }}.conf"
+    variables:
+      app_name: "{{ item.key }}"{% endraw %}
+```
+
+Chef's `template` resource uses `variables(...)` — in Ansible, the equivalent is `vars:` at the task level.
+
+CROSS-PLATFORM COMPATIBILITY:
+Migrated roles should be portable across OS families unless the source explicitly targets one.
+- Use `ansible.builtin.package` instead of distro-specific modules (`apt`, `dnf`) when possible
+- When service users, paths, or package names differ across OS families, use variables with
+  `ansible_os_family` conditionals in defaults/main.yml rather than hardcoding values
+- Put OS-dependent values in defaults/main.yml as variables, not hardcoded in templates or tasks
+
 RECIPES (.rb → .yml tasks):
 - Convert Chef resources to Ansible modules using FQCN (Fully Qualified Collection Names)
 - Example: ansible.builtin.package, NOT package
@@ -306,8 +342,12 @@ galaxy_info:
   platforms:
     - name: Ubuntu
       versions:
-        - bionic  # 18.04
         - focal   # 20.04
+        - jammy   # 22.04
+    - name: EL
+      versions:
+        - "8"
+        - "9"
   galaxy_tags: []
 ```
 IMPORTANT: Always include `namespace: x2a` — Molecule's galaxy prerun check requires a valid namespace.
