@@ -70,7 +70,7 @@ data:
       - dynamic-plugins.default.yaml
     plugins:
       # The plugin-x2a-dcr is for RHDH 1.9 only. To be replaced by backstage-plugin-auth in 1.10:
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-dcr:pr_2279__0.2.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-dcr:bs_1.49.4__0.2.0"
 
       # We need https://github.com/backstage/backstage/blob/master/plugins/mcp-actions-backend/CHANGELOG.md#0112-next2 or later
       # which contains required fix: https://github.com/backstage/backstage/issues/33062
@@ -80,10 +80,10 @@ data:
       - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-mcp-actions-backend:pr_2236__0.1.11"
 
       # All X2A plugins
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:pr_2279__1.2.1"
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:pr_2279__1.4.0"
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-mcp-extras:pr_2279__0.2.0"
-      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:pr_2279__0.3.1"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:bs_1.49.4__1.2.1"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:bs_1.49.4__1.4.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-mcp-extras:bs_1.49.4__0.2.0"
+      - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:bs_1.49.4__0.3.1"
 
       # In addition, the backstage-plugin-auth-backend 0.25.6 or later is required, should be met since RHDH 1.9. Keeping this note here for a reference in case of issues.
 
