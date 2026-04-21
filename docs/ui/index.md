@@ -29,6 +29,9 @@ OAuth setup, providers, and user management.
 ### [Authorization]({% link ui/authorization.md %})
 RBAC permissions and access control policies.
 
+### [MCP tools]({% link ui/mcp-server.md %})
+Exposed MCP tools for integration with LLM agents.
+
 ### [CSV Bulk Import]({% link ui/csv-bulk-import.md %})
 Create multiple conversion projects at once by uploading a CSV file.
 
