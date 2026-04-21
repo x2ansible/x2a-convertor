@@ -103,7 +103,6 @@ def get_model() -> BaseChatModel:
     kwargs: dict[str, Any] = {
         "max_tokens": settings.llm.max_tokens,
         "temperature": settings.llm.temperature,
-        "timeout": settings.llm.read_timeout,
     }
 
     if settings.llm.reasoning_effort:
@@ -174,6 +173,7 @@ def get_model() -> BaseChatModel:
     if provider == "openai":
         kwargs["base_url"] = settings.openai.api_base
         kwargs["api_key"] = settings.openai.api_key.get_secret_value()
+        kwargs["timeout"] = settings.llm.read_timeout
         if not kwargs["base_url"]:
             logger.warning("OPENAI_API_BASE is not set")
         logger.debug(f"OPENAI_API_BASE: {kwargs['base_url']}")
