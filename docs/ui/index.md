@@ -30,7 +30,7 @@ OAuth setup, providers, and user management.
 RBAC permissions and access control policies.
 
 ### [MCP tools]({% link ui/mcp-server.md %})
-Exposed MCP tools for integration with LLM agents.
+Connect assistants to Conversion Hub via RBAC-aware MCP tools.
 
 ### [CSV Bulk Import]({% link ui/csv-bulk-import.md %})
 Create multiple conversion projects at once by uploading a CSV file.

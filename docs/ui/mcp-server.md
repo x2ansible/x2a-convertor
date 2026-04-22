@@ -7,17 +7,16 @@ nav_order: 6
 
 # MCP tools
 
-Red Hat Developer Hub exposes a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server. When the X2A MCP extras plugin is enabled, your MCP client (for example Cursor, Continue, or another tool-aware assistant) can call X2A-specific tools in addition to any other Hub MCP tools you have installed.
+Red Hat Developer Hub exposes a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server.
+With the default [`deploy/app.yaml`](https://github.com/x2ansible/x2a-convertor/blob/main/deploy/app.yaml), X2A registers MCP tools so assistants (for example Cursor, Continue, or other tool-aware clients) can work with migration projects through the same Hub instance you use in the browser.
 
-## Support scope and prerequisites
+Confirm your assistant supports **tool calling** before relying on MCP workflows.
+For RHDH transport details and vendor-specific client snippets, see [Interacting with Model Context Protocol tools for Red Hat Developer Hub](https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.9/html-single/interacting_with_model_context_protocol_tools_for_red_hat_developer_hub/index).
 
-MCP integration in Red Hat Developer Hub is described as **Developer Preview** in the product documentation. Confirm that your assistant or model supports **tool calling** before relying on MCP workflows. For support scope, limitations, and general Hub MCP setup, see [Interacting with Model Context Protocol tools for Red Hat Developer Hub 1.9](https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.9/html-single/interacting_with_model_context_protocol_tools_for_red_hat_developer_hub/index).
+Get your RHDH base URL from the cluster after [Installation]({% link ui/installation.md %}#access-the-application).
+That host must stay consistent with how users sign in and how MCP clients complete browser steps.
 
-Before connecting a client, your cluster administrators must enable the MCP server plugin, the X2A MCP extras plugin, and related configuration on the Hub instance. Follow [Installation — MCP tools (optional)]({% link ui/installation.md %}#mcp-tools-optional).
-
-The Hub’s public URL and `backend.baseUrl` must match, otherwise OAuth, consent pages, or callbacks can fail. Administrators configure that in the same installation flow.
-
-## How to connect your MCP client
+## Connect your MCP client
 
 Use your Developer Hub host in place of `<my_developer_hub_domain>`.
 
@@ -26,19 +25,72 @@ Use your Developer Hub host in place of `<my_developer_hub_domain>`.
 | Streamable (recommended where supported) | `https://<my_developer_hub_domain>/api/mcp-actions/v1` |
 | SSE (legacy, for clients without streamable support) | `https://<my_developer_hub_domain>/api/mcp-actions/v1/sse` |
 
-Red Hat’s guide includes ready-made examples for Cursor, Continue, and other clients (headers, `Authorization: Bearer`, and so on). See the [“Configuring MCP clients to access the RHDH server”](https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.9/html-single/interacting_with_model_context_protocol_tools_for_red_hat_developer_hub/index#proc-configuring-mcp-clients-to-access-the-rhdh-server) section in the same document.
+Red Hat’s guide includes ready-made examples for Cursor, Continue, and other clients (headers, `Authorization: Bearer` where applicable).
+See [Configuring MCP clients to access the RHDH server](https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.9/html-single/interacting_with_model_context_protocol_tools_for_red_hat_developer_hub/index#proc-configuring-mcp-clients-to-access-the-rhdh-server).
+
+## Test with the MCP Inspector
+
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is useful to verify that your Hub endpoint responds and lists tools.
+
+1. Install Node.js if needed, then run:
+
+   ```bash
+   npx @modelcontextprotocol/inspector
+   ```
+
+   Eventually for less strict dev flows:
+   ```bash
+   NODE_TLS_REJECT_UNAUTHORIZED=0 DANGEROUSLY_OMIT_AUTH=false npx @modelcontextprotocol/inspector
+   ```
+
+2. Open the URL the command prints (often `http://localhost:6274`).
+
+3. Choose the transport your build supports (streamable HTTP or legacy SSE) and set the server URL to `https://<my_developer_hub_domain>/api/mcp-actions/v1` or the `/sse` variant.
+
+4. On Connect, the inspector is navigated to the Consent page within the RHDH. Complete any browser sign-in or consent prompts you are prompted for.
+
+The sample `app-config-rhdh` in this repository already allows `http://localhost:6274` under `backend.cors` for that workflow.
+If you use another browser origin, add it there.
+If a browser-based client fails with CORS errors against your public route, include your Hub’s `https://<my_developer_hub_domain>` origin in the same `backend.cors.origin` list (see [Advanced configuration](#advanced-configuration)).
 
 ## Authentication
 
-### Static access token
+### Delegated access (default)
 
-Many setups use a long-lived **Bearer** token configured on the Hub (`backend.auth.externalAccess`). The token is mapped to a Backstage **`subject`** (for example `mcp-clients`). That subject must be granted the same [Authorization]({% link ui/authorization.md %}) roles and policies as a human user would need for the same actions. If the subject has no `x2a` permissions, X2A tools will deny access.
+The default manifest enables **OAuth2 Dynamic Client Registration (DCR)** under `auth.experimentalDynamicClientRegistration` and installs the X2A DCR frontend so consent can be served under `/oauth2/*`.
+In typical use, the MCP client starts registration, the user signs in or approves access in the browser, and subsequent tool calls run **on behalf of that user** with their normal Hub session and RBAC.
 
-### User-delegated access (optional, DCR)
+High-level sequence:
 
-Some workflows allow the MCP client to register dynamically and act **on behalf of a signed-in user** after the user approves access in the browser. That path uses OAuth2 Dynamic Client Registration (DCR) and a consent UI. On Red Hat Developer Hub 1.9, the X2A **DCR** frontend plugin serves consent under **`/oauth2/*`**. Enabling that plugin and the related `auth.experimentalDynamicClientRegistration` settings is part of [Installation — MCP tools (optional)]({% link ui/installation.md %}#mcp-tools-optional).
+```mermaid
+sequenceDiagram
+  participant User
+  participant McpClient as MCPClient
+  participant Hub as DeveloperHub
+  participant Browser as Browser
+  McpClient->>Hub: Start registration or authorization
+  Hub->>Browser: Sign-in or consent UI
+  User->>Browser: Approve
+  Browser->>Hub: Complete OAuth
+  Hub-->>McpClient: Issue tokens for delegated access
+  McpClient->>Hub: Invoke MCP tools as the user
+```
 
-On **Red Hat Developer Hub 1.9**, DCR for MCP depends on a **newer `backstage-plugin-mcp-actions-backend`** than the baseline that appears in some older overlay tags. If your Hub still runs an older MCP actions backend build, DCR flows may not work reliably. Use **[static access token](#static-access-token)** authentication for MCP instead, or upgrade the MCP actions backend image to a version your platform team confirms supports DCR on 1.9 (see [Installation — MCP tools (optional)]({% link ui/installation.md %}#mcp-tools-optional)).
+The bundled `backstage-plugin-mcp-actions-backend` image tag is chosen so this flow works on supported Red Hat Developer Hub versions.
+If your platform team pins an older MCP actions image, delegated flows may be unreliable.
+The minimal version (tag) is `pr_2236__0.1.11` or use `>=0.1.12`.
+
+Upgrade that plugin per your release notes or use a [static token](#static-access-token-for-automation) instead.
+
+### Static access token for automation
+{: #static-access-token-for-automation}
+
+Some deployments add **`backend.auth.externalAccess`** with a long-lived **Bearer** token mapped to a Backstage **`subject`** (for example `mcp-clients`).
+That subject must be granted the same [Authorization]({% link ui/authorization.md %}) roles as a human user for the actions you want.
+If the subject has no `x2a` permissions, X2A tools will deny access.
+
+Use static tokens when a non-interactive principal should call tools without a browser.
+See [Advanced configuration](#advanced-configuration) for a minimal `externalAccess` fragment.
 
 ## X2A MCP tools
 
@@ -57,10 +109,78 @@ These tools mirror capabilities you already have in the Conversion Hub UI. Names
 
 ## Permissions
 
-X2A MCP tools enforce the same RBAC rules as the REST API and UI. Read-heavy tools (such as listing projects or modules) require permission to view those resources, write or job-starting tools require appropriate create or update access. See [Authorization]({% link ui/authorization.md %}) for `x2a.admin` and `x2a.user` and how to assign them to users, groups, or the MCP service subject.
+X2A MCP tools enforce the same RBAC rules as the REST API and UI.
+Read-heavy tools (such as listing projects or modules) require permission to view those resources.
+Write or job-starting tools require `update` or `use` access.
+See [Authorization]({% link ui/authorization.md %}) for `x2a.admin` and `x2a.user` and how to assign them to users, groups, or an MCP service subject.
+
+## Advanced configuration
+{: #advanced-configuration}
+
+The following fragments belong in the **single** `app-config-rhdh.yaml` document carried by the `app-config-rhdh` ConfigMap (see [Installation]({% link ui/installation.md %})). Keep **one** top-level `backend:` map and merge new keys into it instead of duplicating the key.
+
+### CORS
+
+The default file allows `http://localhost:6274` for the MCP Inspector. Add your public Hub origin if a browser client needs it:
+
+```yaml
+backend:
+  cors:
+    origin:
+      - http://localhost:6274
+      - https://<my_developer_hub_domain>
+    credentials: true
+```
+
+### Dynamic Client Registration
+
+Tighten patterns for production. Wildcards such as `https://*` are convenient in labs only.
+
+```yaml
+auth:
+  experimentalDynamicClientRegistration:
+    enabled: true
+    allowedRedirectUriPatterns:
+      - "cursor://*"
+      - "https://<trusted-client-callback-host>/*"
+```
+
+### Static token fragment
+
+Generate a long random bearer token, inject it through your normal secret mechanism, and map it to a subject that has RBAC roles:
+
+```yaml
+backend:
+  actions:
+    pluginSources:
+      - "x2a-mcp-extras"
+  auth:
+    externalAccess:
+      - type: static
+        options:
+          token: ${MCP_TOKEN}
+          subject: mcp-clients
+```
+
+The name after `${` must match the environment variable or substitution your operator resolves when loading config.
+
+### MCP client compatibility
+
+Some MCP clients mishandle namespaced tool names. The default manifest sets:
+
+```yaml
+mcpActions:
+  namespacedToolNames: false
+```
+
+### Plugin image tags
+
+If you change Red Hat Developer Hub or Backstage versions, update OCI references in the `dynamic-plugins` ConfigMap so every overlay tag matches your platform.
+Published tags often look like `bs_<backstageVersion>__<pluginVersion>`.
+Browse [rhdh-plugin-export-overlays packages](https://github.com/orgs/redhat-developer/packages?repo_name=rhdh-plugin-export-overlays) for current images.
 
 ## Further reading
 
-- [Installation — MCP tools (optional)]({% link ui/installation.md %}#mcp-tools-optional): dynamic plugins and `app-config` for operators
-- [Interacting with Model Context Protocol tools for Red Hat Developer Hub 1.9](https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.9/html-single/interacting_with_model_context_protocol_tools_for_red_hat_developer_hub/index): Hub-wide MCP behavior and client examples
-- Optional background on the upstream plugin sources: [rhdh-plugins workspaces/x2a](https://github.com/redhat-developer/rhdh-plugins/tree/main/workspaces/x2a)
+- [Installation]({% link ui/installation.md %}): deploy manifests, secrets, and restarting the Hub pod
+- [Interacting with Model Context Protocol tools for Red Hat Developer Hub](https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.9/html-single/interacting_with_model_context_protocol_tools_for_red_hat_developer_hub/index): Hub MCP behavior and client examples
+- Optional background on plugin sources: [rhdh-plugins workspaces/x2a](https://github.com/redhat-developer/rhdh-plugins/tree/main/workspaces/x2a)

@@ -142,123 +142,32 @@ oc apply -n my-custom-namespace -f deploy/app.yaml
 
 ### Plugin Versions
 
-To use different plugin versions, update the OCI image references in the `dynamic-plugins` ConfigMap section of `deploy/app.yaml`.
+To use different plugin versions, update the OCI image references in the `dynamic-plugins` ConfigMap section of `deploy/app.yaml`. The default manifest also includes the MCP server, X2A MCP extras, and DCR consent UI packages alongside the Conversion Hub plugins.
 
-## MCP tools (optional)
-{: #mcp-tools-optional}
+## MCP tools
 
-See also: [MCP tools]({% link ui/mcp-server.md %}) (what each X2A tool does and how clients connect).
+The default [`deploy/app.yaml`](https://github.com/x2ansible/x2a-convertor/blob/main/deploy/app.yaml) wires up Model Context Protocol (MCP) so assistants can call X2A MCP tools against your Hub route.
 
-This section describes **additional** dynamic plugins and `app-config` fragments so LLM clients can call X2A through Red Hat Developer Hub’s MCP server. The default [`deploy/app.yaml`](https://github.com/x2ansible/x2a-convertor/blob/main/deploy/app.yaml) manifest may not include these entries. Merge them into your `dynamic-plugins` ConfigMap and `app-config-rhdh` ConfigMap as needed.
+Use [MCP tools]({% link ui/mcp-server.md %}) for the tool list and permissions description.
 
-### 1. Dynamic plugins
+### Optional tweaks in `app-config`
 
-Add packages under `data.dynamic-plugins.yaml` → `plugins` (alongside your existing X2A lines). Use **OCI tags that match your Hub / Backstage version**. Published tags on GitHub Container Registry often look like `bs_<backstageVersion>__<pluginVersion>`. Confirm current images in [rhdh-plugin-export-overlays packages](https://github.com/orgs/redhat-developer/packages?repo_name=rhdh-plugin-export-overlays).
+Most teams can leave the bundled `app-config-rhdh` fragment as-is. Edit it when you need something different from the sample - for example:
 
-Administrators typically install:
+- **`auth.experimentalDynamicClientRegistration`** - tighten `allowedRedirectUriPatterns` in production (the sample uses broad patterns suitable for labs).
+- **`backend.cors`** - add or remove origins if you use browser-based MCP clients or the Inspector from a host that is not already listed.
 
-1. **`backstage-plugin-mcp-actions-backend`** - MCP server that exposes registered tool plugins. On **Red Hat Developer Hub 1.9**, **Dynamic Client Registration (DCR)** for MCP clients requires a **later** build of this plugin than some default `bs_*` overlay pairs ship. Without that upgrade, expect **static-token** MCP auth only (see `backend.auth.externalAccess` below). Sufficient version is `pr_2236__0.1.11` or `0.1.12` and later.
-2. **`red-hat-developer-hub-backstage-plugin-x2a-mcp-extras`** - registers the X2A MCP tools (`x2a-list-projects`, `x2a-create-project`, `x2a-trigger-next-phase`, `x2a-list-modules`, subject to version).
-3. **`red-hat-developer-hub-backstage-plugin-x2a-dcr`** (optional) - consent UI for OAuth2 Dynamic Client Registration on Hub 1.9–style deployments. Newer RHDH versions may replace this with upstream auth behavior.
+YAML examples and behavior notes for those keys live on the [MCP tools]({% link ui/mcp-server.md %}#advanced-configuration) page.
 
-Example shape (replace image tags with values appropriate for your release):
 
-```yaml
-plugins:
-  - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/backstage-plugin-mcp-actions-backend:bs_<BACKSTAGE>__<MCP_ACTIONS_VERSION>"
-  - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a:bs_<BACKSTAGE>__<X2A_VERSION>"
-  - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-backend:bs_<BACKSTAGE>__<X2A_BACKEND_VERSION>"
-  - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-scaffolder-backend-module-x2a:bs_<BACKSTAGE>__<X2A_SCAFFOLDER_VERSION>"
-  - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-mcp-extras:bs_<BACKSTAGE>__<X2A_MCP_EXTRAS_VERSION>"
-  - package: "oci://ghcr.io/redhat-developer/rhdh-plugin-export-overlays/red-hat-developer-hub-backstage-plugin-x2a-dcr:bs_<BACKSTAGE>__<X2A_DCR_VERSION>"
-```
 
-### 2. Application configuration (`app-config-rhdh.yaml`)
 
-Merge the following into the YAML carried by your `app-config-rhdh` ConfigMap (same file you already use for `auth`, `x2a`, and so on). Adjust values and comments for your environment.
-
-**How to merge keys:** Keep **one** root-level `backend:` map and merge every `backend.*` fragment into it (`baseUrl`, `actions`, `auth.externalAccess` for MCP static tokens, `cors`, and so on). Do not introduce a second top-level `backend:` key. **`mcpActions`**, **top-level `auth`** (sign-in providers and `experimentalDynamicClientRegistration`), and **`dynamicPlugins`** belong at the **root** of the same YAML document as **siblings** of `backend`, not nested under `backend:`.
-
-**Backend URL, actions source, and static MCP token**
-
-1. Under `backend.actions.pluginSources`, add **`x2a-mcp-extras`**, keeping any entries you already rely on.
-2. **If static token auth is expected** (vs the DCR, optional):
-  - Generate a long random bearer token (for example `node -p 'require("crypto").randomBytes(24).toString("base64")'`), store it in an OpenShift Secret, and supply it to the Hub backend the **same way** you inject other sensitive values into `app-config-rhdh` (for example `env` / `envFrom` on the Developer Hub deployment so the token is available as a pod environment variable, or the substitution mechanism your RHDH operator documents). In the snippet below, **`token: ${MCP_TOKEN}`** is a placeholder: the name after `${` must match the environment variable (or supported config substitution) the backend resolves when it loads this file, so the secret is never committed to git.
-  - Choose a **`subject`** string for the static MCP principal (the example below uses `mcp-clients`). Grant that subject roles in your RBAC CSV so it can call the X2A tools you need - see [Authorization]({% link ui/authorization.md %}).
-
-```yaml
-backend:
-  baseUrl: https://<my_developer_hub_domain>
-  actions:
-    pluginSources:
-      - "x2a-mcp-extras"
-  auth:
-    externalAccess:
-      - type: static
-        options:
-          token: ${MCP_TOKEN}
-          subject: mcp-clients
-```
-
-**Optional: MCP client compatibility**
-
-Some MCP clients mis-handle namespaced tool names. If tools fail to list or invoke:
-
-```yaml
-mcpActions:
-  namespacedToolNames: false
-```
-
-**Optional: Dynamic Client Registration (DCR)** for user-delegated MCP clients (vs static token)
-
-On RHDH **1.9**, enable DCR only if **`backstage-plugin-mcp-actions-backend`** is on a **newer** version that supports this flow on your Backstage line (`pr_2236__0.1.11` or `0.1.12` or later.). Otherwise keep **static-token** MCP authentication and skip DCR and the `x2a-dcr` consent route below.
-
-Tighten `allowedRedirectUriPatterns` for production. Wildcards such as `https://*` are convenient in labs only.
-
-```yaml
-auth:
-  experimentalDynamicClientRegistration:
-    enabled: true
-    allowedRedirectUriPatterns:
-      - "cursor://*"
-      - "https://<trusted-client-callback-host>/*"
-```
-
-**Optional: DCR consent route (X2A DCR frontend plugin)**
-
-When the `x2a-dcr` dynamic plugin is installed, register its consent page:
-
-```yaml
-dynamicPlugins:
-  frontend:
-    red-hat-developer-hub.backstage-plugin-x2a-dcr:
-      dynamicRoutes:
-        - path: /oauth2/*
-          importName: DcrConsentPage
-```
-
-Keep your existing `red-hat-developer-hub.backstage-plugin-x2a` block (icons, `/x2a/` route, scaffolder extensions) alongside this entry.
-
-**Optional: CORS** - only if you use a local MCP inspector or another origin that must call the Hub API from the browser. Merge under `backend`:
-
-```yaml
-cors:
-  origin:
-    - "https://<my_developer_hub_domain>"
-    - "http://localhost:6274"
-  credentials: true
-```
-
-### 3. Apply changes and restart
-
-After editing the ConfigMaps:
+After any change to `deploy/app.yaml`, re-apply and restart the Hub pod so configuration and dynamic plugins reload:
 
 ```bash
 oc apply -n <your-namespace> -f deploy/app.yaml
 oc delete pod -n <your-namespace> -l app.kubernetes.io/name=developer-hub
 ```
-
-Watch the dynamic-plugin installer container logs if plugins fail to load. Users can then follow [MCP tools]({% link ui/mcp-server.md %}) to point their clients at `https://<my_developer_hub_domain>/api/mcp-actions/v1` (or the `/sse` URL) with the configured token or DCR flow.
 
 ## Access the Application
 
