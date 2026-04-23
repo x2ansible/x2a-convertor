@@ -146,7 +146,7 @@ To use different plugin versions, update the OCI image references in the `dynami
 
 ## MCP tools
 
-The default [`deploy/app.yaml`](https://github.com/x2ansible/x2a-convertor/blob/main/deploy/app.yaml) wires up Model Context Protocol (MCP) so assistants can call X2A MCP tools against your Hub route.
+The default [`deploy/app.yaml`]({% link ui/installation.md %}#2-application-deployment) wires up Model Context Protocol (MCP) so assistants can call X2A MCP tools against your RHDH X2A route.
 
 Use [MCP tools]({% link ui/mcp-server.md %}) for the tool list and permissions description.
 
@@ -159,10 +159,7 @@ Most teams can leave the bundled `app-config-rhdh` fragment as-is. Edit it when 
 
 YAML examples and behavior notes for those keys live on the [MCP tools]({% link ui/mcp-server.md %}#advanced-configuration) page.
 
-
-
-
-After any change to `deploy/app.yaml`, re-apply and restart the Hub pod so configuration and dynamic plugins reload:
+After any change to `deploy/app.yaml`, re-apply and restart the RHDH pod so configuration and dynamic plugins reload:
 
 ```bash
 oc apply -n <your-namespace> -f deploy/app.yaml
@@ -171,7 +168,7 @@ oc delete pod -n <your-namespace> -l app.kubernetes.io/name=developer-hub
 
 ## Access the Application
 
-Get the Developer Hub URL:
+Get the RHDH URL:
 
 ```bash
 oc get route developer-hub -n <your-namespace> -o jsonpath='https://{.spec.host}{"\n"}'

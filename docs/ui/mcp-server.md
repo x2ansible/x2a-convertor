@@ -8,7 +8,7 @@ nav_order: 6
 # MCP tools
 
 Red Hat Developer Hub exposes a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server.
-With the default [`deploy/app.yaml`](https://github.com/x2ansible/x2a-convertor/blob/main/deploy/app.yaml), X2A registers MCP tools so assistants (for example Cursor, Continue, or other tool-aware clients) can work with migration projects through the same Hub instance you use in the browser.
+With the default [`deploy/app.yaml`]({% link ui/installation.md %}#2-application-deployment), X2A registers MCP tools so assistants (for example Cursor, Continue, or other tool-aware clients) can work with migration projects through the same RHDH X2A instance you use in the browser.
 
 Confirm your assistant supports **tool calling** before relying on MCP workflows.
 For RHDH transport details and vendor-specific client snippets, see [Interacting with Model Context Protocol tools for Red Hat Developer Hub](https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.9/html-single/interacting_with_model_context_protocol_tools_for_red_hat_developer_hub/index).
@@ -18,7 +18,7 @@ That host must stay consistent with how users sign in and how MCP clients comple
 
 ## Connect your MCP client
 
-Use your Developer Hub host in place of `<my_developer_hub_domain>`.
+Use your RHDH host in place of `<my_developer_hub_domain>`.
 
 | Transport | URL |
 |-----------|-----|
@@ -30,7 +30,7 @@ See [Configuring MCP clients to access the RHDH server](https://docs.redhat.com/
 
 ## Test with the MCP Inspector
 
-The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is useful to verify that your Hub endpoint responds and lists tools.
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is useful to verify that your RHDH X2A endpoint responds and lists tools.
 
 1. Install Node.js if needed, then run:
 
@@ -47,25 +47,25 @@ The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is useful
 
 3. Choose the transport your build supports (streamable HTTP or legacy SSE) and set the server URL to `https://<my_developer_hub_domain>/api/mcp-actions/v1` or the `/sse` variant.
 
-4. On Connect, the inspector is navigated to the Consent page within the RHDH. Complete any browser sign-in or consent prompts you are prompted for.
+4. On Connect, the inspector is navigated to the Consent page in the RHDH UI. Complete any browser sign-in or consent prompts you are prompted for.
 
 The sample `app-config-rhdh` in this repository already allows `http://localhost:6274` under `backend.cors` for that workflow.
 If you use another browser origin, add it there.
-If a browser-based client fails with CORS errors against your public route, include your Hub’s `https://<my_developer_hub_domain>` origin in the same `backend.cors.origin` list (see [Advanced configuration](#advanced-configuration)).
+If a browser-based client fails with CORS errors against your public route, include your RHDH deployment’s `https://<my_developer_hub_domain>` origin in the same `backend.cors.origin` list (see [Advanced configuration](#advanced-configuration)).
 
 ## Authentication
 
 ### Delegated access (default)
 
 The default manifest enables **OAuth2 Dynamic Client Registration (DCR)** under `auth.experimentalDynamicClientRegistration` and installs the X2A DCR frontend so consent can be served under `/oauth2/*`.
-In typical use, the MCP client starts registration, the user signs in or approves access in the browser, and subsequent tool calls run **on behalf of that user** with their normal Hub session and RBAC.
+In typical use, the MCP client starts registration, the user signs in or approves access in the browser and subsequent tool calls run **on behalf of that user** with their RHDH identity and RBAC.
 
 High-level sequence:
 
 ```mermaid
 sequenceDiagram
-  participant User
   participant McpClient as MCPClient
+  participant User
   participant Hub as DeveloperHub
   participant Browser as Browser
   McpClient->>Hub: Start registration or authorization
@@ -98,12 +98,12 @@ These tools mirror capabilities you already have in the Conversion Hub UI. Names
 
 | Tool | Purpose | Typical inputs | What you get |
 |------|---------|----------------|--------------|
-| `x2a-list-projects` | List migration projects you are allowed to see | Pagination or filter fields as exposed by the tool | Projects with metadata and links into the Hub UI where applicable |
+| `x2a-list-projects` | List migration projects you are allowed to see | Pagination or filter fields as exposed by the tool | Projects with metadata and links into the RHDH UI where applicable |
 | `x2a-create-project` | Start a new migration project | Project fields aligned with the create-project flow (source/target repos, owner, and so on) | Created project identifiers and next-step hints (for example running initialization) |
 | `x2a-trigger-next-phase` | Start or advance a pipeline phase (for example init, analyze, migrate, publish) for a module or project | Identifiers for the project or module and the phase to run | Job or status information; errors if prerequisites are missing |
-| `x2a-list-modules` | List modules belonging to a project | `projectId` | Module names, paths, status, and deep links to module detail in the Hub UI |
+| `x2a-list-modules` | List modules belonging to a project | `projectId` | Module names, paths, status, and deep links to module detail in the RHDH UI |
 
-**Repository access:** Creating projects or advancing phases often requires the same **Git provider access** as the web UI (OAuth tokens for source and target repositories). If the assistant runs as a static service principal, it may not be able to complete steps that need your personal SCM authorization. See [Authentication]({% link ui/authentication.md %}) for how users sign in to GitHub, GitLab, or Bitbucket in Hub.
+**Repository access:** Creating projects or advancing phases often requires the same **Git provider access** as the web UI (OAuth tokens for source and target repositories). If the assistant runs as a static service principal, it may not be able to complete steps that need your personal SCM authorization. See [Authentication]({% link ui/authentication.md %}) for how users sign in to GitHub, GitLab, or Bitbucket in RHDH.
 
 **Tool descriptions:** The plugin can expose short descriptions and structured schemas so clients know how to call each tool. Your client’s tool list is the authoritative view for the exact parameter names on your deployment.
 
@@ -121,7 +121,7 @@ The following fragments belong in the **single** `app-config-rhdh.yaml` document
 
 ### CORS
 
-The default file allows `http://localhost:6274` for the MCP Inspector. Add your public Hub origin if a browser client needs it:
+The default file allows `http://localhost:6274` for the MCP Inspector. Add your public RHDH origin if a browser client needs it:
 
 ```yaml
 backend:
@@ -134,7 +134,8 @@ backend:
 
 ### Dynamic Client Registration
 
-Tighten patterns for production. Wildcards such as `https://*` are convenient in labs only.
+Tighten patterns for production.
+Wildcards such as `https://*` are convenient in labs only, narrow the URL pattern to match requirements of your client as close as possible.
 
 ```yaml
 auth:
@@ -181,6 +182,6 @@ Browse [rhdh-plugin-export-overlays packages](https://github.com/orgs/redhat-dev
 
 ## Further reading
 
-- [Installation]({% link ui/installation.md %}): deploy manifests, secrets, and restarting the Hub pod
-- [Interacting with Model Context Protocol tools for Red Hat Developer Hub](https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.9/html-single/interacting_with_model_context_protocol_tools_for_red_hat_developer_hub/index): Hub MCP behavior and client examples
+- [Installation]({% link ui/installation.md %}): deploy manifests, secrets, and restarting the RHDH pod
+- [Interacting with Model Context Protocol tools for Red Hat Developer Hub](https://docs.redhat.com/en/documentation/red_hat_developer_hub/1.9/html-single/interacting_with_model_context_protocol_tools_for_red_hat_developer_hub/index): RHDH MCP behavior and client examples
 - Optional background on plugin sources: [rhdh-plugins workspaces/x2a](https://github.com/redhat-developer/rhdh-plugins/tree/main/workspaces/x2a)
