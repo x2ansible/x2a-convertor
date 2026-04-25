@@ -2,7 +2,7 @@
 layout: default
 title: Authentication
 parent: UI Documentation
-nav_order: 2
+nav_order: 3
 ---
 
 # Authentication

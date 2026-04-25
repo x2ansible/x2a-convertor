@@ -144,6 +144,29 @@ oc apply -n my-custom-namespace -f deploy/app.yaml
 
 To use different plugin versions, update the OCI image references in the `dynamic-plugins` ConfigMap section of `deploy/app.yaml`.
 
+### MCP actions and related app-config (optional)
+{: #mcp-actions-app-config}
+
+When you enable the MCP actions backend and `x2a-mcp-extras` (see the `dynamic-plugins` list in `deploy/app.yaml` above), Backstage needs matching settings in application config.
+The full example lives in the same manifest under the `app-config-rhdh` ConfigMap key `app-config-rhdh.yaml` (including `auth.experimentalDynamicClientRegistration` for OAuth DCR). For a minimal merge into a vanilla `app-config.yaml`, use:
+
+```yaml
+backend:
+  cors:
+    origin:
+      # for @modelcontextprotocol/inspector; remove if unused
+      - http://localhost:6274
+    credentials: true
+  actions:
+    pluginSources:
+      - 'x2a-mcp-extras'
+mcpActions:
+  namespacedToolNames: false
+```
+
+OAuth DCR and provider setup are covered in [Authentication]({% link ui/authentication.md %}).
+A standalone Backstage install that adds the same plugins via npm is described in [Installation (vanilla Backstage)]({% link ui/installation-backstage.md %}).
+
 ## Access the Application
 
 Get the Developer Hub URL:

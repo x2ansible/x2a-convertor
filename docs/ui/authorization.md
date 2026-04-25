@@ -2,7 +2,7 @@
 layout: default
 title: Authorization
 parent: UI Documentation
-nav_order: 3
+nav_order: 4
 ---
 
 # Authorization
