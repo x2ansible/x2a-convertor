@@ -13,14 +13,20 @@ Reference implementation and deeper notes live in the Red Hat plugin workspace: 
 
 ## Prerequisites
 
-Follow [Standalone Installation](https://backstage.io/docs/getting-started/) (`npx @backstage/create-app@latest`).
+Follow [Standalone Installation](https://backstage.io/docs/getting-started/), but create the app with the **legacy** stack so the X2A plugins work with the current APIs:
+
+```bash
+npx @backstage/create-app@latest --legacy
+```
+
+The X2A plugins are not yet adapted to [Backstage’s new frontend system](https://backstage.io/docs/frontend-system/) - that migration is in progress.
+Until it lands, you must use `--legacy` when generating the app.
 
 Additionally, for X2A you need:
 
 - A Kubernetes API the backend can reach (local `~/.kube/config` or in-cluster config) so migration jobs can run.
 - LLM credentials and optional Ansible Automation Platform settings (see the [X2A backend plugin README](https://github.com/redhat-developer/rhdh-plugins/blob/main/workspaces/x2a/plugins/x2a-backend/README.md) for `x2a.credentials` and related environment variables).
 
-Keep `@backstage/*` package versions compatible with the **peer dependencies** of the `@red-hat-developer-hub/*` packages you install. Check each package page on npm for the current release and peer ranges.
 
 ## Install packages
 
@@ -155,7 +161,8 @@ In the root `app-config.yaml` (next to `packages/`), register the template shipp
 catalog:
   locations:
     - type: file
-      target: ./node_modules/@red-hat-developer-hub/backstage-plugin-scaffolder-backend-module-x2a/templates/conversion-project-template.yaml
+      # Tweak following path based on your actual directory structure. It's relative from the perspective of `packages/backend`.
+      target: ../../node_modules/@red-hat-developer-hub/backstage-plugin-scaffolder-backend-module-x2a/templates/conversion-project-template.yaml
       rules:
         - allow: [Template]
 ```
