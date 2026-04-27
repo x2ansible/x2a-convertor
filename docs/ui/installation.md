@@ -142,11 +142,33 @@ oc apply -n my-custom-namespace -f deploy/app.yaml
 
 ### Plugin Versions
 
-To use different plugin versions, update the OCI image references in the `dynamic-plugins` ConfigMap section of `deploy/app.yaml`.
+To use different plugin versions, update the OCI image references in the `dynamic-plugins` ConfigMap section of `deploy/app.yaml`. The default manifest also includes the MCP server, X2A MCP extras, and DCR consent UI packages alongside the Conversion Hub plugins.
+
+## MCP tools
+
+The default [`deploy/app.yaml`]({% link ui/installation.md %}#2-application-deployment) wires up Model Context Protocol (MCP) so assistants can call X2A MCP tools against your RHDH X2A route.
+
+Use [MCP tools]({% link ui/mcp-server.md %}) for the tool list and permissions description.
+
+### Optional tweaks in `app-config`
+
+Most teams can leave the bundled `app-config-rhdh` fragment as-is. Edit it when you need something different from the sample - for example:
+
+- **`auth.experimentalDynamicClientRegistration`** - tighten `allowedRedirectUriPatterns` in production (the sample uses broad patterns suitable for labs).
+- **`backend.cors`** - add or remove origins if you use browser-based MCP clients or the Inspector from a host that is not already listed.
+
+YAML examples and behavior notes for those keys live on the [MCP tools]({% link ui/mcp-server.md %}#advanced-configuration) page.
+
+After any change to `deploy/app.yaml`, re-apply and restart the RHDH pod so configuration and dynamic plugins reload:
+
+```bash
+oc apply -n <your-namespace> -f deploy/app.yaml
+oc delete pod -n <your-namespace> -l app.kubernetes.io/name=developer-hub
+```
 
 ## Access the Application
 
-Get the Developer Hub URL:
+Get the RHDH URL:
 
 ```bash
 oc get route developer-hub -n <your-namespace> -o jsonpath='https://{.spec.host}{"\n"}'

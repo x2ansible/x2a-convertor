@@ -29,6 +29,9 @@ OAuth setup, providers, and user management.
 ### [Authorization]({% link ui/authorization.md %})
 RBAC permissions and access control policies.
 
+### [MCP tools]({% link ui/mcp-server.md %})
+Connect assistants to Conversion Hub via RBAC-aware MCP tools.
+
 ### [CSV Bulk Import]({% link ui/csv-bulk-import.md %})
 Create multiple conversion projects at once by uploading a CSV file.
 
