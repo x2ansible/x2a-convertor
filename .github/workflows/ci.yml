@@ -35,6 +35,9 @@ jobs:
     - name: Run pyrefly check
       run: uv run pyrefly check
 
+    - name: Run pip-audit
+      run: uv tool run pip-audit
+
     - name: Run pytest
       run: uv run pytest -m "not eval"
 
