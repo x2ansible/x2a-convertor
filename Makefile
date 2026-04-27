@@ -11,6 +11,9 @@ format:
 type-check:
 	uv run pyrefly check
 
+audit:
+	uv tool run pip-audit
+
 ci-check:
 	uv run ruff check . --output-format=github
 	uv run ruff format --check
@@ -64,5 +67,5 @@ generate-docs:
 	uv run python scripts/generate_cli_docs.py
 	uv run python scripts/generate_usage_docs.py
 
-.PHONY: check format ci-check evals install clean run-init run-analyze run-migrate build run-container clean-container generate-docs
+.PHONY: check format audit ci-check evals install clean run-init run-analyze run-migrate build run-container clean-container generate-docs
 

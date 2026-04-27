@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop, 'v*' ]
+    branches: [ main, develop, 'v*' , test ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
@@ -35,6 +35,9 @@ jobs:
     - name: Run pyrefly check
       run: uv run pyrefly check
 
+    - name: Run pip-audit
+      run: uv tool run pip-audit
+
     - name: Run pytest
       run: uv run pytest -m "not eval"
 
@@ -55,3 +58,23 @@ jobs:
         context: .
         push: false
         tags: x2a-convertor:latest
+
+  trigger-docs:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test'
+    needs: [lint-and-format, build-container]
+
+    steps:
+    - name: Generate GitHub App token
+      id: app-token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ secrets.AAP_ID }}
+        private-key: ${{ secrets.AAP_PRIVATE_KEY }}
+        owner: x2ansible
+        repositories: x2ansible
+
+    - name: Trigger docs workflow
+      run: gh workflow run docs --repo x2ansible/x2ansible
+      env:
+        GH_TOKEN: ${{ steps.app-token.outputs.token }}
