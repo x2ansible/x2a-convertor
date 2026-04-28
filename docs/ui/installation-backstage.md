@@ -11,6 +11,8 @@ This guide adds the X2A plugins to a stock Backstage app created with the upstre
 
 Reference implementation and deeper notes live in the Red Hat plugin workspace: [rhdh-plugins/workspaces/x2a](https://github.com/redhat-developer/rhdh-plugins/tree/main/workspaces/x2a) ([`packages/app`](https://github.com/redhat-developer/rhdh-plugins/tree/main/workspaces/x2a/packages), [`packages/backend`](https://github.com/redhat-developer/rhdh-plugins/tree/main/workspaces/x2a/packages)).
 
+The plugins are currently tested against **Backstage 1.45.3** (conforms RHDH 1.9). Other Backstage versions may work but are not guaranteed.
+
 ## Prerequisites
 
 Follow [Standalone Installation](https://backstage.io/docs/getting-started/), but create the app with the **legacy** stack so the X2A plugins work with the current APIs:
@@ -26,7 +28,6 @@ Additionally, for X2A you need:
 
 - A Kubernetes API the backend can reach (local `~/.kube/config` or in-cluster config) so migration jobs can run.
 - LLM credentials and optional Ansible Automation Platform settings (see the [X2A backend plugin README](https://github.com/redhat-developer/rhdh-plugins/blob/main/workspaces/x2a/plugins/x2a-backend/README.md) for `x2a.credentials` and related environment variables).
-
 
 ## Install packages
 
