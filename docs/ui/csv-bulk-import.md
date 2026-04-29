@@ -2,7 +2,7 @@
 layout: default
 title: CSV Bulk Import
 parent: UI Documentation
-nav_order: 5
+nav_order: 6
 ---
 
 # CSV Bulk Import

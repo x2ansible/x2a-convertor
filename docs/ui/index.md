@@ -23,6 +23,9 @@ The UI is built as a Backstage plugin workspace, providing:
 ### [Installation]({% link ui/installation.md %})
 Deployment guide for OpenShift and Kubernetes environments.
 
+### [Installation (vanilla Backstage)]({% link ui/installation-backstage.md %})
+Add published `@red-hat-developer-hub/*` X2A packages to a freshly generated `create-app` Backstage instance.
+
 ### [Authentication]({% link ui/authentication.md %})
 OAuth setup, providers, and user management.
 
