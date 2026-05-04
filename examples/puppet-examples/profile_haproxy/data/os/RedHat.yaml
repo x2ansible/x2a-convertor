@@ -1,0 +1,11 @@
+---
+# OS family: RedHat (L17)
+
+profile_haproxy::package_name: haproxy
+profile_haproxy::config_dir: /etc/haproxy
+profile_haproxy::firewall_provider: firewalld
+profile_haproxy::firewall_zone: public
+profile_haproxy::extra_packages:
+  - haproxy-systemd-wrapper
+  - policycoreutils-python-utils
+profile_haproxy::selinux_enabled: true

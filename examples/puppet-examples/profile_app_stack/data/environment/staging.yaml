@@ -1,0 +1,11 @@
+---
+# Staging environment overrides
+
+profile_app_stack::app_revision: main
+profile_app_stack::worker_count: 1
+profile_app_stack::max_requests: 100
+profile_app_stack::log_level: debug
+
+profile_app_stack::db_host: localhost
+
+profile_app_stack::secret_key: staging-not-secret-at-all

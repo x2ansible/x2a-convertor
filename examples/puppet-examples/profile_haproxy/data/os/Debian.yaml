@@ -1,0 +1,9 @@
+---
+# OS family: Debian (L17)
+
+profile_haproxy::package_name: haproxy
+profile_haproxy::config_dir: /etc/haproxy
+profile_haproxy::firewall_provider: ufw
+profile_haproxy::extra_packages:
+  - hatop
+profile_haproxy::selinux_enabled: false

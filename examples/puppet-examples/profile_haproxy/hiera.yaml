@@ -1,0 +1,69 @@
+---
+version: 5
+defaults:
+  datadir: data
+  data_hash: yaml_data
+
+hierarchy:
+  - name: "Per-node data"
+    path: "nodes/%{trusted.certname}.yaml"
+
+  - name: "Per-role"
+    path: "role/%{::role}.yaml"
+
+  - name: "Per-cluster"
+    path: "cluster/%{::cluster_name}.yaml"
+
+  - name: "Application tier"
+    path: "application_tier/%{::app_tier}.yaml"
+
+  - name: "Application"
+    path: "application/%{::application}.yaml"
+
+  - name: "Team ownership"
+    path: "team/%{::team}.yaml"
+
+  - name: "Business unit"
+    path: "business_unit/%{::business_unit}.yaml"
+
+  - name: "Lifecycle stage"
+    path: "lifecycle/%{::lifecycle}.yaml"
+
+  - name: "Environment"
+    path: "environment/%{::environment}.yaml"
+
+  - name: "Network zone"
+    path: "network_zone/%{::network_zone}.yaml"
+
+  - name: "Datacenter"
+    path: "datacenter/%{::datacenter}.yaml"
+
+  - name: "Region"
+    path: "region/%{::region}.yaml"
+
+  - name: "Country"
+    path: "country/%{::country}.yaml"
+
+  - name: "CPU architecture"
+    path: "architecture/%{facts.architecture}.yaml"
+
+  - name: "OS release"
+    path: "os_release/%{facts.os.name}_%{facts.os.release.full}.yaml"
+
+  - name: "OS family and major release"
+    path: "osfamily_release/%{facts.os.family}_%{facts.os.release.major}.yaml"
+
+  - name: "OS family"
+    path: "os/%{facts.os.family}.yaml"
+
+  - name: "Kernel"
+    path: "kernel/%{facts.kernel}.yaml"
+
+  - name: "Container detection"
+    path: "is_container/%{facts.is_virtual}.yaml"
+
+  - name: "Virtual vs physical"
+    path: "virtual/%{facts.virtual}.yaml"
+
+  - name: "Common defaults"
+    path: "common.yaml"

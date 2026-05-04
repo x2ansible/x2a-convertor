@@ -1,0 +1,29 @@
+---
+# Datacenter: dc1_fra — Frankfurt primary DC (L11)
+
+profile_haproxy::log_server: 10.100.1.50
+profile_haproxy::ntp_servers:
+  - ntp1.dc1.fra.example.com
+  - ntp2.dc1.fra.example.com
+
+# Override backend server addresses for this datacenter
+profile_haproxy::backends:
+  webservers:
+    servers:
+      - name: web1-fra
+        address: 10.100.1.10
+        weight: 100
+      - name: web2-fra
+        address: 10.100.1.11
+        weight: 100
+      - name: web3-fra
+        address: 10.100.1.12
+        weight: 100
+  api:
+    servers:
+      - name: api1-fra
+        address: 10.100.2.10
+        weight: 100
+      - name: api2-fra
+        address: 10.100.2.11
+        weight: 100

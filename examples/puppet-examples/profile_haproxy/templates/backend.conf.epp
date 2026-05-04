@@ -1,0 +1,23 @@
+<%- |
+  String           $backend_name,
+  String           $balance,
+  Integer          $port,
+  Array[Hash]      $servers,
+  Optional[String] $health_check    = undef,
+  Optional[String] $health_interval = undef,
+  Boolean          $ssl_enabled     = false,
+| -%>
+# Backend: <%= $backend_name %>
+# Managed by Puppet — do not edit manually
+
+backend <%= $backend_name %>
+    balance <%= $balance %>
+<%- if $health_check { -%>
+    option  <%= $health_check %>
+<%- } -%>
+<%- if $health_interval { -%>
+    default-server inter <%= $health_interval %>
+<%- } -%>
+<%- $servers.each |$server| { -%>
+    server <%= $server['name'] %> <%= $server['address'] %>:<%= $port %> check weight <%= $server['weight'] %><% if $ssl_enabled { %> ssl verify none<% } %>
+<%- } -%>

@@ -1,0 +1,70 @@
+---
+# Common defaults — lowest priority (L21)
+
+profile_haproxy::package_name: haproxy
+profile_haproxy::config_dir: /etc/haproxy
+profile_haproxy::config_file: /etc/haproxy/haproxy.cfg
+profile_haproxy::service_name: haproxy
+profile_haproxy::user: haproxy
+profile_haproxy::group: haproxy
+
+# Stats page
+profile_haproxy::stats_enabled: true
+profile_haproxy::stats_port: 9000
+profile_haproxy::stats_uri: /haproxy-stats
+profile_haproxy::stats_user: admin
+profile_haproxy::stats_password: ENC[PKCS7,MIIBygYJKoZIhvcNAQcDoIIBuzCCAbcCAQAxggEhMIIBHQIBADAFMAACAQEwDQYJKoZIhvcNAQEBBQAEggEAExample]
+
+# Global settings
+profile_haproxy::global_maxconn: 4096
+profile_haproxy::client_timeout: 30s
+profile_haproxy::server_timeout: 30s
+profile_haproxy::connect_timeout: 5s
+profile_haproxy::retries: 3
+
+# SSL defaults
+profile_haproxy::ssl_enabled: false
+profile_haproxy::ssl_cert_path: /etc/ssl/certs
+profile_haproxy::ssl_key_path: /etc/ssl/private
+profile_haproxy::ssl_ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+profile_haproxy::ssl_min_version: TLSv1.2
+
+# Logging
+profile_haproxy::log_server: 127.0.0.1
+profile_haproxy::log_facility: local0
+profile_haproxy::log_level: info
+
+# Backends — this is the data map that drives the loop in config.pp
+profile_haproxy::backends:
+  webservers:
+    balance: roundrobin
+    port: 8080
+    health_check: httpchk GET /health
+    health_interval: 5s
+    servers:
+      - name: web1
+        address: 10.0.1.10
+        weight: 100
+      - name: web2
+        address: 10.0.1.11
+        weight: 100
+      - name: web3
+        address: 10.0.1.12
+        weight: 100
+  api:
+    balance: leastconn
+    port: 3000
+    health_check: httpchk GET /api/health
+    health_interval: 10s
+    servers:
+      - name: api1
+        address: 10.0.2.10
+        weight: 100
+      - name: api2
+        address: 10.0.2.11
+        weight: 100
+
+# Lookup options — merge behavior for hash types
+lookup_options:
+  profile_haproxy::backends:
+    merge: deep

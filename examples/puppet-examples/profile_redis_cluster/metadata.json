@@ -1,0 +1,27 @@
+{
+  "name": "example-profile_redis_cluster",
+  "version": "3.1.0",
+  "author": "Platform Team",
+  "summary": "Redis cluster profile with primary/replica discovery via PuppetDB",
+  "license": "Apache-2.0",
+  "source": "https://github.com/example-org/puppet-profile_redis_cluster",
+  "dependencies": [
+    { "name": "puppetlabs-stdlib", "version_requirement": ">= 9.0.0 < 10.0.0" },
+    { "name": "puppet-redis", "version_requirement": ">= 11.0.0 < 12.0.0" },
+    { "name": "puppetlabs-firewall", "version_requirement": ">= 8.0.0 < 9.0.0" }
+  ],
+  "operatingsystem_support": [
+    {
+      "operatingsystem": "RedHat",
+      "operatingsystemrelease": ["8", "9"]
+    },
+    {
+      "operatingsystem": "Ubuntu",
+      "operatingsystemrelease": ["22.04", "24.04"]
+    }
+  ],
+  "requirements": [
+    { "name": "puppet", "version_requirement": ">= 7.0.0 < 9.0.0" }
+  ],
+  "tags": ["redis", "cluster", "puppetdb", "exported-resources"]
+}

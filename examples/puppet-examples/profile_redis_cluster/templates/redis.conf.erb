@@ -1,0 +1,48 @@
+# Redis configuration — Managed by Puppet
+# Node: <%= @facts['networking']['fqdn'] %>
+# Role: <%= @facts['redis_role'] %>
+# Cluster: <%= @cluster_name %>
+
+bind 0.0.0.0
+port <%= @redis_port %>
+daemonize yes
+pidfile /var/run/redis/redis-server.pid
+logfile /var/log/redis/redis-server.log
+loglevel notice
+
+# Security
+requirepass <%= @redis_password %>
+
+# Persistence
+appendonly yes
+appendfilename "appendonly.aof"
+appendfsync everysec
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+
+# RDB snapshots
+save 900 1
+save 300 10
+save 60 10000
+dbfilename dump.rdb
+dir /var/lib/redis
+
+# Memory
+maxmemory <%= @maxmemory_mb %>mb
+maxmemory-policy <%= @maxmemory_policy %>
+
+# Network
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300
+
+<% if @facts['redis_role'] == 'replica' -%>
+# Replica configuration
+replicaof <%= @primary_host %> <%= @redis_port %>
+masterauth <%= @redis_password %>
+replica-serve-stale-data yes
+replica-read-only yes
+<% end -%>
+
+# Include additional configuration
+include /etc/redis/conf.d/*.conf

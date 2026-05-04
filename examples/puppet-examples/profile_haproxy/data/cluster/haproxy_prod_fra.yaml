@@ -1,0 +1,18 @@
+---
+# Cluster: haproxy_prod_fra — production HAProxy cluster in Frankfurt (L3)
+
+profile_haproxy::global_maxconn: 32768
+profile_haproxy::ssl_ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+profile_haproxy::ssl_min_version: TLSv1.3
+
+# Additional backend for this cluster only
+profile_haproxy::backends:
+  internal_monitoring:
+    balance: roundrobin
+    port: 9090
+    health_check: httpchk GET /-/healthy
+    health_interval: 15s
+    servers:
+      - name: prom1-fra
+        address: 10.100.3.10
+        weight: 100

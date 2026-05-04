@@ -1,0 +1,16 @@
+forge 'https://forge.puppet.com'
+
+mod 'puppetlabs-stdlib', '9.6.0'
+mod 'puppet-redis', '11.0.0'
+mod 'puppetlabs-firewall', '8.1.3'
+mod 'puppetlabs-apt', '9.4.0'
+
+# Custom internal monitoring module from Git
+mod 'example-monitoring',
+  :git => 'https://gitlab.internal.example.com/puppet/monitoring.git',
+  :tag => 'v2.1.0'
+
+# Custom shared networking module from Git
+mod 'example-network_utils',
+  :git => 'https://gitlab.internal.example.com/puppet/network_utils.git',
+  :branch => 'main'

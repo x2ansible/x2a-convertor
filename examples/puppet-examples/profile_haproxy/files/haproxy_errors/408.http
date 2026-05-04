@@ -1,0 +1,9 @@
+HTTP/1.0 408 Request Timeout
+Cache-Control: no-cache
+Connection: close
+Content-Type: text/html
+
+<html><body>
+<h1>408 Request Timeout</h1>
+<p>Your request has timed out. Please try again.</p>
+</body></html>

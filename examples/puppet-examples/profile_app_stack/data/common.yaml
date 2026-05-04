@@ -1,0 +1,36 @@
+---
+# Common defaults for the application stack
+
+profile_app_stack::app_name: myapp-api
+profile_app_stack::app_repo: https://github.com/example-org/myapp-api.git
+profile_app_stack::app_revision: main
+profile_app_stack::app_port: 8000
+profile_app_stack::app_dir: /opt/myapp-api
+profile_app_stack::app_user: myapp
+profile_app_stack::app_group: myapp
+
+# Python
+profile_app_stack::python_version: python3
+profile_app_stack::pip_packages:
+  - uvicorn
+  - gunicorn
+  - psycopg2-binary
+
+# Database
+profile_app_stack::db_host: localhost
+profile_app_stack::db_port: 5432
+profile_app_stack::db_name: myapp_db
+profile_app_stack::db_user: myapp_app
+profile_app_stack::db_password: ENC[PKCS7,MIIBygYJKoZIhvcNAQcDoIIBuzCCAbcCAQAxggEhMIIBHQIBADAFMAACAQEwDQYJKoZIhvcNAQEBBQAEggEAdbPassword]
+
+# Service
+profile_app_stack::worker_count: 2
+profile_app_stack::worker_class: uvicorn.workers.UvicornWorker
+profile_app_stack::max_requests: 1000
+profile_app_stack::graceful_timeout: 30
+
+# Logging
+profile_app_stack::log_dir: /var/log/myapp-api
+profile_app_stack::log_level: info
+profile_app_stack::log_max_size: 100M
+profile_app_stack::log_rotate_count: 7

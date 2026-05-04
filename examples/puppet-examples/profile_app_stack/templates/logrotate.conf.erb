@@ -1,0 +1,13 @@
+<%= @log_dir %>/*.log {
+    daily
+    rotate <%= @log_rotate_count %>
+    missingok
+    notifempty
+    compress
+    delaycompress
+    maxsize <%= @log_max_size %>
+    sharedscripts
+    postrotate
+        systemctl reload <%= @app_name %> 2>/dev/null || true
+    endscript
+}

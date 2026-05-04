@@ -1,0 +1,58 @@
+<%- |
+  String  $app_name,
+  String  $app_dir,
+  String  $app_user,
+  String  $app_group,
+  Integer $app_port,
+  Integer $worker_count,
+  String  $worker_class,
+  Integer $max_requests,
+  Integer $graceful_timeout,
+  String  $log_dir,
+  String  $log_level,
+| -%>
+# Systemd unit for <%= $app_name %>
+# Managed by Puppet — do not edit manually
+
+[Unit]
+Description=<%= $app_name %> Application Server
+Documentation=https://wiki.internal.example.com/apps/<%= $app_name %>
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=notify
+User=<%= $app_user %>
+Group=<%= $app_group %>
+WorkingDirectory=<%= $app_dir %>
+EnvironmentFile=<%= $app_dir %>/.env
+
+ExecStart=<%= $app_dir %>/venv/bin/gunicorn \
+    --bind 0.0.0.0:<%= $app_port %> \
+    --workers <%= $worker_count %> \
+    --worker-class <%= $worker_class %> \
+    --max-requests <%= $max_requests %> \
+    --max-requests-jitter 50 \
+    --graceful-timeout <%= $graceful_timeout %> \
+    --access-logfile <%= $log_dir %>/access.log \
+    --error-logfile <%= $log_dir %>/error.log \
+    --log-level <%= $log_level %> \
+    app.main:app
+
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=<%= $graceful_timeout + 5 %>
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:<%= $log_dir %>/stdout.log
+StandardError=append:<%= $log_dir %>/stderr.log
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=<%= $app_dir %> <%= $log_dir %>
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

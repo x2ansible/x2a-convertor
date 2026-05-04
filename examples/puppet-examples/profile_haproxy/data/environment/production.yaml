@@ -1,0 +1,14 @@
+---
+# Environment: production (L9)
+
+profile_haproxy::global_maxconn: 16384
+profile_haproxy::ssl_enabled: true
+profile_haproxy::log_level: warning
+profile_haproxy::client_timeout: 60s
+profile_haproxy::server_timeout: 60s
+profile_haproxy::stats_enabled: false
+
+# Production-specific stick-table for session persistence
+profile_haproxy::stick_table_enabled: true
+profile_haproxy::stick_table_size: 200k
+profile_haproxy::stick_table_expire: 30m

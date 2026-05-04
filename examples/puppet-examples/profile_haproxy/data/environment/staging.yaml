@@ -1,0 +1,8 @@
+---
+# Environment: staging (L9)
+
+profile_haproxy::global_maxconn: 2048
+profile_haproxy::ssl_enabled: false
+profile_haproxy::log_level: debug
+profile_haproxy::stats_enabled: true
+profile_haproxy::stick_table_enabled: false

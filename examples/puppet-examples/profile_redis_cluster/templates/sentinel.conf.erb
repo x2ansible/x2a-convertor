@@ -1,0 +1,28 @@
+# Redis Sentinel configuration — Managed by Puppet
+# Node: <%= @facts['networking']['fqdn'] %>
+# Cluster: <%= @cluster_name %>
+# Quorum: <%= @quorum %>
+
+port <%= @sentinel_port %>
+daemonize yes
+pidfile /var/run/redis/redis-sentinel.pid
+logfile /var/log/redis/redis-sentinel.log
+
+# Monitor the primary node
+sentinel monitor <%= @cluster_name %> <%= @primary_host %> <%= @redis_port %> <%= @quorum %>
+sentinel auth-pass <%= @cluster_name %> <%= @redis_password %>
+
+# Failover timings
+sentinel down-after-milliseconds <%= @cluster_name %> 5000
+sentinel failover-timeout <%= @cluster_name %> 60000
+sentinel parallel-syncs <%= @cluster_name %> 1
+
+<% if @sentinel_nodes && !@sentinel_nodes.empty? -%>
+# Known sentinel nodes in cluster
+<% @sentinel_nodes.each do |node| -%>
+# sentinel known-sentinel: <%= node['certname'] %>
+<% end -%>
+<% end -%>
+
+# Notifications
+sentinel notification-script <%= @cluster_name %> /usr/local/bin/redis-check.sh
