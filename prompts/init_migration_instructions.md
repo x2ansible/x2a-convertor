@@ -11,14 +11,14 @@ The plan must summarize in detail all modules, dependencies, security issues, an
   - `file_search`: Search for files by pattern.
   - `read_file`: Read file contents.
   - `write_file`: Write the completed migration plan.
-- Your first action must be to run `list_directory` on the root directory (`"."`) to understand the repository structure.
+- Your first action must be to run `list_directory` on the root directory: `list_directory(dir_path=.)` to understand the repository structure.
 - Do not generate any output until you have fully explored the repository.
 
 ## Required Analysis Steps
 
 Follow these steps in order:
 
-1. **Root Directory Scan**: Use `list_directory` on `"."` to see all top-level files and folders.
+1. **Root Directory Scan**: Use `list_directory(dir_path=.)` to see all top-level files and folders.
 2. **Dependency Review**: Use `read_file` on dependency files to identify dependencies:
    - **Chef**: `Berksfile`, `Policyfile.rb`, `metadata.rb`
    - **PowerShell**: `requirements.psd1`, module manifests (`.psd1`), `Import-Module` statements in scripts
@@ -46,7 +46,7 @@ Generate a `{migration_plan_file}` file with the following structure:
 This repository contains [technology type] that need individual migration planning:
 
 ### MODULE INVENTORY
-[List each module with description and location]
+[List each module with description and location. Do NOT list external dependencies here]
 
 **GOOD EXAMPLES:**
 - **postgresql**:
