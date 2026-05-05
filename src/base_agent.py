@@ -13,10 +13,12 @@ from typing import Any, ClassVar
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
+from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 
+from src.middleware.priorities import PrioritiesMiddleware
 from src.model import get_model, get_runnable_config, report_tool_calls
 from src.types.base_state import BaseState
 from src.types.telemetry import AgentMetrics, telemetry_context
@@ -36,6 +38,7 @@ class BaseAgent[S: BaseState](ABC):
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = []
     _NAME: ClassVar[str | None] = None
+    PRIORITIES_FILE: ClassVar[str | None] = None
 
     def __init__(self, model: BaseChatModel | None = None):
         self.model = model or get_model()
@@ -55,14 +58,22 @@ class BaseAgent[S: BaseState](ABC):
         return []
 
     def middleware(self) -> list:
-        """Return middleware list for conversation compaction."""
-        return [
+        """Return middleware list for conversation compaction.
+
+        When PRIORITIES_FILE is set, PrioritiesMiddleware is included
+        to inject priorities as a message at agent startup.
+        """
+        stack: list[AgentMiddleware] = []
+        if self.PRIORITIES_FILE:
+            stack.append(PrioritiesMiddleware(self.PRIORITIES_FILE))
+        stack.append(
             SummarizationMiddleware(
                 model=self.model,
                 max_tokens_before_summary=20000,
                 messages_to_keep=20,
             ),
-        ]
+        )
+        return stack
 
     def __call__(self, state: S) -> S:
         """Entry point. Wraps execute() with automatic telemetry + logging."""
