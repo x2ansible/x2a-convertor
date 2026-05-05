@@ -1,12 +1,14 @@
-"""Tests for BaseAgent token extraction functionality."""
+"""Tests for BaseAgent functionality."""
 
 from typing import cast
 
 import pytest
+from langchain.agents.middleware import SummarizationMiddleware
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.messages.ai import UsageMetadata
 
 from src.base_agent import BaseAgent
+from src.middleware.priorities import PrioritiesMiddleware
 from src.types.base_state import BaseState
 
 
@@ -22,6 +24,16 @@ class NamedAgent(BaseAgent[BaseState]):
     """Agent with a custom _NAME for testing."""
 
     _NAME = "My Custom Agent"
+
+    def execute(self, state: BaseState, metrics):
+        """Minimal execute implementation."""
+        return state
+
+
+class PrioritizedAgent(BaseAgent[BaseState]):
+    """Agent with PRIORITIES_FILE set for testing."""
+
+    PRIORITIES_FILE = "INPUT-AGENTS.md"
 
     def execute(self, state: BaseState, metrics):
         """Minimal execute implementation."""
@@ -443,3 +455,34 @@ class TestBaseAgentInvokeStructured:
         assert result == {"field": "value"}
         assert metrics.input_tokens == 0
         assert metrics.output_tokens == 0
+
+
+class TestBaseAgentMiddleware:
+    """Tests for BaseAgent.middleware() with PRIORITIES_FILE."""
+
+    def test_middleware_without_priorities_file(self):
+        """Agent without PRIORITIES_FILE returns only SummarizationMiddleware."""
+        agent = ConcreteAgent()
+        stack = agent.middleware()
+
+        assert len(stack) == 1
+        assert isinstance(stack[0], SummarizationMiddleware)
+
+    def test_middleware_with_priorities_file(self):
+        """Agent with PRIORITIES_FILE prepends PrioritiesMiddleware."""
+        agent = PrioritizedAgent()
+        stack = agent.middleware()
+
+        assert len(stack) == 2
+        assert isinstance(stack[0], PrioritiesMiddleware)
+        assert isinstance(stack[1], SummarizationMiddleware)
+
+    def test_priorities_file_classvar_defaults_to_none(self):
+        """PRIORITIES_FILE defaults to None on BaseAgent subclasses."""
+        agent = ConcreteAgent()
+        assert agent.PRIORITIES_FILE is None
+
+    def test_priorities_file_classvar_set_on_subclass(self):
+        """PRIORITIES_FILE is accessible on subclasses that set it."""
+        agent = PrioritizedAgent()
+        assert agent.PRIORITIES_FILE == "INPUT-AGENTS.md"
