@@ -12,6 +12,5 @@ EXPORT_OUTPUT_FILENAME_TEMPLATE = "ansible/roles/{module}/export-output.md"
 # Metadata filename
 METADATA_FILENAME = "generated-project-metadata.json"
 
-# Rules filenames
 INPUT_AGENTS_FILE = "INPUT-AGENTS.md"
 EXPORT_AGENTS_FILE = "EXPORT-AGENTS.md"
