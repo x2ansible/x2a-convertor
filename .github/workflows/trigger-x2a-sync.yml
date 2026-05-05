@@ -1,0 +1,25 @@
+name: Trigger x2a-convertor-sync
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AAP_ID }}
+          private-key: ${{ secrets.AAP_PRIVATE_KEY }}
+          owner: x2ansible
+
+      - name: Trigger x2a-convertor-sync
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh workflow run x2a-convertor-sync.yaml \
+            --repo x2ansible/x2ansible \
+            --ref main
