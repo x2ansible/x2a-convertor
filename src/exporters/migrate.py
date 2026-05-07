@@ -66,7 +66,8 @@ class MigrationAgent:
         logger.info("MigrationAgent is reading source metadata")
         prompt = get_prompt("export_source_metadata_system")
         system_message = prompt.format(
-            module_migration_plan=state["module_migration_plan"].content,
+            high_level_migration_plan=state["high_level_migration_plan"].to_document(),
+            module_migration_plan=state["module_migration_plan"].to_document(),
         )
         user_prompt = get_prompt("export_source_metadata_task").format(
             user_message=state["user_message"],

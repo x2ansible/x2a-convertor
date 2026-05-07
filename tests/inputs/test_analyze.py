@@ -1,6 +1,9 @@
-"""Test cases for analyze.py MigrationState."""
+"""Test cases for analyze.py MigrationState and MigrationAnalysisWorkflow."""
 
-from src.inputs.analyze import MigrationState
+from pathlib import Path
+from unittest.mock import Mock
+
+from src.inputs.analyze import MigrationAnalysisWorkflow, MigrationState
 from src.types.technology import Technology
 
 
@@ -167,3 +170,87 @@ class TestMigrationStateGetMigrationPlanPath:
         )
         result = state.get_migration_plan_path()
         assert result == "migration-plan-__my_module__.md"
+
+
+class TestPrependFrontmatter:
+    """Test cases for MigrationAnalysisWorkflow._prepend_frontmatter method."""
+
+    def setup_method(self) -> None:
+        """Create workflow instance with mocked model."""
+        self.workflow = MigrationAnalysisWorkflow(model=Mock())
+
+    def test_prepends_yaml_frontmatter_with_source_path(self) -> None:
+        """Test that source-path is added as YAML frontmatter."""
+        content = "# Module: nginx\n\nSome content here."
+        result = self.workflow._prepend_frontmatter("./cookbooks/nginx", content)
+
+        assert result.startswith("---\n")
+        assert "source-path: ./cookbooks/nginx" in result
+        assert result.endswith(content)
+
+    def test_frontmatter_format(self) -> None:
+        """Test the exact frontmatter format with delimiters."""
+        result = self.workflow._prepend_frontmatter("./path", "content")
+
+        assert result == "---\nsource-path: ./path\n---\n\ncontent"
+
+    def test_preserves_original_content(self) -> None:
+        """Test that original markdown content is not modified."""
+        original = "# Title\n\n## Section\n\nBody text with *formatting*."
+        result = self.workflow._prepend_frontmatter("./module", original)
+
+        assert result.endswith(original)
+
+
+class TestWriteMigrationFile:
+    """Test cases for MigrationAnalysisWorkflow.write_migration_file method."""
+
+    def setup_method(self) -> None:
+        """Create workflow instance with mocked model."""
+        self.workflow = MigrationAnalysisWorkflow(model=Mock())
+
+    def _make_state(
+        self,
+        module_migration_plan: str = "# Module: nginx\n\nMigration content.",
+    ) -> MigrationState:
+        """Create a MigrationState with sensible defaults."""
+        return MigrationState(
+            user_message="migrate nginx",
+            path="./cookbooks/nginx",
+            name="nginx",
+            technology=Technology.CHEF,
+            migration_plan_content="",
+            module_migration_plan=module_migration_plan,
+            module_plan_path="",
+        )
+
+    def test_written_file_contains_frontmatter(self, tmp_path, monkeypatch) -> None:
+        """Test that written migration plan file includes YAML frontmatter."""
+        monkeypatch.chdir(tmp_path)
+        state = self._make_state()
+
+        result = self.workflow.write_migration_file(state)
+
+        written = Path(result.module_plan_path).read_text()
+        assert written.startswith("---\n")
+        assert "source-path: ./cookbooks/nginx" in written
+        assert "# Module: nginx" in written
+
+    def test_written_file_preserves_plan_content(self, tmp_path, monkeypatch) -> None:
+        """Test that migration plan content is preserved after frontmatter."""
+        monkeypatch.chdir(tmp_path)
+        plan_content = "# Detailed Plan\n\n## Dependencies\n\n- dep_a\n- dep_b"
+        state = self._make_state(module_migration_plan=plan_content)
+
+        result = self.workflow.write_migration_file(state)
+
+        written = Path(result.module_plan_path).read_text()
+        assert written.endswith(plan_content)
+
+    def test_returns_unchanged_state_when_no_plan(self) -> None:
+        """Test that empty migration plan returns state without writing."""
+        state = self._make_state(module_migration_plan="")
+
+        result = self.workflow.write_migration_file(state)
+
+        assert result.module_plan_path == ""
