@@ -90,12 +90,19 @@ class MigrationAnalysisWorkflow:
                 metrics.record_metric("subagent", analyzer.__class__.__name__)
             return state.update(module_migration_plan=module_plan)
 
+    def _prepend_frontmatter(self, path: str, content: str) -> str:
+        """Prepend YAML frontmatter with source-path to migration plan content."""
+        frontmatter = f"---\nsource-path: {path}\n---\n\n"
+        return frontmatter + content
+
     def write_migration_file(self, state: MigrationState) -> MigrationState:
         """Write the migration plan to a file."""
         migration_content = state.module_migration_plan
         if not migration_content:
             logger.error("Migration failed, no plan generated")
             return state
+
+        migration_content = self._prepend_frontmatter(state.path, migration_content)
 
         filename = state.get_migration_plan_path()
         Path(filename).write_text(migration_content)
