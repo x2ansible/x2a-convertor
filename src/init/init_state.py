@@ -7,6 +7,7 @@ the agent pattern used in exporters.
 from dataclasses import dataclass, field, replace
 
 from src.types import BaseState
+from src.types.technology import Technology
 
 
 @dataclass
@@ -22,6 +23,7 @@ class InitState(BaseState):
         migration_plan_content: Generated high-level migration plan
         migration_plan_path: Path where migration plan was written
         metadata_items: Extracted metadata for 'generated-project-metadata.json'
+        source_technology: Dominant source technology detected from metadata
     """
 
     # Fields inherited from BaseState:
@@ -37,6 +39,7 @@ class InitState(BaseState):
     migration_plan_content: str = field(default="", kw_only=True)
     migration_plan_path: str = field(default="", kw_only=True)
     metadata_items: list[dict[str, str]] = field(default_factory=list, kw_only=True)
+    source_technology: Technology | None = field(default=None, kw_only=True)
 
     def update(self, **kwargs) -> "InitState":
         """Create new InitState with updated fields (immutable pattern).
