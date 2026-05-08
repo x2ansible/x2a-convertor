@@ -5,6 +5,7 @@ from a migration plan using structured LLM output.
 """
 
 import json
+from collections import Counter
 from pathlib import Path
 
 from prompts.get_prompt import get_prompt
@@ -12,6 +13,7 @@ from src.base_agent import BaseAgent
 from src.const import METADATA_FILENAME
 from src.init.init_state import InitState
 from src.types import MetadataCollection
+from src.types.technology import Technology
 from src.types.telemetry import AgentMetrics
 
 
@@ -56,7 +58,13 @@ class MetadataExtractionAgent(BaseAgent[InitState]):
         self._record_metrics(metrics, response, metadata_list)
         self._write_metadata_file(metadata_list)
 
-        return state.update(metadata_items=metadata_list)
+        source_technology = self._detect_dominant_technology(response)
+        self._log.info(f"Dominant source technology: {source_technology.value}")
+
+        return state.update(
+            metadata_items=metadata_list,
+            source_technology=source_technology,
+        )
 
     def _build_messages(self, migration_plan_content: str) -> list[dict[str, str]]:
         """Build LLM messages for metadata extraction."""
@@ -80,6 +88,21 @@ class MetadataExtractionAgent(BaseAgent[InitState]):
             return
         metrics.record_metric("modules_found", len(response.modules))
         metrics.record_metric("metadata_modules", len(metadata_list))
+
+    def _detect_dominant_technology(self, response: MetadataCollection) -> Technology:
+        """Determine the most common technology across all extracted modules.
+
+        Args:
+            response: Extracted metadata collection with module technologies
+
+        Returns:
+            Dominant Technology enum value. Defaults to Technology.CHEF.
+        """
+        if not response.modules:
+            return Technology.CHEF
+
+        counts = Counter(module.technology for module in response.modules)
+        return counts.most_common(1)[0][0]
 
     def _write_metadata_file(self, metadata_list: list[dict]) -> None:
         """Write metadata to generated-project-metadata.json."""

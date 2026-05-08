@@ -24,6 +24,8 @@ from .credential import CredentialConfig
 from .document import DocumentFile
 from .metadata import MetadataCollection, ModuleMetadata
 from .migration_state import MigrationStateInterface
+from .priorities import PrioritiesOutput, PrioritiesSection
+from .rule_file import RuleCollection, RuleFile
 from .technology import Technology
 from .telemetry import AgentMetrics, Telemetry, telemetry_context
 
@@ -41,6 +43,10 @@ __all__ = [
     "MetadataCollection",
     "MigrationStateInterface",
     "ModuleMetadata",
+    "PrioritiesOutput",
+    "PrioritiesSection",
+    "RuleCollection",
+    "RuleFile",
     "Technology",
     "Telemetry",
     "telemetry_context",

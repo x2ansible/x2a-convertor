@@ -1,0 +1,15 @@
+Analyze the following high level migration plan and organizational rules to generate phase-specific priorities for {{ source_technology }} migration agents.
+
+<migration_plan>
+{{ migration_plan_content }}
+</migration_plan>
+
+{{ rules }}
+
+Based on the migration plan and organizational rules above, produce structured output with:
+
+1. **input_priorities**: Sections relevant to {{ source_technology }} analysis agents. Include rules about discovery, parsing, dependency mapping, and technology-specific behaviors.
+
+2. **export_priorities**: Sections relevant to Ansible export agents. Include rules about collection usage, CI workflows, output formatting, and Ansible best practices.
+
+Each section should have a descriptive title and concise content extracted from the provided rules. Only include rules that are relevant -- do not invent new ones.
