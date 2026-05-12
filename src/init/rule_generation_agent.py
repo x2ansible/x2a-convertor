@@ -10,6 +10,7 @@ which runs before this agent in the workflow.
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.config import get_settings
 from src.const import EXPORT_AGENTS_FILE, INPUT_AGENTS_FILE
 from src.init.init_state import InitState
 from src.types.rule_file import RuleCollection
@@ -45,6 +46,15 @@ class RuleGenerationAgent(BaseAgent[InitState]):
         rules = RuleCollection.from_directory(self.RULES_DIRECTORY)
         if rules.is_empty():
             self._log.info("No rules found, skipping rules generation")
+            return state
+
+        max_chars = get_settings().processing.rules_max_chars
+        if rules.total_chars > max_chars:
+            self._log.warning(
+                "Rules content exceeds character limit, skipping rules generation",
+                total_chars=rules.total_chars,
+                max_chars=max_chars,
+            )
             return state
 
         if not state.migration_plan_content:
