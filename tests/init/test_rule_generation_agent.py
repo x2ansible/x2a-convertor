@@ -1,37 +1,35 @@
-"""Tests for PrioritiesGenerationAgent."""
+"""Tests for RuleGenerationAgent."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.init.priorities_generation_agent import PrioritiesGenerationAgent
-from src.types.priorities import PrioritiesOutput, PrioritiesSection
+from src.init.rule_generation_agent import RuleGenerationAgent
 from src.types.rule_file import RuleCollection, RuleFile
+from src.types.rules import RuleSection, RulesOutput
 from src.types.technology import Technology
 from src.types.telemetry import AgentMetrics
 
 
 @pytest.fixture
 def agent():
-    """Create a PrioritiesGenerationAgent with a mock model."""
+    """Create a RuleGenerationAgent with a mock model."""
     mock_model = MagicMock()
-    return PrioritiesGenerationAgent(model=mock_model)
+    return RuleGenerationAgent(model=mock_model)
 
 
 @pytest.fixture
-def sample_priorities_output():
-    """Sample PrioritiesOutput from structured LLM call."""
-    return PrioritiesOutput(
-        input_priorities=[
-            PrioritiesSection(title="Discovery Rules", content="Check for notifies."),
-            PrioritiesSection(title="Dependency Analysis", content="Map all deps."),
+def sample_rules_output():
+    """Sample RulesOutput from structured LLM call."""
+    return RulesOutput(
+        input_rules=[
+            RuleSection(title="Discovery Rules", content="Check for notifies."),
+            RuleSection(title="Dependency Analysis", content="Map all deps."),
         ],
-        export_priorities=[
-            PrioritiesSection(
-                title="Collection Policy", content="Use community.general."
-            ),
-            PrioritiesSection(title="CI Workflow", content="Include GitHub Actions."),
+        export_rules=[
+            RuleSection(title="Collection Policy", content="Use community.general."),
+            RuleSection(title="CI Workflow", content="Include GitHub Actions."),
         ],
     )
 
@@ -157,17 +155,17 @@ class TestRuleCollection:
         assert collection.to_document() == ""
 
 
-class TestPrioritiesOutput:
-    """Tests for PrioritiesOutput file writing."""
+class TestRulesOutput:
+    """Tests for RulesOutput file writing."""
 
     def test_write_input_file(self, tmp_path):
         """write_input_file writes sections with separator."""
-        output = PrioritiesOutput(
-            input_priorities=[
-                PrioritiesSection(title="Section One", content="Content one."),
-                PrioritiesSection(title="Section Two", content="Content two."),
+        output = RulesOutput(
+            input_rules=[
+                RuleSection(title="Section One", content="Content one."),
+                RuleSection(title="Section Two", content="Content two."),
             ],
-            export_priorities=[],
+            export_rules=[],
         )
 
         filepath = str(tmp_path / "INPUT.md")
@@ -180,10 +178,10 @@ class TestPrioritiesOutput:
 
     def test_write_export_file(self, tmp_path):
         """write_export_file writes sections."""
-        output = PrioritiesOutput(
-            input_priorities=[],
-            export_priorities=[
-                PrioritiesSection(title="Export Rule", content="Do this."),
+        output = RulesOutput(
+            input_rules=[],
+            export_rules=[
+                RuleSection(title="Export Rule", content="Do this."),
             ],
         )
 
@@ -195,7 +193,7 @@ class TestPrioritiesOutput:
 
     def test_empty_sections_skip_file(self, tmp_path):
         """Empty sections list does not create a file."""
-        output = PrioritiesOutput(input_priorities=[], export_priorities=[])
+        output = RulesOutput(input_rules=[], export_rules=[])
 
         filepath = str(tmp_path / "EMPTY.md")
         output.write_input_file(filepath)
@@ -204,9 +202,9 @@ class TestPrioritiesOutput:
 
     def test_single_section_no_separator(self, tmp_path):
         """Single section has no separator."""
-        output = PrioritiesOutput(
-            input_priorities=[PrioritiesSection(title="Only", content="Only content.")],
-            export_priorities=[],
+        output = RulesOutput(
+            input_rules=[RuleSection(title="Only", content="Only content.")],
+            export_rules=[],
         )
 
         filepath = str(tmp_path / "SINGLE.md")
@@ -241,7 +239,7 @@ class TestExecute:
 
         assert result is state
 
-    @patch.object(PrioritiesGenerationAgent, "invoke_structured")
+    @patch.object(RuleGenerationAgent, "invoke_structured")
     def test_uses_technology_from_state(self, mock_invoke, agent, tmp_path):
         """Execute uses source_technology from state, not text parsing."""
         rules_dir = tmp_path / "rules"
@@ -249,11 +247,11 @@ class TestExecute:
         (rules_dir / "rule.md").write_text("Some rule")
         agent.RULES_DIRECTORY = str(rules_dir)
 
-        mock_invoke.return_value = PrioritiesOutput(
-            input_priorities=[
-                PrioritiesSection(title="Test", content="Content"),
+        mock_invoke.return_value = RulesOutput(
+            input_rules=[
+                RuleSection(title="Test", content="Content"),
             ],
-            export_priorities=[],
+            export_rules=[],
         )
 
         state = _make_init_state(
@@ -263,11 +261,11 @@ class TestExecute:
 
         with (
             patch(
-                "src.init.priorities_generation_agent.INPUT_AGENTS_FILE",
+                "src.init.rule_generation_agent.INPUT_AGENTS_FILE",
                 str(tmp_path / "I.md"),
             ),
             patch(
-                "src.init.priorities_generation_agent.EXPORT_AGENTS_FILE",
+                "src.init.rule_generation_agent.EXPORT_AGENTS_FILE",
                 str(tmp_path / "E.md"),
             ),
         ):
@@ -278,7 +276,7 @@ class TestExecute:
         system_msg = messages[0]["content"]
         assert "Puppet" in system_msg
 
-    @patch.object(PrioritiesGenerationAgent, "invoke_structured")
+    @patch.object(RuleGenerationAgent, "invoke_structured")
     def test_defaults_to_chef_when_no_technology(self, mock_invoke, agent, tmp_path):
         """Falls back to Chef when state has no source_technology."""
         rules_dir = tmp_path / "rules"
@@ -286,22 +284,22 @@ class TestExecute:
         (rules_dir / "rule.md").write_text("Some rule")
         agent.RULES_DIRECTORY = str(rules_dir)
 
-        mock_invoke.return_value = PrioritiesOutput(
-            input_priorities=[
-                PrioritiesSection(title="Test", content="Content"),
+        mock_invoke.return_value = RulesOutput(
+            input_rules=[
+                RuleSection(title="Test", content="Content"),
             ],
-            export_priorities=[],
+            export_rules=[],
         )
 
         state = _make_init_state(source_technology=None)
 
         with (
             patch(
-                "src.init.priorities_generation_agent.INPUT_AGENTS_FILE",
+                "src.init.rule_generation_agent.INPUT_AGENTS_FILE",
                 str(tmp_path / "I.md"),
             ),
             patch(
-                "src.init.priorities_generation_agent.EXPORT_AGENTS_FILE",
+                "src.init.rule_generation_agent.EXPORT_AGENTS_FILE",
                 str(tmp_path / "E.md"),
             ),
         ):
@@ -312,26 +310,22 @@ class TestExecute:
         system_msg = messages[0]["content"]
         assert "Chef" in system_msg
 
-    @patch.object(PrioritiesGenerationAgent, "invoke_structured")
-    def test_writes_both_files(
-        self, mock_invoke, agent, tmp_path, sample_priorities_output
-    ):
+    @patch.object(RuleGenerationAgent, "invoke_structured")
+    def test_writes_both_files(self, mock_invoke, agent, tmp_path, sample_rules_output):
         """Execute writes both INPUT-AGENTS.md and EXPORT-AGENTS.md."""
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         (rules_dir / "rule.md").write_text("Some rule")
         agent.RULES_DIRECTORY = str(rules_dir)
 
-        mock_invoke.return_value = sample_priorities_output
+        mock_invoke.return_value = sample_rules_output
 
         input_file = str(tmp_path / "INPUT-AGENTS.md")
         export_file = str(tmp_path / "EXPORT-AGENTS.md")
 
         with (
-            patch("src.init.priorities_generation_agent.INPUT_AGENTS_FILE", input_file),
-            patch(
-                "src.init.priorities_generation_agent.EXPORT_AGENTS_FILE", export_file
-            ),
+            patch("src.init.rule_generation_agent.INPUT_AGENTS_FILE", input_file),
+            patch("src.init.rule_generation_agent.EXPORT_AGENTS_FILE", export_file),
         ):
             state = _make_init_state()
             agent.execute(state, None)
@@ -345,36 +339,34 @@ class TestExecute:
         export_content = Path(export_file).read_text()
         assert "Collection Policy" in export_content
 
-    @patch.object(PrioritiesGenerationAgent, "invoke_structured")
-    def test_records_metrics(
-        self, mock_invoke, agent, tmp_path, sample_priorities_output
-    ):
+    @patch.object(RuleGenerationAgent, "invoke_structured")
+    def test_records_metrics(self, mock_invoke, agent, tmp_path, sample_rules_output):
         """Execute records section counts in metrics."""
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         (rules_dir / "rule.md").write_text("Some rule")
         agent.RULES_DIRECTORY = str(rules_dir)
 
-        mock_invoke.return_value = sample_priorities_output
-        metrics = AgentMetrics(name="Priorities Generator")
+        mock_invoke.return_value = sample_rules_output
+        metrics = AgentMetrics(name="Rules Generator")
 
         with (
             patch(
-                "src.init.priorities_generation_agent.INPUT_AGENTS_FILE",
+                "src.init.rule_generation_agent.INPUT_AGENTS_FILE",
                 str(tmp_path / "INPUT.md"),
             ),
             patch(
-                "src.init.priorities_generation_agent.EXPORT_AGENTS_FILE",
+                "src.init.rule_generation_agent.EXPORT_AGENTS_FILE",
                 str(tmp_path / "EXPORT.md"),
             ),
         ):
             state = _make_init_state()
             agent.execute(state, metrics)
 
-        assert metrics.metrics["input_priorities_sections"] == 2
-        assert metrics.metrics["export_priorities_sections"] == 2
+        assert metrics.metrics["input_rules_sections"] == 2
+        assert metrics.metrics["export_rules_sections"] == 2
 
-    @patch.object(PrioritiesGenerationAgent, "invoke_structured")
+    @patch.object(RuleGenerationAgent, "invoke_structured")
     def test_handles_none_response(self, mock_invoke, agent, tmp_path):
         """Execute handles None response from LLM gracefully."""
         rules_dir = tmp_path / "rules"
