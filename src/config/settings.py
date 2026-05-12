@@ -250,6 +250,11 @@ class ProcessingSettings(BaseSettings):
         validation_alias="X2A_ERROR_FILE",
         description="File path to write error details on failure. Used by the job script to propagate errors.",
     )
+    rules_max_chars: int = Field(
+        default=50_000,
+        validation_alias="RULES_MAX_CHARS",
+        description="Maximum total characters allowed for organizational rules content",
+    )
 
 
 class LoggingSettings(BaseSettings):

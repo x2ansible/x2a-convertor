@@ -72,6 +72,11 @@ class RuleCollection:
         """Check if the collection has no rules."""
         return len(self.rules) == 0
 
+    @property
+    def total_chars(self) -> int:
+        """Total character count across all rule contents."""
+        return sum(len(rule.content) for rule in self.rules)
+
     def to_document(self) -> str:
         """Export all rules as XML document block for LLM context."""
         if self.is_empty():

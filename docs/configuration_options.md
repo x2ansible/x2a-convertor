@@ -75,6 +75,7 @@ Auto-generated from `src/config/settings.py`.
 | `MAX_WRITE_ATTEMPTS` | integer | `10` | Maximum number of attempts to write all files from checklist |
 | `MAX_VALIDATION_ATTEMPTS` | integer | `5` | Maximum number of attempts to fix validation errors |
 | `X2A_ERROR_FILE` | string | - | File path to write error details on failure. Used by the job script to propagate errors. |
+| `RULES_MAX_CHARS` | integer | `50000` | Maximum total characters allowed for organizational rules content |
 
 ## Logging Configuration
 
