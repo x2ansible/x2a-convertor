@@ -13,7 +13,7 @@ class RuleFile:
     """A single organizational rule file.
 
     Attributes:
-        filename: Name of the rule file (e.g., "discovery.md")
+        filename: Relative path of the rule file (e.g., "init/discovery.md")
         content: Full text content of the rule file
     """
 
@@ -21,17 +21,21 @@ class RuleFile:
     content: str
 
     @classmethod
-    def from_path(cls, file_path: Path) -> "RuleFile":
+    def from_path(cls, file_path: Path, base_dir: Path | None = None) -> "RuleFile":
         """Create RuleFile by reading a file from disk.
 
         Args:
             file_path: Path to the markdown rule file
+            base_dir: Base directory for computing relative filename.
+                      If provided, filename is relative to this directory.
+                      Otherwise, only the file's basename is used.
 
         Returns:
             RuleFile with filename and content populated
         """
+        filename = str(file_path.relative_to(base_dir)) if base_dir else file_path.name
         return cls(
-            filename=file_path.name,
+            filename=filename,
             content=file_path.read_text(encoding="utf-8"),
         )
 
@@ -52,21 +56,21 @@ class RuleCollection:
 
     @classmethod
     def from_directory(cls, directory: str | Path) -> "RuleCollection":
-        """Load all markdown files from a directory.
+        """Recursively load all markdown files from a directory.
 
         Args:
             directory: Path to the rules directory
 
         Returns:
-            RuleCollection with rules sorted by filename.
+            RuleCollection with rules sorted by relative path.
             Empty collection if directory is missing or has no .md files.
         """
         rules_path = Path(directory)
         if not rules_path.is_dir():
             return cls(rules=[])
 
-        md_files = sorted(rules_path.glob("*.md"))
-        return cls(rules=[RuleFile.from_path(f) for f in md_files])
+        md_files = sorted(rules_path.rglob("*.md"))
+        return cls(rules=[RuleFile.from_path(f, base_dir=rules_path) for f in md_files])
 
     def is_empty(self) -> bool:
         """Check if the collection has no rules."""
