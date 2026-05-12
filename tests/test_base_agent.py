@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.messages.ai import UsageMetadata
 
 from src.base_agent import BaseAgent
-from src.middleware.priorities import PrioritiesMiddleware
+from src.middleware.rules import RulesMiddleware
 from src.types.base_state import BaseState
 
 
@@ -30,10 +30,10 @@ class NamedAgent(BaseAgent[BaseState]):
         return state
 
 
-class PrioritizedAgent(BaseAgent[BaseState]):
-    """Agent with PRIORITIES_FILE set for testing."""
+class RuledAgent(BaseAgent[BaseState]):
+    """Agent with RULES_FILE set for testing."""
 
-    PRIORITIES_FILE = "INPUT-AGENTS.md"
+    RULES_FILE = "INPUT-AGENTS.md"
 
     def execute(self, state: BaseState, metrics):
         """Minimal execute implementation."""
@@ -458,31 +458,31 @@ class TestBaseAgentInvokeStructured:
 
 
 class TestBaseAgentMiddleware:
-    """Tests for BaseAgent.middleware() with PRIORITIES_FILE."""
+    """Tests for BaseAgent.middleware() with RULES_FILE."""
 
-    def test_middleware_without_priorities_file(self):
-        """Agent without PRIORITIES_FILE returns only SummarizationMiddleware."""
+    def test_middleware_without_rules_file(self):
+        """Agent without RULES_FILE returns only SummarizationMiddleware."""
         agent = ConcreteAgent()
         stack = agent.middleware()
 
         assert len(stack) == 1
         assert isinstance(stack[0], SummarizationMiddleware)
 
-    def test_middleware_with_priorities_file(self):
-        """Agent with PRIORITIES_FILE prepends PrioritiesMiddleware."""
-        agent = PrioritizedAgent()
+    def test_middleware_with_rules_file(self):
+        """Agent with RULES_FILE prepends RulesMiddleware."""
+        agent = RuledAgent()
         stack = agent.middleware()
 
         assert len(stack) == 2
-        assert isinstance(stack[0], PrioritiesMiddleware)
+        assert isinstance(stack[0], RulesMiddleware)
         assert isinstance(stack[1], SummarizationMiddleware)
 
-    def test_priorities_file_classvar_defaults_to_none(self):
-        """PRIORITIES_FILE defaults to None on BaseAgent subclasses."""
+    def test_rules_file_classvar_defaults_to_none(self):
+        """RULES_FILE defaults to None on BaseAgent subclasses."""
         agent = ConcreteAgent()
-        assert agent.PRIORITIES_FILE is None
+        assert agent.RULES_FILE is None
 
-    def test_priorities_file_classvar_set_on_subclass(self):
-        """PRIORITIES_FILE is accessible on subclasses that set it."""
-        agent = PrioritizedAgent()
-        assert agent.PRIORITIES_FILE == "INPUT-AGENTS.md"
+    def test_rules_file_classvar_set_on_subclass(self):
+        """RULES_FILE is accessible on subclasses that set it."""
+        agent = RuledAgent()
+        assert agent.RULES_FILE == "INPUT-AGENTS.md"

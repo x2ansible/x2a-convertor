@@ -1,4 +1,4 @@
-"""Middleware that injects agent priorities from a file into the system prompt."""
+"""Middleware that injects agent rules from a file into the system prompt."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-class PrioritiesMiddleware(AgentMiddleware):
-    """Injects priority rules from a file into the agent's conversation.
+class RulesMiddleware(AgentMiddleware):
+    """Injects rules from a file into the agent's conversation.
 
     Reads the file once during before_agent and injects the rendered
     content as a message. If the file does not exist, the middleware
@@ -26,11 +26,11 @@ class PrioritiesMiddleware(AgentMiddleware):
         self._file_path = file_path
 
     def _load_and_render(self) -> dict[str, Any] | None:
-        """Read priorities file and render through the Jinja2 template."""
+        """Read rules file and render through the Jinja2 template."""
         path = Path(self._file_path)
         if not path.is_file():
             logger.debug(
-                "Priorities file not found, skipping injection",
+                "Rules file not found, skipping injection",
                 file_path=self._file_path,
             )
             return None
@@ -39,7 +39,7 @@ class PrioritiesMiddleware(AgentMiddleware):
             text = path.read_text(encoding="utf-8").strip()
         except (OSError, UnicodeDecodeError) as exc:
             logger.warning(
-                "Failed to read priorities file, skipping injection",
+                "Failed to read rules file, skipping injection",
                 file_path=self._file_path,
                 error=str(exc),
             )
@@ -47,16 +47,16 @@ class PrioritiesMiddleware(AgentMiddleware):
 
         if not text:
             logger.debug(
-                "Priorities file is empty, skipping injection",
+                "Rules file is empty, skipping injection",
                 file_path=self._file_path,
             )
             return None
 
-        template = get_prompt("middleware_priorities")
-        rendered = template.format(priorities_content=text)
+        template = get_prompt("middleware_rules")
+        rendered = template.format(rules_content=text)
 
         logger.debug(
-            "Loaded priorities file",
+            "Loaded rules file",
             file_path=self._file_path,
             content_length=len(text),
         )
@@ -64,7 +64,7 @@ class PrioritiesMiddleware(AgentMiddleware):
         return {"messages": [HumanMessage(content=rendered)]}
 
     def before_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
-        """Read priorities file and inject as a message at agent startup."""
+        """Read rules file and inject as a message at agent startup."""
         return self._load_and_render()
 
     async def abefore_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:

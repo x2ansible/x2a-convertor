@@ -18,7 +18,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 
-from src.middleware.priorities import PrioritiesMiddleware
+from src.middleware.rules import RulesMiddleware
 from src.model import get_model, get_runnable_config, report_tool_calls
 from src.types.base_state import BaseState
 from src.types.telemetry import AgentMetrics, telemetry_context
@@ -38,7 +38,7 @@ class BaseAgent[S: BaseState](ABC):
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = []
     _NAME: ClassVar[str | None] = None
-    PRIORITIES_FILE: ClassVar[str | None] = None
+    RULES_FILE: ClassVar[str | None] = None
 
     def __init__(self, model: BaseChatModel | None = None):
         self.model = model or get_model()
@@ -60,12 +60,12 @@ class BaseAgent[S: BaseState](ABC):
     def middleware(self) -> list:
         """Return middleware list for conversation compaction.
 
-        When PRIORITIES_FILE is set, PrioritiesMiddleware is included
-        to inject priorities as a message at agent startup.
+        When RULES_FILE is set, RulesMiddleware is included
+        to inject rules as a message at agent startup.
         """
         stack: list[AgentMiddleware] = []
-        if self.PRIORITIES_FILE:
-            stack.append(PrioritiesMiddleware(self.PRIORITIES_FILE))
+        if self.RULES_FILE:
+            stack.append(RulesMiddleware(self.RULES_FILE))
         stack.append(
             SummarizationMiddleware(
                 model=self.model,
