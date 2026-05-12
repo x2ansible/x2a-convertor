@@ -1,8 +1,8 @@
-"""Priorities generation agent for init workflow.
+"""Rules generation agent for init workflow.
 
 This module contains the agent that reads organizational rules from
 the rules/ directory and generates INPUT-AGENTS.md and EXPORT-AGENTS.md
-files with phase-specific priorities for downstream agents.
+files with phase-specific rules for downstream agents.
 
 The source technology is determined by the MetadataExtractionAgent
 which runs before this agent in the workflow.
@@ -12,45 +12,43 @@ from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
 from src.const import EXPORT_AGENTS_FILE, INPUT_AGENTS_FILE
 from src.init.init_state import InitState
-from src.types.priorities import PrioritiesOutput
 from src.types.rule_file import RuleCollection
+from src.types.rules import RulesOutput
 from src.types.technology import Technology
 from src.types.telemetry import AgentMetrics
 
 
-class PrioritiesGenerationAgent(BaseAgent[InitState]):
-    """Agent that generates phase-specific priorities from organizational rules.
+class RuleGenerationAgent(BaseAgent[InitState]):
+    """Agent that generates phase-specific rules from organizational rules.
 
     Reads rules/*.md files and uses the source technology from state
     (set by MetadataExtractionAgent) to produce INPUT-AGENTS.md and
-    EXPORT-AGENTS.md with relevant priorities.
+    EXPORT-AGENTS.md with relevant rules.
     """
 
-    _NAME = "Priorities Generator"
+    _NAME = "Rules Generator"
 
-    RULES_DIRECTORY = "rules"
-    SYSTEM_PROMPT_NAME = "init_priorities_generation_system"
-    USER_PROMPT_NAME = "init_priorities_generation_task"
+    RULES_DIRECTORY = "x2a-rules"
+    SYSTEM_PROMPT_NAME = "init_rules_generation_system"
+    USER_PROMPT_NAME = "init_rules_generation_task"
 
     def execute(self, state: InitState, metrics: AgentMetrics | None) -> InitState:
-        """Generate priorities files from organizational rules.
+        """Generate rules files from organizational rules.
 
         Args:
             state: Current init state with source_technology from metadata extraction
             metrics: Telemetry metrics collector
 
         Returns:
-            Updated state (unchanged, priorities are written to files)
+            Updated state (unchanged, rules are written to files)
         """
         rules = RuleCollection.from_directory(self.RULES_DIRECTORY)
         if rules.is_empty():
-            self._log.info("No rules found, skipping priorities generation")
+            self._log.info("No rules found, skipping rules generation")
             return state
 
         if not state.migration_plan_content:
-            self._log.warning(
-                "No migration plan content, skipping priorities generation"
-            )
+            self._log.warning("No migration plan content, skipping rules generation")
             return state
 
         technology = state.source_technology or Technology.CHEF
@@ -59,11 +57,9 @@ class PrioritiesGenerationAgent(BaseAgent[InitState]):
         messages = self._build_messages(
             state.migration_plan_content, rules, technology.value
         )
-        response = self.invoke_structured(PrioritiesOutput, messages, metrics)
+        response = self.invoke_structured(RulesOutput, messages, metrics)
         if not response:
-            self._log.warning(
-                "No response from LLM, skipping priorities file generation"
-            )
+            self._log.warning("No response from LLM, skipping rules file generation")
             return state
 
         response.write_input_file(INPUT_AGENTS_FILE)
@@ -78,7 +74,7 @@ class PrioritiesGenerationAgent(BaseAgent[InitState]):
         rules: RuleCollection,
         technology: str,
     ) -> list[dict[str, str]]:
-        """Build LLM messages for priorities generation.
+        """Build LLM messages for rules generation.
 
         Args:
             migration_plan_content: Full migration plan text
@@ -102,7 +98,7 @@ class PrioritiesGenerationAgent(BaseAgent[InitState]):
         ]
 
     def _record_metrics(
-        self, metrics: AgentMetrics | None, response: PrioritiesOutput
+        self, metrics: AgentMetrics | None, response: RulesOutput
     ) -> None:
         """Record telemetry metrics for the generation.
 
@@ -113,9 +109,5 @@ class PrioritiesGenerationAgent(BaseAgent[InitState]):
         if not metrics:
             return
 
-        metrics.record_metric(
-            "input_priorities_sections", len(response.input_priorities)
-        )
-        metrics.record_metric(
-            "export_priorities_sections", len(response.export_priorities)
-        )
+        metrics.record_metric("input_rules_sections", len(response.input_rules))
+        metrics.record_metric("export_rules_sections", len(response.export_rules))

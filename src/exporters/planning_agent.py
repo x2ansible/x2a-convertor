@@ -67,7 +67,6 @@ class PlanningAgent(BaseAgent[ExportState]):
             ],
             metrics,
         )
-
         assert state.checklist is not None, (
             "Checklist must be created by planning agent"
         )

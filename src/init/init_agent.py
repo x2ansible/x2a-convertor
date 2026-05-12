@@ -13,7 +13,7 @@ from src.const import METADATA_FILENAME, MIGRATION_PLAN_FILE
 from src.init.init_state import InitState
 from src.init.initialize_subagent import InitializeSubAgent
 from src.init.metadata_extraction_agent import MetadataExtractionAgent
-from src.init.priorities_generation_agent import PrioritiesGenerationAgent
+from src.init.rule_generation_agent import RuleGenerationAgent
 from src.model import get_model, get_runnable_config
 from src.utils.logging import get_logger
 
@@ -28,19 +28,19 @@ class InitAgent:
     2. generate_plan: Run ReAct agent to create migration-plan.md (conditional)
     3. extract_metadata: Use structured output to generate `generated-project-metadata.json`
        and detect the dominant source technology
-    4. generate_priorities: Generate INPUT-AGENTS.md and EXPORT-AGENTS.md from rules,
+    4. generate_rules: Generate INPUT-AGENTS.md and EXPORT-AGENTS.md from rules,
        using the source technology from metadata
     5. finalize: Save state and report results
 
     The workflow uses conditional edges to skip plan generation when in refresh mode
-    and the plan already exists. Priorities are always regenerated.
+    and the plan already exists. Rules are always regenerated.
     """
 
     def __init__(self, model=None):
         slog = logger.bind(phase="init_agent")
         self.model = model or get_model()
         self.initialize_agent = InitializeSubAgent(model=self.model)
-        self.priorities_agent = PrioritiesGenerationAgent(model=self.model)
+        self.rules_agent = RuleGenerationAgent(model=self.model)
         self.metadata_agent = MetadataExtractionAgent(model=self.model)
         self._workflow = self._create_workflow()
         slog.debug(self._workflow.get_graph().draw_mermaid())
@@ -57,7 +57,7 @@ class InitAgent:
         workflow.add_node("check_refresh", self._check_refresh)
         workflow.add_node("generate_plan", self.initialize_agent)
         workflow.add_node("extract_metadata", self.metadata_agent)
-        workflow.add_node("generate_priorities", self.priorities_agent)
+        workflow.add_node("generate_rules", self.rules_agent)
         workflow.add_node("finalize", self._finalize)
 
         # Edges
@@ -82,12 +82,12 @@ class InitAgent:
             "extract_metadata",
             self._check_failure_after_agent,
             {
-                "continue": "generate_priorities",
+                "continue": "generate_rules",
                 "failed": "finalize",
             },
         )
         workflow.add_conditional_edges(
-            "generate_priorities",
+            "generate_rules",
             self._check_failure_after_agent,
             {
                 "continue": "finalize",
