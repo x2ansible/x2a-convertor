@@ -1,15 +1,19 @@
-Analyze the following high level migration plan and organizational rules to generate phase-specific rules for {{ source_technology }} migration agents.
+Analyze the following organizational rules to generate phase-specific rules for {{ source_technology }} migration agents.
+
+The migration plan below is provided as context only -- do NOT extract rules from it:
 
 <migration_plan>
 {{ migration_plan_content }}
 </migration_plan>
 
+The organizational rules below are your ONLY source of rules to extract from:
+
 {{ rules }}
 
-Based on the migration plan and organizational rules above, produce structured output with:
+Based on the organizational rules above, produce structured output with:
 
-1. **input_rules**: Sections relevant to {{ source_technology }} analysis agents. Include rules about discovery, parsing, dependency mapping, and technology-specific behaviors.
+1. **input_rules**: Sections relevant to {{ source_technology }} analysis agents, extracted from the organizational rules. Include rules about discovery, parsing, dependency mapping, and technology-specific behaviors.
 
-2. **export_rules**: Sections relevant to Ansible export agents. Include rules about collection usage, CI workflows, output formatting, and Ansible best practices.
+2. **export_rules**: Sections relevant to Ansible export agents, extracted from the organizational rules. Include rules about collection usage, CI workflows, output formatting, and Ansible best practices.
 
-Each section should have a descriptive title and concise content extracted from the provided rules. Only include rules that are relevant -- do not invent new ones.
+Each section must have a descriptive title and concise content extracted directly from the provided organizational rules. Do NOT invent, generate, or infer rules from the migration plan or any other source. If the organizational rules do not contain actionable migration policies or standards, return empty lists for both input_rules and export_rules.
