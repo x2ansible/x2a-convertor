@@ -63,6 +63,7 @@ run-migrate:
 
 
 generate-docs:
+	mkdir -p docs/getting-started
 	uv run python scripts/generate_env_docs.py
 	uv run python scripts/generate_cli_docs.py
 	uv run python scripts/generate_usage_docs.py
