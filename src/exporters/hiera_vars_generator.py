@@ -151,7 +151,7 @@ class HieraVarsGenerator(BaseAgent[ExportState]):
     def _default_rename(key: str, prefix: str, module_name: str) -> str:
         """Fallback rename when no mapping exists."""
         if prefix and key.startswith(f"{prefix}::"):
-            bare = key[len(prefix) + 2 :]
+            bare = key[len(prefix) + 2 :].replace("::", "_")
         elif "::" in key:
             bare = key.split("::")[-1]
         else:

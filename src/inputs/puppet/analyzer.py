@@ -477,7 +477,7 @@ class PuppetSubagent:
                 }
             )
 
-        module_name = Path(state.path).name
+        module_name = Path(state.path).resolve().name
         json_path = Path(state.path).parent / f"hiera-data-{module_name}.json"
         json_path.write_text(json.dumps(data, indent=2))
         logger.info(f"Saved Hiera data ({len(data)} files) to {json_path}")

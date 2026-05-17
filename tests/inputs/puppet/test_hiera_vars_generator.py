@@ -78,7 +78,7 @@ class TestDefaultRename:
         result = HieraVarsGenerator._default_rename(
             "some::deeply::nested::key", "some", "mymod"
         )
-        assert result == "mymod_deeply::nested::key"
+        assert result == "mymod_deeply_nested_key"
 
     def test_nested_namespace_no_prefix_match(self):
         result = HieraVarsGenerator._default_rename(

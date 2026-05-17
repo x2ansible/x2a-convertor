@@ -52,8 +52,12 @@ class ValidatedWriteTool(X2ATool):
     def _run(self, file_path: str, text: str, append: bool = False) -> str:
         """Route to appropriate tool based on file extension."""
         if self._active_checklist:
+            norm = file_path.lstrip("./")
             for item in self._active_checklist.items:
-                if item.target_path == file_path and item.status.value == "complete":
+                if (
+                    item.target_path.lstrip("./") == norm
+                    and item.status.value == "complete"
+                ):
                     return (
                         f"ERROR: {file_path} is already marked 'complete' in the checklist. "
                         "Do NOT overwrite completed files. Skip this item."

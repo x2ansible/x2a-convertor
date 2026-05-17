@@ -873,8 +873,12 @@ class AnsibleWriteTool(X2ATool):
         slog.debug(f"AnsibleWriteTool called on {file_path}")
 
         if self._active_checklist:
+            norm = file_path.lstrip("./")
             for item in self._active_checklist.items:
-                if item.target_path == file_path and item.status.value == "complete":
+                if (
+                    item.target_path.lstrip("./") == norm
+                    and item.status.value == "complete"
+                ):
                     slog.info(f"Blocked write to completed file: {file_path}")
                     return (
                         f"ERROR: {file_path} is already marked 'complete' in the checklist. "

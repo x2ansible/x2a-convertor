@@ -101,7 +101,7 @@ class MigrationAgent:
                                 logger.info(
                                     "Parsed structured output from text fallback"
                                 )
-                            except (json.JSONDecodeError, Exception) as e:
+                            except (json.JSONDecodeError, ValueError) as e:
                                 logger.warning(f"Failed to parse text fallback: {e}")
             else:
                 response = raw_result
