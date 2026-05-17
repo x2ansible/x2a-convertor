@@ -56,6 +56,20 @@ Use these variables directly in your tasks instead of any third-party secret loo
 4. Do NOT recreate `aap-configuration/` files or `tasks/validate_credentials.yml` - they are pre-generated
 {% endif %}
 
+{% if hiera_variable_names %}
+## Role Variable Names (USE THESE EXACTLY!)
+
+These are the authoritative variable names for this role. Use them in ALL templates,
+tasks, defaults, and vars files:
+
+{% for var in hiera_variable_names %}
+- `{{ var }}`
+{% endfor %}
+
+When converting templates (ERB/EPP → Jinja2), every `@variable` or `$variable`
+reference MUST map to one of these names. Do NOT invent alternative prefixes.
+{% endif %}
+
 ## Current Checklist
 
 <checklist>

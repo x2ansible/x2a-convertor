@@ -94,6 +94,7 @@ def register_defaults() -> None:
     from src.inputs.ansible import AnsibleSubagent
     from src.inputs.chef import ChefSubagent
     from src.inputs.powershell import PowerShellSubagent
+    from src.inputs.puppet import PuppetSubagent
 
     TechnologyRegistry.register_analyzer(Technology.CHEF, ChefSubagent)
     TechnologyRegistry.register_exporter(Technology.CHEF, ToAnsibleSubagent)
@@ -103,6 +104,9 @@ def register_defaults() -> None:
 
     TechnologyRegistry.register_analyzer(Technology.ANSIBLE, AnsibleSubagent)
     TechnologyRegistry.register_exporter(Technology.ANSIBLE, ToAnsibleSubagent)
+
+    TechnologyRegistry.register_analyzer(Technology.PUPPET, PuppetSubagent)
+    TechnologyRegistry.register_exporter(Technology.PUPPET, ToAnsibleSubagent)
 
 
 register_defaults()

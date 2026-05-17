@@ -1,7 +1,7 @@
 """Validated write tool that automatically routes YAML files to ansible_write."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from langchain_community.tools.file_management.write import WriteFileTool
 from pydantic import BaseModel, Field
@@ -33,6 +33,8 @@ class ValidatedWriteTool(X2ATool):
     returned to the model which can fix and retry.
     """
 
+    _active_checklist: ClassVar[Any] = None
+
     name: str = "write_file"
     description: str = (
         "Write text content to a file. Creates parent directories if needed. "
@@ -48,17 +50,15 @@ class ValidatedWriteTool(X2ATool):
 
     # pyrefly: ignore
     def _run(self, file_path: str, text: str, append: bool = False) -> str:
-        """Route to appropriate tool based on file extension.
+        """Route to appropriate tool based on file extension."""
+        if self._active_checklist:
+            for item in self._active_checklist.items:
+                if item.target_path == file_path and item.status.value == "complete":
+                    return (
+                        f"ERROR: {file_path} is already marked 'complete' in the checklist. "
+                        "Do NOT overwrite completed files. Skip this item."
+                    )
 
-        Args:
-            file_path: Path to write to
-            text: Content to write
-            append: Whether to append or overwrite (ignored for YAML files)
-
-        Returns:
-            Success message or validation error for YAML files
-        """
-        # Check file extension
         path = Path(file_path)
 
         # YAML files get automatic validation via ansible_write

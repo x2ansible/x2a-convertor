@@ -33,19 +33,23 @@ For each credential found, extract:
 5. **usage_context**: How the credential is used (e.g., "Database connection for PostgreSQL", "API authentication for service X")
 
 Rules:
-- If the migration plan says "No credentials detected" or has no Credentials section, return an empty list
+- Extract credentials ONLY from the **Module Migration Plan** below — specifically its "## Credentials" section
+- The High-Level Migration Plan is provided for general context only. It may list credentials
+  from OTHER modules in the same project — do NOT extract those. Only extract credentials
+  that belong to the module being migrated.
+- If the module migration plan says "No credentials detected" or has no Credentials section, return an empty list
 - Group related secrets into a single credential (e.g., username + password for the same service = one credential)
 - Mark passwords, keys, tokens, and API secrets as `secret: true`
 - Mark connection URLs, hostnames, and non-sensitive config as `secret: false`
 - Generate clean snake_case IDs from the original variable names
-- Do NOT invent credentials that are not mentioned in the plan
+- Do NOT invent credentials that are not mentioned in the module migration plan
 
 ---
 
-## High-Level Migration Plan
+## High-Level Migration Plan (context only — do NOT extract credentials from here)
 
 {high_level_migration_plan}
 
-## Module Migration Plan
+## Module Migration Plan (extract credentials from this plan ONLY)
 
 {migration_plan}

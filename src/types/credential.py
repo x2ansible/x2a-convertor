@@ -121,8 +121,8 @@ class CredentialConfig:
         if not credentials:
             return cls.empty()
 
-        variable_names = _collect_variable_names(credentials)
-        credential_types_yaml = _render_credential_types(credentials)
+        variable_names = _collect_variable_names(credentials, module_name)
+        credential_types_yaml = _render_credential_types(credentials, module_name)
         credentials_yaml = _render_credentials(credentials, module_name)
         validate_tasks_yaml = _render_validate_tasks(variable_names)
 
@@ -140,14 +140,32 @@ class CredentialConfig:
 # ---------------------------------------------------------------------------
 
 
-def _collect_variable_names(credentials: list[ExtractedCredential]) -> list[str]:
-    """Collect all variable names from credential fields."""
-    return [field.id for cred in credentials for field in cred.fields]
+def _module_prefix(module_name: str) -> str:
+    """Derive a variable-safe prefix from the module name.
+
+    Strips common Puppet profile/role prefixes so that
+    'profile_haproxy' → 'haproxy', matching Ansible conventions.
+    """
+    prefix = module_name.replace("-", "_")
+    for strip in ("profile_", "role_"):
+        if prefix.startswith(strip):
+            return prefix[len(strip) :]
+    return prefix
 
 
-def _render_credential_types(credentials: list[ExtractedCredential]) -> str:
+def _collect_variable_names(
+    credentials: list[ExtractedCredential], module_name: str
+) -> list[str]:
+    """Collect all variable names from credential fields, prefixed with module name."""
+    prefix = _module_prefix(module_name)
+    return [f"{prefix}_{field.id}" for cred in credentials for field in cred.fields]
+
+
+def _render_credential_types(
+    credentials: list[ExtractedCredential], module_name: str
+) -> str:
     """Render controller_credential_types.yml content."""
-    types = [_build_credential_type_entry(cred) for cred in credentials]
+    types = [_build_credential_type_entry(cred, module_name) for cred in credentials]
 
     content = str(
         yaml.dump(
@@ -163,12 +181,16 @@ def _render_credential_types(credentials: list[ExtractedCredential]) -> str:
     return "---\n" + content
 
 
-def _build_credential_type_entry(cred: ExtractedCredential) -> dict:
+def _build_credential_type_entry(cred: ExtractedCredential, module_name: str) -> dict:
     """Build a single credential type entry for controller_credential_types.yml."""
     fields = [_build_field_entry(f) for f in cred.fields]
+    prefix = _module_prefix(module_name)
 
     injectors = {
-        "extra_vars": {f.id: f"UNSAFE_PLACEHOLDER {{{{{f.id}}}}}" for f in cred.fields}
+        "extra_vars": {
+            f"{prefix}_{f.id}": f"UNSAFE_PLACEHOLDER {{{{{f.id}}}}}"
+            for f in cred.fields
+        }
     }
 
     entry: dict = {

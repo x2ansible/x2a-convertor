@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 from typing import TypedDict
@@ -78,8 +79,37 @@ class MigrationAgent:
             {"role": "user", "content": user_prompt},
         ]
 
-        structured_llm = self.model.with_structured_output(SourceMetadata)
-        response = structured_llm.invoke(messages, config=get_runnable_config())
+        structured_llm = self.model.with_structured_output(
+            SourceMetadata, include_raw=True
+        )
+        # Retry for models that intermittently fail to produce structured output.
+        # Some models return plain JSON text instead of a tool call, so we fall
+        # back to parsing the text content when the structured parser returns None.
+        max_retries = 3
+        response = None
+        for attempt in range(max_retries):
+            raw_result = structured_llm.invoke(messages, config=get_runnable_config())
+            if isinstance(raw_result, dict):
+                response = raw_result.get("parsed")
+                if response is None:
+                    raw_msg = raw_result.get("raw")
+                    if raw_msg and hasattr(raw_msg, "content"):
+                        text_content = self._extract_text_content(raw_msg.content)
+                        if text_content:
+                            try:
+                                response = SourceMetadata(**json.loads(text_content))
+                                logger.info(
+                                    "Parsed structured output from text fallback"
+                                )
+                            except (json.JSONDecodeError, Exception) as e:
+                                logger.warning(f"Failed to parse text fallback: {e}")
+            else:
+                response = raw_result
+            if response is not None:
+                break
+            logger.warning(
+                f"Structured output returned None for read_source_metadata, retrying ({attempt + 1}/{max_retries})"
+            )
         logger.debug(f"LLM read_source_metadata response: {response}")
 
         assert isinstance(response, SourceMetadata)
@@ -100,6 +130,19 @@ class MigrationAgent:
         )
 
         return state
+
+    @staticmethod
+    def _extract_text_content(content) -> str | None:
+        """Extract text from LLM response content (handles str and list formats)."""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    return block["text"]
+                if isinstance(block, str):
+                    return block
+        return None
 
     def _choose_subagent(self, state: MigrationState) -> MigrationState:
         """Choose and execute the appropriate subagent based on technology."""

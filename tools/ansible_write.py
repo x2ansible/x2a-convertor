@@ -636,6 +636,8 @@ class AnsibleWriteInput(BaseModel):
 class AnsibleWriteTool(X2ATool):
     """Validates and writes Ansible YAML files with Jinja2 support."""
 
+    _active_checklist: ClassVar[Any] = None
+
     name: str = "ansible_write"
     description: str = (
         "Validates and writes Ansible YAML files (.yml, .yaml). "
@@ -869,6 +871,15 @@ class AnsibleWriteTool(X2ATool):
         """Validate Ansible YAML content and write to file."""
         slog = self.log.bind(file_path=file_path)
         slog.debug(f"AnsibleWriteTool called on {file_path}")
+
+        if self._active_checklist:
+            for item in self._active_checklist.items:
+                if item.target_path == file_path and item.status.value == "complete":
+                    slog.info(f"Blocked write to completed file: {file_path}")
+                    return (
+                        f"ERROR: {file_path} is already marked 'complete' in the checklist. "
+                        "Do NOT overwrite completed files. Skip this item."
+                    )
 
         yaml_content = yaml_content.replace("\\n", "\n")
 

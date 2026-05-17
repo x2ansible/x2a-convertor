@@ -19,6 +19,23 @@ OPTIONAL: After writing files, you can run ansible_lint on the output directory 
 
 Key conversion rules:
 
+GENERAL FIDELITY RULES — CRITICAL:
+
+TEMPLATE CONVERSION FIDELITY:
+- ALWAYS use read_file to read the source template file before writing the Jinja2 conversion
+- Convert the ACTUAL content — do not write a "typical" config for the technology
+- If the source template has 30 lines, the converted template should have approximately 30 lines
+- Do not add sections, features, or default backends that don't exist in the source
+- Do not hardcode values that the source template reads from variables — use the Ansible variable instead
+- Do not duplicate content between templates — if backends are rendered as separate files via a
+  loop in the source, the main config template must NOT also render them inline
+
+DATA FILE FIDELITY:
+- When creating defaults/main.yml or vars files, use read_file to read the source data files first
+- Copy values EXACTLY — numbers, IP addresses, paths, lists must match the source
+- Every variable in the migration plan must appear in the output with its correct value
+- NEVER invent or estimate values — if the source says maxconn is 16384, write 16384, not 8000
+
 TEMPLATES (.erb → .j2):
 CRITICAL: You MUST read the source .erb file and convert its actual content to Jinja2 format.
 NEVER write placeholder variables like {% raw %}{{ template_name_content }}{% endraw %} - this is wrong!
@@ -303,8 +320,12 @@ ATTRIBUTES (attributes/*.rb → defaults/main.yml):
 - Convert Ruby hash syntax to YAML
 - default['key'] = 'value' becomes key: 'value'
 
-STATIC FILES:
-- Copy directly from files/default/* to files/* using copy_file tool
+STATIC FILES (files/ directory):
+- Use copy_file to copy static files byte-for-byte from the source module
+- NEVER rewrite, regenerate, or "improve" static files — copy them exactly
+- This includes error pages, certificates, scripts, and any non-template files
+- If the source has files/default/503.http, copy it to files/503.http using copy_file
+- Do NOT use write_file or ansible_write for static files — use copy_file only
 
 STRUCTURE FILES:
 - Create proper Ansible role structure (meta/main.yml, handlers/main.yml, tasks/main.yml)
@@ -327,7 +348,11 @@ collections:
     version: "<version>"
 ```
 
-META/MAIN.YML (metadata.rb → meta/main.yml):
+META/MAIN.YML:
+{% if source_technology == 'Puppet' %}
+IMPORTANT: meta/main.yml is pre-generated from Puppet metadata.json by the pipeline.
+It is already marked "complete" in the checklist. Do NOT recreate or overwrite it.
+{% else %}
 - Read Chef metadata.rb if it exists to extract role information
 - Convert to Ansible Galaxy metadata format:
 ```yaml
@@ -351,11 +376,15 @@ galaxy_info:
   galaxy_tags: []
 ```
 IMPORTANT: Always include `namespace: x2a` — Molecule's galaxy prerun check requires a valid namespace.
-
 IMPORTANT: Use Ubuntu release names (bionic, focal) NOT version numbers ("18.04", "20.04")
+{% endif %}
 
 {% if source_technology == 'Ansible' %}
 {% include 'write_from_ansible.md' %}
+{% endif %}
+
+{% if source_technology == 'Puppet' %}
+{% include 'write_from_puppet.md' %}
 {% endif %}
 
 Do NOT generate molecule files (molecule/default/*) — they are handled by a separate MoleculeAgent.

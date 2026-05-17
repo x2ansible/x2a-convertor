@@ -3,6 +3,7 @@
 Creates all migration files from the checklist.
 """
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Literal
@@ -139,20 +140,78 @@ class WriteAgent(BaseAgent[ExportState]):
     def _generate_meta_content(self, role_name: str, source_path: str, slog) -> str:
         """Generate meta/main.yml content, using source meta if available."""
         source_meta_path = Path(source_path) / "meta" / "main.yml"
-        if not source_meta_path.exists():
-            return self._default_meta_template(role_name)
+        if source_meta_path.exists():
+            try:
+                loader = DataLoader()
+                source_meta = loader.load_from_file(str(source_meta_path))
+                if isinstance(source_meta, dict):
+                    galaxy_info = source_meta.get("galaxy_info", {})
+                    slog.info(f"Using source meta from {source_meta_path}")
+                    return self._build_meta_yaml(role_name, galaxy_info, slog)
+            except Exception as e:
+                slog.warning(f"Failed to parse source meta {source_meta_path}: {e}")
 
+        puppet_meta_path = Path(source_path) / "metadata.json"
+        if puppet_meta_path.exists():
+            galaxy_info = self._parse_puppet_metadata(puppet_meta_path, slog)
+            if galaxy_info:
+                slog.info(f"Using Puppet metadata from {puppet_meta_path}")
+                return self._build_meta_yaml(role_name, galaxy_info, slog)
+
+        return self._default_meta_template(role_name)
+
+    @staticmethod
+    def _parse_puppet_metadata(metadata_path: Path, slog) -> dict | None:
+        """Extract galaxy_info-compatible dict from Puppet metadata.json."""
         try:
-            loader = DataLoader()
-            source_meta = loader.load_from_file(str(source_meta_path))
+            meta = json.loads(metadata_path.read_text(encoding="utf-8"))
         except Exception as e:
-            slog.warning(f"Failed to parse source meta {source_meta_path}: {e}")
-            return self._default_meta_template(role_name)
+            slog.warning(f"Failed to parse Puppet metadata {metadata_path}: {e}")
+            return None
 
-        if not isinstance(source_meta, dict):
-            return self._default_meta_template(role_name)
+        os_version_map = {
+            "18.04": "bionic",
+            "20.04": "focal",
+            "22.04": "jammy",
+            "24.04": "noble",
+        }
 
-        galaxy_info = source_meta.get("galaxy_info", {})
+        platforms: list[dict] = []
+        for entry in meta.get("operatingsystem_support", []):
+            os_name = entry.get("operatingsystem", "")
+            versions = entry.get("operatingsystemrelease", [])
+            if os_name in ("RedHat", "CentOS", "Rocky", "AlmaLinux", "OracleLinux"):
+                platforms.append({"name": "EL", "versions": [str(v) for v in versions]})
+            elif os_name == "Ubuntu":
+                platforms.append(
+                    {
+                        "name": "Ubuntu",
+                        "versions": [
+                            os_version_map.get(str(v), str(v)) for v in versions
+                        ],
+                    }
+                )
+            elif os_name == "Debian":
+                platforms.append(
+                    {"name": "Debian", "versions": [str(v) for v in versions]}
+                )
+
+        galaxy_info: dict = {}
+        if meta.get("author"):
+            galaxy_info["author"] = meta["author"]
+        if meta.get("summary"):
+            galaxy_info["description"] = meta["summary"]
+        if meta.get("license"):
+            galaxy_info["license"] = meta["license"]
+        if meta.get("tags"):
+            galaxy_info["galaxy_tags"] = meta["tags"]
+        if platforms:
+            galaxy_info["platforms"] = platforms
+
+        return galaxy_info
+
+    def _build_meta_yaml(self, role_name: str, galaxy_info: dict, slog) -> str:
+        """Build meta/main.yml YAML from galaxy_info dict with defaults applied."""
         galaxy_info["role_name"] = role_name
         galaxy_info.setdefault("namespace", "x2a")
         galaxy_info.setdefault("author", "Migration Tool")
@@ -168,8 +227,6 @@ class WriteAgent(BaseAgent[ExportState]):
             galaxy_info["galaxy_tags"] = []
 
         meta_data = {"galaxy_info": galaxy_info}
-
-        slog.info(f"Using source meta from {source_meta_path}")
         content = yaml.dump(
             meta_data,
             Dumper=AnsibleDumper,
@@ -206,6 +263,25 @@ class WriteAgent(BaseAgent[ExportState]):
         assert isinstance(content, str)
         return content
 
+    @staticmethod
+    def _get_hiera_variable_names(module_name: str, source_path: str) -> list[str]:
+        """Read hiera-data JSON and extract canonical variable names."""
+        json_path = Path(source_path).parent / f"hiera-data-{module_name}.json"
+        if not json_path.exists():
+            logger.debug(f"No hiera-data JSON found at {json_path}")
+            return []
+        try:
+            entries = json.loads(json_path.read_text())
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to read hiera-data JSON {json_path}: {e}")
+            return []
+        names: set[str] = set()
+        for entry in entries:
+            for m in entry.get("mappings", []):
+                if not m.get("is_encrypted", False):
+                    names.add(m["ansible_variable_name"])
+        return sorted(names)
+
     def _write_files_node(self, state: WriteAgentState) -> WriteAgentState:
         """Node: Write files from checklist using react agent."""
         export_state = state.export_state
@@ -232,16 +308,25 @@ class WriteAgent(BaseAgent[ExportState]):
             else "",
             aap_discovery=export_state.aap_discovery,
             credential_config=export_state.credential_config,
+            hiera_variable_names=self._get_hiera_variable_names(
+                str(export_state.module), export_state.path
+            ),
         )
 
-        result = self.invoke_react(
-            export_state,
-            [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_prompt},
-            ],
-            self._current_metrics,
-        )
+        ValidatedWriteTool._active_checklist = export_state.checklist
+        AnsibleWriteTool._active_checklist = export_state.checklist
+        try:
+            result = self.invoke_react(
+                export_state,
+                [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_prompt},
+                ],
+                self._current_metrics,
+            )
+        finally:
+            ValidatedWriteTool._active_checklist = None
+            AnsibleWriteTool._active_checklist = None
 
         export_state.checklist.save(export_state.get_checklist_path())
 

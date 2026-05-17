@@ -4,8 +4,12 @@ This module contains the agent that selects which module to migrate
 based on user input and LLM analysis of the migration plan.
 """
 
+import json
+from pathlib import Path
+
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.const import METADATA_FILENAME
 from src.inputs.analyze_state import MigrationState, ModuleSelection
 from src.types.technology import Technology
 from src.types.telemetry import AgentMetrics
@@ -37,6 +41,25 @@ class ModuleSelectionAgent(BaseAgent[MigrationState]):
         """
         self._log.info("Selecting module to migrate")
 
+        metadata_result = self._try_metadata_lookup(state.user_message)
+        if metadata_result:
+            normalized_path = self._normalize_path(metadata_result.path)
+            technology = metadata_result.technology
+            name = metadata_result.name
+
+            self._log.info(
+                f"Resolved from {METADATA_FILENAME}: name='{name}' "
+                f"path='{normalized_path}' technology='{technology.value}'"
+            )
+            self._record_metrics(metrics, technology, normalized_path)
+
+            return state.update(
+                path=normalized_path,
+                technology=technology,
+                name=name,
+            )
+
+        self._log.info(f"No {METADATA_FILENAME} match, falling back to LLM selection")
         messages = self._build_messages(state)
         response = self.invoke_structured(ModuleSelection, messages, metrics)
 
@@ -57,6 +80,47 @@ class ModuleSelectionAgent(BaseAgent[MigrationState]):
             technology=technology,
             name=response.name,
         )
+
+    def _try_metadata_lookup(self, user_message: str) -> ModuleSelection | None:
+        """Look up module info from generated-project-metadata.json if available."""
+        metadata_path = Path(METADATA_FILENAME)
+        if not metadata_path.exists():
+            return None
+
+        try:
+            modules = json.loads(metadata_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            self._log.warning(f"Failed to read {METADATA_FILENAME}")
+            return None
+
+        if not modules:
+            return None
+
+        if len(modules) == 1:
+            return self._module_from_metadata(modules[0])
+
+        user_lower = user_message.lower()
+        matches = [m for m in modules if m.get("name", "").lower() in user_lower]
+        if len(matches) == 1:
+            return self._module_from_metadata(matches[0])
+
+        self._log.info(
+            f"Ambiguous metadata match ({len(matches)} of {len(modules)} modules)"
+        )
+        return None
+
+    @staticmethod
+    def _module_from_metadata(entry: dict) -> ModuleSelection | None:
+        name = entry.get("name")
+        path = entry.get("path", ".")
+        tech_str = entry.get("technology", "Chef")
+        if not name:
+            return None
+        try:
+            technology = Technology(tech_str)
+        except ValueError:
+            return None
+        return ModuleSelection(name=name, path=path, technology=technology)
 
     def _build_messages(self, state: MigrationState) -> list[dict[str, str]]:
         """Build LLM messages for module selection."""

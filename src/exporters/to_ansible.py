@@ -12,6 +12,7 @@ from langgraph.graph import END, START, StateGraph
 
 from src.exporters.aap_discovery_agent import AAPDiscoveryAgent
 from src.exporters.credential_agent import CredentialAgent
+from src.exporters.hiera_vars_generator import HieraVarsGenerator
 from src.exporters.molecule_agent import MoleculeAgent
 from src.exporters.planning_agent import PlanningAgent
 from src.exporters.review_agent import ReviewAgent
@@ -66,6 +67,7 @@ class ToAnsibleSubagent:
 
         self.discovery_agent = AAPDiscoveryAgent(model=self.model)
         self.credential_agent = CredentialAgent(model=self.model)
+        self.hiera_vars_generator = HieraVarsGenerator(model=self.model)
         self.planning_agent = PlanningAgent(model=self.model)
         self.write_agent = WriteAgent(model=self.model)
         self.molecule_agent = MoleculeAgent(model=self.model)
@@ -94,6 +96,7 @@ class ToAnsibleSubagent:
         workflow.add_node("initialize", self._initialize)
         workflow.add_node("discover_collections", self.discovery_agent)
         workflow.add_node("extract_credentials", self.credential_agent)
+        workflow.add_node("generate_vars", self.hiera_vars_generator)
         workflow.add_node("plan_migration", self.planning_agent)
         workflow.add_node("write_migration", self.write_agent)
         workflow.add_node("molecule_testing", self.molecule_agent)
@@ -112,6 +115,7 @@ class ToAnsibleSubagent:
         workflow.add_conditional_edges(
             "write_migration", self._check_failure_after_agent
         )
+        workflow.add_edge("generate_vars", "molecule_testing")
         workflow.add_conditional_edges(
             "molecule_testing", self._check_failure_after_agent
         )
@@ -138,12 +142,13 @@ class ToAnsibleSubagent:
     def _check_failure_after_agent(
         self, state: ExportState
     ) -> Literal[
+        "generate_vars",
         "write_migration",
         "molecule_testing",
         "review_role",
         "validate_migration",
         "finalize",
-    ]:
+    ]:  # generate_vars is reachable after write_migration
         """Check if current agent failed, route to next phase or finalize."""
         if state.failed:
             logger.error(
@@ -155,7 +160,7 @@ class ToAnsibleSubagent:
         if state.current_phase == MigrationPhase.PLANNING:
             return "write_migration"
         if state.current_phase in (MigrationPhase.WRITING, "writing"):
-            return "molecule_testing"
+            return "generate_vars"
         if state.current_phase in (
             MigrationPhase.MOLECULE_TESTING,
             "molecule_testing",
