@@ -6,6 +6,7 @@ against the structured analysis from task, handler, variable, and template files
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.const import INPUT_AGENTS_FILE
 from src.inputs.ansible.state import AnsibleAnalysisState
 from src.types.telemetry import AgentMetrics
 
@@ -18,6 +19,7 @@ class AnalysisValidationAgent(BaseAgent[AnsibleAnalysisState]):
     """
 
     _NAME = "Ansible Analysis Validator"
+    RULES_FILE = INPUT_AGENTS_FILE
 
     SYSTEM_PROMPT_NAME = "ansible_analysis_validation_system"
     USER_PROMPT_NAME = "ansible_analysis_validation_task"

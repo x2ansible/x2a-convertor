@@ -18,6 +18,7 @@ from langgraph.graph import START, StateGraph
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.const import EXPORT_AGENTS_FILE
 from src.exporters.agent_state import WriteAgentState
 from src.exporters.state import ExportState
 from src.model import get_runnable_config
@@ -49,6 +50,7 @@ class WriteAgent(BaseAgent[ExportState]):
     """
 
     _NAME = "Ansible Role Writer"
+    RULES_FILE = EXPORT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),

@@ -17,6 +17,7 @@ from langgraph.graph import START, StateGraph
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.const import EXPORT_AGENTS_FILE
 from src.exporters.agent_state import MoleculeAgentState
 from src.exporters.ansible_molecule import AnsibleMolecule
 from src.exporters.state import ExportState
@@ -48,6 +49,7 @@ class MoleculeAgent(BaseAgent[ExportState]):
     """
 
     _NAME = "Molecule Test Generator"
+    RULES_FILE = EXPORT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ReadFileTool(),

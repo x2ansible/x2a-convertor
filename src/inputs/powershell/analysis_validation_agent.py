@@ -6,6 +6,7 @@ against the structured analysis from scripts, DSC configs, and modules.
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.const import INPUT_AGENTS_FILE
 from src.inputs.powershell.state import PowerShellAnalysisState
 from src.types.telemetry import AgentMetrics
 
@@ -18,6 +19,7 @@ class AnalysisValidationAgent(BaseAgent[PowerShellAnalysisState]):
     """
 
     _NAME = "PowerShell Analysis Validator"
+    RULES_FILE = INPUT_AGENTS_FILE
 
     SYSTEM_PROMPT_NAME = "powershell_analysis_validation_system"
     USER_PROMPT_NAME = "powershell_analysis_validation_task"

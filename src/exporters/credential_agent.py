@@ -17,6 +17,7 @@ from pydantic import ValidationError
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.const import EXPORT_AGENTS_FILE
 from src.exporters.state import ExportState
 from src.types import ChecklistStatus
 from src.types.credential import (
@@ -35,6 +36,7 @@ class CredentialAgent(BaseAgent[ExportState]):
     """
 
     _NAME = "Credential Extractor"
+    RULES_FILE = EXPORT_AGENTS_FILE
 
     EXTRACTION_PROMPT_NAME = "export_credential_extraction_system"
 

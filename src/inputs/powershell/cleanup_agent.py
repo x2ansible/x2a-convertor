@@ -6,6 +6,7 @@ specification after validation notes have been appended.
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.const import INPUT_AGENTS_FILE
 from src.inputs.powershell.state import PowerShellAnalysisState
 from src.types.telemetry import AgentMetrics
 
@@ -18,6 +19,7 @@ class CleanupAgent(BaseAgent[PowerShellAnalysisState]):
     """
 
     _NAME = "PowerShell Analysis Cleanup"
+    RULES_FILE = INPUT_AGENTS_FILE
 
     SYSTEM_PROMPT_NAME = "powershell_analysis_cleanup_system"
     USER_PROMPT_NAME = "powershell_analysis_cleanup_task"
