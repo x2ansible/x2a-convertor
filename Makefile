@@ -56,7 +56,6 @@ run-migrate:
 	rm -rf ./examples/$(name)/ansible
 	uv run app.py migrate \
 	  --source-dir ./examples/$(name) \
-	  --module $(module) \
 	  --source-technology Chef --high-level-migration-plan migration-plan.md \
 	  --module-migration-plan migration-plan-hello_world.md \
 	  "Convert the hello_world cookbook"
