@@ -13,6 +13,7 @@ from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.const import EXPORT_AGENTS_FILE
 from src.exporters.state import ExportState
 from src.types.telemetry import AgentMetrics
 
@@ -28,6 +29,7 @@ class PlanningAgent(BaseAgent[ExportState]):
     """
 
     _NAME = "Export Planner"
+    RULES_FILE = EXPORT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ListDirectoryTool(),

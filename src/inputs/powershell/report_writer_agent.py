@@ -14,6 +14,7 @@ from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
+from src.const import INPUT_AGENTS_FILE
 from src.inputs.powershell.state import PowerShellAnalysisState
 from src.types.telemetry import AgentMetrics
 
@@ -26,6 +27,7 @@ class ReportWriterAgent(BaseAgent[PowerShellAnalysisState]):
     """
 
     _NAME = "PowerShell Report Writer"
+    RULES_FILE = INPUT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),
