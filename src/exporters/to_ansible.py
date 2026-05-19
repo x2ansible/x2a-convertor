@@ -5,7 +5,7 @@ pipeline. The export agents (Planning, Write, Validation) work from migration
 plans and checklists - they are not technology-specific.
 """
 
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
@@ -32,7 +32,7 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-class MigrationPhase(str, Enum):
+class MigrationPhase(StrEnum):
     """Phases of the migration workflow"""
 
     INITIALIZING = "initializing"

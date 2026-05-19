@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 import uuid
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -16,7 +16,7 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-class ArtifactType(str, Enum):
+class ArtifactType(StrEnum):
     """Valid artifact types matching the API schema."""
 
     MIGRATION_PLAN = "migration_plan"
