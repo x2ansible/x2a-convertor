@@ -13,14 +13,13 @@ from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import INPUT_AGENTS_FILE
 from src.inputs.chef.state import ChefState
+from src.inputs.input_agent import InputAgent
 from src.inputs.tree_analysis import TreeSitterAnalyzer
 from src.types.telemetry import AgentMetrics
 
 
-class ReportWriterAgent(BaseAgent[ChefState]):
+class ReportWriterAgent(InputAgent[ChefState]):
     """Agent that generates migration specification using structured analysis.
 
     Uses file management tools to explore the cookbook and generates
@@ -28,7 +27,6 @@ class ReportWriterAgent(BaseAgent[ChefState]):
     """
 
     _NAME = "Chef Report Writer"
-    RULES_FILE = INPUT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),

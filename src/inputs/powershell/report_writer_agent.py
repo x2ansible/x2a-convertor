@@ -13,13 +13,12 @@ from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import INPUT_AGENTS_FILE
+from src.inputs.input_agent import InputAgent
 from src.inputs.powershell.state import PowerShellAnalysisState
 from src.types.telemetry import AgentMetrics
 
 
-class ReportWriterAgent(BaseAgent[PowerShellAnalysisState]):
+class ReportWriterAgent(InputAgent[PowerShellAnalysisState]):
     """Agent that generates migration specification from PowerShell analysis.
 
     Uses file management tools to explore the source and generates
@@ -27,7 +26,6 @@ class ReportWriterAgent(BaseAgent[PowerShellAnalysisState]):
     """
 
     _NAME = "PowerShell Report Writer"
-    RULES_FILE = INPUT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),

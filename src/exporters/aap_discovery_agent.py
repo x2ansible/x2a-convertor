@@ -16,9 +16,8 @@ from typing import ClassVar
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
 from src.config import get_settings
-from src.const import EXPORT_AGENTS_FILE
+from src.exporters.export_agent import ExportAgent
 from src.exporters.state import ExportState
 from src.publishers.galaxy_client import AAPCollection, GalaxyClient
 from src.types.aap_discovery import (
@@ -75,7 +74,7 @@ class VerificationResult:
 # =============================================================================
 
 
-class AAPDiscoveryAgent(BaseAgent[ExportState]):
+class AAPDiscoveryAgent(ExportAgent[ExportState]):
     """Agent that discovers relevant collections in AAP Private Automation Hub.
 
     This agent uses Galaxy tools to explore the Private Hub and find collections
@@ -90,7 +89,6 @@ class AAPDiscoveryAgent(BaseAgent[ExportState]):
     """
 
     _NAME = "AAP Collection Discovery"
-    RULES_FILE = EXPORT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: AAPListCollectionsTool(),

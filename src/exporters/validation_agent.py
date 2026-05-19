@@ -14,10 +14,9 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
 from src.config import get_settings
-from src.const import EXPORT_AGENTS_FILE
 from src.exporters.agent_state import ValidationAgentState
+from src.exporters.export_agent import ExportAgent
 from src.exporters.services import CollectionManager, InstallResultSummary
 from src.exporters.state import ExportState
 from src.model import get_runnable_config
@@ -83,7 +82,7 @@ class ErrorFingerprint:
         return "|".join(sorted(set(rule_ids)))
 
 
-class ValidationAgent(BaseAgent[ExportState]):
+class ValidationAgent(ExportAgent[ExportState]):
     """Agent responsible for validating and fixing migration output.
 
     This agent uses an internal StateGraph to manage validation/fix loops:
@@ -96,7 +95,6 @@ class ValidationAgent(BaseAgent[ExportState]):
     """
 
     _NAME = "Ansible Lint Validator"
-    RULES_FILE = EXPORT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ReadFileTool(),
