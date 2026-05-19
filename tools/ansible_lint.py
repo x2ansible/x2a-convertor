@@ -7,6 +7,7 @@ from typing import Any
 
 import ansiblelint
 from ansiblelint.__main__ import fix
+from ansiblelint.app import App
 from ansiblelint.config import Options
 from ansiblelint.errors import MatchError
 from ansiblelint.rules import BaseRule, RulesCollection
@@ -94,7 +95,8 @@ class LintConfiguration:
             _skip_ansible_syntax_check=True,
             skip_list=["yaml[line-length]"],
         )
-        rules = RulesCollection(rulesdirs=[rules_dir], options=options)
+        app = App(options=options)
+        rules = RulesCollection(app=app, rulesdirs=[rules_dir], options=options)
         return cls(options=options, rules=rules)
 
 
