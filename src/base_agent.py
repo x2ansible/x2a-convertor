@@ -159,21 +159,23 @@ class BaseAgent[S: BaseState](ABC):
         """Invoke model with structured output schema.
 
         Returns the parsed schema instance.
-        """
-        structured_model = self.model.with_structured_output(schema, include_raw=True)
-        result = structured_model.invoke(messages, config=get_runnable_config())
-        if (
-            metrics
-            and isinstance(result, dict)
-            and isinstance(result.get("raw"), AIMessage)
-            and hasattr(result["raw"], "usage_metadata")
-            and result["raw"].usage_metadata
-        ):
-            input_tokens = result["raw"].usage_metadata.get("input_tokens", 0)
-            output_tokens = result["raw"].usage_metadata.get("output_tokens", 0)
-            metrics.record_tokens(input_tokens, output_tokens)
 
-        return result.get("parsed") if isinstance(result, dict) else result
+        The reason why it's a Agent it to be able to iterate if the model cannot do it in the first run.
+        """
+
+        agent = create_agent(
+            model=self.model,
+            response_format=schema,
+        )
+
+        result = agent.invoke(
+            {"messages": messages},
+            get_runnable_config(),
+        )
+        if metrics:
+            input_tokens, output_tokens = self._extract_token_usage(result)
+            metrics.record_tokens(input_tokens, output_tokens)
+        return result.get("structured_response")
 
     def invoke_llm(
         self,
