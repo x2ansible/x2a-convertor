@@ -21,7 +21,9 @@ ERROR_TYPES = {
     RuntimeError: lambda e: str(e),
     FileNotFoundError: lambda e: str(e),
     ValueError: lambda e: str(e),
-    KeyError: lambda e: f"Missing required field '{str(e).strip('"')}' in configuration.",
+    KeyError: lambda e: (
+        f"Missing required field '{str(e).strip('"')}' in configuration."
+    ),
     PermissionError: lambda e: f"Permission denied: {e!s}\nCheck file permissions.",
     OSError: lambda e: f"System error: {e!s}",
     ClientError: lambda e: _format_client_error(e),

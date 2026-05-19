@@ -1,7 +1,7 @@
 """Migration checklist management system"""
 
 import json
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
 
 from langchain_core.tools import tool
@@ -21,7 +21,7 @@ __all__ = [
 SUMMARY_SUCCESS_MESSAGE = "All migration tasks have been completed successfully"
 
 
-class ChecklistStatus(str, Enum):
+class ChecklistStatus(StrEnum):
     """Status of individual checklist items"""
 
     PENDING = "pending"

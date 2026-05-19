@@ -172,6 +172,7 @@ class BaseAgent[S: BaseState](ABC):
             {"messages": messages},
             get_runnable_config(),
         )
+
         if metrics:
             input_tokens, output_tokens = self._extract_token_usage(result)
             metrics.record_tokens(input_tokens, output_tokens)

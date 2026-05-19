@@ -1,9 +1,9 @@
 """Chef-to-Ansible exporter-specific types"""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class MigrationCategory(str, Enum):
+class MigrationCategory(StrEnum):
     """Categories of migration items"""
 
     TEMPLATES = "templates"
