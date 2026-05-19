@@ -5,7 +5,7 @@ validation, and sensible defaults for all x2a-convertor settings.
 """
 
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -267,11 +267,13 @@ class LoggingSettings(BaseSettings):
         validation_alias="DEBUG_ALL",
         description="Enable debug logging for all libraries",
     )
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        default="INFO",
-        validation_alias="LOG_LEVEL",
-        description="Log level for x2convertor namespace",
-    )
+    log_level: Annotated[
+        Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        Field(
+            validation_alias="LOG_LEVEL",
+            description="Log level for x2convertor namespace",
+        ),
+    ] = "INFO"
 
     @field_validator("log_level", mode="before")
     @classmethod

@@ -312,32 +312,27 @@ class TestBaseAgentInvokeStructured:
         return ConcreteAgent()
 
     @pytest.fixture
-    def mock_model(self, agent):
-        """Create a mock structured model."""
-        from unittest.mock import Mock
+    def mock_agent(self, agent):
+        """Create a mock agent returned by create_agent."""
+        from unittest.mock import Mock, patch
 
-        mock = Mock()
-        structured_mock = Mock()
-        mock.with_structured_output.return_value = structured_mock
-        agent.model = mock
-        return mock, structured_mock
+        mock_created_agent = Mock()
+        with patch("src.base_agent.create_agent", return_value=mock_created_agent):
+            yield mock_created_agent
 
-    def test_invoke_structured_records_tokens_with_metrics(self, agent, mock_model):
+    def test_invoke_structured_records_tokens_with_metrics(self, agent, mock_agent):
         """Test that invoke_structured records tokens when metrics is provided."""
         from src.types.telemetry import AgentMetrics
-
-        _, structured_mock = mock_model
 
         ai_msg = AIMessage(content="Response")
         ai_msg.usage_metadata = cast(
             UsageMetadata, {"input_tokens": 500, "output_tokens": 200}
         )
 
-        return_value = {
-            "parsed": {"field": "value"},
-            "raw": ai_msg,
+        mock_agent.invoke.return_value = {
+            "structured_response": {"field": "value"},
+            "messages": [ai_msg],
         }
-        structured_mock.invoke.return_value = return_value
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
@@ -348,20 +343,17 @@ class TestBaseAgentInvokeStructured:
         assert metrics.input_tokens == 500
         assert metrics.output_tokens == 200
 
-    def test_invoke_structured_without_metrics(self, agent, mock_model):
+    def test_invoke_structured_without_metrics(self, agent, mock_agent):
         """Test that invoke_structured works without metrics."""
-        _, structured_mock = mock_model
-
         ai_msg = AIMessage(content="Response")
         ai_msg.usage_metadata = cast(
             UsageMetadata, {"input_tokens": 500, "output_tokens": 200}
         )
 
-        return_value = {
-            "parsed": {"field": "value"},
-            "raw": ai_msg,
+        mock_agent.invoke.return_value = {
+            "structured_response": {"field": "value"},
+            "messages": [ai_msg],
         }
-        structured_mock.invoke.return_value = return_value
 
         result = agent.invoke_structured(
             dict, [{"role": "user", "content": "test"}], None
@@ -369,38 +361,31 @@ class TestBaseAgentInvokeStructured:
 
         assert result == {"field": "value"}
 
-    def test_invoke_structured_without_raw_message(self, agent, mock_model):
-        """Test that invoke_structured handles missing parsed key in result."""
+    def test_invoke_structured_without_structured_response(self, agent, mock_agent):
+        """Test that invoke_structured handles missing structured_response key."""
         from src.types.telemetry import AgentMetrics
 
-        _, structured_mock = mock_model
-
-        structured_mock.invoke.return_value = {"field": "value"}
+        mock_agent.invoke.return_value = {"messages": []}
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
             dict, [{"role": "user", "content": "test"}], metrics
         )
 
-        # Returns None since there's no "parsed" key
         assert result is None
         assert metrics.input_tokens == 0
         assert metrics.output_tokens == 0
 
-    def test_invoke_structured_raw_without_usage_metadata(self, agent, mock_model):
-        """Test that invoke_structured handles raw message without usage_metadata."""
+    def test_invoke_structured_without_usage_metadata(self, agent, mock_agent):
+        """Test that invoke_structured handles messages without usage_metadata."""
         from src.types.telemetry import AgentMetrics
 
-        _, structured_mock = mock_model
-
         ai_msg = AIMessage(content="Response")
-        # No usage_metadata
 
-        return_value = {
-            "parsed": {"field": "value"},
-            "raw": ai_msg,
+        mock_agent.invoke.return_value = {
+            "structured_response": {"field": "value"},
+            "messages": [ai_msg],
         }
-        structured_mock.invoke.return_value = return_value
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
@@ -411,20 +396,17 @@ class TestBaseAgentInvokeStructured:
         assert metrics.input_tokens == 0
         assert metrics.output_tokens == 0
 
-    def test_invoke_structured_raw_with_none_usage_metadata(self, agent, mock_model):
-        """Test that invoke_structured handles raw message with None usage_metadata."""
+    def test_invoke_structured_with_none_usage_metadata(self, agent, mock_agent):
+        """Test that invoke_structured handles messages with None usage_metadata."""
         from src.types.telemetry import AgentMetrics
-
-        _, structured_mock = mock_model
 
         ai_msg = AIMessage(content="Response")
         ai_msg.usage_metadata = None
 
-        return_value = {
-            "parsed": {"field": "value"},
-            "raw": ai_msg,
+        mock_agent.invoke.return_value = {
+            "structured_response": {"field": "value"},
+            "messages": [ai_msg],
         }
-        structured_mock.invoke.return_value = return_value
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
@@ -435,17 +417,14 @@ class TestBaseAgentInvokeStructured:
         assert metrics.input_tokens == 0
         assert metrics.output_tokens == 0
 
-    def test_invoke_structured_raw_not_ai_message(self, agent, mock_model):
-        """Test that invoke_structured handles raw that is not AIMessage."""
+    def test_invoke_structured_no_ai_messages(self, agent, mock_agent):
+        """Test that invoke_structured handles result with no AI messages."""
         from src.types.telemetry import AgentMetrics
 
-        _, structured_mock = mock_model
-
-        return_value = {
-            "parsed": {"field": "value"},
-            "raw": "not an AI message",
+        mock_agent.invoke.return_value = {
+            "structured_response": {"field": "value"},
+            "messages": [HumanMessage(content="test")],
         }
-        structured_mock.invoke.return_value = return_value
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(

@@ -44,7 +44,7 @@ class MigrationAgent:
         logger.debug("Migration workflow: " + self._graph.get_graph().draw_mermaid())
 
     def _build_graph(self) -> CompiledStateGraph:
-        workflow = StateGraph(MigrationState)
+        workflow = StateGraph(MigrationState)  # pyrefly: ignore[bad-specialization]
 
         workflow.add_node(
             "read_source_metadata", lambda state: self._read_source_metadata(state)
