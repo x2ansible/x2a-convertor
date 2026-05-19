@@ -5,15 +5,15 @@ based on user input and LLM analysis of the migration plan.
 """
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import INPUT_AGENTS_FILE, METADATA_FILENAME
+from src.const import METADATA_FILENAME
 from src.inputs.analyze_state import MigrationState, ModuleSelection
+from src.inputs.input_agent import InputAgent
 from src.types.document import DocumentFile
 from src.types.technology import Technology
 from src.types.telemetry import AgentMetrics
 
 
-class ModuleSelectionAgent(BaseAgent[MigrationState]):
+class ModuleSelectionAgent(InputAgent[MigrationState]):
     """Agent that selects module to migrate based on user input and LLM analysis.
 
     Uses structured output to parse user requirements against the migration plan
@@ -24,7 +24,6 @@ class ModuleSelectionAgent(BaseAgent[MigrationState]):
     """
 
     _NAME = "Module Selector"
-    RULES_FILE = INPUT_AGENTS_FILE
 
     SYSTEM_PROMPT_NAME = "analyze_select_module_system"
     USER_PROMPT_NAME = "analyze_select_module_task"

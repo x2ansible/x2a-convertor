@@ -5,13 +5,12 @@ against the structured analysis from recipes, providers, and attributes.
 """
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import INPUT_AGENTS_FILE
 from src.inputs.chef.state import ChefState
+from src.inputs.input_agent import InputAgent
 from src.types.telemetry import AgentMetrics
 
 
-class AnalysisValidationAgent(BaseAgent[ChefState]):
+class AnalysisValidationAgent(InputAgent[ChefState]):
     """Agent that validates migration plan against structured analysis.
 
     Uses direct LLM invocation (no tools) to check consistency
@@ -19,7 +18,6 @@ class AnalysisValidationAgent(BaseAgent[ChefState]):
     """
 
     _NAME = "Chef Analysis Validator"
-    RULES_FILE = INPUT_AGENTS_FILE
 
     SYSTEM_PROMPT_NAME = "chef_analysis_validation_system"
     USER_PROMPT_NAME = "chef_analysis_validation_task"

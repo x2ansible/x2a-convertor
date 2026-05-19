@@ -14,15 +14,14 @@ from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import EXPORT_AGENTS_FILE
+from src.exporters.export_agent import ExportAgent
 from src.exporters.state import ExportState
 from src.types.telemetry import AgentMetrics
 from tools.ansible_write import AnsibleWriteTool
 from tools.validated_write import ValidatedWriteTool
 
 
-class ReviewAgent(BaseAgent[ExportState]):
+class ReviewAgent(ExportAgent[ExportState]):
     """Agent that reviews generated Ansible roles for semantic correctness.
 
     Detects and fixes runtime issues that ansible-lint cannot catch:
@@ -34,8 +33,6 @@ class ReviewAgent(BaseAgent[ExportState]):
     Uses read-only tools to scan the role, then write tools to apply
     minimal fixes directly. Single ReAct pass -- no internal graph.
     """
-
-    RULES_FILE = EXPORT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ListDirectoryTool(),

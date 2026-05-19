@@ -17,9 +17,8 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import START, StateGraph
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import EXPORT_AGENTS_FILE
 from src.exporters.agent_state import WriteAgentState
+from src.exporters.export_agent import ExportAgent
 from src.exporters.state import ExportState
 from src.model import get_runnable_config
 from src.types import ChecklistStatus
@@ -38,7 +37,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class WriteAgent(BaseAgent[ExportState]):
+class WriteAgent(ExportAgent[ExportState]):
     """Agent responsible for writing all migration files from checklist.
 
     This agent uses an internal StateGraph to manage file creation loops:
@@ -50,7 +49,6 @@ class WriteAgent(BaseAgent[ExportState]):
     """
 
     _NAME = "Ansible Role Writer"
-    RULES_FILE = EXPORT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),

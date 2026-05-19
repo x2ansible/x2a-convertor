@@ -13,13 +13,12 @@ from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import INPUT_AGENTS_FILE
 from src.inputs.ansible.state import AnsibleAnalysisState
+from src.inputs.input_agent import InputAgent
 from src.types.telemetry import AgentMetrics
 
 
-class ReportWriterAgent(BaseAgent[AnsibleAnalysisState]):
+class ReportWriterAgent(InputAgent[AnsibleAnalysisState]):
     """Agent that generates migration specification from Ansible analysis.
 
     Uses file management tools to explore the source and generates
@@ -27,7 +26,6 @@ class ReportWriterAgent(BaseAgent[AnsibleAnalysisState]):
     """
 
     _NAME = "Ansible Report Writer"
-    RULES_FILE = INPUT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: FileSearchTool(),

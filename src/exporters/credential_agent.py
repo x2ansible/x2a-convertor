@@ -16,8 +16,7 @@ from langchain_core.exceptions import LangChainException
 from pydantic import ValidationError
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import EXPORT_AGENTS_FILE
+from src.exporters.export_agent import ExportAgent
 from src.exporters.state import ExportState
 from src.types import ChecklistStatus
 from src.types.credential import (
@@ -27,7 +26,7 @@ from src.types.credential import (
 from src.types.telemetry import AgentMetrics
 
 
-class CredentialAgent(BaseAgent[ExportState]):
+class CredentialAgent(ExportAgent[ExportState]):
     """Agent that extracts credentials from migration plan and writes AAP config files.
 
     Runs as its own workflow node before the planning agent.
@@ -36,7 +35,6 @@ class CredentialAgent(BaseAgent[ExportState]):
     """
 
     _NAME = "Credential Extractor"
-    RULES_FILE = EXPORT_AGENTS_FILE
 
     EXTRACTION_PROMPT_NAME = "export_credential_extraction_system"
 

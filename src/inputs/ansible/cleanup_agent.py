@@ -5,13 +5,12 @@ specification after validation notes have been appended.
 """
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import INPUT_AGENTS_FILE
 from src.inputs.ansible.state import AnsibleAnalysisState
+from src.inputs.input_agent import InputAgent
 from src.types.telemetry import AgentMetrics
 
 
-class CleanupAgent(BaseAgent[AnsibleAnalysisState]):
+class CleanupAgent(InputAgent[AnsibleAnalysisState]):
     """Agent that cleans up the migration specification.
 
     Uses direct LLM invocation (no tools) to consolidate and clean
@@ -19,7 +18,6 @@ class CleanupAgent(BaseAgent[AnsibleAnalysisState]):
     """
 
     _NAME = "Ansible Analysis Cleanup"
-    RULES_FILE = INPUT_AGENTS_FILE
 
     SYSTEM_PROMPT_NAME = "ansible_analysis_cleanup_system"
     USER_PROMPT_NAME = "ansible_analysis_cleanup_task"

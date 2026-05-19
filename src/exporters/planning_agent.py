@@ -12,13 +12,12 @@ from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
-from src.base_agent import BaseAgent
-from src.const import EXPORT_AGENTS_FILE
+from src.exporters.export_agent import ExportAgent
 from src.exporters.state import ExportState
 from src.types.telemetry import AgentMetrics
 
 
-class PlanningAgent(BaseAgent[ExportState]):
+class PlanningAgent(ExportAgent[ExportState]):
     """Agent responsible for analyzing migration plans and building checklists.
 
     This agent:
@@ -29,7 +28,6 @@ class PlanningAgent(BaseAgent[ExportState]):
     """
 
     _NAME = "Export Planner"
-    RULES_FILE = EXPORT_AGENTS_FILE
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ListDirectoryTool(),
