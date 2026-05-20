@@ -160,7 +160,7 @@ class BaseAgent[S: BaseState](ABC):
 
         Returns the parsed schema instance.
 
-        The reason why it's a Agent it to be able to iterate if the model cannot do it in the first run.
+        The reason why it's an agent it to be able to iterate if the model cannot do it in the first run.
         """
 
         agent = create_agent(
