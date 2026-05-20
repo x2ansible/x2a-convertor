@@ -27,6 +27,7 @@ from src.inputs.powershell.services import (
 from src.inputs.powershell.state import PowerShellAnalysisState
 from src.model import get_model, get_runnable_config
 from src.types import Telemetry
+from src.types.file_analysis_state import FileAnalysisState
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -164,8 +165,10 @@ class PowerShellSubagent:
         ps1_files = list(base_path.rglob("*.ps1"))
         psm1_files = list(base_path.rglob("*.psm1"))
 
-        scripts, dsc_configs = self._analyze_scripts_and_dsc(ps1_files, slog)
-        modules = self._analyze_modules(psm1_files, slog)
+        scripts, dsc_configs = self._analyze_scripts_and_dsc(
+            ps1_files, slog, telemetry=state.telemetry
+        )
+        modules = self._analyze_modules(psm1_files, slog, telemetry=state.telemetry)
 
         structured_analysis = PowerShellStructuredAnalysis(
             scripts=scripts,
@@ -186,7 +189,10 @@ class PowerShellSubagent:
         )
 
     def _analyze_scripts_and_dsc(
-        self, ps1_files: list[Path], slog
+        self,
+        ps1_files: list[Path],
+        slog,
+        telemetry: Telemetry | None = None,
     ) -> tuple[list[ScriptAnalysisResult], list[DSCAnalysisResult]]:
         """Classify and analyze .ps1 files as scripts or DSC configs."""
         scripts: list[ScriptAnalysisResult] = []
@@ -194,9 +200,15 @@ class PowerShellSubagent:
 
         for file_path in ps1_files:
             try:
+                file_state = FileAnalysisState(
+                    path=str(file_path),
+                    user_message="",
+                    telemetry=telemetry,
+                )
                 if self._is_dsc_file(file_path):
                     slog.debug(f"Analyzing DSC config: {file_path}")
-                    analysis = self._dsc_service.analyze(file_path)
+                    result_state = self._dsc_service(file_state)
+                    analysis = result_state.result
                     dsc_configs.append(
                         DSCAnalysisResult(
                             file_path=str(file_path),
@@ -207,7 +219,8 @@ class PowerShellSubagent:
                     )
                 else:
                     slog.debug(f"Analyzing script: {file_path}")
-                    analysis = self._script_service.analyze(file_path)
+                    result_state = self._script_service(file_state)
+                    analysis = result_state.result
                     scripts.append(
                         ScriptAnalysisResult(
                             file_path=str(file_path),
@@ -220,7 +233,10 @@ class PowerShellSubagent:
         return scripts, dsc_configs
 
     def _analyze_modules(
-        self, psm1_files: list[Path], slog
+        self,
+        psm1_files: list[Path],
+        slog,
+        telemetry: Telemetry | None = None,
     ) -> list[ModuleAnalysisResult]:
         """Analyze .psm1 module files."""
         modules: list[ModuleAnalysisResult] = []
@@ -228,7 +244,13 @@ class PowerShellSubagent:
         for file_path in psm1_files:
             try:
                 slog.debug(f"Analyzing module: {file_path}")
-                analysis = self._module_service.analyze(file_path)
+                file_state = FileAnalysisState(
+                    path=str(file_path),
+                    user_message="",
+                    telemetry=telemetry,
+                )
+                result_state = self._module_service(file_state)
+                analysis = result_state.result
                 modules.append(
                     ModuleAnalysisResult(
                         file_path=str(file_path),

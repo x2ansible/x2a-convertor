@@ -16,6 +16,7 @@ from src.inputs.chef.report_writer_agent import ReportWriterAgent
 from src.inputs.chef.state import ChefState
 from src.model import get_model, get_runnable_config
 from src.types import Telemetry
+from src.types.file_analysis_state import FileAnalysisState
 from src.utils.logging import get_logger
 
 from .dependency_fetcher import ChefDependencyManager
@@ -169,6 +170,7 @@ class ChefSubagent:
         analysis_service,
         result_class,
         slog,
+        telemetry: Telemetry | None = None,
     ) -> list:
         """Generic method to analyze Chef files matching a pattern."""
         results = []
@@ -181,9 +183,17 @@ class ChefSubagent:
             for file_path in path.glob(pattern):
                 try:
                     slog.debug(f"Analyzing {file_type}: {file_path}")
-                    analysis = analysis_service.analyze(file_path)
+                    file_state = FileAnalysisState(
+                        path=str(file_path),
+                        user_message="",
+                        telemetry=telemetry,
+                    )
+                    result_state = analysis_service(file_state)
                     results.append(
-                        result_class(file_path=str(file_path), analysis=analysis)
+                        result_class(
+                            file_path=str(file_path),
+                            analysis=result_state.result,
+                        )
                     )
                 except Exception as e:
                     slog.warning(f"Failed to analyze {file_type} {file_path}: {e}")
@@ -262,6 +272,7 @@ class ChefSubagent:
             analysis_service=self._attribute_service,
             result_class=AttributesAnalysisResult,
             slog=slog,
+            telemetry=state.telemetry,
         )
         attribute_collections = self._build_attribute_collections(attributes, slog)
         slog.info(f"Built iteration map with {len(attribute_collections)} collections")
@@ -275,6 +286,7 @@ class ChefSubagent:
             analysis_service=self._recipe_service,
             result_class=RecipeAnalysisResult,
             slog=slog,
+            telemetry=state.telemetry,
         )
         providers = self._analyze_files_by_pattern(
             paths=state.all_paths,
@@ -283,6 +295,7 @@ class ChefSubagent:
             analysis_service=self._provider_service,
             result_class=ProviderAnalysisResult,
             slog=slog,
+            telemetry=state.telemetry,
         )
 
         structured_analysis = StructuredAnalysis(

@@ -29,6 +29,7 @@ from src.inputs.ansible.services import (
 from src.inputs.ansible.state import AnsibleAnalysisState
 from src.model import get_model, get_runnable_config
 from src.types import Telemetry
+from src.types.file_analysis_state import FileAnalysisState
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -163,26 +164,32 @@ class AnsibleSubagent:
         base_path = Path(state.path)
 
         # Analyze tasks
-        tasks_files = self._analyze_yaml_files(base_path / "tasks", "tasks", slog)
+        tasks_files = self._analyze_yaml_files(
+            base_path / "tasks", "tasks", slog, telemetry=state.telemetry
+        )
 
         # Analyze handlers
         handlers_files = self._analyze_yaml_files(
-            base_path / "handlers", "handlers", slog
+            base_path / "handlers", "handlers", slog, telemetry=state.telemetry
         )
 
         # Analyze defaults
         defaults_files = self._analyze_vars_files(
-            base_path / "defaults", "defaults", slog
+            base_path / "defaults", "defaults", slog, telemetry=state.telemetry
         )
 
         # Analyze vars
-        vars_files = self._analyze_vars_files(base_path / "vars", "vars", slog)
+        vars_files = self._analyze_vars_files(
+            base_path / "vars", "vars", slog, telemetry=state.telemetry
+        )
 
         # Analyze meta
-        meta = self._analyze_meta(base_path / "meta", slog)
+        meta = self._analyze_meta(base_path / "meta", slog, telemetry=state.telemetry)
 
         # Analyze templates
-        templates = self._analyze_templates(base_path / "templates", slog)
+        templates = self._analyze_templates(
+            base_path / "templates", slog, telemetry=state.telemetry
+        )
 
         # Collect static files
         static_files = self._collect_static_files(base_path / "files", slog)
@@ -214,7 +221,11 @@ class AnsibleSubagent:
         )
 
     def _analyze_yaml_files(
-        self, directory: Path, file_type: str, slog
+        self,
+        directory: Path,
+        file_type: str,
+        slog,
+        telemetry: Telemetry | None = None,
     ) -> list[TaskFileAnalysisResult]:
         """Analyze YAML task/handler files in a directory."""
         results: list[TaskFileAnalysisResult] = []
@@ -228,12 +239,17 @@ class AnsibleSubagent:
 
             try:
                 slog.debug(f"Analyzing {file_type}: {file_path}")
-                analysis = self._task_service.analyze(file_path)
+                file_state = FileAnalysisState(
+                    path=str(file_path),
+                    user_message="",
+                    telemetry=telemetry,
+                )
+                result_state = self._task_service(file_state)
                 results.append(
                     TaskFileAnalysisResult(
                         file_path=str(file_path),
                         file_type=file_type,
-                        analysis=analysis,
+                        analysis=result_state.result,
                     )
                 )
             except Exception as e:
@@ -242,7 +258,11 @@ class AnsibleSubagent:
         return results
 
     def _analyze_vars_files(
-        self, directory: Path, file_type: str, slog
+        self,
+        directory: Path,
+        file_type: str,
+        slog,
+        telemetry: Telemetry | None = None,
     ) -> list[VariablesAnalysisResult]:
         """Analyze defaults/vars YAML files in a directory."""
         results: list[VariablesAnalysisResult] = []
@@ -256,12 +276,17 @@ class AnsibleSubagent:
 
             try:
                 slog.debug(f"Analyzing {file_type}: {file_path}")
-                analysis = self._vars_service.analyze(file_path)
+                file_state = FileAnalysisState(
+                    path=str(file_path),
+                    user_message="",
+                    telemetry=telemetry,
+                )
+                result_state = self._vars_service(file_state)
                 results.append(
                     VariablesAnalysisResult(
                         file_path=str(file_path),
                         file_type=file_type,
-                        analysis=analysis,
+                        analysis=result_state.result,
                     )
                 )
             except Exception as e:
@@ -269,7 +294,9 @@ class AnsibleSubagent:
 
         return results
 
-    def _analyze_meta(self, directory: Path, slog) -> MetaAnalysisResult | None:
+    def _analyze_meta(
+        self, directory: Path, slog, telemetry: Telemetry | None = None
+    ) -> MetaAnalysisResult | None:
         """Analyze meta/main.yml if it exists."""
         if not directory.exists():
             return None
@@ -282,16 +309,23 @@ class AnsibleSubagent:
 
         try:
             slog.debug(f"Analyzing meta: {meta_file}")
-            analysis = self._meta_service.analyze(meta_file)
+            file_state = FileAnalysisState(
+                path=str(meta_file),
+                user_message="",
+                telemetry=telemetry,
+            )
+            result_state = self._meta_service(file_state)
             return MetaAnalysisResult(
                 file_path=str(meta_file),
-                analysis=analysis,
+                analysis=result_state.result,
             )
         except Exception as e:
             slog.warning(f"Failed to analyze meta {meta_file}: {e}")
             return None
 
-    def _analyze_templates(self, directory: Path, slog) -> list[TemplateAnalysisResult]:
+    def _analyze_templates(
+        self, directory: Path, slog, telemetry: Telemetry | None = None
+    ) -> list[TemplateAnalysisResult]:
         """Analyze .j2 template files."""
         results: list[TemplateAnalysisResult] = []
 
@@ -301,11 +335,16 @@ class AnsibleSubagent:
         for file_path in sorted(directory.rglob("*.j2")):
             try:
                 slog.debug(f"Analyzing template: {file_path}")
-                analysis = self._template_service.analyze(file_path)
+                file_state = FileAnalysisState(
+                    path=str(file_path),
+                    user_message="",
+                    telemetry=telemetry,
+                )
+                result_state = self._template_service(file_state)
                 results.append(
                     TemplateAnalysisResult(
                         file_path=str(file_path),
-                        analysis=analysis,
+                        analysis=result_state.result,
                     )
                 )
             except Exception as e:
