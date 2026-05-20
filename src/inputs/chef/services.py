@@ -7,7 +7,9 @@ Each service has a single responsibility (SRP).
 from pathlib import Path
 
 from prompts.get_prompt import get_prompt
-from src.model import get_runnable_config
+from src.inputs.input_agent import InputAgent
+from src.types.file_analysis_state import FileAnalysisState
+from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
 
 from .models import (
@@ -19,27 +21,19 @@ from .models import (
 logger = get_logger(__name__)
 
 
-class RecipeAnalysisService:
+class RecipeAnalysisService(InputAgent[FileAnalysisState]):
     """Service for analyzing Chef recipe files using LLM.
 
     Responsibility: Extract execution order from recipe files.
     """
 
-    def __init__(self, model):
-        self._model = model
-
-    def analyze(self, file_path: Path) -> RecipeExecutionAnalysis:
-        """Analyze recipe and extract execution order.
-
-        Args:
-            file_path: Path to recipe file
-
-        Returns:
-            RecipeExecutionAnalysis with execution_order
-        """
+    def execute(
+        self, state: FileAnalysisState, metrics: AgentMetrics | None
+    ) -> FileAnalysisState:
+        file_path = Path(state.path)
         if not file_path.exists():
             logger.warning(f"File not found: {file_path}")
-            return RecipeExecutionAnalysis(execution_order=[])
+            return state.update(result=RecipeExecutionAnalysis(execution_order=[]))
 
         file_content = file_path.read_text()
         system_prompt = get_prompt("chef_recipe_analysis_system").format()
@@ -48,44 +42,34 @@ class RecipeAnalysisService:
         )
 
         try:
-            structured_model = self._model.with_structured_output(
-                RecipeExecutionAnalysis
-            )
-            # Combine system and task prompts into a single message
-            combined_prompt = f"{system_prompt}\n\n{task_prompt}"
-            result = structured_model.invoke(
-                combined_prompt, config=get_runnable_config()
-            )
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": task_prompt},
+            ]
+            result = self.invoke_structured(RecipeExecutionAnalysis, messages, metrics)
             logger.info(
-                f"✓ Extracted {len(result.execution_order)} execution items from {file_path.name}"
+                f"Extracted {len(result.execution_order)} execution items "
+                f"from {file_path.name}"
             )
-            return result
+            return state.update(result=result)
         except Exception as e:
             logger.error(f"Failed to analyze {file_path}: {e}")
-            return RecipeExecutionAnalysis(execution_order=[])
+            return state.update(result=RecipeExecutionAnalysis(execution_order=[]))
 
 
-class ProviderAnalysisService:
+class ProviderAnalysisService(InputAgent[FileAnalysisState]):
     """Service for analyzing Chef provider files using LLM.
 
     Responsibility: Extract templates and resources created by providers.
     """
 
-    def __init__(self, model):
-        self._model = model
-
-    def analyze(self, file_path: Path) -> ProviderAnalysisOutput:
-        """Analyze provider and extract templates/resources created.
-
-        Args:
-            file_path: Path to provider file
-
-        Returns:
-            ProviderAnalysisOutput with templates and conditionals
-        """
+    def execute(
+        self, state: FileAnalysisState, metrics: AgentMetrics | None
+    ) -> FileAnalysisState:
+        file_path = Path(state.path)
         if not file_path.exists():
             logger.warning(f"Provider not found: {file_path}")
-            return ProviderAnalysisOutput()
+            return state.update(result=ProviderAnalysisOutput())
 
         file_content = file_path.read_text()
         system_prompt = get_prompt("chef_provider_analysis_system").format()
@@ -94,45 +78,35 @@ class ProviderAnalysisService:
         )
 
         try:
-            structured_model = self._model.with_structured_output(
-                ProviderAnalysisOutput
-            )
-            # Combine system and task prompts into a single message
-            combined_prompt = f"{system_prompt}\n\n{task_prompt}"
-            result = structured_model.invoke(
-                combined_prompt, config=get_runnable_config()
-            )
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": task_prompt},
+            ]
+            result = self.invoke_structured(ProviderAnalysisOutput, messages, metrics)
             logger.info(
-                f"✓ Provider {file_path.name} has {len(result.unconditional_templates)} unconditional templates, "
+                f"Provider {file_path.name} has "
+                f"{len(result.unconditional_templates)} unconditional templates, "
                 f"{len(result.conditionals)} conditional branches"
             )
-            return result
+            return state.update(result=result)
         except Exception as e:
             logger.error(f"Failed to analyze provider {file_path}: {e}")
-            return ProviderAnalysisOutput()
+            return state.update(result=ProviderAnalysisOutput())
 
 
-class AttributeAnalysisService:
+class AttributeAnalysisService(InputAgent[FileAnalysisState]):
     """Service for analyzing Chef attributes files using LLM.
 
     Responsibility: Extract default attribute values from attributes/default.rb.
     """
 
-    def __init__(self, model):
-        self._model = model
-
-    def analyze(self, file_path: Path) -> DefaultAttributesOutput:
-        """Analyze attributes file and extract default values.
-
-        Args:
-            file_path: Path to attributes/default.rb file
-
-        Returns:
-            DefaultAttributesOutput with extracted attributes
-        """
+    def execute(
+        self, state: FileAnalysisState, metrics: AgentMetrics | None
+    ) -> FileAnalysisState:
+        file_path = Path(state.path)
         if not file_path.exists():
             logger.warning(f"Attributes file not found: {file_path}")
-            return DefaultAttributesOutput()
+            return state.update(result=DefaultAttributesOutput())
 
         file_content = file_path.read_text()
         system_prompt = get_prompt("chef_attributes_extraction_system").format()
@@ -141,14 +115,11 @@ class AttributeAnalysisService:
         )
 
         try:
-            structured_model = self._model.with_structured_output(
-                DefaultAttributesOutput
-            )
-            # Combine system and task prompts into a single message
-            combined_prompt = f"{system_prompt}\n\n{task_prompt}"
-            result = structured_model.invoke(
-                combined_prompt, config=get_runnable_config()
-            )
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": task_prompt},
+            ]
+            result = self.invoke_structured(DefaultAttributesOutput, messages, metrics)
 
             if result.platform_specific_notes:
                 logger.info("Platform-specific attributes found:")
@@ -156,9 +127,10 @@ class AttributeAnalysisService:
                     logger.info(f"  - {note}")
 
             logger.info(
-                f"✓ Extracted {len(result.attributes)} top-level default attributes from {file_path.name}"
+                f"Extracted {len(result.attributes)} top-level default attributes "
+                f"from {file_path.name}"
             )
-            return result
+            return state.update(result=result)
         except Exception as e:
             logger.error(f"Failed to analyze attributes {file_path}: {e}")
-            return DefaultAttributesOutput()
+            return state.update(result=DefaultAttributesOutput())
