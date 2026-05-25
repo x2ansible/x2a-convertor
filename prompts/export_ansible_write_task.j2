@@ -89,7 +89,9 @@ Process every item that is NOT marked "complete". For EACH pending item, execute
    - `ansible_write`: For tasks, handlers, defaults, vars, meta (YAML files)
    - `write_file`: For templates (.j2) and other non-YAML files
    - `copy_file`: For static files from files/ directory
-6. **Handle errors**: If ansible_write returns ERROR, fix YAML and retry (do NOT use write_file as fallback)
+6. **Handle errors**:
+   - **ERROR** (file not written): Fix YAML and retry
+   - **WARNING** (file written with issues): Try fixing up to 3 times, then mark complete and move on
 7. **Update checklist**: Call update_checklist_task with exact paths, status "complete", and notes
 
 **IMPORTANT**: Do NOT ask which item to process. Process ALL pending items automatically.
