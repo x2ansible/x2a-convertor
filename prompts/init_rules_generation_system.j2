@@ -23,8 +23,9 @@ Your job is to produce two sets of rule sections:
 Guidelines:
 - Only include rules that are relevant to the detected {{ source_technology }} technology
 - Keep each section concise and actionable
-- NEVER invent rules -- only extract and reformat what exists in the organizational rules
-- Do NOT derive rules from the migration plan content -- the migration plan is context, not a source of rules
+- Never invent rules: only extract what exists in the organizational rules
+- Preserve exact formatting: When extracting rules, maintain the exact formatting including code blocks, YAML syntax, and markdown structure. Do not rephrase or reformat code examples.
+- Do NOT derive rules from the migration plan content: the migration plan is context, not a source of rules
 - If the organizational rules contain no relevant content, return empty lists
 - Phrase each section appropriately for its phase context
-- If a rule applies to both phases, include it in both with phase-appropriate framing
+- If a rule applies to both phases, include it in both with phase-appropriate framing, preserving any code blocks verbatim
