@@ -1,154 +1,112 @@
 import re
 from pathlib import Path
-from typing import TypedDict
+from typing import Literal
 
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import BaseModel
 
-from prompts.get_prompt import get_prompt
 from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
+from src.exporters.module_selection_agent import ModuleSelectionAgent
+from src.exporters.state import ExportState
 from src.model import get_model, get_runnable_config
 from src.types import AnsibleModule, DocumentFile
 from src.types.technology import Technology
-from src.utils.list_files import list_files
 from src.utils.logging import get_logger
 from src.utils.technology_registry import TechnologyRegistry
 
 logger = get_logger(__name__)
 
 
-class SourceMetadata(BaseModel):
-    """Structured output for source metadata"""
-
-    path: str
-
-
-class MigrationState(TypedDict):
-    user_message: str
-    path: str
-    module: AnsibleModule
-    source_technology: Technology
-    high_level_migration_plan: DocumentFile
-    module_migration_plan: DocumentFile
-    directory_listing: list[str]
-    migration_output: str
-    failed: bool
-    failure_reason: str
-
-
 class MigrationAgent:
     def __init__(self, model=None) -> None:
         self.model = model or get_model()
+        self.module_selection_agent = ModuleSelectionAgent(model=self.model)
         self._graph = self._build_graph()
         logger.debug("Migration workflow: " + self._graph.get_graph().draw_mermaid())
 
     def _build_graph(self) -> CompiledStateGraph:
-        workflow = StateGraph(MigrationState)  # pyrefly: ignore[bad-specialization]
+        workflow = StateGraph(ExportState)
 
-        workflow.add_node(
-            "read_source_metadata", lambda state: self._read_source_metadata(state)
-        )
+        workflow.add_node("select_module", self.module_selection_agent)
         workflow.add_node("choose_subagent", lambda state: self._choose_subagent(state))
         workflow.add_node(
             "write_migration_output", lambda state: self._write_migration_output(state)
         )
 
-        workflow.set_entry_point("read_source_metadata")
-        workflow.add_edge("read_source_metadata", "choose_subagent")
-        workflow.add_edge("choose_subagent", "write_migration_output")
+        workflow.set_entry_point("select_module")
+        workflow.add_conditional_edges(
+            "select_module",
+            self._check_failure,
+            {"continue": "choose_subagent", "failed": "write_migration_output"},
+        )
+        workflow.add_conditional_edges(
+            "choose_subagent",
+            self._check_failure,
+            {"continue": "write_migration_output", "failed": "write_migration_output"},
+        )
         workflow.add_edge("write_migration_output", END)
 
         return workflow.compile()
 
-    def _read_source_metadata(self, state: MigrationState) -> MigrationState:
-        """Read the source technology from the migration plan"""
-        logger.info("MigrationAgent is reading source metadata")
-        prompt = get_prompt("export_source_metadata_system")
-        system_message = prompt.format(
-            high_level_migration_plan=state["high_level_migration_plan"].to_document(),
-            module_migration_plan=state["module_migration_plan"].to_document(),
-        )
-        user_prompt = get_prompt("export_source_metadata_task").format(
-            user_message=state["user_message"],
-        )
+    def _check_failure(self, state: ExportState) -> Literal["continue", "failed"]:
+        """Check if the state is marked as failed.
 
-        messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": user_prompt},
-        ]
+        Args:
+            state: Current export state
 
-        structured_llm = self.model.with_structured_output(SourceMetadata)
-        response = structured_llm.invoke(messages, config=get_runnable_config())
-        logger.debug(f"LLM read_source_metadata response: {response}")
+        Returns:
+            "failed" if state is marked as failed, "continue" otherwise
+        """
+        if state.failed:
+            logger.error(f"Migration failed: {state.failure_reason}")
+            return "failed"
+        return "continue"
 
-        assert isinstance(response, SourceMetadata)
-        raw_path = response.path
-
-        if not raw_path or not Path(raw_path).exists():
-            raise ValueError(
-                f"Module path from the module migration plan not found: {raw_path}"
-            )
-
-        state["path"] = raw_path
-
-        # Get the directory listing
-        state["directory_listing"] = list_files(path=state["path"])
-
-        logger.info(
-            f"Gathered metadata:\n- module path: {state['path']}\n- directory listing: {state['directory_listing']}"
-        )
-
-        return state
-
-    def _choose_subagent(self, state: MigrationState) -> MigrationState:
+    def _choose_subagent(self, state: ExportState) -> ExportState:
         """Choose and execute the appropriate subagent based on technology."""
-        technology = state.get("source_technology")
+        technology = state.source_technology
         logger.info(f"Choosing subagent based on technology: '{technology}'")
 
         try:
             exporter = TechnologyRegistry.get_exporter(
-                technology, model=self.model, module=state["module"]
+                technology, model=self.model, module=state.module
             )
         except ValueError:
+            error_msg = f"{technology.value} migration not implemented yet"
             logger.error(f"No exporter registered for technology: {technology}")
-            state["failed"] = True
-            state["failure_reason"] = (
-                f"{technology.value} migration not implemented yet"
-            )
-            return state
+            return state.mark_failed(error_msg).update(last_output=error_msg)
 
         result = exporter.invoke(
-            path=state["path"],
-            user_message=state["user_message"],
-            module_migration_plan=state["module_migration_plan"],
-            high_level_migration_plan=state["high_level_migration_plan"],
-            directory_listing=state["directory_listing"],
+            path=state.path,
+            user_message=state.user_message,
+            module_migration_plan=state.module_migration_plan,
+            high_level_migration_plan=state.high_level_migration_plan,
+            directory_listing=state.directory_listing,
             source_technology=technology,
         )
-        state["migration_output"] = result.get_output()
-        state["failed"] = result.did_fail()
-        state["failure_reason"] = result.get_failure_reason()
 
-        return state
+        return state.update(
+            last_output=result.get_output(),
+            failed=result.did_fail(),
+            failure_reason=result.get_failure_reason(),
+        )
 
-    def _write_migration_output(self, state: MigrationState) -> MigrationState:
+    def _write_migration_output(self, state: ExportState) -> ExportState:
         """Write the migration last message(s) to the output file"""
-        filename = EXPORT_OUTPUT_FILENAME_TEMPLATE.format(module=str(state["module"]))
+        filename = EXPORT_OUTPUT_FILENAME_TEMPLATE.format(module=str(state.module))
         logger.info(f"Writing migration output to {filename}")
 
         file = Path(filename)
-        # should not be needed but sometimes an unexpected flow occurs
         file.parent.mkdir(exist_ok=True, parents=True)
-        file.write_text(state["migration_output"])
+        file.write_text(state.last_output)
 
         return state
 
-    def invoke(self, initial_state: MigrationState) -> MigrationState:
+    def invoke(self, initial_state: ExportState) -> ExportState:
         """Invoke the migration agent"""
         result = self._graph.invoke(input=initial_state, config=get_runnable_config())
         logger.debug(f"Migration agent result: {result}")
-        return MigrationState(**result)
+        return ExportState(**result)
 
 
 def migrate_module(
@@ -157,19 +115,17 @@ def migrate_module(
     module_migration_plan,
     high_level_migration_plan,
     source_dir,
-    # pyrefly: ignore
-) -> MigrationState:
+) -> ExportState:
     """Based on the migration plan produced within analysis, this will migrate the project"""
     logger.info(f"Migrating: {source_dir}")
 
-    # Extract module_name from module_migration_plan, which is in the form "migration-plan-{module_name}.md"
+    # Extract module_name from module_migration_plan
     match = re.match(r".*migration-plan-(.+)\.md", module_migration_plan)
     raw_module_name = match.group(1) if match else None
 
     if not raw_module_name:
         raise ValueError("module name not found in module_migration_plan filename")
 
-    # Create AnsibleModule value object (automatically sanitizes)
     module_name = AnsibleModule(raw_module_name)
 
     if not high_level_migration_plan:
@@ -188,26 +144,28 @@ def migrate_module(
 
     # Run the migration agent
     workflow = MigrationAgent()
-    initial_state = MigrationState(
+    initial_state = ExportState(
         user_message=user_requirements,
         path="/",
-        source_technology=technology,
         module=module_name,
-        high_level_migration_plan=high_level_migration_plan_doc,
         module_migration_plan=module_migration_plan_doc,
+        high_level_migration_plan=high_level_migration_plan_doc,
         directory_listing=[],
-        migration_output="",
-        failed=False,
-        failure_reason="",
+        current_phase="module_selection",
+        write_attempt_counter=0,
+        validation_attempt_counter=0,
+        validation_report="",
+        last_output="",
+        source_technology=technology,
     )
 
     result = workflow.invoke(initial_state)
 
-    if result["failed"]:
+    if result.failed:
         logger.error(
-            f"Migration failed for module {module_name}: {result['failure_reason']}"
+            f"Migration failed for module {module_name}: {result.failure_reason}"
         )
     else:
         logger.info(f"Migration completed successfully for module {module_name}!")
 
-    return MigrationState(**result)
+    return result
