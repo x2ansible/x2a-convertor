@@ -4,6 +4,8 @@ This module contains the agent that selects which module to migrate
 based on user input and LLM analysis of the migration plan.
 """
 
+from pathlib import Path
+
 from prompts.get_prompt import get_prompt
 from src.const import METADATA_FILENAME
 from src.inputs.analyze_state import MigrationState, ModuleSelection
@@ -55,6 +57,13 @@ class ModuleSelectionAgent(InputAgent[MigrationState]):
         technology = response.technology
 
         self._record_metrics(metrics, technology, normalized_path)
+
+        if not Path(normalized_path).exists():
+            self._log.error(f"Selected module path does not exist: {normalized_path}")
+            return state.mark_failed(
+                f"Module path not found: '{normalized_path}'. "
+                f"Verify the module name and path in the migration plan."
+            )
 
         self._log.info(
             f"Selected path: '{normalized_path}' technology: '{technology.value}'"

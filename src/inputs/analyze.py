@@ -64,6 +64,9 @@ class MigrationAnalysisWorkflow:
 
     def choose_subagent(self, state: MigrationState) -> MigrationState:
         """Choose and execute the appropriate subagent based on technology."""
+        if state.failed:
+            return state
+
         technology = state.technology
 
         if technology is None:
@@ -97,6 +100,9 @@ class MigrationAnalysisWorkflow:
 
     def write_migration_file(self, state: MigrationState) -> MigrationState:
         """Write the migration plan to a file."""
+        if state.failed:
+            return state
+
         migration_content = state.module_migration_plan
         if not migration_content:
             logger.error("Migration failed, no plan generated")
@@ -136,6 +142,9 @@ def analyze_project(user_requirements: str, source_dir: str = "."):
     # Stop telemetry and save
     telemetry.stop().save()
     logger.info(f"Telemetry summary:\n{telemetry.to_summary()}")
+
+    if result.get("failed"):
+        raise RuntimeError(result.get("failure_reason", "Analysis failed"))
 
     logger.info("Migration analysis completed successfully!")
     return result
