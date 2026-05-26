@@ -98,6 +98,17 @@ class MigrationAnalysisWorkflow:
         frontmatter = f"---\nsource-path: {path}\n---\n\n"
         return frontmatter + content
 
+    @staticmethod
+    def _strip_wrapping_code_fence(content: str) -> str:
+        """Strip code fence if LLM wrapped the entire output in one."""
+        stripped = content.strip()
+        if stripped.startswith("```") and stripped.endswith("```"):
+            first_newline = stripped.index("\n") if "\n" in stripped else len(stripped)
+            stripped = stripped[first_newline + 1 :]
+            stripped = stripped[: -3].strip()
+            return stripped
+        return content
+
     def write_migration_file(self, state: MigrationState) -> MigrationState:
         """Write the migration plan to a file."""
         if state.failed:
@@ -108,6 +119,7 @@ class MigrationAnalysisWorkflow:
             logger.error("Migration failed, no plan generated")
             return state
 
+        migration_content = self._strip_wrapping_code_fence(migration_content)
         migration_content = self._prepend_frontmatter(state.path, migration_content)
 
         filename = state.get_migration_plan_path()
