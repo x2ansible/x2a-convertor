@@ -29,6 +29,7 @@ from .models import (
     PuppetStructuredAnalysis,
     TemplateAnalysisResult,
 )
+from .path_resolver import PuppetPathResolver
 from .services import (
     CredentialDetectionService,
     CustomTypeAnalysisService,
@@ -68,6 +69,8 @@ class PuppetSubagent:
         self._analysis_validator = AnalysisValidationAgent(model=self.model)
         self._cleanup = CleanupAgent(model=self.model)
 
+        self._path_resolver: PuppetPathResolver | None = None
+
         self._workflow = self._create_workflow()
 
         logger.debug(self._workflow.get_graph().draw_mermaid())
@@ -79,6 +82,10 @@ class PuppetSubagent:
             "fetch_dependencies", lambda state: self._fetch_dependencies(state)
         )
         workflow.add_node(
+            "discover_context",
+            lambda state: self._discover_control_repo_context(state),
+        )
+        workflow.add_node(
             "analyze_structure", lambda state: self._analyze_structure(state)
         )
         workflow.add_node("write_report", self._report_writer)
@@ -86,7 +93,8 @@ class PuppetSubagent:
         workflow.add_node("cleanup_specification", self._cleanup)
 
         workflow.set_entry_point("fetch_dependencies")
-        workflow.add_edge("fetch_dependencies", "analyze_structure")
+        workflow.add_edge("fetch_dependencies", "discover_context")
+        workflow.add_edge("discover_context", "analyze_structure")
         workflow.add_edge("analyze_structure", "write_report")
         workflow.add_conditional_edges(
             "write_report",
@@ -134,7 +142,9 @@ class PuppetSubagent:
             if deps_path:
                 slog.info(f"Dependencies downloaded to {deps_path}")
             else:
-                slog.warning("Could not download dependencies (r10k not available or failed)")
+                slog.warning(
+                    "Could not download dependencies (r10k not available or failed)"
+                )
 
             if metrics:
                 metrics.record_metric("dependencies_found", len(dep_info))
@@ -155,12 +165,62 @@ class PuppetSubagent:
         p = Path(path)
         if p.is_file():
             p = p.parent
-        for candidate in [p] + list(p.parents):
+        for candidate in [p, *list(p.parents)]:
             if (candidate / "manifests").is_dir():
                 return candidate
-            if candidate == Path("."):
+            if candidate == Path():
                 break
         return Path(path)
+
+    def _discover_control_repo_context(self, state: PuppetState) -> PuppetState:
+        """Discover control repo structure and find role/profile chain."""
+        slog = logger.bind(phase="discover_context")
+        module_path = self._resolve_module_root(state.path)
+
+        repo_root = PuppetPathResolver.find_control_repo_root(module_path)
+        if repo_root is None:
+            slog.info("No environment.conf found — standalone module")
+            return state
+
+        slog.info(f"Found control repo root: {repo_root}")
+        env_conf = repo_root / "environment.conf"
+        modulepath = PuppetPathResolver.parse_modulepath(env_conf)
+        if not modulepath:
+            slog.warning("Could not parse modulepath from environment.conf")
+            return state
+
+        slog.info(f"Modulepath entries: {[str(p) for p in modulepath]}")
+        self._path_resolver = PuppetPathResolver(repo_root, modulepath)
+
+        module_name = module_path.name
+        slog.info(f"Discovering references to module '{module_name}'")
+        context_manifests = self._path_resolver.find_referencing_manifests(module_name)
+
+        context_paths = [str(p) for p in context_manifests]
+        slog.info(f"Found {len(context_paths)} context manifests (roles/profiles)")
+        for cp in context_paths:
+            slog.info(f"  {cp}")
+
+        role_class = None
+        profile_classes: list[str] = []
+        for manifest_path in context_manifests:
+            inferred = self._path_resolver._infer_class_name(manifest_path)
+            if inferred and inferred.startswith("role::"):
+                role_class = inferred
+            elif inferred:
+                profile_classes.append(inferred)
+
+        if role_class:
+            slog.info(f"Role entry point: {role_class}")
+        if profile_classes:
+            slog.info(f"Profile chain: {profile_classes}")
+
+        return state.update(
+            control_repo_root=str(repo_root),
+            context_manifest_paths=context_paths,
+            role_class=role_class,
+            profile_classes=profile_classes,
+        )
 
     def _analyze_structure(self, state: PuppetState) -> PuppetState:
         slog = logger.bind(phase="analyze_structure")
@@ -174,8 +234,24 @@ class PuppetSubagent:
             slog.info("Step 1: Analyzing manifests")
             manifests = self._analyze_manifests(module_path, slog)
 
+            if state.context_manifest_paths:
+                slog.info(
+                    f"Step 1b: Analyzing {len(state.context_manifest_paths)} "
+                    "context manifests (roles/profiles)"
+                )
+                context_manifests = self._analyze_manifest_files(
+                    [Path(p) for p in state.context_manifest_paths], slog
+                )
+                manifests.extend(context_manifests)
+
             slog.info("Step 2: Analyzing Hiera data files")
             hiera_data = self._analyze_hiera_data(module_path, slog)
+
+            if state.control_repo_root:
+                repo_root = Path(state.control_repo_root)
+                slog.info("Step 2b: Analyzing environment-level Hiera data")
+                env_hiera = self._analyze_hiera_data(repo_root, slog)
+                hiera_data.extend(env_hiera)
 
             slog.info("Step 3: Analyzing templates")
             templates = self._analyze_templates(module_path, slog)
@@ -199,8 +275,11 @@ class PuppetSubagent:
             credentials_analysis = self._detect_credentials(hiera_data, manifests, slog)
 
             slog.info("Step 6: Building execution tree")
-            tree_builder = PuppetExecutionTreeBuilder(structured_analysis)
-            tree_root = tree_builder.build_tree()
+            tree_builder = PuppetExecutionTreeBuilder(
+                structured_analysis, path_resolver=self._path_resolver
+            )
+            entry_class = state.role_class if state.role_class else None
+            tree_root = tree_builder.build_tree(entry_class=entry_class)
             execution_tree_summary = self._format_execution_tree(
                 tree_builder, tree_root, structured_analysis
             )
@@ -235,6 +314,24 @@ class PuppetSubagent:
                 )
             except Exception as e:
                 slog.warning(f"Failed to analyze manifest {pp_file}: {e}")
+        return results
+
+    def _analyze_manifest_files(
+        self, files: list[Path], slog
+    ) -> list[ManifestAnalysisResult]:
+        """Analyze specific manifest files (used for context manifests)."""
+        results: list[ManifestAnalysisResult] = []
+        for pp_file in sorted(files):
+            if not pp_file.is_file():
+                continue
+            try:
+                slog.debug(f"Analyzing context manifest: {pp_file}")
+                analysis = self._manifest_service.analyze(pp_file)
+                results.append(
+                    ManifestAnalysisResult(file_path=str(pp_file), analysis=analysis)
+                )
+            except Exception as e:
+                slog.warning(f"Failed to analyze context manifest {pp_file}: {e}")
         return results
 
     def _analyze_hiera_data(
@@ -303,6 +400,9 @@ class PuppetSubagent:
             "lib/puppet/provider/**/*.rb": "provider",
             "lib/facter/*.rb": "fact",
             "lib/puppet/functions/*.rb": "function",
+            "functions/*.pp": "puppet_function",
+            "types/*.pp": "type_alias",
+            "plans/*.pp": "bolt_plan",
         }
 
         for pattern, component_type in patterns.items():

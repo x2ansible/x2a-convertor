@@ -50,6 +50,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
         dependencies_summary = self._build_dependencies_summary(state)
         custom_types_summary = self._build_custom_types_summary(state)
         puppetdb_summary = self._build_puppetdb_summary(state)
+        control_repo_summary = self._build_control_repo_summary(state)
 
         messages = self._build_messages(
             state,
@@ -59,6 +60,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             dependencies_summary,
             custom_types_summary,
             puppetdb_summary,
+            control_repo_summary,
         )
 
         result = self.invoke_react(state, messages, metrics)
@@ -193,6 +195,31 @@ class ReportWriterAgent(InputAgent[PuppetState]):
 
         return "\n".join(lines) if lines else "No custom types detected."
 
+    def _build_control_repo_summary(self, state: PuppetState) -> str:
+        if not state.control_repo_root:
+            return "Standalone module (no control repo detected)."
+
+        lines = [
+            f"Control repo root: {state.control_repo_root}",
+        ]
+
+        if state.role_class:
+            lines.append(f"Role entry point: {state.role_class}")
+
+        if state.profile_classes:
+            lines.append(f"Profile chain: {' → '.join(state.profile_classes)}")
+
+        if state.role_class and state.profile_classes:
+            chain = [state.role_class, *state.profile_classes, state.path.split("/")[-1]]
+            lines.append(f"Full chain: {' → '.join(chain)}")
+
+        if state.context_manifest_paths:
+            lines.append(f"\nContext manifests analyzed ({len(state.context_manifest_paths)}):")
+            for p in state.context_manifest_paths:
+                lines.append(f"  - {p}")
+
+        return "\n".join(lines)
+
     def _build_messages(
         self,
         state: PuppetState,
@@ -202,6 +229,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
         dependencies_summary: str,
         custom_types_summary: str,
         puppetdb_summary: str,
+        control_repo_summary: str,
     ) -> list[dict[str, str]]:
         system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
@@ -214,6 +242,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             dependencies_summary=dependencies_summary,
             custom_types_summary=custom_types_summary,
             puppetdb_summary=puppetdb_summary,
+            control_repo_summary=control_repo_summary,
         )
         return [
             {"role": "system", "content": system_message},

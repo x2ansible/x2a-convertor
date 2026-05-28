@@ -1,6 +1,12 @@
 **Analyze the Puppet module at path: {path}**
 **User requirements: {user_message}**
 
+# CONTROL REPO CONTEXT
+
+```
+{control_repo_summary}
+```
+
 # CRITICAL: EXECUTION TREE (USE THIS AS YOUR SOURCE OF TRUTH)
 
 The following execution tree shows the COMPLETE class execution flow.
@@ -41,6 +47,7 @@ You MUST use this data. Do NOT hallucinate or invent files that aren't listed he
 - **Variables**: Use the `parse_hiera_config` tool to understand the Hiera hierarchy, then read data files to map variables
 - **Credentials**: Use the credentials summary for the Credentials section
 - **PuppetDB**: Use the PuppetDB usage summary for the PuppetDB Dependencies section — include all exported resources, collectors, and queries
+- **Control Repo**: If a control repo was detected, note the role/profile chain in the migration plan — it shows how this module fits into the larger infrastructure
 - **DO NOT invent anything**: If it's not in the execution tree, don't include it
 
 ---
