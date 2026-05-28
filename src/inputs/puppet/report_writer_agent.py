@@ -210,11 +210,17 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             lines.append(f"Profile chain: {' → '.join(state.profile_classes)}")
 
         if state.role_class and state.profile_classes:
-            chain = [state.role_class, *state.profile_classes, state.path.split("/")[-1]]
+            chain = [
+                state.role_class,
+                *state.profile_classes,
+                state.path.split("/")[-1],
+            ]
             lines.append(f"Full chain: {' → '.join(chain)}")
 
         if state.context_manifest_paths:
-            lines.append(f"\nContext manifests analyzed ({len(state.context_manifest_paths)}):")
+            lines.append(
+                f"\nContext manifests analyzed ({len(state.context_manifest_paths)}):"
+            )
             for p in state.context_manifest_paths:
                 lines.append(f"  - {p}")
 

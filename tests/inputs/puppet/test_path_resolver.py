@@ -1,7 +1,5 @@
 """Tests for Puppet path resolver."""
 
-from pathlib import Path
-
 import pytest
 
 from src.inputs.puppet.path_resolver import PuppetPathResolver
@@ -36,18 +34,14 @@ def control_repo(tmp_path):
     profile_dir = site_dir / "profile" / "manifests" / "loadbalancer"
     profile_dir.mkdir(parents=True)
     (profile_dir / "haproxy.pp").write_text(
-        "class profile::loadbalancer::haproxy {\n"
-        "  class { 'profile_haproxy': }\n"
-        "}\n"
+        "class profile::loadbalancer::haproxy {\n  class { 'profile_haproxy': }\n}\n"
     )
 
     # Base profile
     base_dir = site_dir / "profile" / "manifests" / "base"
     base_dir.mkdir(parents=True)
     (base_dir / "base.pp").write_text(
-        "class profile::base::base {\n"
-        "  include base_utils\n"
-        "}\n"
+        "class profile::base::base {\n  include base_utils\n}\n"
     )
 
     # Role
@@ -68,9 +62,7 @@ def control_repo(tmp_path):
 
 class TestFindControlRepoRoot:
     def test_found_from_module_path(self, control_repo):
-        module_path = (
-            control_repo / "site" / "modules" / "linux" / "profile_haproxy"
-        )
+        module_path = control_repo / "site" / "modules" / "linux" / "profile_haproxy"
         root = PuppetPathResolver.find_control_repo_root(module_path)
         assert root == control_repo
 
