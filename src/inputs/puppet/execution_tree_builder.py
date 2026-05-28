@@ -4,8 +4,11 @@ This module builds a visual tree showing the complete class execution flow
 with iterations expanded and resource details inline.
 """
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from src.utils.logging import get_logger
 
@@ -15,10 +18,13 @@ from .models import (
     PuppetStructuredAnalysis,
 )
 
+if TYPE_CHECKING:
+    from .path_resolver import PuppetPathResolver
+
 logger = get_logger(__name__)
 
 
-def _format_class(n: "ExecutionTreeNode") -> str:
+def _format_class(n: ExecutionTreeNode) -> str:
     label = f"[class] {n.name}"
     if n.file_path:
         label += f"  # {n.file_path}"
@@ -27,7 +33,7 @@ def _format_class(n: "ExecutionTreeNode") -> str:
     return label
 
 
-_LABEL_FORMATTERS: dict[str, Callable[["ExecutionTreeNode"], str]] = {
+_LABEL_FORMATTERS: dict[str, Callable[[ExecutionTreeNode], str]] = {
     "class": _format_class,
     "resource": lambda n: f"[resource] {n.name}",
     "iteration": lambda n: f"LOOP {n.name}",
@@ -51,7 +57,7 @@ class ExecutionTreeNode:
     name: str
     file_path: str | None = None
     details: str | None = None
-    children: list["ExecutionTreeNode"] = field(default_factory=list)
+    children: list[ExecutionTreeNode] = field(default_factory=list)
 
     def format_label(self) -> str:
         formatter = _LABEL_FORMATTERS.get(self.node_type)
@@ -63,8 +69,13 @@ class ExecutionTreeNode:
 class PuppetExecutionTreeBuilder:
     """Builds execution tree from Puppet manifest analysis results."""
 
-    def __init__(self, structured_analysis: PuppetStructuredAnalysis):
+    def __init__(
+        self,
+        structured_analysis: PuppetStructuredAnalysis,
+        path_resolver: PuppetPathResolver | None = None,
+    ):
         self.analysis = structured_analysis
+        self.path_resolver = path_resolver
         self._visited: set[str] = set()
 
         self._manifest_map: dict[str, ManifestAnalysisResult] = {}
@@ -124,10 +135,15 @@ class PuppetExecutionTreeBuilder:
 
         manifest = self._manifest_map.get(class_name)
         if manifest is None:
+            details = "class not analyzed"
+            if self.path_resolver:
+                resolved = self.path_resolver.resolve_class(class_name)
+                if resolved:
+                    details = f"external class — {resolved}"
             return ExecutionTreeNode(
                 node_type="class",
                 name=class_name,
-                details="class not analyzed",
+                details=details,
             )
 
         analysis = manifest.analysis
@@ -162,9 +178,7 @@ class PuppetExecutionTreeBuilder:
 
         if analysis.fact_references:
             for fact in analysis.fact_references:
-                node.children.append(
-                    ExecutionTreeNode(node_type="fact", name=fact)
-                )
+                node.children.append(ExecutionTreeNode(node_type="fact", name=fact))
 
         return node
 

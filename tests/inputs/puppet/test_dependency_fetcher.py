@@ -8,10 +8,12 @@ import pytest
 from src.inputs.puppet.dependency_fetcher import PuppetDependencyFetcher
 
 PUPPET_EXAMPLES_DIR = Path(__file__).resolve().parents[3] / ".." / "puppet-examples"
-HAPROXY_MODULE = PUPPET_EXAMPLES_DIR / "profile_haproxy"
+HAPROXY_MODULE = PUPPET_EXAMPLES_DIR / "site" / "modules" / "linux" / "profile_haproxy"
 
 has_r10k = shutil.which("r10k") is not None
-has_puppet_examples = HAPROXY_MODULE.exists() and (HAPROXY_MODULE / "Puppetfile").exists()
+has_puppet_examples = (
+    HAPROXY_MODULE.exists() and (HAPROXY_MODULE / "Puppetfile").exists()
+)
 
 
 class TestPuppetDependencyFetcher:

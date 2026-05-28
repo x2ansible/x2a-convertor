@@ -105,7 +105,7 @@ class MigrationAnalysisWorkflow:
         if stripped.startswith("```") and stripped.endswith("```"):
             first_newline = stripped.index("\n") if "\n" in stripped else len(stripped)
             stripped = stripped[first_newline + 1 :]
-            stripped = stripped[: -3].strip()
+            stripped = stripped[:-3].strip()
             return stripped
         return content
 

@@ -35,6 +35,12 @@ class PuppetState(BaseState):
     credentials_analysis: list[CredentialAnalysisResult] | None = field(
         default=None, kw_only=True
     )
+    control_repo_root: str | None = field(default=None, kw_only=True)
+    context_manifest_paths: list[str] = field(
+        kw_only=True, default_factory=list
+    )
+    role_class: str | None = field(default=None, kw_only=True)
+    profile_classes: list[str] = field(kw_only=True, default_factory=list)
 
     @property
     def all_paths(self) -> list[Path]:
