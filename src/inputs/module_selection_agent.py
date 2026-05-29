@@ -53,9 +53,18 @@ class ModuleSelectionAgent(InputAgent[MigrationState]):
         self._log.debug(f"LLM select_module response: {response}")
         assert isinstance(response, ModuleSelection)
 
+        # Check if LLM indicated module not found
+        if response.name == "NOT_FOUND" or response.path == "NOT_FOUND":
+            self._log.error(
+                f"Module not found in available modules for request: '{state.user_message}'"
+            )
+            return state.mark_failed(
+                f"Module '{state.user_message}' not found in available modules. "
+                f"Please verify the module name and try again."
+            )
+
         normalized_path = self._normalize_path(response.path)
         technology = response.technology
-
         self._record_metrics(metrics, technology, normalized_path)
 
         if not Path(normalized_path).exists():

@@ -6,10 +6,10 @@ Each service has a single responsibility (SRP).
 
 from pathlib import Path
 
-from langchain_core.messages import HumanMessage, SystemMessage
-
 from prompts.get_prompt import get_prompt
-from src.model import get_runnable_config
+from src.inputs.input_agent import InputAgent
+from src.types.file_analysis_state import FileAnalysisState
+from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
 
 from .models import (
@@ -22,19 +22,20 @@ from .models import (
 
 logger = get_logger(__name__)
 
-MAX_STRUCTURED_RETRIES = 3
 
+class ManifestAnalysisService(InputAgent[FileAnalysisState]):
+    """Service for analyzing Puppet manifest (.pp) files using LLM.
 
-class ManifestAnalysisService:
-    """Analyze Puppet manifest (.pp) files using LLM."""
+    Responsibility: Extract resources, classes, and control structures from manifests.
+    """
 
-    def __init__(self, model):
-        self._model = model
-
-    def analyze(self, file_path: Path) -> ManifestExecutionAnalysis:
+    def execute(
+        self, state: FileAnalysisState, metrics: AgentMetrics | None
+    ) -> FileAnalysisState:
+        file_path = Path(state.path)
         if not file_path.exists():
             logger.warning(f"File not found: {file_path}")
-            return ManifestExecutionAnalysis()
+            return state.update(result=ManifestExecutionAnalysis())
 
         file_content = file_path.read_text()
         system_prompt = get_prompt("puppet_manifest_analysis_system").format()
@@ -43,55 +44,40 @@ class ManifestAnalysisService:
         )
 
         try:
-            structured_model = self._model.with_structured_output(
-                ManifestExecutionAnalysis
-            )
             messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=task_prompt),
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": task_prompt},
             ]
-            result = None
-            for attempt in range(MAX_STRUCTURED_RETRIES):
-                result = structured_model.invoke(messages, config=get_runnable_config())
-                if result is not None:
-                    break
-                logger.warning(
-                    f"Structured output returned None for {file_path.name}, retrying ({attempt + 1}/{MAX_STRUCTURED_RETRIES})"
-                )
-            if result is None:
-                logger.error(
-                    f"Structured output returned None after {MAX_STRUCTURED_RETRIES} retries for {file_path.name}"
-                )
-                return ManifestExecutionAnalysis()
+            result = self.invoke_structured(
+                ManifestExecutionAnalysis, messages, metrics
+            )
             logger.info(
                 f"Extracted {len(result.resources)} resources, "
                 f"{len(result.class_includes)} includes from {file_path.name}"
             )
-            return result
+            return state.update(result=result)
         except Exception as e:
-            logger.error(f"Failed to analyze manifest {file_path}: {e}", exc_info=True)
-            return ManifestExecutionAnalysis()
+            logger.error(f"Failed to analyze manifest {file_path}: {e}")
+            return state.update(result=ManifestExecutionAnalysis())
 
 
-class HieraDataAnalysisService:
-    """Analyze Hiera data files using LLM.
+class HieraDataAnalysisService(InputAgent[FileAnalysisState]):
+    """Service for analyzing Hiera data files using LLM.
 
-    Non-deterministic: reasons about variable mapping to Ansible targets,
+    Responsibility: Extract variable mapping to Ansible targets,
     merge behavior, and cross-level overrides.
     """
 
-    def __init__(self, model):
-        self._model = model
-
-    def analyze(
-        self,
-        file_path: Path,
-        hierarchy_level: str = "",
-        full_hierarchy: str = "",
-    ) -> HieraDataAnalysis:
+    def execute(
+        self, state: FileAnalysisState, metrics: AgentMetrics | None
+    ) -> FileAnalysisState:
+        file_path = Path(state.path)
         if not file_path.exists():
             logger.warning(f"Hiera data file not found: {file_path}")
-            return HieraDataAnalysis()
+            return state.update(result=HieraDataAnalysis())
+
+        hierarchy_level = state.metadata.get("hierarchy_level", "")
+        full_hierarchy = state.metadata.get("full_hierarchy", "")
 
         file_content = file_path.read_text()
         system_prompt = get_prompt("puppet_hiera_analysis_system").format()
@@ -103,46 +89,34 @@ class HieraDataAnalysisService:
         )
 
         try:
-            structured_model = self._model.with_structured_output(HieraDataAnalysis)
             messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=task_prompt),
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": task_prompt},
             ]
-            result = None
-            for attempt in range(MAX_STRUCTURED_RETRIES):
-                result = structured_model.invoke(messages, config=get_runnable_config())
-                if result is not None:
-                    break
-                logger.warning(
-                    f"Structured output returned None for {file_path.name}, retrying ({attempt + 1}/{MAX_STRUCTURED_RETRIES})"
-                )
-            if result is None:
-                logger.error(
-                    f"Structured output returned None after {MAX_STRUCTURED_RETRIES} retries for {file_path.name}"
-                )
-                return HieraDataAnalysis()
+            result = self.invoke_structured(HieraDataAnalysis, messages, metrics)
             logger.info(
                 f"Extracted {len(result.variables)} variables from {file_path.name} "
                 f"(level: {hierarchy_level})"
             )
-            return result
+            return state.update(result=result)
         except Exception as e:
-            logger.error(
-                f"Failed to analyze Hiera data {file_path}: {e}", exc_info=True
-            )
-            return HieraDataAnalysis()
+            logger.error(f"Failed to analyze Hiera data {file_path}: {e}")
+            return state.update(result=HieraDataAnalysis())
 
 
-class TemplateAnalysisService:
-    """Analyze ERB (.erb) and EPP (.epp) template files using LLM."""
+class TemplateAnalysisService(InputAgent[FileAnalysisState]):
+    """Service for analyzing ERB (.erb) and EPP (.epp) template files using LLM.
 
-    def __init__(self, model):
-        self._model = model
+    Responsibility: Extract variables, loops, and Ruby logic from templates.
+    """
 
-    def analyze(self, file_path: Path) -> PuppetTemplateAnalysis:
+    def execute(
+        self, state: FileAnalysisState, metrics: AgentMetrics | None
+    ) -> FileAnalysisState:
+        file_path = Path(state.path)
         if not file_path.exists():
             logger.warning(f"Template not found: {file_path}")
-            return PuppetTemplateAnalysis(template_type="unknown")
+            return state.update(result=PuppetTemplateAnalysis(template_type="unknown"))
 
         file_content = file_path.read_text()
         template_type = "epp" if file_path.suffix == ".epp" else "erb"
@@ -152,47 +126,39 @@ class TemplateAnalysisService:
         )
 
         try:
-            structured_model = self._model.with_structured_output(
-                PuppetTemplateAnalysis
-            )
             messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=task_prompt),
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": task_prompt},
             ]
-            result = None
-            for attempt in range(MAX_STRUCTURED_RETRIES):
-                result = structured_model.invoke(messages, config=get_runnable_config())
-                if result is not None:
-                    break
-                logger.warning(
-                    f"Structured output returned None for {file_path.name}, retrying ({attempt + 1}/{MAX_STRUCTURED_RETRIES})"
-                )
-            if result is None:
-                logger.error(
-                    f"Structured output returned None after {MAX_STRUCTURED_RETRIES} retries for {file_path.name}"
-                )
-                return PuppetTemplateAnalysis(template_type=template_type)
+            result = self.invoke_structured(PuppetTemplateAnalysis, messages, metrics)
             logger.info(
                 f"Analyzed {template_type} template {file_path.name}: "
                 f"{len(result.variables_used)} variables, "
                 f"{len(result.ruby_logic)} complex blocks"
             )
-            return result
+            return state.update(result=result)
         except Exception as e:
-            logger.error(f"Failed to analyze template {file_path}: {e}", exc_info=True)
-            return PuppetTemplateAnalysis(template_type=template_type)
+            logger.error(f"Failed to analyze template {file_path}: {e}")
+            return state.update(
+                result=PuppetTemplateAnalysis(template_type=template_type)
+            )
 
 
-class CustomTypeAnalysisService:
-    """Analyze custom types, providers, facts, and functions using LLM."""
+class CustomTypeAnalysisService(InputAgent[FileAnalysisState]):
+    """Service for analyzing custom types, providers, facts, and functions using LLM.
 
-    def __init__(self, model):
-        self._model = model
+    Responsibility: Extract custom component details and Ansible equivalents.
+    """
 
-    def analyze(self, file_path: Path) -> CustomTypeAnalysis:
+    def execute(
+        self, state: FileAnalysisState, metrics: AgentMetrics | None
+    ) -> FileAnalysisState:
+        file_path = Path(state.path)
         if not file_path.exists():
             logger.warning(f"Custom type file not found: {file_path}")
-            return CustomTypeAnalysis(component_type="unknown", name="unknown")
+            return state.update(
+                result=CustomTypeAnalysis(component_type="unknown", name="unknown")
+            )
 
         file_content = file_path.read_text()
         system_prompt = get_prompt("puppet_custom_type_analysis_system").format()
@@ -201,42 +167,34 @@ class CustomTypeAnalysisService:
         )
 
         try:
-            structured_model = self._model.with_structured_output(CustomTypeAnalysis)
             messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=task_prompt),
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": task_prompt},
             ]
-            result = None
-            for attempt in range(MAX_STRUCTURED_RETRIES):
-                result = structured_model.invoke(messages, config=get_runnable_config())
-                if result is not None:
-                    break
-                logger.warning(
-                    f"Structured output returned None for {file_path.name}, retrying ({attempt + 1}/{MAX_STRUCTURED_RETRIES})"
-                )
-            if result is None:
-                logger.error(
-                    f"Structured output returned None after {MAX_STRUCTURED_RETRIES} retries for {file_path.name}"
-                )
-                return CustomTypeAnalysis(component_type="unknown", name=file_path.stem)
+            result = self.invoke_structured(CustomTypeAnalysis, messages, metrics)
             logger.info(
                 f"Analyzed {result.component_type} '{result.name}' from {file_path.name}"
             )
-            return result
+            return state.update(result=result)
         except Exception as e:
-            logger.error(
-                f"Failed to analyze custom type {file_path}: {e}", exc_info=True
+            logger.error(f"Failed to analyze custom type {file_path}: {e}")
+            return state.update(
+                result=CustomTypeAnalysis(component_type="unknown", name=file_path.stem)
             )
-            return CustomTypeAnalysis(component_type="unknown", name=file_path.stem)
 
 
-class CredentialDetectionService:
-    """Detect credentials and secrets across Hiera data and manifests."""
+class CredentialDetectionService(InputAgent[FileAnalysisState]):
+    """Service for detecting credentials and secrets across Hiera data and manifests.
 
-    def __init__(self, model):
-        self._model = model
+    Responsibility: Identify credentials and recommend Ansible-safe handling.
+    """
 
-    def analyze(self, hiera_variables: str, manifest_params: str) -> CredentialAnalysis:
+    def execute(
+        self, state: FileAnalysisState, metrics: AgentMetrics | None
+    ) -> FileAnalysisState:
+        hiera_variables = state.metadata.get("hiera_variables", "")
+        manifest_params = state.metadata.get("manifest_params", "")
+
         system_prompt = get_prompt("puppet_credential_detection_system").format()
         task_prompt = get_prompt("puppet_credential_detection_task").format(
             hiera_variables=hiera_variables,
@@ -244,26 +202,13 @@ class CredentialDetectionService:
         )
 
         try:
-            structured_model = self._model.with_structured_output(CredentialAnalysis)
             messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=task_prompt),
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": task_prompt},
             ]
-            result = None
-            for attempt in range(MAX_STRUCTURED_RETRIES):
-                result = structured_model.invoke(messages, config=get_runnable_config())
-                if result is not None:
-                    break
-                logger.warning(
-                    f"Structured output returned None for credentials, retrying ({attempt + 1}/{MAX_STRUCTURED_RETRIES})"
-                )
-            if result is None:
-                logger.error(
-                    f"Structured output returned None after {MAX_STRUCTURED_RETRIES} retries for credentials"
-                )
-                return CredentialAnalysis()
+            result = self.invoke_structured(CredentialAnalysis, messages, metrics)
             logger.info(f"Detected {result.total_detected} credentials")
-            return result
+            return state.update(result=result)
         except Exception as e:
-            logger.error(f"Failed to detect credentials: {e}", exc_info=True)
-            return CredentialAnalysis()
+            logger.error(f"Failed to detect credentials: {e}")
+            return state.update(result=CredentialAnalysis())
