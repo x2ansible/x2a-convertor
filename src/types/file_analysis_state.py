@@ -18,9 +18,12 @@ class FileAnalysisState(BaseState):
     Attributes:
         result: Typed analysis output produced by the service
                 (e.g. RecipeExecutionAnalysis, DSCExecutionAnalysis).
+        metadata: Optional metadata dictionary for passing extra data to services
+                 (e.g. hierarchy_level for Hiera files, credentials for detection).
     """
 
     result: Any = field(default=None, kw_only=True)
+    metadata: dict[str, Any] = field(default_factory=dict, kw_only=True)
 
     def update(self, **kwargs) -> "FileAnalysisState":
         return replace(self, **kwargs)

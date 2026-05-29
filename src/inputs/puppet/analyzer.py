@@ -16,6 +16,7 @@ from src.inputs.puppet.report_writer_agent import ReportWriterAgent
 from src.inputs.puppet.state import PuppetState
 from src.model import get_model, get_runnable_config
 from src.types import Telemetry
+from src.types.file_analysis_state import FileAnalysisState
 from src.types.telemetry import telemetry_context
 from src.utils.logging import get_logger
 
@@ -308,9 +309,12 @@ class PuppetSubagent:
                 continue
             try:
                 slog.debug(f"Analyzing manifest: {pp_file}")
-                analysis = self._manifest_service.analyze(pp_file)
+                file_state = FileAnalysisState(user_message="", path=str(pp_file))
+                result_state = self._manifest_service(file_state)
                 results.append(
-                    ManifestAnalysisResult(file_path=str(pp_file), analysis=analysis)
+                    ManifestAnalysisResult(
+                        file_path=str(pp_file), analysis=result_state.result
+                    )
                 )
             except Exception as e:
                 slog.warning(f"Failed to analyze manifest {pp_file}: {e}")
@@ -326,9 +330,12 @@ class PuppetSubagent:
                 continue
             try:
                 slog.debug(f"Analyzing context manifest: {pp_file}")
-                analysis = self._manifest_service.analyze(pp_file)
+                file_state = FileAnalysisState(user_message="", path=str(pp_file))
+                result_state = self._manifest_service(file_state)
                 results.append(
-                    ManifestAnalysisResult(file_path=str(pp_file), analysis=analysis)
+                    ManifestAnalysisResult(
+                        file_path=str(pp_file), analysis=result_state.result
+                    )
                 )
             except Exception as e:
                 slog.warning(f"Failed to analyze context manifest {pp_file}: {e}")
@@ -348,10 +355,12 @@ class PuppetSubagent:
             try:
                 level_name = yaml_file.relative_to(data_dir).as_posix()
                 slog.debug(f"Analyzing Hiera data: {yaml_file}")
-                analysis = self._hiera_service.analyze(
-                    file_path=yaml_file,
-                    hierarchy_level=level_name,
+                file_state = FileAnalysisState(
+                    user_message="",
+                    path=str(yaml_file),
+                    metadata={"hierarchy_level": level_name, "full_hierarchy": ""},
                 )
+                result_state = self._hiera_service(file_state)
                 raw_content = ""
                 try:
                     raw_content = yaml_file.read_text()
@@ -362,7 +371,7 @@ class PuppetSubagent:
                         file_path=str(yaml_file),
                         hierarchy_level=level_name,
                         raw_content=raw_content,
-                        analysis=analysis,
+                        analysis=result_state.result,
                     )
                 )
             except Exception as e:
@@ -380,10 +389,11 @@ class PuppetSubagent:
             for tpl_file in sorted(module_path.glob(pattern)):
                 try:
                     slog.debug(f"Analyzing template: {tpl_file}")
-                    analysis = self._template_service.analyze(tpl_file)
+                    file_state = FileAnalysisState(user_message="", path=str(tpl_file))
+                    result_state = self._template_service(file_state)
                     results.append(
                         TemplateAnalysisResult(
-                            file_path=str(tpl_file), analysis=analysis
+                            file_path=str(tpl_file), analysis=result_state.result
                         )
                     )
                 except Exception as e:
@@ -409,12 +419,13 @@ class PuppetSubagent:
             for rb_file in sorted(module_path.glob(pattern)):
                 try:
                     slog.debug(f"Analyzing {component_type}: {rb_file}")
-                    analysis = self._custom_type_service.analyze(rb_file)
+                    file_state = FileAnalysisState(user_message="", path=str(rb_file))
+                    result_state = self._custom_type_service(file_state)
                     results.append(
                         CustomTypeAnalysisResult(
                             file_path=str(rb_file),
                             component_type=component_type,
-                            analysis=analysis,
+                            analysis=result_state.result,
                         )
                     )
                 except Exception as e:
@@ -450,11 +461,16 @@ class PuppetSubagent:
         )
 
         try:
-            analysis = self._credential_service.analyze(
-                hiera_variables=hiera_variables,
-                manifest_params=manifest_params,
+            file_state = FileAnalysisState(
+                user_message="",
+                path="",
+                metadata={
+                    "hiera_variables": hiera_variables,
+                    "manifest_params": manifest_params,
+                },
             )
-            return [CredentialAnalysisResult(analysis=analysis)]
+            result_state = self._credential_service(file_state)
+            return [CredentialAnalysisResult(analysis=result_state.result)]
         except Exception as e:
             slog.warning(f"Failed to detect credentials: {e}")
             return []
