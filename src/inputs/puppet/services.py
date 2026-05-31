@@ -4,7 +4,11 @@ This module provides services for analyzing Puppet files using LLM.
 Each service has a single responsibility (SRP).
 """
 
+import json
+import re
 from pathlib import Path
+
+from pydantic import BaseModel
 
 from prompts.get_prompt import get_prompt
 from src.inputs.input_agent import InputAgent
@@ -21,6 +25,41 @@ from .models import (
 )
 
 logger = get_logger(__name__)
+
+
+def _extract_json(text: str) -> str:
+    """Extract JSON from LLM text response, stripping markdown fences."""
+    text = text.strip()
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    if fence_match:
+        return fence_match.group(1).strip()
+    brace_start = text.find("{")
+    if brace_start >= 0:
+        return text[brace_start:]
+    return text
+
+
+def _invoke_structured_fallback(
+    agent: InputAgent,
+    schema: type[BaseModel],
+    messages: list[dict[str, str]],
+    metrics: AgentMetrics | None = None,
+) -> BaseModel | None:
+    """Fallback: invoke LLM as plain text and parse JSON from the response."""
+    try:
+        fallback_messages = list(messages)
+        if fallback_messages and fallback_messages[0].get("role") == "system":
+            fallback_messages[0] = {
+                "role": "system",
+                "content": fallback_messages[0]["content"]
+                + "\n\nRespond with ONLY a valid JSON object. No markdown fences, no explanations.",
+            }
+        raw = agent.invoke_llm(fallback_messages, metrics)
+        json_str = _extract_json(raw)
+        return schema.model_validate(json.loads(json_str))
+    except Exception as e:
+        logger.error(f"JSON text fallback also failed: {e}")
+        return None
 
 
 class ManifestAnalysisService(InputAgent[FileAnalysisState]):
@@ -43,22 +82,33 @@ class ManifestAnalysisService(InputAgent[FileAnalysisState]):
             file_path=str(file_path), file_content=file_content
         )
 
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": task_prompt},
+        ]
+
         try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": task_prompt},
-            ]
             result = self.invoke_structured(
                 ManifestExecutionAnalysis, messages, metrics
             )
-            logger.info(
-                f"Extracted {len(result.resources)} resources, "
-                f"{len(result.class_includes)} includes from {file_path.name}"
-            )
-            return state.update(result=result)
         except Exception as e:
-            logger.error(f"Failed to analyze manifest {file_path}: {e}")
+            logger.warning(
+                f"Native structured output failed for {file_path.name}: {e}, "
+                "falling back to JSON text parsing"
+            )
+            result = _invoke_structured_fallback(
+                self, ManifestExecutionAnalysis, messages, metrics
+            )
+
+        if result is None:
+            logger.error(f"Failed to analyze manifest {file_path}")
             return state.update(result=ManifestExecutionAnalysis())
+
+        logger.info(
+            f"Extracted {len(result.resources)} resources, "
+            f"{len(result.class_includes)} includes from {file_path.name}"
+        )
+        return state.update(result=result)
 
 
 class HieraDataAnalysisService(InputAgent[FileAnalysisState]):
@@ -88,20 +138,31 @@ class HieraDataAnalysisService(InputAgent[FileAnalysisState]):
             full_hierarchy=full_hierarchy,
         )
 
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": task_prompt},
+        ]
+
         try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": task_prompt},
-            ]
             result = self.invoke_structured(HieraDataAnalysis, messages, metrics)
-            logger.info(
-                f"Extracted {len(result.variables)} variables from {file_path.name} "
-                f"(level: {hierarchy_level})"
-            )
-            return state.update(result=result)
         except Exception as e:
-            logger.error(f"Failed to analyze Hiera data {file_path}: {e}")
+            logger.warning(
+                f"Native structured output failed for {file_path.name}: {e}, "
+                "falling back to JSON text parsing"
+            )
+            result = _invoke_structured_fallback(
+                self, HieraDataAnalysis, messages, metrics
+            )
+
+        if result is None:
+            logger.error(f"Failed to analyze Hiera data {file_path}")
             return state.update(result=HieraDataAnalysis())
+
+        logger.info(
+            f"Extracted {len(result.variables)} variables from {file_path.name} "
+            f"(level: {hierarchy_level})"
+        )
+        return state.update(result=result)
 
 
 class TemplateAnalysisService(InputAgent[FileAnalysisState]):

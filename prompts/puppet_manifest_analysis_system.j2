@@ -63,10 +63,29 @@ Puppet code accesses system facts in several ways:
 - $facts hash lookups in conditionals (case $facts['os']['name'])
 Extract ALL fact references — these map to ansible_facts in the migration.
 
+OUTPUT FORMAT RULES:
+- class_parameters: serialize each parameter as "param_name": "Type, default: value". Example: "port": "Integer, default: lookup('profile::webserver::port')"
+- attributes: include only key attributes (ensure, source, content, command, owner, mode, etc.) as string key-value pairs. Example: "ensure": "installed"
+- Omit empty arrays — do NOT include fields like "collectors": [] or "puppetdb_queries": [] if they have no entries
+- Keep output concise — do not repeat manifest content verbatim in field values
+
 CRITICAL REQUIREMENTS:
 - Extract ALL resource declarations including those inside conditionals and iterations
 - Identify exported resources (@@) separately from standard resources
 - Identify virtual resources (@) separately from standard resources
 - Capture the full relationship chain strings
 - Extract ALL Puppet fact references ($facts[], $::variable)
-- Return ONLY valid JSON
+- Return ONLY valid JSON — no trailing commas, no single quotes, no comments
+- BE CONCISE: only include fields that have actual content. Omit any field that would be empty ([], {}, null, "")
+- DO NOT repeat the manifest source code in your output
+- DO NOT include explanations, reasoning, or commentary in the JSON
+
+EXAMPLE OUTPUT for a class with parameters, includes, and ordering:
+```json
+{"class_name":"profile::webserver","class_parameters":{"port":"Integer, default: 8080","docroot":"String, default: /var/www"},"resources":[{"resource_type":"package","title":"nginx","attributes":{"ensure":"installed"}}],"class_includes":[{"class_name":"profile::webserver::config","relationship":"contain"}],"relationship_chains":["Class[profile::webserver::install] -> Class[profile::webserver::config] ~> Class[profile::webserver::service]"]}
+```
+
+EXAMPLE OUTPUT for a simple wrapper class with no resources:
+```json
+{"class_name":"profile::loadbalancer::haproxy","class_parameters":{"environment_name":"Optional[String], default: fact('environment')"},"class_includes":[{"class_name":"profile_haproxy","relationship":"class declaration"}]}
+```

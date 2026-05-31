@@ -30,24 +30,21 @@ class TestPuppetResourceDeclaration:
         assert res.resource_type == "package"
         assert res.title == "haproxy"
         assert res.attributes == {}
-        assert res.note is None
 
     def test_with_attributes(self):
         res = PuppetResourceDeclaration(
             resource_type="file",
             title="/etc/haproxy/haproxy.cfg",
             attributes={"ensure": "file", "owner": "root", "mode": "0640"},
-            note="main config",
         )
         assert res.attributes["ensure"] == "file"
         assert res.attributes["mode"] == "0640"
-        assert res.note == "main config"
 
 
 class TestManifestExecutionAnalysis:
     def test_defaults(self):
         analysis = ManifestExecutionAnalysis()
-        assert analysis.class_name is None
+        assert analysis.class_name == ""
         assert analysis.class_parameters == {}
         assert analysis.resources == []
         assert analysis.class_includes == []

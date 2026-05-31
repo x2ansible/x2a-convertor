@@ -163,15 +163,13 @@ class PuppetSubagent:
         The module selector may return 'manifests/init.pp' or 'manifests'
         instead of the module root. Walk up to find the directory containing manifests/.
         """
-        p = Path(path)
+        p = Path(path).resolve()
         if p.is_file():
             p = p.parent
         for candidate in [p, *list(p.parents)]:
             if (candidate / "manifests").is_dir():
                 return candidate
-            if candidate == Path():
-                break
-        return Path(path)
+        return Path(path).resolve()
 
     def _discover_control_repo_context(self, state: PuppetState) -> PuppetState:
         """Discover control repo structure and find role/profile chain."""
@@ -181,6 +179,15 @@ class PuppetSubagent:
         repo_root = PuppetPathResolver.find_control_repo_root(module_path)
         if repo_root is None:
             slog.info("No environment.conf found — standalone module")
+            if state.dependencies_dir:
+                deps_path = Path(state.dependencies_dir)
+                if deps_path.is_dir():
+                    self._path_resolver = PuppetPathResolver(
+                        module_path, [module_path.parent, deps_path]
+                    )
+                    slog.info(
+                        f"Created path resolver with dependencies: {deps_path}"
+                    )
             return state
 
         slog.info(f"Found control repo root: {repo_root}")
@@ -189,6 +196,11 @@ class PuppetSubagent:
         if not modulepath:
             slog.warning("Could not parse modulepath from environment.conf")
             return state
+
+        if state.dependencies_dir:
+            deps_path = Path(state.dependencies_dir)
+            if deps_path.is_dir():
+                modulepath.append(deps_path)
 
         slog.info(f"Modulepath entries: {[str(p) for p in modulepath]}")
         self._path_resolver = PuppetPathResolver(repo_root, modulepath)
@@ -245,6 +257,22 @@ class PuppetSubagent:
                 )
                 manifests.extend(context_manifests)
 
+            if state.dependencies_dir:
+                deps_path = Path(state.dependencies_dir)
+                if deps_path.is_dir():
+                    dep_modules = [
+                        d for d in sorted(deps_path.iterdir())
+                        if d.is_dir() and (d / "manifests").is_dir()
+                    ]
+                    if dep_modules:
+                        slog.info(
+                            f"Step 1c: Analyzing {len(dep_modules)} "
+                            "dependency modules"
+                        )
+                        for dep_module in dep_modules:
+                            dep_manifests = self._analyze_manifests(dep_module, slog)
+                            manifests.extend(dep_manifests)
+
             slog.info("Step 2: Analyzing Hiera data files")
             hiera_data = self._analyze_hiera_data(module_path, slog)
 
@@ -256,6 +284,14 @@ class PuppetSubagent:
 
             slog.info("Step 3: Analyzing templates")
             templates = self._analyze_templates(module_path, slog)
+
+            if state.dependencies_dir:
+                deps_path = Path(state.dependencies_dir)
+                if deps_path.is_dir():
+                    for dep_module in sorted(deps_path.iterdir()):
+                        if dep_module.is_dir() and (dep_module / "templates").is_dir():
+                            dep_templates = self._analyze_templates(dep_module, slog)
+                            templates.extend(dep_templates)
 
             slog.info("Step 4: Analyzing custom types and components")
             custom_types = self._analyze_custom_types(module_path, slog)
@@ -281,6 +317,7 @@ class PuppetSubagent:
             )
             entry_class = state.role_class if state.role_class else None
             tree_root = tree_builder.build_tree(entry_class=entry_class)
+
             execution_tree_summary = self._format_execution_tree(
                 tree_builder, tree_root, structured_analysis
             )
