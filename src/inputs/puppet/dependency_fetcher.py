@@ -29,7 +29,9 @@ class PuppetDependencyFetcher:
         self._puppetfile_path = self._find_puppetfile(self._module_path)
         self._dependencies: list[dict] | None = None
         self._parser = Parser(Language(tsruby.language()))
-        puppetfile_root = self._puppetfile_path.parent if self._puppetfile_path else self._module_path
+        puppetfile_root = (
+            self._puppetfile_path.parent if self._puppetfile_path else self._module_path
+        )
         self._deps_dir = puppetfile_root / DEPENDENCIES_DIR
 
     @staticmethod

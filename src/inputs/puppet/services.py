@@ -39,12 +39,12 @@ def _extract_json(text: str) -> str:
     return text
 
 
-def _invoke_structured_fallback(
+def _invoke_structured_fallback[T: BaseModel](
     agent: InputAgent,
-    schema: type[BaseModel],
+    schema: type[T],
     messages: list[dict[str, str]],
     metrics: AgentMetrics | None = None,
-) -> BaseModel | None:
+) -> T | None:
     """Fallback: invoke LLM as plain text and parse JSON from the response."""
     try:
         fallback_messages = list(messages)
