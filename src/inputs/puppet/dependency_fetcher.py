@@ -26,13 +26,24 @@ class PuppetDependencyFetcher:
 
     def __init__(self, module_path: str):
         self._module_path = Path(module_path).resolve()
-        self._puppetfile_path = self._module_path / "Puppetfile"
+        self._puppetfile_path = self._find_puppetfile(self._module_path)
         self._dependencies: list[dict] | None = None
         self._parser = Parser(Language(tsruby.language()))
-        self._deps_dir = self._module_path / DEPENDENCIES_DIR
+        puppetfile_root = self._puppetfile_path.parent if self._puppetfile_path else self._module_path
+        self._deps_dir = puppetfile_root / DEPENDENCIES_DIR
+
+    @staticmethod
+    def _find_puppetfile(start: Path) -> Path | None:
+        for candidate in [start, *list(start.parents)]:
+            pf = candidate / "Puppetfile"
+            if pf.is_file():
+                return pf
+            if candidate == candidate.parent:
+                break
+        return None
 
     def has_dependencies(self) -> tuple[bool, list[str]]:
-        if not self._puppetfile_path.exists():
+        if self._puppetfile_path is None:
             return False, []
         deps = self.get_dependency_info()
         return bool(deps), [d["name"] for d in deps]
@@ -41,7 +52,7 @@ class PuppetDependencyFetcher:
         if self._dependencies is not None:
             return self._dependencies
 
-        if not self._puppetfile_path.exists():
+        if self._puppetfile_path is None:
             logger.info("No Puppetfile found")
             self._dependencies = []
             return self._dependencies
@@ -56,7 +67,7 @@ class PuppetDependencyFetcher:
 
         Returns the path to the downloaded modules directory, or None on failure.
         """
-        if not self._puppetfile_path.exists():
+        if self._puppetfile_path is None:
             return None
 
         if not shutil.which("r10k"):

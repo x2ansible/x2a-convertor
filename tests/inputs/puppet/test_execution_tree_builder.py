@@ -402,3 +402,5 @@ class TestFormatTree:
         assert "[class] a" in lines[0]
         assert "[class] b" in lines[1]
         assert "[class] c" in lines[2]
+
+

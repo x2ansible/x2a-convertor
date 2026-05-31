@@ -1,8 +1,8 @@
-FILE PATH: {{ file_path }}
+Analyze this Puppet manifest and return a JSON object with ONLY the fields that have content.
 
-FILE CONTENT:
+FILE: {{ file_path }}
 ```puppet
 {{ file_content }}
 ```
 
-Analyze the Puppet manifest above and extract the complete class structure, resources, includes, conditionals, iterations, exported/virtual resources, PuppetDB usage, and relationship chains.
+Return minimal, valid JSON. Omit empty fields. Do not explain.

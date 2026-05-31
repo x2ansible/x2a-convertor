@@ -18,8 +18,7 @@ class PuppetResourceDeclaration(BaseModel):
 
     resource_type: str
     title: str
-    attributes: dict[str, Any] = Field(default_factory=dict)
-    note: str | None = None
+    attributes: dict[str, str] = Field(default_factory=dict)
 
 
 class ClassInclude(BaseModel):
@@ -43,24 +42,22 @@ class ConditionalBlock(BaseModel):
     condition: str
     condition_type: str  # "if", "unless", "case", "selector"
     resources: list[PuppetResourceDeclaration] = Field(default_factory=list)
-    note: str | None = None
 
 
 class IterationBlock(BaseModel):
     """An iteration construct (.each, .map, .filter, .reduce)."""
 
-    iterator_type: str  # "each", "map", "filter", "reduce"
+    iterator_type: str
     collection_variable: str
     item_variable: str
     resources: list[PuppetResourceDeclaration] = Field(default_factory=list)
-    note: str | None = None
 
 
 class ManifestExecutionAnalysis(BaseModel):
     """LLM structured output for a single .pp manifest."""
 
-    class_name: str | None = None
-    class_parameters: dict[str, Any] = Field(default_factory=dict)
+    class_name: str = ""
+    class_parameters: dict[str, str] = Field(default_factory=dict)
     class_inherits: ClassInheritance | None = None
     resources: list[PuppetResourceDeclaration] = Field(default_factory=list)
     class_includes: list[ClassInclude] = Field(default_factory=list)
