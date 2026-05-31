@@ -185,9 +185,7 @@ class PuppetSubagent:
                     self._path_resolver = PuppetPathResolver(
                         module_path, [module_path.parent, deps_path]
                     )
-                    slog.info(
-                        f"Created path resolver with dependencies: {deps_path}"
-                    )
+                    slog.info(f"Created path resolver with dependencies: {deps_path}")
             return state
 
         slog.info(f"Found control repo root: {repo_root}")
@@ -261,13 +259,13 @@ class PuppetSubagent:
                 deps_path = Path(state.dependencies_dir)
                 if deps_path.is_dir():
                     dep_modules = [
-                        d for d in sorted(deps_path.iterdir())
+                        d
+                        for d in sorted(deps_path.iterdir())
                         if d.is_dir() and (d / "manifests").is_dir()
                     ]
                     if dep_modules:
                         slog.info(
-                            f"Step 1c: Analyzing {len(dep_modules)} "
-                            "dependency modules"
+                            f"Step 1c: Analyzing {len(dep_modules)} dependency modules"
                         )
                         for dep_module in dep_modules:
                             dep_manifests = self._analyze_manifests(dep_module, slog)
