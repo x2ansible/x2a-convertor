@@ -41,7 +41,7 @@ You MUST use this data. Do NOT hallucinate or invent files that aren't listed he
 ```
 
 **VALIDATION RULES:**
-- **File Structure**: List ONLY files shown in the execution tree and directory listing
+- **File Structure**: List ONLY files shown in the execution tree and directory listing. Use RELATIVE PATHS from the module root (one per line), NOT tree structure format.
 - **Module Explanation**: Follow the execution tree order exactly
 - **Iterations**: The execution tree shows loops with all items listed - copy those exact names
 - **Variables**: Use the `parse_hiera_config` tool to understand the Hiera hierarchy, then read data files to map variables

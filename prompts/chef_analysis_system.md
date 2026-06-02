@@ -137,42 +137,37 @@ If no iteration/collection found, describe the single instance configuration.
 
 **MANDATORY: You MUST include this section using structured analysis data.**
 
+**IMPORTANT: List files using RELATIVE PATHS (relative to the cookbook root), one per line. DO NOT use tree structure format.**
+
 List ONLY the files actually used in the migration (from structured analysis):
+
+**Example format:**
+```
+recipes/default.rb
+recipes/install.rb
+templates/default/service.conf.erb
+migration-dependencies/cookbook_artifacts/dependency-name-1.0.0/recipes/default.rb
+```
 
 **Recipes:**
 ```
-[List .rb recipe files that are executed, from structured analysis]
+[List .rb recipe files that are executed, with relative paths from structured analysis]
 ```
 
 **Providers:**
 ```
-[List .rb provider files used by custom resources, from structured analysis]
+[List .rb provider files used by custom resources, with relative paths from structured analysis]
 ```
 
 **Templates:**
 ```
-[List .erb template files rendered, from structured analysis]
+[List .erb template files rendered, with relative paths from structured analysis]
 ```
 
 **Attributes:**
 ```
-[List .rb attribute files with defaults, from structured analysis]
+[List .rb attribute files with defaults, with relative paths from structured analysis]
 ```
-
-**Example - Good File Structure:**
-```
-## Recipes
-cookbooks/[cookbook-name]/recipes/default.rb
-cookbooks/[cookbook-name]/recipes/install.rb
-migration-dependencies/cookbook_artifacts/[dependency-name]-*/recipes/default.rb
-migration-dependencies/cookbook_artifacts/[dependency-name]-*/recipes/configure.rb
-
-## Providers
-migration-dependencies/cookbook_artifacts/[dependency-name]-*/providers/install.rb
-migration-dependencies/cookbook_artifacts/[dependency-name]-*/providers/configure.rb
-
-## Templates
-cookbooks/[cookbook-name]/templates/default/service.conf.erb
 migration-dependencies/cookbook_artifacts/[dependency-name]-*/templates/default/config.erb
 migration-dependencies/cookbook_artifacts/[dependency-name]-*/templates/default/init.erb
 

@@ -132,7 +132,17 @@ Hiera hierarchy concepts:
 
 ## File Structure
 
-[Complete directory listing of relevant files only]
+**IMPORTANT: List files using RELATIVE PATHS (relative to the module root), one per line. DO NOT use tree structure format.**
+
+Example format:
+```
+manifests/init.pp
+manifests/config.pp
+data/common.yaml
+templates/config.erb
+```
+
+[List all relevant files with their relative paths from the module root]
 
 ## Module Explanation
 
