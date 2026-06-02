@@ -97,23 +97,33 @@ You will receive detailed structured analysis showing:
 
 ## File Structure
 
+**IMPORTANT: List files using RELATIVE PATHS (relative to the role root), one per line. DO NOT use tree structure format.**
+
+Example format:
+```
+tasks/main.yml
+handlers/main.yml
+templates/config.j2
+defaults/main.yml
+```
+
 **Task Files:**
-[List tasks/*.yml files with full paths]
+[List tasks/*.yml files with relative paths]
 
 **Handler Files:**
-[List handlers/*.yml files]
+[List handlers/*.yml files with relative paths]
 
 **Variable Files:**
-[List defaults/main.yml, vars/main.yml]
+[List defaults/main.yml, vars/main.yml with relative paths]
 
 **Meta:**
-[meta/main.yml]
+[meta/main.yml with relative path]
 
 **Templates:**
-[List templates/*.j2 files]
+[List templates/*.j2 files with relative paths]
 
 **Static Files:**
-[List files/* static files]
+[List files/* static files with relative paths]
 
 ## Module Explanation
 

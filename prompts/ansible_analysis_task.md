@@ -11,7 +11,7 @@ You MUST use this data. Do NOT hallucinate or invent files that aren't listed he
 ```
 
 **VALIDATION RULES:**
-- **File Structure**: List ONLY files shown in the analysis summary
+- **File Structure**: List ONLY files shown in the analysis summary. Use RELATIVE PATHS from the role root (one per line), NOT tree structure format.
 - **Module Explanation**: Follow the analysis summary order exactly
 - **Loops**: The analysis shows loop directives - document each one's modernization approach
 - **Operations**: Use the task entries shown in the summary

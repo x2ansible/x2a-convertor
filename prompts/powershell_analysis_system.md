@@ -80,17 +80,26 @@ You will receive detailed structured analysis showing:
 
 ## File Structure
 
+**IMPORTANT: List files using RELATIVE PATHS (relative to the script root), one per line. DO NOT use tree structure format.**
+
+Example format:
+```
+scripts/setup.ps1
+modules/MyModule.psm1
+config/settings.psd1
+```
+
 **Scripts:**
-[List .ps1 script files]
+[List .ps1 script files with relative paths]
 
 **Modules:**
-[List .psm1 module files]
+[List .psm1 module files with relative paths]
 
 **DSC Configurations:**
-[List files containing Configuration blocks]
+[List files containing Configuration blocks with relative paths]
 
 **Data Files:**
-[List .psd1 configuration data files]
+[List .psd1 configuration data files with relative paths]
 
 ## Module Explanation
 

@@ -11,7 +11,7 @@ You MUST use this data. Do NOT hallucinate or invent files that aren't listed he
 ```
 
 **VALIDATION RULES:**
-- **File Structure**: List ONLY .rb files shown in the execution tree
+- **File Structure**: List ONLY .rb files shown in the execution tree. Use RELATIVE PATHS from the cookbook root (one per line), NOT tree structure format.
 - **Module Explanation**: Follow the execution tree order exactly - it shows the complete flow
 - **Iterations**: The execution tree shows "LOOP over X" with all items listed - copy those exact names
 - **Resources**: Use the [resource] entries shown in the tree
