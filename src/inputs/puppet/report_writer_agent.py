@@ -98,12 +98,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             if analysis.provider_info:
                 lines.append(f"Provider: {analysis.provider_info}")
             for cred in analysis.credentials:
-                lines.append(f"\n### {cred.purpose}")
-                lines.append(f"  Variables: {', '.join(cred.variable_names)}")
-                lines.append(f"  Source files: {', '.join(cred.source_files)}")
-                lines.append(f"  Storage: {cred.storage_method}")
-                lines.append(f"  Usage: {cred.usage_context}")
-                lines.append(f"  Ansible recommendation: {cred.ansible_recommendation}")
+                lines.append(f"  - {cred.purpose}: {', '.join(cred.variable_names)}")
 
         return "\n".join(lines) if lines else "No credentials detected."
 

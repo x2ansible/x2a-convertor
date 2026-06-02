@@ -99,13 +99,9 @@ Variables defined at multiple Hiera levels:
 - `deep` merge → `combine(recursive=True)`
 - `first` (default) → standard Ansible precedence
 
-### Encrypted Variables (Credentials)
-
-- **[variable]**: Source: [source file], Encryption: [method], Recommendation: [target]
-
 ## Custom Types and Providers
 
-[If applicable — detailed list of custom types, providers, facts, functions with parameters and Ansible equivalents]
+[If applicable — detailed list of custom types, providers, facts, functions with parameters]
 [If not applicable — omit this section]
 
 ## Dependencies
@@ -114,24 +110,6 @@ Variables defined at multiple Hiera levels:
 **System package dependencies**: [list]
 **Service dependencies**: [list]
 
-For each dependency, include the **Ansible equivalent** collection/module.
-
-## Credentials
-
-**Detection Summary**: [N credentials detected across M files]
-
-**Source**:
-  - **Provider**: [provider name or "None detected"]
-
-### [Credential Purpose - e.g., "Stats Password"]
-- **Variable(s)**: [names]
-- **Source file(s)**: [paths]
-- **Current storage**: [method]
-- **Usage context**: [description]
-- **Ansible recommendation**: [vault, lookup, etc.]
-
-**If no credentials detected:**
-No credentials or secrets were detected in this module. All configuration values appear to be non-sensitive.
 
 ## Puppet Facts Used
 
@@ -190,12 +168,10 @@ Respond with ONLY the cleaned, final migration plan. No explanations, no preambl
 - All manifests mentioned in correct execution order
 - All .each loops expanded with actual item names
 - Pre-flight checks for every instance individually
-- Credentials section preserved with all detected secrets documented
 - Variables section with complete variable definitions (NO tables), Ansible target per hierarchy level, and variable migration summary
 - Variables include merge strategy notes where applicable
-- Puppet Facts Used section with Ansible equivalents
+- Puppet Facts Used section
 - Template Conversion Notes for templates with non-trivial Ruby logic (if applicable)
-- Dependencies include Ansible collection/module equivalents
 - PuppetDB section (if applicable) includes migration target and Ansible access method for each dependency
 - Source provider information retained
 - Proper template formatting throughout

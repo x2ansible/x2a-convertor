@@ -18,9 +18,7 @@ You will receive:
 4. **Template Coverage**: All templates are accounted for with correct render counts, and templates with non-trivial Ruby logic have conversion notes
 5. **Custom Component Coverage**: Custom types, facts, and functions have Ansible equivalents noted
 6. **PuppetDB Migration Mapping**: Any exported resources, collectors, or puppetdb_query() calls have a documented migration target (external DB / host_vars / group_vars / gather_facts) and an Ansible access method (dynamic inventory / lookup plugin / ansible_facts)
-7. **Credential Coverage**: All encrypted (eyaml) values and Sensitive[String] parameters are documented in the Credentials section
-8. **Variable Mapping**: The Variables section correctly maps Hiera levels to Ansible targets with variable migration summary
-9. **Dependency Mapping**: Each external Puppet module dependency has an Ansible collection/module equivalent noted
+7. **Variable Mapping**: The Variables section correctly maps Hiera levels to Ansible targets with variable migration summary
 10. **No Hallucinations**: Nothing in the plan contradicts the structured analysis
 
 ## Response Format
@@ -44,11 +42,7 @@ The following issues were found:
    - Manifest `manifests/firewall.pp` was analyzed but not mentioned in migration plan
    - This class contains 4 resources that should be migrated
 
-2. **Hiera Variable Missing**
-   - Variable `profile_haproxy::stats_password` is ENC[PKCS7,...] encrypted
-   - Not documented in the Credentials section
-
-3. **Template Render Count Mismatch**
+2. **Template Render Count Mismatch**
    - Template `haproxy.cfg.erb` renders once per backend
    - Migration plan says it renders once total
 ```

@@ -236,31 +236,6 @@ For each dependency in the Puppetfile or metadata.json:
 - **[module-name]**: [purpose], version [version]
   - Source: [forge/git]
   - Used for: [what resources/functionality it provides]
-  - **Ansible equivalent**: [which Ansible collection/module replaces this, or "custom module required"]
-
-Common Puppet → Ansible dependency mappings for reference:
-- `puppetlabs/stdlib` → Built-in Ansible filters and modules (no collection needed)
-- `puppetlabs/concat` → `ansible.builtin.assemble` or `ansible.builtin.template`
-- `puppetlabs/apt` → `ansible.builtin.apt_repository`, `ansible.builtin.apt_key`
-- `puppetlabs/firewall` → `ansible.posix.firewalld` or `community.general.ufw`
-- `puppetlabs/mysql` → `community.mysql` collection
-- `puppetlabs/postgresql` → `community.postgresql` collection
-- `puppetlabs/apache` → `ansible.builtin` package/service/template (no 1:1 collection)
-- `puppetlabs/registry` → `ansible.windows.win_regedit`
-- `puppetlabs/chocolatey` → `chocolatey.chocolatey` collection
-
-## Credentials
-
-**Detection Summary**: [N credentials detected across M files]
-
-**Source**:
-  - **Provider**: [eyaml, plaintext, etc.]
-
-### [Credential Purpose]
-- **Variable(s)**: [names]
-- **Source file(s)**: [paths]
-- **Current storage**: [method]
-- **Usage context**: [description]
 
 ## Puppet Facts Used
 
