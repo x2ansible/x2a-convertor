@@ -4,13 +4,12 @@ This module provides services for analyzing Puppet files using LLM.
 Each service has a single responsibility (SRP).
 """
 
-from pathlib import Path
-
 from prompts.get_prompt import get_prompt
 from src.inputs.input_agent import InputAgent
 from src.types.file_analysis_state import FileAnalysisState
 from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
+from src.utils.path import Path
 
 from .models import (
     CredentialAnalysis,
@@ -34,7 +33,7 @@ class ManifestAnalysisService(InputAgent[FileAnalysisState]):
     ) -> FileAnalysisState:
         file_path = Path(state.path)
         if not file_path.exists():
-            logger.warning(f"File not found: {file_path}")
+            logger.warning(f"File not found: {file_path.relative_to_cwd()}")
             return state.update(result=ManifestExecutionAnalysis())
 
         file_content = file_path.read_text()
@@ -53,11 +52,13 @@ class ManifestAnalysisService(InputAgent[FileAnalysisState]):
             )
             logger.info(
                 f"Extracted {len(result.resources)} resources, "
-                f"{len(result.class_includes)} includes from {file_path.name}"
+                f"{len(result.class_includes)} includes from {file_path.relative_to_cwd()}"
             )
             return state.update(result=result)
         except Exception as e:
-            logger.error(f"Failed to analyze manifest {file_path}: {e}")
+            logger.error(
+                f"Failed to analyze manifest {file_path.relative_to_cwd()}: {e}"
+            )
             return state.update(result=ManifestExecutionAnalysis())
 
 
@@ -73,7 +74,7 @@ class HieraDataAnalysisService(InputAgent[FileAnalysisState]):
     ) -> FileAnalysisState:
         file_path = Path(state.path)
         if not file_path.exists():
-            logger.warning(f"Hiera data file not found: {file_path}")
+            logger.warning(f"Hiera data file not found: {file_path.relative_to_cwd()}")
             return state.update(result=HieraDataAnalysis())
 
         hierarchy_level = state.metadata.get("hierarchy_level", "")
@@ -95,12 +96,14 @@ class HieraDataAnalysisService(InputAgent[FileAnalysisState]):
             ]
             result = self.invoke_structured(HieraDataAnalysis, messages, metrics)
             logger.info(
-                f"Extracted {len(result.variables)} variables from {file_path.name} "
+                f"Extracted {len(result.variables)} variables from {file_path.relative_to_cwd()} "
                 f"(level: {hierarchy_level})"
             )
             return state.update(result=result)
         except Exception as e:
-            logger.error(f"Failed to analyze Hiera data {file_path}: {e}")
+            logger.error(
+                f"Failed to analyze Hiera data {file_path.relative_to_cwd()}: {e}"
+            )
             return state.update(result=HieraDataAnalysis())
 
 
@@ -115,7 +118,7 @@ class TemplateAnalysisService(InputAgent[FileAnalysisState]):
     ) -> FileAnalysisState:
         file_path = Path(state.path)
         if not file_path.exists():
-            logger.warning(f"Template not found: {file_path}")
+            logger.warning(f"Template not found: {file_path.relative_to_cwd()}")
             return state.update(result=PuppetTemplateAnalysis(template_type="unknown"))
 
         file_content = file_path.read_text()
@@ -132,13 +135,15 @@ class TemplateAnalysisService(InputAgent[FileAnalysisState]):
             ]
             result = self.invoke_structured(PuppetTemplateAnalysis, messages, metrics)
             logger.info(
-                f"Analyzed {template_type} template {file_path.name}: "
+                f"Analyzed {template_type} template {file_path.relative_to_cwd()}: "
                 f"{len(result.variables_used)} variables, "
                 f"{len(result.ruby_logic)} complex blocks"
             )
             return state.update(result=result)
         except Exception as e:
-            logger.error(f"Failed to analyze template {file_path}: {e}")
+            logger.error(
+                f"Failed to analyze template {file_path.relative_to_cwd()}: {e}"
+            )
             return state.update(
                 result=PuppetTemplateAnalysis(template_type=template_type)
             )
@@ -155,7 +160,7 @@ class CustomTypeAnalysisService(InputAgent[FileAnalysisState]):
     ) -> FileAnalysisState:
         file_path = Path(state.path)
         if not file_path.exists():
-            logger.warning(f"Custom type file not found: {file_path}")
+            logger.warning(f"Custom type file not found: {file_path.relative_to_cwd()}")
             return state.update(
                 result=CustomTypeAnalysis(component_type="unknown", name="unknown")
             )
@@ -173,11 +178,13 @@ class CustomTypeAnalysisService(InputAgent[FileAnalysisState]):
             ]
             result = self.invoke_structured(CustomTypeAnalysis, messages, metrics)
             logger.info(
-                f"Analyzed {result.component_type} '{result.name}' from {file_path.name}"
+                f"Analyzed {result.component_type} '{result.name}' from {file_path.relative_to_cwd()}"
             )
             return state.update(result=result)
         except Exception as e:
-            logger.error(f"Failed to analyze custom type {file_path}: {e}")
+            logger.error(
+                f"Failed to analyze custom type {file_path.relative_to_cwd()}: {e}"
+            )
             return state.update(
                 result=CustomTypeAnalysis(component_type="unknown", name=file_path.stem)
             )
