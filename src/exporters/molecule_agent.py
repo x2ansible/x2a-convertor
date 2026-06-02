@@ -17,7 +17,6 @@ from langgraph.graph import START, StateGraph
 
 from prompts.get_prompt import get_prompt
 from src.exporters.agent_state import MoleculeAgentState
-from src.exporters.ansible_molecule import AnsibleMolecule
 from src.exporters.export_agent import ExportAgent
 from src.exporters.state import ExportState
 from src.model import get_runnable_config
@@ -83,6 +82,82 @@ class MoleculeAgent(ExportAgent[ExportState]):
 
         return workflow.compile()
 
+    def _create_molecule_scaffold(self, ansible_path: Path, role_name: str) -> None:
+        """Generate Molecule configuration files deterministically.
+
+        Args:
+            ansible_path: Path to the Ansible role directory
+            role_name: Name of the role
+        """
+        molecule_dir = ansible_path / "molecule" / "default"
+        molecule_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"Regenerating Molecule files for {role_name}")
+
+        # Generate molecule.yml — delegated driver for AAP/OpenShift
+        molecule_config = """---
+driver:
+  name: default
+
+platforms:
+  - name: molecule-test-instance
+    groups:
+      - all
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_ROLES_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../"
+  inventory:
+    hosts:
+      all:
+        hosts:
+          molecule-test-instance:
+            ansible_connection: local
+
+verifier:
+  name: ansible
+"""
+        (molecule_dir / "molecule.yml").write_text(molecule_config)
+
+        # Generate converge.yml — container-safe, no include_role, no become
+        # All paths use /tmp/molecule_test/ prefix. WriteAgent generates the real one.
+        converge_playbook = f"""---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Placeholder — WriteAgent generates container-safe converge
+      ansible.builtin.debug:
+        msg: "Role {role_name} converge placeholder — use /tmp/molecule_test/ paths"
+"""
+        (molecule_dir / "converge.yml").write_text(converge_playbook)
+
+        # Generate no-op create.yml and destroy.yml for delegated driver
+        for playbook_name in ("create", "destroy"):
+            noop_playbook = f"""---
+- name: {playbook_name.capitalize()}
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks: []
+"""
+            (molecule_dir / f"{playbook_name}.yml").write_text(noop_playbook)
+
+        # Generate verify.yml placeholder — WriteAgent generates the real one
+        verify_playbook = f"""---
+- name: Verify
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Verify role {role_name} executed successfully
+      ansible.builtin.debug:
+        msg: "Role {role_name} applied successfully"
+"""
+        (molecule_dir / "verify.yml").write_text(verify_playbook)
+
+        logger.info(f"Generated Molecule files in {molecule_dir}")
+
     def _scaffold_static_files_node(
         self, state: MoleculeAgentState
     ) -> MoleculeAgentState:
@@ -94,9 +169,8 @@ class MoleculeAgent(ExportAgent[ExportState]):
         ansible_path = Path(export_state.get_ansible_path())
         role_name = str(export_state.module)
 
-        # Use AnsibleMolecule's existing scaffold method
-        molecule = AnsibleMolecule()
-        molecule._setup_molecule_files(ansible_path, role_name, force=True)
+        # Create molecule scaffold
+        self._create_molecule_scaffold(ansible_path, role_name)
 
         # Mark static files as complete in checklist
         if export_state.checklist is not None:
