@@ -14,7 +14,6 @@ from src.utils.logging import get_logger
 
 from .models import (
     ManifestAnalysisResult,
-    ManifestExecutionAnalysis,
     PuppetStructuredAnalysis,
 )
 
@@ -164,11 +163,7 @@ class PuppetExecutionTreeBuilder:
                 )
             )
 
-        node.children.extend(self._build_resource_nodes(analysis))
-
-        for include in analysis.class_includes:
-            child = self._expand_class(include.class_name)
-            node.children.append(child)
+        node.children.extend(self._build_execution_nodes(analysis.execution_order))
 
         if analysis.relationship_chains:
             for chain in analysis.relationship_chains:
@@ -182,84 +177,72 @@ class PuppetExecutionTreeBuilder:
 
         return node
 
-    def _build_resource_nodes(
-        self, analysis: ManifestExecutionAnalysis
-    ) -> list[ExecutionTreeNode]:
+    def _build_execution_nodes(self, execution_order: list) -> list[ExecutionTreeNode]:
+        """Build tree nodes from execution order list."""
         nodes: list[ExecutionTreeNode] = []
 
-        for res in analysis.resources:
-            details_parts = []
-            for key in ["ensure", "action", "command", "source"]:
-                if key in res.attributes:
-                    details_parts.append(f"{key}: {res.attributes[key]}")
-            detail = ", ".join(details_parts) if details_parts else None
+        for item in execution_order:
+            if item.type == "resource":
+                details_parts = []
+                for key in ["ensure", "action", "command", "source"]:
+                    if key in item.attributes:
+                        details_parts.append(f"{key}: {item.attributes[key]}")
+                detail = ", ".join(details_parts) if details_parts else None
 
-            nodes.append(
-                ExecutionTreeNode(
-                    node_type="resource",
-                    name=f"{res.resource_type}[{res.title}]",
-                    details=detail,
-                )
-            )
-
-        for cond in analysis.conditionals:
-            cond_node = ExecutionTreeNode(
-                node_type="conditional",
-                name=f"{cond.condition_type} {cond.condition}",
-            )
-            for res in cond.resources:
-                cond_node.children.append(
+                nodes.append(
                     ExecutionTreeNode(
                         node_type="resource",
-                        name=f"{res.resource_type}[{res.title}]",
+                        name=f"{item.resource_type}[{item.title}]",
+                        details=detail,
                     )
                 )
-            nodes.append(cond_node)
 
-        for iteration in analysis.iterations:
-            iter_node = ExecutionTreeNode(
-                node_type="iteration",
-                name=f"{iteration.collection_variable}.{iteration.iterator_type} |{iteration.item_variable}|",
-            )
-            for res in iteration.resources:
-                iter_node.children.append(
+            elif item.type == "class_include":
+                child = self._expand_class(item.class_name)
+                nodes.append(child)
+
+            elif item.type == "conditional":
+                cond_node = ExecutionTreeNode(
+                    node_type="conditional",
+                    name=f"{item.condition_type} {item.condition}",
+                )
+                cond_node.children.extend(
+                    self._build_execution_nodes(item.execution_order)
+                )
+                nodes.append(cond_node)
+
+            elif item.type == "iteration":
+                iter_node = ExecutionTreeNode(
+                    node_type="iteration",
+                    name=f"{item.collection_variable}.{item.iterator_type} |{item.item_variable}|",
+                )
+                iter_node.children.extend(
+                    self._build_execution_nodes(item.execution_order)
+                )
+                nodes.append(iter_node)
+
+            elif item.type == "exported_resource":
+                nodes.append(
                     ExecutionTreeNode(
-                        node_type="resource",
-                        name=f"{res.resource_type}[{res.title}]",
+                        node_type="exported",
+                        name=f"{item.resource_type}[{item.title}]",
                     )
                 )
-            nodes.append(iter_node)
 
-        for exp in analysis.exported_resources:
-            nodes.append(
-                ExecutionTreeNode(
-                    node_type="exported",
-                    name=f"{exp.resource_type}[{exp.title}]",
+            elif item.type == "virtual_resource":
+                nodes.append(
+                    ExecutionTreeNode(
+                        node_type="virtual",
+                        name=f"{item.resource_type}[{item.title}]",
+                    )
                 )
-            )
 
-        for virt in analysis.virtual_resources:
-            nodes.append(
-                ExecutionTreeNode(
-                    node_type="virtual",
-                    name=f"{virt.resource_type}[{virt.title}]",
+            elif item.type == "collector":
+                nodes.append(
+                    ExecutionTreeNode(
+                        node_type="collector",
+                        name=f"{item.resource_type} <| {item.query} |>",
+                    )
                 )
-            )
-
-        for collector in analysis.collectors:
-            nodes.append(
-                ExecutionTreeNode(
-                    node_type="collector",
-                    name=collector,
-                )
-            )
-
-        for query in analysis.puppetdb_queries:
-            nodes.append(
-                ExecutionTreeNode(
-                    node_type="puppetdb_query",
-                    name=query,
-                )
-            )
 
         return nodes

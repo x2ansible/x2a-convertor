@@ -1,38 +1,37 @@
 """Tests for Puppet analysis domain models."""
 
 from src.inputs.puppet.models import (
-    ClassInclude,
     ClassInheritance,
-    ConditionalBlock,
     CredentialAnalysis,
     CredentialAnalysisResult,
     CredentialEntry,
     CustomTypeAnalysis,
     CustomTypeAnalysisResult,
+    ExecutionItem,
     HieraDataAnalysis,
     HieraDataAnalysisResult,
     HieraHierarchy,
     HieraLevel,
     HieraVariableMapping,
-    IterationBlock,
     ManifestAnalysisResult,
     ManifestExecutionAnalysis,
-    PuppetResourceDeclaration,
     PuppetStructuredAnalysis,
     PuppetTemplateAnalysis,
     TemplateAnalysisResult,
 )
 
 
-class TestPuppetResourceDeclaration:
-    def test_defaults(self):
-        res = PuppetResourceDeclaration(resource_type="package", title="haproxy")
+class TestExecutionItem:
+    def test_resource_defaults(self):
+        res = ExecutionItem(type="resource", resource_type="package", title="haproxy")
+        assert res.type == "resource"
         assert res.resource_type == "package"
         assert res.title == "haproxy"
         assert res.attributes == {}
 
-    def test_with_attributes(self):
-        res = PuppetResourceDeclaration(
+    def test_resource_with_attributes(self):
+        res = ExecutionItem(
+            type="resource",
             resource_type="file",
             title="/etc/haproxy/haproxy.cfg",
             attributes={"ensure": "file", "owner": "root", "mode": "0640"},
@@ -40,19 +39,30 @@ class TestPuppetResourceDeclaration:
         assert res.attributes["ensure"] == "file"
         assert res.attributes["mode"] == "0640"
 
+    def test_exported_resource(self):
+        res = ExecutionItem(
+            type="exported_resource",
+            resource_type="file",
+            title="/tmp/exported",
+            attributes={"tag": "exported"},
+        )
+        assert res.type == "exported_resource"
+        assert res.format_label() == "[exported] file[/tmp/exported]"
+
+    def test_collector(self):
+        collector = ExecutionItem(
+            type="collector", resource_type="File", query="tag == 'exported'"
+        )
+        assert collector.type == "collector"
+        assert "collector" in collector.format_label()
+
 
 class TestManifestExecutionAnalysis:
     def test_defaults(self):
         analysis = ManifestExecutionAnalysis()
         assert analysis.class_name == ""
         assert analysis.class_parameters == {}
-        assert analysis.resources == []
-        assert analysis.class_includes == []
-        assert analysis.conditionals == []
-        assert analysis.iterations == []
-        assert analysis.exported_resources == []
-        assert analysis.virtual_resources == []
-        assert analysis.collectors == []
+        assert analysis.execution_order == []
         assert analysis.puppetdb_queries == []
         assert analysis.relationship_chains == []
 
@@ -60,38 +70,32 @@ class TestManifestExecutionAnalysis:
         analysis = ManifestExecutionAnalysis(
             class_name="profile_haproxy",
             class_parameters={"package_name": "String", "config_dir": "String"},
-            resources=[
-                PuppetResourceDeclaration(resource_type="package", title="haproxy"),
-            ],
-            class_includes=[
-                ClassInclude(
-                    class_name="profile_haproxy::config", relationship="include"
+            execution_order=[
+                ExecutionItem(
+                    type="resource", resource_type="package", title="haproxy"
                 ),
-                ClassInclude(
-                    class_name="profile_haproxy::service", relationship="contain"
+                ExecutionItem(
+                    type="class_include",
+                    class_name="profile_haproxy::config",
+                    relationship="include",
                 ),
-            ],
-            conditionals=[
-                ConditionalBlock(
+                ExecutionItem(
+                    type="class_include",
+                    class_name="profile_haproxy::service",
+                    relationship="contain",
+                ),
+                ExecutionItem(
+                    type="conditional",
                     condition="$ssl_enabled",
                     condition_type="if",
-                    resources=[
-                        PuppetResourceDeclaration(
-                            resource_type="file", title="/etc/ssl/cert.pem"
-                        )
-                    ],
+                    execution_order=[],
                 ),
-            ],
-            iterations=[
-                IterationBlock(
+                ExecutionItem(
+                    type="iteration",
                     iterator_type="each",
                     collection_variable="$backends",
                     item_variable="$name, $config",
-                    resources=[
-                        PuppetResourceDeclaration(
-                            resource_type="file", title="backend.cfg"
-                        )
-                    ],
+                    execution_order=[],
                 ),
             ],
             relationship_chains=[
@@ -100,14 +104,26 @@ class TestManifestExecutionAnalysis:
         )
         assert analysis.class_name == "profile_haproxy"
         assert len(analysis.class_parameters) == 2
-        assert len(analysis.resources) == 1
-        assert len(analysis.class_includes) == 2
-        assert analysis.class_includes[0].relationship == "include"
-        assert analysis.class_includes[1].relationship == "contain"
-        assert len(analysis.conditionals) == 1
-        assert analysis.conditionals[0].condition_type == "if"
-        assert len(analysis.iterations) == 1
-        assert analysis.iterations[0].iterator_type == "each"
+        assert len(analysis.execution_order) == 5
+
+        resources = [i for i in analysis.execution_order if i.type == "resource"]
+        assert len(resources) == 1
+
+        class_includes = [
+            i for i in analysis.execution_order if i.type == "class_include"
+        ]
+        assert len(class_includes) == 2
+        assert class_includes[0].relationship == "include"
+        assert class_includes[1].relationship == "contain"
+
+        conditionals = [i for i in analysis.execution_order if i.type == "conditional"]
+        assert len(conditionals) == 1
+        assert conditionals[0].condition_type == "if"
+
+        iterations = [i for i in analysis.execution_order if i.type == "iteration"]
+        assert len(iterations) == 1
+        assert iterations[0].iterator_type == "each"
+
         assert len(analysis.relationship_chains) == 1
 
 

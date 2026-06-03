@@ -32,7 +32,7 @@ class TestManifestAnalysisService:
         state = _make_file_state(str(tmp_path / "nonexistent.pp"))
         result = service(state).result
         assert isinstance(result, ManifestExecutionAnalysis)
-        assert result.resources == []
+        assert result.execution_order == []
 
     def test_returns_empty_for_nonexistent_path(self):
         """Should return empty analysis for non-existent path."""
@@ -40,7 +40,7 @@ class TestManifestAnalysisService:
         state = _make_file_state(str(Path("/nonexistent/init.pp")))
         result = service(state).result
         assert isinstance(result, ManifestExecutionAnalysis)
-        assert result.resources == []
+        assert result.execution_order == []
 
 
 class TestHieraDataAnalysisService:
