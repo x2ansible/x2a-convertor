@@ -1,12 +1,12 @@
 Create a migration checklist for the module: {{module}}
 
-A high-level migration plan describing all cookbooks in the repository is available at: {{ high_level_migration_plan.path }}
-(Read this file if you need context about how this module relates to other cookbooks in the migration)
+A high-level migration plan describing all modules in the repository is available at: {{ high_level_migration_plan.path }}
+(Read this file if you need context about how this module relates to other modules in the migration)
 
 MODULE MIGRATION PLAN:
 {{module_migration_plan}}
 
-CHEF SOURCE PATH: `{{ path }}`
+SOURCE PATH: `{{ path }}`
 ANSIBLE OUTPUT PATH: `./ansible/roles/{{ module }}`
 
 {% if aap_discovery and aap_discovery.enabled and aap_discovery.content %}
@@ -42,9 +42,9 @@ THEN: USE add_checklist_task TOOL to add ONLY missing migration tasks:
 TOOL: add_checklist_task(category, source_path, target_path, description)
 
 Categories:
-- "templates": ERB templates → Jinja2 templates
-- "recipes": Chef recipes → Ansible tasks
-- "attributes": Chef attributes → Ansible variables
+- "templates": ERB/EPP templates → Jinja2 templates
+- "recipes": Chef recipes (.rb) or Puppet manifests (.pp) → Ansible tasks
+- "attributes": Chef attributes or Puppet Hiera data → Ansible variables
 - "files": Static files (configs, scripts, etc.)
 - "structure": Generated Ansible role structure files (meta/main.yml, handlers/main.yml, etc.)
 - "dependencies": Collection dependencies for requirements.yml
@@ -68,12 +68,14 @@ For target_path, combine ANSIBLE OUTPUT PATH with the relative Ansible role path
 
 Examples:
 - If the File Structure shows "cookbooks/myapp/templates/default/config.erb", use that EXACT path as source_path
+- If the File Structure shows "modules/myapp/templates/config.epp", use that EXACT path as source_path
 - For target_path, use the ANSIBLE OUTPUT PATH + relative role path (e.g., "ansible/roles/myapp/templates/config.j2")
 - For generated Ansible structure files, use source_path="N/A"
 
 Sample calls (replace {{module}} with actual module name from ANSIBLE OUTPUT PATH):
 - add_checklist_task(category="templates", source_path="<full_path_from_file_structure>", target_path="ansible/roles/{{module}}/templates/config.j2", description="Configuration template")
-- add_checklist_task(category="recipes", source_path="<full_path_from_file_structure>", target_path="ansible/roles/{{module}}/tasks/main.yml", description="Main recipe tasks")
+- add_checklist_task(category="recipes", source_path="<full_path_from_file_structure>", target_path="ansible/roles/{{module}}/tasks/main.yml", description="Main tasks")
+- add_checklist_task(category="attributes", source_path="<full_path_from_file_structure>", target_path="ansible/roles/{{module}}/defaults/main.yml", description="Default variables")
 - add_checklist_task(category="structure", source_path="N/A", target_path="ansible/roles/{{module}}/meta/main.yml", description="Role metadata")
 - add_checklist_task(category="dependencies", source_path="collection:namespace.collection_name", target_path="ansible/roles/{{module}}/requirements.yml", description="External collection dependency")
 
