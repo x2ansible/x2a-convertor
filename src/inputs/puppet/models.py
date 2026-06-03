@@ -9,23 +9,196 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 # ============================================================================
-# Manifest Analysis Models
+# Execution Item Models (Bedrock-compatible - no circular references)
 # ============================================================================
 
 
-class PuppetResourceDeclaration(BaseModel):
-    """A single Puppet resource declaration."""
+class NestedExecutionItem(BaseModel):
+    """Nested execution item (used inside conditionals/iterations).
 
-    resource_type: str
-    title: str
-    attributes: dict[str, str] = Field(default_factory=dict)
+    Separate from ExecutionItem to avoid circular references which Bedrock doesn't support.
+    This level cannot contain further nesting.
+    """
+
+    type: str  # "resource", "class_include", "exported_resource", "virtual_resource", "collector"
+
+    # Resource fields
+    resource_type: str | None = None
+    title: str | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
+
+    # Class include fields
+    class_name: str | None = None
+    relationship: str | None = None
+
+    # Collector fields
+    query: str | None = None
+
+    # Optional note
+    note: str | None = None
 
 
-class ClassInclude(BaseModel):
-    """An include/contain/require of another class."""
+class ExecutionItem(BaseModel):
+    """Unified execution item for Puppet manifests.
 
-    class_name: str
-    relationship: str  # "include", "contain", "require"
+    Uses a type discriminator with optional fields instead of discriminated unions
+    to maintain Bedrock compatibility (Bedrock doesn't support oneOf).
+
+    Nested items use NestedExecutionItem to avoid circular references.
+    """
+
+    type: str  # "resource", "class_include", "conditional", "iteration", etc.
+
+    # Resource fields (type: resource, exported_resource, virtual_resource)
+    resource_type: str | None = None
+    title: str | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
+
+    # Class include fields (type: class_include)
+    class_name: str | None = None
+    relationship: str | None = None
+
+    # Conditional fields (type: conditional)
+    condition: str | None = None
+    condition_type: str | None = None
+
+    # Iteration fields (type: iteration)
+    iterator_type: str | None = None
+    collection_variable: str | None = None
+    item_variable: str | None = None
+
+    # Collector fields (type: collector)
+    query: str | None = None
+
+    # Nested execution order (for conditional, iteration)
+    # Uses NestedExecutionItem instead of ExecutionItem to avoid circular reference
+    execution_order: list[NestedExecutionItem] = Field(default_factory=list)
+
+    # Optional note
+    note: str | None = None
+
+    def format_label(self) -> str:
+        """Format this item as a tree label based on its type."""
+        if self.type == "resource":
+            label = f"[resource] {self.resource_type}[{self.title}]"
+            return f"{label} ({self.note})" if self.note else label
+
+        if self.type == "class_include":
+            return f"{self.relationship} {self.class_name}"
+
+        if self.type == "conditional":
+            return f"{self.condition_type} {self.condition}"
+
+        if self.type == "iteration":
+            return f"{self.iterator_type} over {self.collection_variable} as {self.item_variable}"
+
+        if self.type == "exported_resource":
+            return f"[exported] {self.resource_type}[{self.title}]"
+
+        if self.type == "virtual_resource":
+            return f"[virtual] {self.resource_type}[{self.title}]"
+
+        if self.type == "collector":
+            return f"[collector] {self.resource_type} <| {self.query} |>"
+
+        return f"{self.type} ({self.note})" if self.note else self.type
+
+
+# Backward compatibility helper functions
+def ResourceDeclaration(**kwargs):
+    """Create a resource execution item."""
+    # Convert nested ExecutionItems to NestedExecutionItems if present
+    if "execution_order" in kwargs:
+        kwargs["execution_order"] = [
+            _to_nested_item(item) for item in kwargs["execution_order"]
+        ]
+    return ExecutionItem(type="resource", **kwargs)
+
+
+def ClassIncludeExecution(**kwargs):
+    """Create a class include execution item."""
+    if "execution_order" in kwargs:
+        kwargs["execution_order"] = [
+            _to_nested_item(item) for item in kwargs["execution_order"]
+        ]
+    return ExecutionItem(type="class_include", **kwargs)
+
+
+def ConditionalExecution(**kwargs):
+    """Create a conditional execution item."""
+    if "execution_order" in kwargs:
+        kwargs["execution_order"] = [
+            _to_nested_item(item) for item in kwargs["execution_order"]
+        ]
+    return ExecutionItem(type="conditional", **kwargs)
+
+
+def IterationExecution(**kwargs):
+    """Create an iteration execution item."""
+    if "execution_order" in kwargs:
+        kwargs["execution_order"] = [
+            _to_nested_item(item) for item in kwargs["execution_order"]
+        ]
+    return ExecutionItem(type="iteration", **kwargs)
+
+
+def ExportedResourceExecution(**kwargs):
+    """Create an exported resource execution item."""
+    if "execution_order" in kwargs:
+        kwargs["execution_order"] = [
+            _to_nested_item(item) for item in kwargs["execution_order"]
+        ]
+    return ExecutionItem(type="exported_resource", **kwargs)
+
+
+def VirtualResourceExecution(**kwargs):
+    """Create a virtual resource execution item."""
+    if "execution_order" in kwargs:
+        kwargs["execution_order"] = [
+            _to_nested_item(item) for item in kwargs["execution_order"]
+        ]
+    return ExecutionItem(type="virtual_resource", **kwargs)
+
+
+def ResourceCollectorExecution(**kwargs):
+    """Create a resource collector execution item."""
+    if "execution_order" in kwargs:
+        kwargs["execution_order"] = [
+            _to_nested_item(item) for item in kwargs["execution_order"]
+        ]
+    return ExecutionItem(type="collector", **kwargs)
+
+
+def _to_nested_item(item: ExecutionItem) -> NestedExecutionItem:
+    """Convert ExecutionItem to NestedExecutionItem (flattens nesting)."""
+    if isinstance(item, NestedExecutionItem):
+        return item
+    if isinstance(item, dict):
+        return NestedExecutionItem(**item)
+    # Convert ExecutionItem to NestedExecutionItem
+    return NestedExecutionItem(
+        type=item.type,
+        resource_type=item.resource_type,
+        title=item.title,
+        attributes=item.attributes,
+        class_name=item.class_name,
+        relationship=item.relationship,
+        query=item.query,
+        note=item.note,
+    )
+
+
+# Alias for type compatibility
+ExecutionItemUnion = ExecutionItem
+
+# Force Pydantic to rebuild the model to ensure no forward references
+ExecutionItem.model_rebuild()
+NestedExecutionItem.model_rebuild()
+
+
+# ============================================================================
+# Metadata Models
+# ============================================================================
 
 
 class ClassInheritance(BaseModel):
@@ -36,36 +209,15 @@ class ClassInheritance(BaseModel):
     overridden_params: list[str] = Field(default_factory=list)
 
 
-class ConditionalBlock(BaseModel):
-    """A conditional (if/unless/case/selector) in Puppet code."""
-
-    condition: str
-    condition_type: str  # "if", "unless", "case", "selector"
-    resources: list[PuppetResourceDeclaration] = Field(default_factory=list)
-
-
-class IterationBlock(BaseModel):
-    """An iteration construct (.each, .map, .filter, .reduce)."""
-
-    iterator_type: str
-    collection_variable: str
-    item_variable: str
-    resources: list[PuppetResourceDeclaration] = Field(default_factory=list)
-
-
 class ManifestExecutionAnalysis(BaseModel):
     """LLM structured output for a single .pp manifest."""
 
     class_name: str = ""
     class_parameters: dict[str, str] = Field(default_factory=dict)
     class_inherits: ClassInheritance | None = None
-    resources: list[PuppetResourceDeclaration] = Field(default_factory=list)
-    class_includes: list[ClassInclude] = Field(default_factory=list)
-    conditionals: list[ConditionalBlock] = Field(default_factory=list)
-    iterations: list[IterationBlock] = Field(default_factory=list)
-    exported_resources: list[PuppetResourceDeclaration] = Field(default_factory=list)
-    virtual_resources: list[PuppetResourceDeclaration] = Field(default_factory=list)
-    collectors: list[str] = Field(default_factory=list)
+    execution_order: list[ExecutionItem] = Field(
+        default_factory=list, description="Sequential execution order of all items"
+    )
     puppetdb_queries: list[str] = Field(default_factory=list)
     relationship_chains: list[str] = Field(default_factory=list)
     fact_references: list[str] = Field(default_factory=list)

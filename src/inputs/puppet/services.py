@@ -50,9 +50,10 @@ class ManifestAnalysisService(InputAgent[FileAnalysisState]):
             result = self.invoke_structured(
                 ManifestExecutionAnalysis, messages, metrics
             )
+            execution_count = len(result.execution_order)
             logger.info(
-                f"Extracted {len(result.resources)} resources, "
-                f"{len(result.class_includes)} includes from {file_path.relative_to_cwd()}"
+                f"Extracted {execution_count} execution items "
+                f"from {file_path.relative_to_cwd()}"
             )
             return state.update(result=result)
         except Exception as e:

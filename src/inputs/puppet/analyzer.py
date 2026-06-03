@@ -1,5 +1,4 @@
 """Puppet infrastructure analyzer.
-
 This module implements the main PuppetSubagent that orchestrates all Puppet analysis.
 It composes InputAgent subclasses as graph nodes following the pattern from
 src/inputs/chef/analyzer.py.

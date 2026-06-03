@@ -138,7 +138,12 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             analysis = manifest.analysis
             class_name = analysis.class_name or manifest.file_path
 
-            for res in analysis.exported_resources:
+            exported_items = [
+                item
+                for item in analysis.execution_order
+                if item.type == "exported_resource"
+            ]
+            for res in exported_items:
                 attrs = ", ".join(
                     f"{k}: {v}" for k, v in list(res.attributes.items())[:5]
                 )
@@ -147,8 +152,14 @@ class ReportWriterAgent(InputAgent[PuppetState]):
                     + (f" ({attrs})" if attrs else "")
                 )
 
-            for collector in analysis.collectors:
-                collectors.append(f"  - `{collector}` in {class_name}")
+            collector_items = [
+                item for item in analysis.execution_order if item.type == "collector"
+            ]
+            for collector in collector_items:
+                query_display = collector.query or ""
+                collectors.append(
+                    f"  - `{collector.resource_type} <| {query_display} |>` in {class_name}"
+                )
 
             for query in analysis.puppetdb_queries:
                 queries.append(f"  - `{query}` in {class_name}")
