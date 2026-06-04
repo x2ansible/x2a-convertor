@@ -1,73 +1,112 @@
 **Analyze the Puppet module at path: {path}**
 **User requirements: {user_message}**
 
-# CONTROL REPO CONTEXT
+---
 
-```
-{control_repo_summary}
-```
+# YOUR DATA SOURCES
 
-# CRITICAL: EXECUTION TREE (USE THIS AS YOUR SOURCE OF TRUTH)
+You have everything you need below. Do NOT read manifest files - the execution tree already shows what they do.
 
-The following execution tree shows the COMPLETE class execution flow.
-You MUST use this data. Do NOT hallucinate or invent files that aren't listed here.
+## EXECUTION TREE (Your primary source)
 
 ```
 {execution_tree}
 ```
 
-# EXTERNAL DEPENDENCIES (Puppetfile)
+This tree shows:
+- Every class in execution order with file paths
+- Every resource (package, file, service, etc.) with ALL its attributes
+- All conditionals (if/unless/case) and what they check
+- All loops (.each) with the collection being iterated
+- Relationship chains (-> and ~>)
+
+## DIRECTORY LISTING
+
+```
+{directory_listing}
+```
+
+Use these exact paths in your File Structure section.
+
+## EXTERNAL DEPENDENCIES
 
 ```
 {dependencies_summary}
 ```
 
-# CUSTOM TYPES AND PROVIDERS
+## CUSTOM TYPES AND PROVIDERS
 
 ```
 {custom_types_summary}
 ```
 
-# PUPPETDB USAGE
+## PUPPETDB USAGE
 
 ```
 {puppetdb_summary}
 ```
 
-# CREDENTIALS SUMMARY
+## CREDENTIALS
 
 ```
 {credentials_summary}
 ```
 
-**VALIDATION RULES:**
-- **File Structure**: List ONLY files shown in the execution tree and directory listing. Use RELATIVE PATHS from the module root (one per line), NOT tree structure format.
-- **Module Explanation**: Follow the execution tree order exactly
-- **Iterations**: The execution tree shows loops with all items listed - copy those exact names
-- **Variables**: Use the `parse_hiera_config` tool to understand the Hiera hierarchy, then read data files to map variables
-- **Credentials**: Use the credentials summary for the Credentials section
-- **PuppetDB**: Use the PuppetDB usage summary for the PuppetDB Dependencies section — include all exported resources, collectors, and queries
-- **Control Repo**: If a control repo was detected, note the role/profile chain in the migration plan — it shows how this module fits into the larger infrastructure
-- **DO NOT invent anything**: If it's not in the execution tree, don't include it
+## CONTROL REPO CONTEXT
+
+```
+{control_repo_summary}
+```
 
 ---
 
-**Directory listing for {path}:**
-```
-{directory_listing}
-```
+# YOUR TASK
 
-**Tree-sitter structural analysis:**
-{tree_sitter_report}
+Write a detailed migration plan by walking through the execution tree step-by-step.
 
-**INSTRUCTIONS:**
-1. **PRIMARY SOURCE**: Use the structured analysis data above - it contains the complete execution flow
-2. Use the `parse_hiera_config` tool to discover the Hiera hierarchy and data files
-3. Use the `read_file` tool to read Hiera data files and any file content not in the structured analysis
-4. Use the `file_search` tool to find specific patterns if needed
-5. Use the `list_directory` tool if you need to explore subdirectories
-6. **CRITICAL**: Cross-check your migration plan against the structured analysis - every file you mention MUST be in the analysis
-7. **FILE PATHS**: When listing files, use the EXACT paths from the directory listing
-8. Provide your final response as a detailed text migration plan (NOT as a tool call)
+**Step 1:** Use the `parse_hiera_config` tool
 
-Follow the MANDATORY ANALYSIS STEPS from the system prompt and write the migration plan using the template format provided in the system prompt.
+**Step 2:** Use `read_file` to read the Hiera YAML files shown by parse_hiera_config
+
+**Step 3:** Write the migration plan following the template and examples from the system prompt
+
+---
+
+# CRITICAL RULES
+
+1. **Use the execution tree as your source** - Every resource, class, and relationship is shown there
+2. **List ALL resource details** - Package names, file paths, service names, template mappings, exact attribute values
+3. **Expand iterations** - When the tree shows a loop, list every item explicitly by name (get names from Hiera data)
+4. **Follow the tree into dependencies** - When a class includes another class, describe what that class does by following its branch in the tree
+5. **Be specific** - Use exact paths, exact package names, exact ports, exact configuration values
+6. **No vague language** - Never say "configures X" or "sets up Y" - say exactly what packages, files, services are managed
+7. **Follow the examples** - The system prompt has detailed examples showing the level of detail expected
+
+---
+
+# WHAT NOT TO DO
+
+- Don't read manifest files (.pp) - use the execution tree instead
+- Don't read template files (.erb, .epp) - they're already analyzed
+- Don't say "for each item" - list the items explicitly
+- Don't be vague - be specific about every resource
+- Don't skip dependency modules - expand into them and describe what they do
+
+---
+
+# OUTPUT FORMAT
+
+Your response should be markdown text following the template from the system prompt.
+
+Look at the **GOOD EXAMPLES** in the system prompt - that's the level of detail expected.
+
+**File Structure:** One file per line, exact paths from directory listing above
+
+**Module Explanation:** Walk through the execution tree, listing:
+- Exact package names
+- File paths with modes and owners
+- Template source → destination mappings
+- Service names with ensure/enable values
+- All loop iterations with explicit item names from Hiera
+- Resource counts per class
+

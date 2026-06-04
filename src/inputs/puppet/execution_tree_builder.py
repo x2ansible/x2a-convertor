@@ -80,7 +80,8 @@ class PuppetExecutionTreeBuilder:
         self._manifest_map: dict[str, ManifestAnalysisResult] = {}
         for m in structured_analysis.manifests:
             if m.analysis.class_name:
-                self._manifest_map[m.analysis.class_name] = m
+                normalized = self._normalize_class_name(m.analysis.class_name)
+                self._manifest_map[normalized] = m
 
     def build_tree(self, entry_class: str | None = None) -> ExecutionTreeNode:
         if entry_class is None:
@@ -114,6 +115,10 @@ class PuppetExecutionTreeBuilder:
 
         return "\n".join(lines)
 
+    def _normalize_class_name(self, class_name: str) -> str:
+        """Normalize class name by removing leading :: for consistent lookups."""
+        return class_name.lstrip(":")
+
     def _find_entry_class(self) -> str | None:
         for m in self.analysis.manifests:
             if m.analysis.class_name and "init.pp" in m.file_path:
@@ -123,16 +128,18 @@ class PuppetExecutionTreeBuilder:
         return None
 
     def _expand_class(self, class_name: str) -> ExecutionTreeNode:
-        if class_name in self._visited:
+        normalized = self._normalize_class_name(class_name)
+
+        if normalized in self._visited:
             return ExecutionTreeNode(
                 node_type="class",
                 name=class_name,
                 details="[CIRCULAR - already visited]",
             )
 
-        self._visited.add(class_name)
+        self._visited.add(normalized)
 
-        manifest = self._manifest_map.get(class_name)
+        manifest = self._manifest_map.get(normalized)
         if manifest is None:
             details = "class not analyzed"
             if self.path_resolver:
@@ -178,15 +185,19 @@ class PuppetExecutionTreeBuilder:
         return node
 
     def _build_execution_nodes(self, execution_order: list) -> list[ExecutionTreeNode]:
-        """Build tree nodes from execution order list."""
+        """Build tree nodes from execution order list.
+
+        Handles both ExecutionItem (top-level) and NestedExecutionItem (nested).
+        Only ExecutionItem supports conditional/iteration with recursion.
+        """
         nodes: list[ExecutionTreeNode] = []
 
         for item in execution_order:
             if item.type == "resource":
                 details_parts = []
-                for key in ["ensure", "action", "command", "source"]:
-                    if key in item.attributes:
-                        details_parts.append(f"{key}: {item.attributes[key]}")
+                if item.attributes:
+                    for key, value in item.attributes.items():
+                        details_parts.append(f"{key}: {value}")
                 detail = ", ".join(details_parts) if details_parts else None
 
                 nodes.append(
@@ -202,24 +213,28 @@ class PuppetExecutionTreeBuilder:
                 nodes.append(child)
 
             elif item.type == "conditional":
-                cond_node = ExecutionTreeNode(
-                    node_type="conditional",
-                    name=f"{item.condition_type} {item.condition}",
-                )
-                cond_node.children.extend(
-                    self._build_execution_nodes(item.execution_order)
-                )
-                nodes.append(cond_node)
+                # Only ExecutionItem has these fields, not NestedExecutionItem
+                if hasattr(item, "execution_order"):
+                    cond_node = ExecutionTreeNode(
+                        node_type="conditional",
+                        name=f"{item.condition_type} {item.condition}",
+                    )
+                    cond_node.children.extend(
+                        self._build_execution_nodes(item.execution_order)
+                    )
+                    nodes.append(cond_node)
 
             elif item.type == "iteration":
-                iter_node = ExecutionTreeNode(
-                    node_type="iteration",
-                    name=f"{item.collection_variable}.{item.iterator_type} |{item.item_variable}|",
-                )
-                iter_node.children.extend(
-                    self._build_execution_nodes(item.execution_order)
-                )
-                nodes.append(iter_node)
+                # Only ExecutionItem has these fields, not NestedExecutionItem
+                if hasattr(item, "execution_order"):
+                    iter_node = ExecutionTreeNode(
+                        node_type="iteration",
+                        name=f"{item.collection_variable}.{item.iterator_type} |{item.item_variable}|",
+                    )
+                    iter_node.children.extend(
+                        self._build_execution_nodes(item.execution_order)
+                    )
+                    nodes.append(iter_node)
 
             elif item.type == "exported_resource":
                 nodes.append(

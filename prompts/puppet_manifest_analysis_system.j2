@@ -88,7 +88,7 @@ Extract ALL fact references — these map to ansible_facts in the migration.
 
 OUTPUT FORMAT RULES:
 - class_parameters: serialize each parameter as "param_name": "Type, default: value". Example: "port": "Integer, default: lookup('profile::webserver::port')"
-- attributes: include only key attributes (ensure, source, content, command, owner, mode, etc.). Values can be strings, numbers, booleans, or arrays
+- attributes: extract ALL attributes and parameters for each resource. Include EVERY key from the resource hash (ensure, source, content, command, owner, group, mode, path, creates, unless, onlyif, require, notify, subscribe, etc.). Values can be strings, numbers, booleans, or arrays. DO NOT filter or limit attributes - capture everything.
 - execution_order: array of execution items in sequential order, preserving the flow of the manifest
 - Nested execution: conditionals and iterations contain their own execution_order arrays
 - Omit empty fields — do NOT include fields like "note": null or empty arrays if they have no entries

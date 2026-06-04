@@ -146,13 +146,177 @@ templates/config.erb
 
 ## Module Explanation
 
+**CRITICAL**: Follow the execution tree EXACTLY. For each class in the tree, describe what it does step-by-step. When a class includes another class, you MUST describe what that included class does by following the execution tree into that class. Do not just say "includes class X" - walk through what class X actually does.
+
 The module performs operations in this order:
 
+**GOOD EXAMPLE - PostgreSQL Module:**
+
+1. **postgresql** (`manifests/init.pp`):
+   - Sets class parameters: version=14, listen_addresses='*', max_connections=200
+   - Includes postgresql::install class
+   - Includes postgresql::config class
+   - Includes postgresql::service class
+   - Sets ordering: install -> config ~> service (config changes notify service restart)
+   - Resources: None (orchestration only)
+
+2. **postgresql::install** (`manifests/install.pp`):
+   - Installs packages: postgresql-14, postgresql-client-14, postgresql-contrib-14
+   - Creates postgres system user (uid: 26, shell: /bin/bash)
+   - Creates postgres group (gid: 26)
+   - Creates directories:
+     - /var/lib/postgresql/14/main (owner: postgres, group: postgres, mode: 0700)
+     - /var/log/postgresql (owner: postgres, group: postgres, mode: 0755)
+   - Resources: package (3), user (1), group (1), directory (2)
+
+3. **postgresql::config** (`manifests/config.pp`):
+   - Deploys postgresql.conf template:
+     - Template: postgresql.conf.erb → /etc/postgresql/14/main/postgresql.conf (mode: 0644)
+     - Sets: max_connections=200, shared_buffers=4GB, effective_cache_size=12GB
+   - Deploys pg_hba.conf template:
+     - Template: pg_hba.conf.erb → /etc/postgresql/14/main/pg_hba.conf (mode: 0640)
+   - Resources: file (2)
+   - Iterations: Runs 3 times for databases defined in hiera ($databases hash): production_db, staging_db, analytics_db
+     - **production_db**:
+       - Creates database via postgresql::database['production_db']
+       - Creates user 'prod_user' with password from hiera, CREATEDB privilege
+       - Grants ALL privileges on production_db to prod_user
+     - **staging_db**:
+       - Creates database via postgresql::database['staging_db']
+       - Creates user 'staging_user' with password from hiera
+       - Grants ALL privileges on staging_db to staging_user
+     - **analytics_db**:
+       - Creates database via postgresql::database['analytics_db']
+       - Creates user 'analytics_user' with password from hiera, CREATEDB privilege
+       - Grants ALL privileges on analytics_db to analytics_user
+   - **notifies**: file[postgresql.conf] ~> service[postgresql] (restart on config change)
+
+4. **postgresql::service** (`manifests/service.pp`):
+   - Manages service: postgresql
+     - ensure: running
+     - enable: true
+     - hasstatus: true
+     - hasrestart: true
+   - Resources: service (1)
+
+**GOOD EXAMPLE - Service with Custom Defined Type:**
+
+1. **myapp** (`manifests/init.pp`):
+   - Contains myapp::install
+   - Contains myapp::config
+   - Contains myapp::service
+   - Resources: None (orchestration only)
+
+2. **myapp::install** (`manifests/install.pp`):
+   - Installs packages: python3.11, python3.11-venv, python3.11-dev, git
+   - Creates system user 'myapp' (uid: 1001, home: /opt/myapp, shell: /bin/bash)
+   - Creates directories:
+     - /opt/myapp (owner: myapp, group: myapp, mode: 0755)
+     - /var/log/myapp (owner: myapp, group: myapp, mode: 0755)
+     - /etc/myapp (owner: root, group: root, mode: 0755)
+   - Resources: package (4), user (1), directory (3)
+
+3. **myapp::config** (`manifests/config.pp`):
+   - Includes dependency module: python (from migration-dependencies/python)
+     - **python::virtualenv** (`migration-dependencies/python/manifests/virtualenv.pp`):
+       - Creates virtual environment at /opt/myapp/venv (python: python3.11)
+       - Installs packages from requirements.txt via pip
+       - Resources: exec (2)
+   - Deploys app.conf template:
+     - Template: app.conf.erb → /etc/myapp/app.conf (mode: 0644, owner: root, group: root)
+     - Sets: database_url, redis_url, log_level=info, worker_threads=8
+   - Iterations: Runs 3 times for workers defined in hiera ($workers hash): api, worker, scheduler
+     - **api**: Listens on port 8000, workers=4, timeout=60
+       - Deploys systemd unit: api.service.erb → /etc/systemd/system/myapp-api.service (mode: 0644)
+       - Sets: WorkingDirectory=/opt/myapp, User=myapp, ExecStart=/opt/myapp/venv/bin/gunicorn
+     - **worker**: Background job processor, workers=2
+       - Deploys systemd unit: worker.service.erb → /etc/systemd/system/myapp-worker.service (mode: 0644)
+       - Sets: WorkingDirectory=/opt/myapp, User=myapp, ExecStart=/opt/myapp/venv/bin/celery worker
+     - **scheduler**: Cron job runner, workers=1
+       - Deploys systemd unit: scheduler.service.erb → /etc/systemd/system/myapp-scheduler.service (mode: 0644)
+       - Sets: WorkingDirectory=/opt/myapp, User=myapp, ExecStart=/opt/myapp/venv/bin/celery beat
+   - Resources: file (4), systemd::unit (3)
+   - **notifies**: file[app.conf] ~> service[myapp-api], service[myapp-worker], service[myapp-scheduler]
+
+4. **myapp::service** (`manifests/service.pp`):
+   - Manages services:
+     - myapp-api (ensure: running, enable: true)
+     - myapp-worker (ensure: running, enable: true)
+     - myapp-scheduler (ensure: running, enable: true)
+   - Resources: service (3)
+
+**GOOD EXAMPLE - Nginx Load Balancer:**
+
+1. **profile_nginx** (`manifests/init.pp`):
+   - Sets class parameters from hiera: backends (hash), ssl_cert, ssl_key, client_max_body_size=50m
+   - Includes nginx class from dependency module
+     - **nginx** (`migration-dependencies/nginx/manifests/init.pp`):
+       - Installs package: nginx
+       - Creates directories: /etc/nginx/conf.d, /etc/nginx/sites-available, /etc/nginx/sites-enabled
+       - Deploys nginx.conf template:
+         - Template: nginx.conf.erb → /etc/nginx/nginx.conf (mode: 0644)
+         - Sets: worker_processes=auto, worker_connections=1024, keepalive_timeout=65
+       - Manages service: nginx (ensure: running, enable: true)
+       - Resources: package (1), directory (3), file (1), service (1)
+   - Iterations: Runs 2 times for backends defined in hiera ($backends hash): web, api
+     - **web**:
+       - Backend servers: web1.internal:8080, web2.internal:8080, web3.internal:8080
+       - Load balancing: roundrobin
+       - Health check: / (expect 200)
+       - Deploys upstream config: web-upstream.conf.erb → /etc/nginx/conf.d/web-upstream.conf (mode: 0644)
+       - Deploys site config: web-site.conf.erb → /etc/nginx/sites-available/web.conf (mode: 0644)
+       - Creates symlink: /etc/nginx/sites-enabled/web.conf → /etc/nginx/sites-available/web.conf
+     - **api**:
+       - Backend servers: api1.internal:3000, api2.internal:3000
+       - Load balancing: least_conn
+       - Health check: /health (expect 200)
+       - Deploys upstream config: api-upstream.conf.erb → /etc/nginx/conf.d/api-upstream.conf (mode: 0644)
+       - Deploys site config: api-site.conf.erb → /etc/nginx/sites-available/api.conf (mode: 0644)
+       - Creates symlink: /etc/nginx/sites-enabled/api.conf → /etc/nginx/sites-available/api.conf
+   - Resources: file (6)
+   - **notifies**: file[/etc/nginx/conf.d/*] ~> service[nginx] (reload on config change)
+
+**BAD EXAMPLE - PostgreSQL (DO NOT DO THIS):**
+
+1. **postgresql** (`manifests/init.pp`):
+   - Installs and configures PostgreSQL (WRONG - what version? What packages?)
+   - Sets up databases (WRONG - which databases? How many?)
+   - Iterations: Runs for each database (WRONG - name them explicitly!)
+   - Resources: Various Puppet resources (WRONG - which resources? In what order?)
+
+**BAD EXAMPLE - Application (DO NOT DO THIS):**
+
+1. **myapp** (`manifests/init.pp`):
+   - Installs dependencies (WRONG - which dependencies? What versions?)
+   - Deploys configuration files (WRONG - which files? What variables? What paths?)
+   - Configures services (WRONG - which services? What ports? How many workers?)
+   - Iterations: For each worker (WRONG - name the workers explicitly!)
+
+**VALIDATION RULES:**
+- List EXACT package names and versions when available
+- List EXACT file paths (full /etc/... or /opt/... paths)
+- List EXACT template mappings: source.erb → /destination/path (mode: 0644)
+- List EXACT iteration items by name (database names, backend names, service names)
+- Show resource counts per class: Resources: package (3), file (2), service (1)
+- Show notification relationships: resource ~> service (describes what triggers restarts)
+- Show conditionals with branching: "if systemd → ... otherwise → ..."
+- Expand into dependency modules and describe what they do (don't just say "includes nginx")
+
 1. **[class-name]** (`manifests/[class-name].pp`):
-   - [Step 1: What this class does]
-   - [Step 2: Resources managed]
-   - [Step 3: Templates deployed]
-   - Iterations: [expand ALL loops with actual names]
+   - [List exact resources with parameters]
+   - [Template mappings: source → destination (mode)]
+   - [Package names, service names, file paths]
+   - When this class includes another class, expand into that class's execution tree branch:
+     - **[included-class-name]** (`path/to/included/class.pp`):
+       - [What this included class does with specific resources]
+       - [Resources it manages with exact names and parameters]
+       - [Further nested includes - keep following the tree]
+   - Iterations: Runs N times for items from hiera: item1, item2, item3
+     - **item1**: [specific details with exact values]
+     - **item2**: [specific details with exact values]
+     - **item3**: [specific details with exact values]
+   - Resources: resource_type (count), another_type (count)
+   - **notifies**: [what notifies what for service restarts]
 
 ## Variables
 
@@ -160,12 +324,12 @@ The module performs operations in this order:
 
 ### Variable Definitions
 
-For each Hiera data file, list the variables it defines with their exact values, types, AND Ansible target location and variable name.
-Group by hierarchy level. Show the Ansible target for each level.
+For each Hiera data file, list the variables it defines with their exact values and types.
+Group by hierarchy level.
 
-**common.yaml (defaults)** → Ansible target: `defaults/main.yml`
-- `module::variable_name`: `value` (type: string) → `module_variable_name`
-- `module::backends`: (type: hash) → `module_backends`
+**common.yaml (defaults)** → Migration note: Base defaults for all nodes
+- `module::variable_name`: `value` (type: string)
+- `module::backends`: (type: hash)
   ```yaml
   web:
     balance: roundrobin
@@ -175,21 +339,21 @@ Group by hierarchy level. Show the Ansible target for each level.
     port: 3000
   ```
 
-**os/RedHat.yaml (OS-specific overrides)** → Ansible target: `group_vars/RedHat.yml` (loaded via `include_vars` based on `ansible_os_family`)
-- `module::extra_packages`: `[hatop]` (type: array) → `module_extra_packages`
+**os/RedHat.yaml (OS-specific overrides)** → Migration note: OS-specific variables, loaded conditionally based on OS family
+- `module::extra_packages`: `[hatop]` (type: array)
 
-**environment/production.yaml (environment overrides)** → Ansible target: `group_vars/production.yml` (loaded via `include_vars` based on environment)
-- `module::global_maxconn`: `16384` (type: integer) → `module_global_maxconn`
+**environment/production.yaml (environment overrides)** → Migration note: Environment-specific variables, loaded based on deployment environment
+- `module::global_maxconn`: `16384` (type: integer)
 
 [Continue for each hierarchy level with data]
 
 ### Variable Migration Summary
 
-- **defaults/main.yml**: [N] variables from common.yaml (auto-loaded by role)
-- **group_vars/{{{{ ansible_os_family }}}}.yml**: [N] variables requiring OS-specific loading via `include_vars`
-- **group_vars/{{{{ environment }}}}.yml**: [N] variables requiring environment-specific loading
-- **host_vars/{{{{ inventory_hostname }}}}.yml**: [N] variables for per-host overrides
-- **Encrypted variables**: [N] variables requiring Ansible Vault or external secret lookup
+- **Common defaults**: [N] variables from common.yaml (base configuration for all nodes)
+- **OS-specific variables**: [N] variables that vary by operating system family
+- **Environment-specific variables**: [N] variables that vary by deployment environment (dev, staging, prod)
+- **Host-specific variables**: [N] variables for individual host overrides
+- **Encrypted variables**: [N] variables that are encrypted (eyaml) and need secure storage
 
 ### Cross-Level Overrides
 
@@ -198,17 +362,17 @@ Variables defined at multiple Hiera levels:
 
 ### Merge Strategy Notes
 
-- Variables using `hash` merge → use `combine()` filter in Ansible
-- Variables using `deep` merge → use `combine(recursive=True)` in Ansible
-- Variables using `first` (default) → standard Ansible variable precedence, no action needed
+- Variables using `hash` merge - Hash values from multiple levels are merged (shallow merge)
+- Variables using `deep` merge - Hash values are recursively merged (deep merge)
+- Variables using `first` (default) - First value found wins, no merging
 
 ### Variable Loading Notes
 
-- Variables from common.yaml map to role defaults (auto-loaded)
-- Per-OS variables require explicit loading based on `ansible_os_family`
-- Per-environment variables require explicit loading
-- Per-node variables require explicit loading based on `inventory_hostname`
-- Ansible variable naming: strip module prefix, convert to snake_case (e.g., `profile_haproxy::backends` → `haproxy_backends`)
+- Variables from common.yaml provide base defaults for all nodes
+- Per-OS variables override based on operating system family (RedHat, Debian, etc.)
+- Per-environment variables override based on deployment environment (production, staging, etc.)
+- Per-node variables provide host-specific overrides
+- Variable naming in Puppet uses double-colon namespacing (e.g., `profile_haproxy::backends`)
 
 ## Custom Types and Providers
 
@@ -219,7 +383,7 @@ For each custom type (`lib/puppet/type/*.rb`):
 - **Purpose**: [what it manages]
 - **Parameters/Properties**: List all with types, defaults, and validation rules
 - **Autorequire rules**: [any auto-dependency logic]
-- **Ansible equivalent**: [win_regedit, custom module, existing collection, etc.]
+- **Migration notes**: [Describe what this type does and what functionality needs to be replicated]
 
 For each provider (`lib/puppet/provider/**/*.rb`):
 - **Name**: [provider name] for type [type name]
@@ -230,7 +394,7 @@ For each provider (`lib/puppet/provider/**/*.rb`):
 For each custom fact or function:
 - **Name**: [name]
 - **Purpose**: [what it returns/computes]
-- **Ansible equivalent**: [ansible_facts, custom fact script, filter plugin, etc.]
+- **Migration notes**: [How this fact/function should be handled in the migration - describe the behavior, not specific Ansible code]
 
 If no custom types exist, omit this section.
 
@@ -250,36 +414,32 @@ For each dependency in the Puppetfile or metadata.json:
 ## Puppet Facts Used
 
 List ALL Puppet fact references found in manifests and templates.
-For each fact, show its Ansible equivalent.
+For each fact, note what system information it provides.
 
-- `$facts['os']['family']` → `ansible_os_family`
-- `$::osfamily` → `ansible_os_family`
-- `$facts['networking']['ip']` → `ansible_default_ipv4.address`
+- `$facts['os']['family']` - Operating system family (RedHat, Debian, etc.)
+- `$::osfamily` - Operating system family (legacy syntax)
+- `$facts['networking']['ip']` - Primary IP address
+- `$facts['hostname']` - Short hostname
+- `$facts['fqdn']` - Fully qualified domain name
 
 If no facts are used, state: "No Puppet facts referenced in this module."
 
 ## Template Conversion Notes
 
-For each template with non-trivial Ruby logic, document the ERB/EPP → Jinja2 conversion:
+For each template, document the variables and logic that will need to be converted:
 
-### [template-name.erb] → [template-name.j2]
-- **Ruby logic blocks**: [describe each `<% %>` block and what it computes]
-- **Jinja2 equivalent**: [the Jinja2 construct to use]
-- **Variables requiring transformation**: [any variables that need filters or lookups]
-- **Conditional rendering**: [any if/unless/case logic and Jinja2 equivalent]
-
-Common ERB → Jinja2 mappings for reference:
-- `<%= @variable %>` → `{{{{ variable }}}}`
-- `<% if @variable %>` → `{{% if variable %}}`
-- `<%= scope['module::param'] %>` → `{{{{ module_param }}}}`
-- `.each do |item|` → `{{% for item in list %}}`
-- `.sort.map {{ |k,v| "#{{k}} #{{v}}" }}.join("\n")` → `{{{{ dict | dictsort | map('join', ' ') | join('\n') }}}}`
+### [template-name.erb]
+- **Variables used**: List all variables referenced in the template
+- **Ruby logic blocks**: Describe each `<% %>` block and what it computes
+- **Conditional rendering**: Describe any if/unless/case logic
+- **Iterations**: Describe any loops (.each, .map, etc.) and what they iterate over
+- **Complex expressions**: Note any Ruby-specific constructs that will need special handling
 
 If no templates exist or all are straightforward variable substitutions, omit this section.
 
 ## PuppetDB Dependencies
 
-**Migration architecture**: PuppetDB data is assumed to be migrated to an external data source (e.g., PostgreSQL database, CMDB). Ansible accesses this data via dynamic inventory plugins or lookup plugins — NOT direct PuppetDB access.
+**Context**: PuppetDB provides a centralized data store for cross-node resource sharing, node facts, and infrastructure queries. Document all PuppetDB usage patterns found in this module.
 
 For each PuppetDB usage found, document:
 
@@ -288,25 +448,25 @@ For each exported resource:
 - **Resource type**: [e.g., `@@nagios_service`, `@@concat::fragment`]
 - **What it exports**: [what data/config is shared across nodes]
 - **Collected by**: [which classes/nodes collect this resource]
-- **Ansible migration strategy**: Inventory groups + group_vars replace cross-node resource sharing. The collecting node uses `hostvars[inventory_hostname]` or queries inventory groups instead.
+- **Migration notes**: Exported resources enable cross-node data sharing - one node publishes data that other nodes consume. The migration needs to replicate this pattern using inventory data or an external data source.
 
 ### Resource Collectors (`<<| |>>`)
 For each collector:
 - **Collects**: [resource type and filter condition]
 - **Purpose**: [why it collects from other nodes]
-- **Ansible migration strategy**: Use inventory group membership queries, `groups['group_name']`, or dynamic inventory plugin to discover nodes. Data previously shared via exported resources becomes group_vars or host_vars.
+- **Migration notes**: Collectors query PuppetDB to find resources exported by other nodes. The migration needs to discover these nodes through inventory or external data queries.
 
 ### PuppetDB Queries (`puppetdb_query()`)
 For each query:
 - **Query**: [exact PQL query string]
 - **Returns**: [what data the query provides]
 - **Used for**: [how the result is consumed in the manifest]
-- **Ansible migration strategy**: Use a database lookup plugin (e.g., `community.postgresql.postgresql_query`) against the external data source, or access equivalent data via dynamic inventory variables.
+- **Migration notes**: Direct PuppetDB queries retrieve infrastructure data. The migration needs equivalent queries against inventory or an external CMDB/database.
 
 ### Host Identity Data
 If the module uses PuppetDB for node identity/classification:
 - **Data used**: [certname, environment, node facts, etc.]
-- **Ansible equivalent**: Inventory host_vars for per-host overrides, dynamic inventory plugin for host identity from the external data source.
+- **Migration notes**: Document what host identity information is needed and how it's used for node classification.
 
 If no PuppetDB dependencies exist, omit this section entirely.
 

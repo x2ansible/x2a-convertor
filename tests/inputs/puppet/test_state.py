@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from src.inputs.puppet.models import PuppetDependency
 from src.inputs.puppet.state import PuppetState
 
 
@@ -21,8 +22,7 @@ class TestPuppetState:
         assert state.user_message == "Migrate HAProxy module"
         assert state.path == "profile_haproxy"
         assert state.specification == ""
-        assert state.dependency_paths == []
-        assert state.dependency_info == []
+        assert state.dependencies == []
         assert state.dependencies_dir is None
         assert state.export_path is None
         assert state.structured_analysis is None
@@ -39,13 +39,11 @@ class TestPuppetState:
         assert state.specification == ""
 
     def test_update_preserves_other_fields(self):
-        state = self._make_state(
-            dependency_paths=["puppetlabs-stdlib"],
-            dependency_info=[{"name": "puppetlabs-stdlib", "source": "forge"}],
-        )
+        dep = PuppetDependency(name="puppetlabs-stdlib", source="forge")
+        state = self._make_state(dependencies=[dep])
         new_state = state.update(specification="updated")
-        assert new_state.dependency_paths == ["puppetlabs-stdlib"]
-        assert new_state.dependency_info[0]["name"] == "puppetlabs-stdlib"
+        assert new_state.dependencies == [dep]
+        assert new_state.dependencies[0].name == "puppetlabs-stdlib"
         assert new_state.path == "profile_haproxy"
 
     def test_mark_failed(self):
@@ -62,26 +60,28 @@ class TestPuppetState:
         assert paths[0] == Path("profile_haproxy")
 
     def test_all_paths_with_deps(self):
-        state = self._make_state(
-            dependency_paths=["stdlib", "concat"],
-        )
+        deps = [
+            PuppetDependency(name="stdlib", source="forge"),
+            PuppetDependency(name="concat", source="forge"),
+        ]
+        state = self._make_state(dependencies=deps)
         paths = state.all_paths
         assert len(paths) == 3
         assert Path("profile_haproxy") in paths
         assert Path("stdlib") in paths
         assert Path("concat") in paths
 
-    def test_update_dependency_info(self):
+    def test_update_dependencies(self):
         state = self._make_state()
         deps = [
-            {"name": "stdlib", "source": "forge", "version": "9.0.0"},
-            {
-                "name": "custom",
-                "source": "git",
-                "url": "https://git.example.com/custom.git",
-            },
+            PuppetDependency(name="stdlib", source="forge", version="9.0.0"),
+            PuppetDependency(
+                name="custom",
+                source="git",
+                url="https://git.example.com/custom.git",
+            ),
         ]
-        new_state = state.update(dependency_info=deps)
-        assert len(new_state.dependency_info) == 2
-        assert new_state.dependency_info[0]["source"] == "forge"
-        assert new_state.dependency_info[1]["source"] == "git"
+        new_state = state.update(dependencies=deps)
+        assert len(new_state.dependencies) == 2
+        assert new_state.dependencies[0].is_forge
+        assert new_state.dependencies[1].is_git

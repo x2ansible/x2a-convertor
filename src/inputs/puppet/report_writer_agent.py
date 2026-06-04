@@ -18,6 +18,7 @@ from src.inputs.puppet.state import PuppetState
 from src.inputs.puppet.tools import HieraParserTool
 from src.inputs.tree_analysis import TreeSitterAnalyzer
 from src.types.telemetry import AgentMetrics
+from src.utils.path import Path
 
 
 class ReportWriterAgent(InputAgent[PuppetState]):
@@ -62,7 +63,6 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             puppetdb_summary,
             control_repo_summary,
         )
-
         result = self.invoke_react(state, messages, metrics)
 
         response_messages = result.get("messages", [])
@@ -75,7 +75,24 @@ class ReportWriterAgent(InputAgent[PuppetState]):
     def _build_file_listing(self, state: PuppetState) -> str:
         if not state.structured_analysis:
             return ""
-        return "\n".join(state.structured_analysis.analyzed_file_paths)
+
+        file_paths = set(state.structured_analysis.analyzed_file_paths)
+
+        if state.dependencies_dir:
+            deps_path = Path(state.dependencies_dir)
+            if deps_path.exists():
+                for file_path in deps_path.rglob("*"):
+                    if file_path.is_file() and file_path.suffix in {
+                        ".pp",
+                        ".erb",
+                        ".epp",
+                        ".rb",
+                        ".yaml",
+                        ".yml",
+                    }:
+                        file_paths.add(Path(file_path).relative_to_cwd())
+
+        return "\n".join(sorted(file_paths))
 
     def _generate_tree_sitter_report(self, path: str) -> str:
         analyzer = TreeSitterAnalyzer()
@@ -103,22 +120,17 @@ class ReportWriterAgent(InputAgent[PuppetState]):
         return "\n".join(lines) if lines else "No credentials detected."
 
     def _build_dependencies_summary(self, state: PuppetState) -> str:
-        if not state.dependency_info:
+        if not state.dependencies:
             return "No external dependencies (no Puppetfile found)."
 
         lines: list[str] = []
-        for dep in state.dependency_info:
-            source = dep.get("source", "unknown")
-            version = dep.get("version", "")
-            url = dep.get("url", "")
-            if source == "git":
-                lines.append(f"  {dep['name']} (git: {url}, ref: {version})")
-            else:
-                lines.append(f"  {dep['name']} (forge, version: {version})")
+        for dep in state.dependencies:
+            if dep.is_git:
+                lines.append(f"  {dep.name} (git: {dep.url}, ref: {dep.version})")
+                continue
+            lines.append(f"  {dep.name} (forge, version: {dep.version})")
 
-        summary = f"Found {len(state.dependency_info)} dependencies:\n" + "\n".join(
-            lines
-        )
+        summary = f"Found {len(state.dependencies)} dependencies:\n" + "\n".join(lines)
         if state.dependencies_dir:
             summary += (
                 f"\n\nDependency source code downloaded to: {state.dependencies_dir}/"
@@ -195,8 +207,6 @@ class ReportWriterAgent(InputAgent[PuppetState]):
                 lines.append("  Parameters:")
                 for param in analysis.parameters:
                     lines.append(f"    - {param}")
-            if analysis.ansible_equivalent:
-                lines.append(f"  Ansible equivalent: {analysis.ansible_equivalent}")
             lines.append("")
 
         return "\n".join(lines) if lines else "No custom types detected."

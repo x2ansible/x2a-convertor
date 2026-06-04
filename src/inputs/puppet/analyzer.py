@@ -19,7 +19,7 @@ from src.types.file_analysis_state import FileAnalysisState
 from src.types.telemetry import telemetry_context
 from src.utils.logging import get_logger
 
-from .dependency_fetcher import PuppetDependencyFetcher
+from .dependency_fetcher import PuppetDependencyAgent, resolve_puppet_module_root
 from .execution_tree_builder import PuppetExecutionTreeBuilder
 from .models import (
     CredentialAnalysisResult,
@@ -55,8 +55,6 @@ class PuppetSubagent:
     def __init__(self, model=None) -> None:
         self.model = model or get_model()
 
-        self._dependency_fetcher: PuppetDependencyFetcher | None = None
-
         # Services (Dependency Injection)
         self._manifest_service = ManifestAnalysisService(self.model)
         self._hiera_service = HieraDataAnalysisService(self.model)
@@ -65,11 +63,15 @@ class PuppetSubagent:
         self._credential_service = CredentialDetectionService(self.model)
 
         # Agents
+        self._dependency_agent = PuppetDependencyAgent(model=self.model)
         self._report_writer = ReportWriterAgent(model=self.model)
         self._analysis_validator = AnalysisValidationAgent(model=self.model)
         self._cleanup = CleanupAgent(model=self.model)
 
         self._path_resolver: PuppetPathResolver | None = None
+
+        # Cache: absolute path -> ManifestAnalysisResult
+        self._manifest_cache: dict[str, ManifestAnalysisResult] = {}
 
         self._workflow = self._create_workflow()
 
@@ -119,61 +121,14 @@ class PuppetSubagent:
         return "continue"
 
     def _fetch_dependencies(self, state: PuppetState) -> PuppetState:
-        slog = logger.bind(phase="fetch_dependencies")
-        slog.info(f"Checking for external dependencies for {state.path}")
-
-        with telemetry_context(state.telemetry, "fetch_dependencies") as metrics:
-            module_root = str(self._resolve_module_root(state.path))
-            self._dependency_fetcher = PuppetDependencyFetcher(module_root)
-            has_deps, _deps = self._dependency_fetcher.has_dependencies()
-
-            if not has_deps:
-                slog.info("No Puppetfile found or no dependencies")
-                if metrics:
-                    metrics.record_metric("dependencies_found", 0)
-                return state.update(dependency_paths=[], dependency_info=[])
-
-            dep_info = self._dependency_fetcher.get_dependency_info()
-            slog.info(f"Found {len(dep_info)} dependencies in Puppetfile")
-            for dep in dep_info:
-                slog.info(f"  {dep['name']} ({dep['source']}: {dep['version']})")
-
-            deps_path = self._dependency_fetcher.download_dependencies()
-            if deps_path:
-                slog.info(f"Dependencies downloaded to {deps_path}")
-            else:
-                slog.warning(
-                    "Could not download dependencies (r10k not available or failed)"
-                )
-
-            if metrics:
-                metrics.record_metric("dependencies_found", len(dep_info))
-
-        return state.update(
-            dependency_paths=[d["name"] for d in dep_info],
-            dependency_info=dep_info,
-            dependencies_dir=str(deps_path) if deps_path else None,
-        )
-
-    @staticmethod
-    def _resolve_module_root(path: str) -> Path:
-        """Resolve path to Puppet module root directory.
-
-        The module selector may return 'manifests/init.pp' or 'manifests'
-        instead of the module root. Walk up to find the directory containing manifests/.
-        """
-        p = Path(path).resolve()
-        if p.is_file():
-            p = p.parent
-        for candidate in [p, *list(p.parents)]:
-            if (candidate / "manifests").is_dir():
-                return candidate
-        return Path(path).resolve()
+        logger.info(f"Checking for external dependencies for {state.path}")
+        result = self._dependency_agent(state)
+        return result
 
     def _discover_control_repo_context(self, state: PuppetState) -> PuppetState:
         """Discover control repo structure and find role/profile chain."""
         slog = logger.bind(phase="discover_context")
-        module_path = self._resolve_module_root(state.path)
+        module_path = resolve_puppet_module_root(state.path)
 
         repo_root = PuppetPathResolver.find_control_repo_root(module_path)
         if repo_root is None:
@@ -237,7 +192,7 @@ class PuppetSubagent:
         slog.info("Starting structured analysis of Puppet module files")
 
         with telemetry_context(state.telemetry, "analyze_structure") as metrics:
-            module_path = self._resolve_module_root(state.path)
+            module_path = resolve_puppet_module_root(state.path)
             if module_path != Path(state.path):
                 slog.info(f"Resolved module root: {state.path} -> {module_path}")
 
@@ -334,6 +289,30 @@ class PuppetSubagent:
             credentials_analysis=credentials_analysis,
         )
 
+    def _analyze_manifest_file(
+        self, pp_file: Path, slog
+    ) -> ManifestAnalysisResult | None:
+        """Analyze a single manifest file with caching."""
+        file_path_str = str(pp_file.resolve())
+
+        cahed_manifest = self._manifest_cache.get(file_path_str)
+        if cahed_manifest:
+            slog.debug(f"Using cached analysis for: {pp_file}")
+            return self._manifest_cache[file_path_str]
+
+        try:
+            slog.debug(f"Analyzing manifest: {pp_file}")
+            file_state = FileAnalysisState(user_message="", path=file_path_str)
+            result_state = self._manifest_service(file_state)
+            result = ManifestAnalysisResult(
+                file_path=file_path_str, analysis=result_state.result
+            )
+            self._manifest_cache[file_path_str] = result
+            return result
+        except Exception as e:
+            slog.warning(f"Failed to analyze manifest {pp_file}: {e}")
+            return None
+
     def _analyze_manifests(
         self, module_path: Path, slog
     ) -> list[ManifestAnalysisResult]:
@@ -341,17 +320,9 @@ class PuppetSubagent:
         for pp_file in sorted(module_path.glob("**/manifests/**/*.pp")):
             if "spec/" in str(pp_file) or "test/" in str(pp_file):
                 continue
-            try:
-                slog.debug(f"Analyzing manifest: {pp_file}")
-                file_state = FileAnalysisState(user_message="", path=str(pp_file))
-                result_state = self._manifest_service(file_state)
-                results.append(
-                    ManifestAnalysisResult(
-                        file_path=str(pp_file), analysis=result_state.result
-                    )
-                )
-            except Exception as e:
-                slog.warning(f"Failed to analyze manifest {pp_file}: {e}")
+            result = self._analyze_manifest_file(pp_file, slog)
+            if result:
+                results.append(result)
         return results
 
     def _analyze_manifest_files(
@@ -362,17 +333,9 @@ class PuppetSubagent:
         for pp_file in sorted(files):
             if not pp_file.is_file():
                 continue
-            try:
-                slog.debug(f"Analyzing context manifest: {pp_file}")
-                file_state = FileAnalysisState(user_message="", path=str(pp_file))
-                result_state = self._manifest_service(file_state)
-                results.append(
-                    ManifestAnalysisResult(
-                        file_path=str(pp_file), analysis=result_state.result
-                    )
-                )
-            except Exception as e:
-                slog.warning(f"Failed to analyze context manifest {pp_file}: {e}")
+            result = self._analyze_manifest_file(pp_file, slog)
+            if result:
+                results.append(result)
         return results
 
     def _analyze_hiera_data(
@@ -540,7 +503,6 @@ class PuppetSubagent:
             path=path,
             user_message=user_message,
             specification="",
-            dependency_paths=[],
             export_path=None,
             telemetry=telemetry,
         )

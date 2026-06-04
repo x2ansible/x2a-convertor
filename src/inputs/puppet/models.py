@@ -4,9 +4,43 @@ This module defines Pydantic models for representing Puppet module analysis.
 These are pure data structures used for LLM structured outputs.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+# ============================================================================
+# Dependency Models
+# ============================================================================
+
+
+class PuppetDependency(BaseModel):
+    """A Puppet module dependency from Puppetfile."""
+
+    name: str = Field(description="Module name (e.g., 'puppetlabs-stdlib')")
+    source: Literal["git", "forge"] = Field(description="Source type")
+    version: str = Field(default="", description="Version string or git ref")
+    url: str = Field(default="", description="Git URL (empty for forge)")
+    path: str = Field(
+        default="", description="Filesystem path where dependency was downloaded"
+    )
+
+    @property
+    def is_forge(self) -> bool:
+        return self.source == "forge"
+
+    @property
+    def is_git(self) -> bool:
+        return self.source == "git"
+
+
+class PuppetDependencyList(BaseModel):
+    """Wrapper for LLM structured output of multiple dependencies."""
+
+    dependencies: list[PuppetDependency] = Field(
+        default_factory=list,
+        description="List of Puppet module dependencies parsed from Puppetfile",
+    )
+
 
 # ============================================================================
 # Execution Item Models (Bedrock-compatible - no circular references)
