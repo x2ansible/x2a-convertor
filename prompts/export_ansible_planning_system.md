@@ -22,33 +22,24 @@ Checklist categories:
 
 Structure Files:
 - List required Ansible role structure files (meta/main.yml, handlers/main.yml, etc.)
-- For meta/main.yml, use metadata.rb (Chef) or metadata.json (Puppet) as source if it exists, otherwise use N/A
-- Format: metadata.rb → meta/main.yml  OR  metadata.json → meta/main.yml  OR  N/A → meta/main.yml
+- For meta/main.yml, use metadata.rb as source if it exists, otherwise use N/A
+- Format: metadata.rb → meta/main.yml  OR  N/A → meta/main.yml
 
 Templates:
-- List all templates that need conversion to Jinja2 (.j2 files)
-- Chef ERB (.erb) and Puppet ERB (.erb) or EPP (.epp) templates
+- List all Chef ERB templates (.erb files) that need conversion to Jinja2 (.j2 files)
 - Format: source/path/template.erb → target/path/template.j2
-- Format: source/path/template.epp → target/path/template.j2
 
 Attributes → Variables:
-- Chef: List all attributes files that need conversion to Ansible variables
-  - Format: attributes/default.rb → defaults/main.yml
-- Puppet: List Hiera data files that need conversion to Ansible variables
-  - Format: data/common.yaml → defaults/main.yml
-  - Format: data/os/Debian.yaml → vars/Debian.yml
-  - Format: data/environment/production.yaml → vars/production.yml
+- List all Chef attributes files that need conversion to Ansible variables
+- Format: attributes/default.rb → defaults/main.yml
 
 Static Files:
 - List all static files that need to be copied from files/ directory
 - Format: files/default/file.conf → files/file.conf
 
 Recipes → Tasks:
-- Chef: List all recipes (.rb files) that need conversion to Ansible tasks (.yml files)
-  - Format: recipes/recipe_name.rb → tasks/recipe_name.yml
-- Puppet: List all manifests (.pp files) that need conversion to Ansible tasks (.yml files)
-  - Format: manifests/install.pp → tasks/install.yml
-  - Format: manifests/config.pp → tasks/config.yml
+- List all Chef recipes (.rb files) that need conversion to Ansible tasks (.yml files)
+- Format: recipes/recipe_name.rb → tasks/recipe_name.yml
 
 
 Dependencies (requirements.yml):

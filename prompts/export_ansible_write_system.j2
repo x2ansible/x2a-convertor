@@ -20,46 +20,20 @@ OPTIONAL: After writing files, you can run ansible_lint on the output directory 
 Key conversion rules:
 
 TEMPLATES (.erb / .epp → .j2):
-CRITICAL: You MUST read the source template file and convert its actual content to Jinja2 format.
+CRITICAL: You MUST read the source .erb file and convert its actual content to Jinja2 format.
 NEVER write placeholder variables like {% raw %}{{ template_name_content }}{% endraw %} - this is wrong!
 
 Step-by-step process for EVERY template:
-1. Use read_file to read the source template file (.erb or .epp)
-2. Convert the syntax to Jinja2:
-
-Chef/Puppet ERB syntax:{% raw %}
+1. Use read_file to read the Chef ERB source file
+2. Convert the ERB syntax to Jinja2:{% raw %}
    - <%= @variable %> → {{ variable }} (remove @ prefix)
    - <%= variable %> → {{ variable }}
    - <% if @condition %> → {% if condition %}
    - <% @items.each do |item| %> → {% for item in items %}
    - <% end %> → {% endfor %} or {% endif %}{% endraw %}
-
-Puppet EPP syntax:{% raw %}
-   - <%= $variable %> → {{ variable }} (remove $ prefix)
-   - <% if $condition { %> → {% if condition %}
-   - <% unless $condition { %> → {% if not condition %}
-   - <% $items.each |$item| { %> → {% for item in items %}
-   - <% } %> → {% endfor %} or {% endif %}
-   - <%- (trim left) and -%> (trim right) work like {%- and -%} in Jinja2{% endraw %}
-
 3. Write the CONVERTED CONTENT using write_file (NOT ansible_write)
 
-PUPPET VARIABLE NAMING IN TEMPLATES — CRITICAL:
-The migration plan maps Puppet namespaced parameters to Ansible variable names
-(e.g., `profile_haproxy::stats_user` → `haproxy_stats_user`).
-When converting templates, ALWAYS use the Ansible variable name from the migration plan.
-
-WRONG — bare Puppet variable name:{% raw %}
-```
-stats auth {{ stats_user }}:{{ stats_password }}
-```{% endraw %}
-
-CORRECT — Ansible role variable name:{% raw %}
-```
-stats auth {{ haproxy_stats_user }}:{{ haproxy_stats_password }}
-```{% endraw %}
-
-Example ERB conversion (Chef/Puppet):
+Example conversion:
 Source ERB (site.conf.erb):
 ```
 server_name <%= @server_name %>;
@@ -82,32 +56,12 @@ root {{ document_root }};
 {% endif %}{% endraw %}
 ```
 
-Example EPP conversion (Puppet):
-Source EPP (backend.conf.epp):
-```
-<%- | String $backend_name, Integer $port, Array $servers | -%>
-backend <%= $backend_name %>
-  balance roundrobin
-<% $servers.each |$server| { -%>
-  server <%= $server %> <%= $server %>:<%= $port %>
-<% } -%>
-```
-
-Correct Jinja2 output (backend.conf.j2):
-```{% raw %}
-backend {{ backend_name }}
-  balance roundrobin
-{% for server in servers %}
-  server {{ server }} {{ server }}:{{ port }}
-{% endfor %}{% endraw %}
-```
-
 WRONG output (do NOT do this):
 ```{% raw %}
 {{ site_conf_content }}{% endraw %}
 ```
 
-If a template has NO template variables (static content), copy it as-is.
+If a template has NO ERB variables (static content), copy it as-is.
 
 TEMPLATE VARIABLE PASSING:
 When a task uses ansible.builtin.template and needs to pass variables into the template, use
@@ -145,23 +99,11 @@ Migrated roles should be portable across OS families unless the source explicitl
   `ansible_os_family` conditionals in defaults/main.yml rather than hardcoding values
 - Put OS-dependent values in defaults/main.yml as variables, not hardcoded in templates or tasks
 
-SOURCE FILES → ANSIBLE TASKS:
-- Convert Chef recipes (.rb) or Puppet manifests (.pp) to Ansible task files (.yml)
-- Use FQCN (Fully Qualified Collection Names): ansible.builtin.package, NOT package
+RECIPES (.rb → .yml tasks):
+- Convert Chef resources to Ansible modules using FQCN (Fully Qualified Collection Names)
+- Example: ansible.builtin.package, NOT package
 - Task files must be a flat list of tasks WITHOUT playbook wrappers (no hosts:, no tasks: wrapper)
 - Use ansible_write tool for task files
-
-Puppet manifest conversion:
-- `package` → `ansible.builtin.package`
-- `service` → `ansible.builtin.service` or `ansible.builtin.systemd`
-- `file` with `content => template(...)` → `ansible.builtin.template`
-- `file` with `source => puppet:///...` → `ansible.builtin.copy`
-- `file` with `ensure => directory` → `ansible.builtin.file` with `state: directory`
-- `exec` → `ansible.builtin.command` with `changed_when`/`creates`/`unless`
-- `cron` → `ansible.builtin.cron`
-- `each` loops → `loop:` with `dict2items` for hashes
-- `if`/`unless`/`case` → `when:` conditions
-- Firewall: prefer `community.general.ufw` module over raw `ansible.builtin.command: ufw`
 
 COMMAND vs SHELL MODULE SELECTION:
 - Use ansible.builtin.command for simple, single commands with no shell operators
@@ -348,63 +290,9 @@ CORRECT task file format:
     state: started
 ```
 
-VARIABLES AND DEFAULTS:
-Chef attributes (attributes/*.rb → defaults/main.yml):
+ATTRIBUTES (attributes/*.rb → defaults/main.yml):
 - Convert Ruby hash syntax to YAML
 - default['key'] = 'value' becomes key: 'value'
-
-Puppet Hiera data (data/*.yaml → defaults/main.yml + vars/):
-- Hiera `common.yaml` → `defaults/main.yml`
-- Strip Puppet namespace: `profile_haproxy::stats_user` → `haproxy_stats_user`
-- Per-OS Hiera data (`os/Debian.yaml`) → `vars/Debian.yml` loaded via `include_vars` based on `ansible_os_family`
-- Per-environment/datacenter/cluster data → `vars/` files loaded via `include_vars`
-- Puppet facts → Ansible facts: `$facts['os']['family']` → `ansible_os_family`, `$facts['networking']['ip']` → `ansible_default_ipv4.address`
-
-DEFAULTS/MAIN.YML — CRITICAL:
-- Values in defaults/main.yml MUST be plain values, NOT Jinja2 references to other variables
-- WRONG: `haproxy_stats_user: "{% raw %}{{ stats_user | default('admin') }}{% endraw %}"`
-- CORRECT: `haproxy_stats_user: admin`
-
-DEEP MERGE for Puppet Hiera variables:
-When the migration plan marks a variable as "deep merged" (e.g., `backends: (type: hash, deep merged)`),
-the variable is defined at multiple Hiera levels and values must be merged recursively, not replaced.
-
-Pattern:
-- Define the base value in `defaults/main.yml` (e.g., `haproxy_backends`)
-- In each vars/ override file, use the `_override` suffix (e.g., `haproxy_backends_override`)
-- In `load_vars.yml`, AFTER each `include_vars`, add a `set_fact` that merges the override into the base
-
-Complete `load_vars.yml` example:
-```yaml{% raw %}
----
-- name: Load OS-specific variables
-  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
-  failed_when: false
-
-- name: Load datacenter-specific variables
-  ansible.builtin.include_vars: "{{ haproxy_datacenter }}.yml"
-  when: haproxy_datacenter is defined
-  failed_when: false
-
-- name: Deep merge datacenter backend overrides
-  ansible.builtin.set_fact:
-    haproxy_backends: "{{ haproxy_backends | default({}) | combine(haproxy_backends_override, recursive=True) }}"
-  when: haproxy_backends_override is defined
-
-- name: Load cluster-specific variables
-  ansible.builtin.include_vars: "{{ haproxy_cluster }}.yml"
-  when: haproxy_cluster is defined
-  failed_when: false
-
-- name: Deep merge cluster backend overrides
-  ansible.builtin.set_fact:
-    haproxy_backends: "{{ haproxy_backends | default({}) | combine(haproxy_backends_override, recursive=True) }}"
-  when: haproxy_backends_override is defined{% endraw %}
-```
-
-The `_override` variable is loaded by `include_vars` from each level's vars file, then merged into the
-base variable. Each level's merge builds on the previous result, so cluster overrides datacenter
-overrides common — matching Puppet's Hiera precedence.
 
 STATIC FILES:
 - Copy directly from files/default/* to files/* using copy_file tool
@@ -459,6 +347,10 @@ IMPORTANT: Use Ubuntu release names (bionic, focal) NOT version numbers ("18.04"
 
 {% if source_technology == 'Ansible' %}
 {% include 'write_from_ansible.md' %}
+{% endif %}
+
+{% if source_technology == 'Puppet' %}
+{% include 'write_from_puppet.md' %}
 {% endif %}
 
 Do NOT generate molecule files (molecule/default/*) — they are handled by a separate MoleculeAgent.
