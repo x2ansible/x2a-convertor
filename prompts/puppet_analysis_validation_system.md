@@ -14,11 +14,11 @@ You will receive:
 
 1. **Completeness**: All analyzed manifests are mentioned in the migration plan
 2. **Consistency**: Resource counts and types match the structured analysis
-3. **Hiera Coverage**: All Hiera variables are mapped to Ansible targets (defaults/main.yml, group_vars, host_vars) with Ansible variable names
-4. **Template Coverage**: All templates are accounted for with correct render counts, and templates with non-trivial Ruby logic have conversion notes
-5. **Custom Component Coverage**: Custom types, facts, and functions have Ansible equivalents noted
-6. **PuppetDB Migration Mapping**: Any exported resources, collectors, or puppetdb_query() calls have a documented migration target (external DB / host_vars / group_vars / gather_facts) and an Ansible access method (dynamic inventory / lookup plugin / ansible_facts)
-7. **Variable Mapping**: The Variables section correctly maps Hiera levels to Ansible targets with variable migration summary
+3. **Hiera Coverage**: All Hiera variables are documented with their values, types, and hierarchy levels
+4. **Template Coverage**: All templates are accounted for with correct render counts, and templates with non-trivial logic have conversion notes
+5. **Custom Component Coverage**: Custom types, facts, and functions are documented with their purpose and functionality
+6. **PuppetDB Migration Mapping**: Any exported resources, collectors, or puppetdb_query() calls have documented migration notes explaining the cross-node data patterns
+7. **Variable Mapping**: The Variables section correctly documents Hiera hierarchy with migration notes and variable summary
 10. **No Hallucinations**: Nothing in the plan contradicts the structured analysis
 
 ## Response Format

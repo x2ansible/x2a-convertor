@@ -11,6 +11,7 @@ from src.types import BaseState
 
 from .models import (
     CredentialAnalysisResult,
+    PuppetDependency,
     PuppetStructuredAnalysis,
 )
 
@@ -24,8 +25,7 @@ class PuppetState(BaseState):
     """
 
     specification: str = field(kw_only=True)
-    dependency_paths: list[str] = field(kw_only=True, default_factory=list)
-    dependency_info: list[dict] = field(kw_only=True, default_factory=list)
+    dependencies: list[PuppetDependency] = field(kw_only=True, default_factory=list)
     dependencies_dir: str | None = field(default=None, kw_only=True)
     export_path: str | None = field(default=None, kw_only=True)
     structured_analysis: PuppetStructuredAnalysis | None = field(
@@ -42,7 +42,8 @@ class PuppetState(BaseState):
 
     @property
     def all_paths(self) -> list[Path]:
-        return [Path(x) for x in [self.path, *self.dependency_paths]]
+        dep_names = [dep.name for dep in self.dependencies]
+        return [Path(x) for x in [self.path, *dep_names]]
 
     def update(self, **kwargs) -> "PuppetState":
         return replace(self, **kwargs)

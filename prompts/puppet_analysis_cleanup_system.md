@@ -72,21 +72,23 @@ The module performs operations in this order:
 
 ### Variable Definitions
 
-For each Hiera data file, list variables with exact values, types, AND Ansible target location and variable name.
+For each Hiera data file, list variables with their exact values and types.
+Group by hierarchy level.
 
-**common.yaml (defaults)** → Ansible target: `defaults/main.yml`
-- `module::variable_name`: `value` (type: string) → `module_variable_name`
-- `module::backends`: (type: hash) → `module_backends`
+**common.yaml (defaults)** → Migration note: Base defaults for all nodes
+- `module::variable_name`: `value` (type: string)
+- `module::backends`: (type: hash)
 
-**os/RedHat.yaml (OS-specific)** → Ansible target: `group_vars/RedHat.yml`
-- `module::extra_packages`: `[hatop]` (type: array) → `module_extra_packages`
+**os/RedHat.yaml (OS-specific)** → Migration note: OS-specific variables, loaded conditionally based on OS family
+- `module::extra_packages`: `[hatop]` (type: array)
 
 ### Variable Migration Summary
 
-- **defaults/main.yml**: [N] variables from common.yaml
-- **group_vars/**: [N] variables requiring conditional loading via `include_vars`
-- **host_vars/**: [N] variables for per-host overrides
-- **Encrypted**: [N] variables requiring Ansible Vault or external secret lookup
+- **Common defaults**: [N] variables from common.yaml (base configuration for all nodes)
+- **OS-specific variables**: [N] variables that vary by operating system family
+- **Environment-specific variables**: [N] variables that vary by deployment environment (dev, staging, prod)
+- **Host-specific variables**: [N] variables for individual host overrides
+- **Encrypted variables**: [N] variables that are encrypted (eyaml) and need secure storage
 
 ### Cross-Level Overrides
 
@@ -95,9 +97,9 @@ Variables defined at multiple Hiera levels:
 
 ### Merge Strategy Notes
 
-- `hash` merge → `combine()` filter
-- `deep` merge → `combine(recursive=True)`
-- `first` (default) → standard Ansible precedence
+- Variables using `hash` merge - Hash values from multiple levels are merged (shallow merge)
+- Variables using `deep` merge - Hash values are recursively merged (deep merge)
+- Variables using `first` (default) - First value found wins, no merging
 
 ## Custom Types and Providers
 
@@ -113,23 +115,23 @@ Variables defined at multiple Hiera levels:
 
 ## Puppet Facts Used
 
-[List all Puppet fact references with their Ansible equivalents]
+[List all Puppet fact references and what system information each provides]
 [If none, state: "No Puppet facts referenced in this module."]
 
 ## Template Conversion Notes
 
-[If applicable — for each template with non-trivial Ruby logic, document ERB→Jinja2 conversion: Ruby logic blocks, Jinja2 equivalent, variables needing transformation]
+[If applicable — for each template with non-trivial logic, document: variables used, Ruby logic blocks, conditional rendering, iterations, complex expressions]
 [If no templates or all are straightforward, omit this section]
 
 ## PuppetDB Dependencies
 
-**Migration architecture**: PuppetDB data is migrated to an external data source (e.g., PostgreSQL database, CMDB). Ansible accesses it via dynamic inventory plugins or lookup plugins.
+**Context**: PuppetDB provides a centralized data store for cross-node resource sharing, node facts, and infrastructure queries. Document all PuppetDB usage patterns found in this module.
 
 For each PuppetDB usage, document:
-- **Exported Resources** (`@@`): Resource type, what it exports, who collects it, Ansible strategy (inventory groups + group_vars)
-- **Resource Collectors** (`<<| |>>`): What is collected, filter condition, Ansible strategy (inventory group queries, `groups['name']`)
-- **PuppetDB Queries**: Exact query, returned data, Ansible strategy (database lookup plugin or dynamic inventory variables)
-- **Host Identity Data**: Per-host PuppetDB data → inventory host_vars or dynamic inventory plugin
+- **Exported Resources** (`@@`): Resource type, what it exports, who collects it, migration notes about cross-node data sharing patterns
+- **Resource Collectors** (`<<| |>>`): What is collected, filter condition, migration notes about node discovery requirements
+- **PuppetDB Queries**: Exact query, returned data, migration notes about infrastructure data access patterns
+- **Host Identity Data**: Per-host PuppetDB data and how it's used for node classification
 
 If no PuppetDB dependencies exist, omit this section entirely.
 
@@ -168,10 +170,10 @@ Respond with ONLY the cleaned, final migration plan. No explanations, no preambl
 - All manifests mentioned in correct execution order
 - All .each loops expanded with actual item names
 - Pre-flight checks for every instance individually
-- Variables section with complete variable definitions (NO tables), Ansible target per hierarchy level, and variable migration summary
+- Variables section with complete variable definitions (NO tables), migration notes per hierarchy level, and variable migration summary
 - Variables include merge strategy notes where applicable
 - Puppet Facts Used section
-- Template Conversion Notes for templates with non-trivial Ruby logic (if applicable)
-- PuppetDB section (if applicable) includes migration target and Ansible access method for each dependency
+- Template Conversion Notes for templates with non-trivial logic (if applicable)
+- PuppetDB section (if applicable) includes migration notes for each dependency pattern
 - Source provider information retained
 - Proper template formatting throughout

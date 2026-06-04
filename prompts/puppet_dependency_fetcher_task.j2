@@ -1,0 +1,161 @@
+Here are some examples to help you understand the task:
+
+## Example 1: Forge Modules Only
+
+**Puppetfile:**
+```ruby
+# Core dependencies
+mod 'puppetlabs-stdlib', '9.7.0'
+mod 'puppetlabs-concat', '9.0.2'
+mod 'puppetlabs-firewall', '8.1.3'
+```
+
+**Dependencies directory:** `/tmp/project/migration-dependencies/`
+```
+/tmp/project/migration-dependencies/
+├── stdlib/
+├── concat/
+└── firewall/
+```
+
+**Expected output:**
+{% raw %}
+```json
+{
+  "dependencies": [
+    {
+      "name": "puppetlabs-stdlib",
+      "source": "forge",
+      "version": "9.7.0",
+      "url": "",
+      "path": "/tmp/project/migration-dependencies/stdlib"
+    },
+    {
+      "name": "puppetlabs-concat",
+      "source": "forge",
+      "version": "9.0.2",
+      "url": "",
+      "path": "/tmp/project/migration-dependencies/concat"
+    },
+    {
+      "name": "puppetlabs-firewall",
+      "source": "forge",
+      "version": "8.1.3",
+      "url": "",
+      "path": "/tmp/project/migration-dependencies/firewall"
+    }
+  ]
+}
+```
+{% endraw %}
+
+## Example 2: Mixed Forge and Git Modules
+
+**Puppetfile:**
+```ruby
+# Forge modules
+mod 'puppetlabs-stdlib', '9.7.0'
+
+# Custom git module
+mod 'custom_haproxy',
+  :git => 'https://github.com/example/puppet-haproxy.git',
+  :tag => 'v2.3.0'
+
+mod 'puppetlabs-concat', '9.0.2'
+```
+
+**Dependencies directory:** `/home/user/puppet-module/migration-dependencies/`
+```
+/home/user/puppet-module/migration-dependencies/
+├── stdlib/
+├── custom_haproxy/
+└── concat/
+```
+
+**Expected output:**
+{% raw %}
+```json
+{
+  "dependencies": [
+    {
+      "name": "puppetlabs-stdlib",
+      "source": "forge",
+      "version": "9.7.0",
+      "url": "",
+      "path": "/home/user/puppet-module/migration-dependencies/stdlib"
+    },
+    {
+      "name": "custom_haproxy",
+      "source": "git",
+      "version": "v2.3.0",
+      "url": "https://github.com/example/puppet-haproxy.git",
+      "path": "/home/user/puppet-module/migration-dependencies/custom_haproxy"
+    },
+    {
+      "name": "puppetlabs-concat",
+      "source": "forge",
+      "version": "9.0.2",
+      "url": "",
+      "path": "/home/user/puppet-module/migration-dependencies/concat"
+    }
+  ]
+}
+```
+{% endraw %}
+
+## Example 3: Git with Branch Reference
+
+**Puppetfile:**
+```ruby
+mod 'internal_module',
+  :git => 'https://git.internal.com/puppet/internal_module.git',
+  :branch => 'production'
+
+mod 'puppetlabs-stdlib', '9.7.0'
+```
+
+**Dependencies directory:** `/opt/puppet/migration-dependencies/`
+```
+/opt/puppet/migration-dependencies/
+├── internal_module/
+└── stdlib/
+```
+
+**Expected output:**
+{% raw %}
+```json
+{
+  "dependencies": [
+    {
+      "name": "internal_module",
+      "source": "git",
+      "version": "production",
+      "url": "https://git.internal.com/puppet/internal_module.git",
+      "path": "/opt/puppet/migration-dependencies/internal_module"
+    },
+    {
+      "name": "puppetlabs-stdlib",
+      "source": "forge",
+      "version": "9.7.0",
+      "url": "",
+      "path": "/opt/puppet/migration-dependencies/stdlib"
+    }
+  ]
+}
+```
+{% endraw %}
+
+---
+
+## Your Task
+
+Now parse the following Puppetfile and dependencies directory:
+
+**Puppetfile:**
+```
+{{puppetfile}}
+```
+
+**Dependencies directory:** `{{dependencies_path}}`
+
+Please analyze the Puppetfile content and match it with the downloaded modules in the dependencies directory. Return a properly formatted JSON response matching the PuppetDependencyList schema.
