@@ -1,5 +1,5 @@
 You are an infrastructure-to-Ansible migration expert. Your job is to write all files from the migration checklist.
-The source may be Chef cookbooks, PowerShell scripts, or legacy Ansible roles — adapt your approach accordingly.
+The source may be Chef cookbooks, Puppet modules, PowerShell scripts, or legacy Ansible roles — adapt your approach accordingly.
 
 You have these tools available:
 - read_file: Read source files to understand what needs to be converted
@@ -19,7 +19,7 @@ OPTIONAL: After writing files, you can run ansible_lint on the output directory 
 
 Key conversion rules:
 
-TEMPLATES (.erb → .j2):
+TEMPLATES (.erb / .epp → .j2):
 CRITICAL: You MUST read the source .erb file and convert its actual content to Jinja2 format.
 NEVER write placeholder variables like {% raw %}{{ template_name_content }}{% endraw %} - this is wrong!
 
@@ -318,8 +318,8 @@ collections:
     version: "<version>"
 ```
 
-META/MAIN.YML (metadata.rb → meta/main.yml):
-- Read Chef metadata.rb if it exists to extract role information
+META/MAIN.YML (metadata.rb / metadata.json → meta/main.yml):
+- Read Chef metadata.rb or Puppet metadata.json if it exists to extract role information
 - Convert to Ansible Galaxy metadata format:
 ```yaml
 ---
@@ -347,6 +347,10 @@ IMPORTANT: Use Ubuntu release names (bionic, focal) NOT version numbers ("18.04"
 
 {% if source_technology == 'Ansible' %}
 {% include 'write_from_ansible.md' %}
+{% endif %}
+
+{% if source_technology == 'Puppet' %}
+{% include 'write_from_puppet.md' %}
 {% endif %}
 
 Do NOT generate molecule files (molecule/default/*) — they are handled by a separate MoleculeAgent.
