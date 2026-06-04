@@ -33,7 +33,7 @@ backend {{ backend_name }}
 
 ### VARIABLE NAMING — CRITICAL:
 The migration plan maps Puppet namespaced parameters to Ansible variable names
-(e.g., `profile_haproxy::stats_user` → `haproxy_stats_user`).
+(e.g., `profile_myapp::db_password` → `myapp_db_password`).
 
 - Strip the Puppet namespace and use the Ansible role variable name everywhere
 - In templates, ALWAYS use the Ansible variable name from the migration plan
@@ -41,18 +41,18 @@ The migration plan maps Puppet namespaced parameters to Ansible variable names
 
 WRONG — bare Puppet variable name in template:{% raw %}
 ```
-stats auth {{ stats_user }}:{{ stats_password }}
+db_host={{ db_host }} db_password={{ db_password }}
 ```{% endraw %}
 
 CORRECT — Ansible role variable name:{% raw %}
 ```
-stats auth {{ haproxy_stats_user }}:{{ haproxy_stats_password }}
+db_host={{ myapp_db_host }} db_password={{ myapp_db_password }}
 ```{% endraw %}
 
 ### DEFAULTS/MAIN.YML:
 - Values MUST be plain values, NOT Jinja2 references to other variables
-- WRONG: `haproxy_stats_user: "{% raw %}{{ stats_user | default('admin') }}{% endraw %}"`
-- CORRECT: `haproxy_stats_user: admin`
+- WRONG: `myapp_db_user: "{% raw %}{{ db_user | default('app') }}{% endraw %}"`
+- CORRECT: `myapp_db_user: app`
 
 ### PUPPET MANIFESTS (.pp → .yml tasks):
 Convert Puppet resources to Ansible modules:
@@ -84,8 +84,8 @@ When the migration plan marks a variable as "deep merged" (e.g., `backends: (typ
 the variable is defined at multiple Hiera levels and values must be merged recursively, not replaced.
 
 Pattern:
-- Define the base value in `defaults/main.yml` (e.g., `haproxy_backends`)
-- In each vars/ override file, use the `_override` suffix (e.g., `haproxy_backends_override`)
+- Define the base value in `defaults/main.yml` (e.g., `myapp_backends`)
+- In each vars/ override file, use the `_override` suffix (e.g., `myapp_backends_override`)
 - In `load_vars.yml`, AFTER each `include_vars`, add a `set_fact` that merges the override into the base
 
 Complete `load_vars.yml` example:
@@ -96,24 +96,24 @@ Complete `load_vars.yml` example:
   failed_when: false
 
 - name: Load datacenter-specific variables
-  ansible.builtin.include_vars: "{{ haproxy_datacenter }}.yml"
-  when: haproxy_datacenter is defined
+  ansible.builtin.include_vars: "{{ myapp_datacenter }}.yml"
+  when: myapp_datacenter is defined
   failed_when: false
 
 - name: Deep merge datacenter backend overrides
   ansible.builtin.set_fact:
-    haproxy_backends: "{{ haproxy_backends | default({}) | combine(haproxy_backends_override, recursive=True) }}"
-  when: haproxy_backends_override is defined
+    myapp_backends: "{{ myapp_backends | default({}) | combine(myapp_backends_override, recursive=True) }}"
+  when: myapp_backends_override is defined
 
 - name: Load cluster-specific variables
-  ansible.builtin.include_vars: "{{ haproxy_cluster }}.yml"
-  when: haproxy_cluster is defined
+  ansible.builtin.include_vars: "{{ myapp_cluster }}.yml"
+  when: myapp_cluster is defined
   failed_when: false
 
 - name: Deep merge cluster backend overrides
   ansible.builtin.set_fact:
-    haproxy_backends: "{{ haproxy_backends | default({}) | combine(haproxy_backends_override, recursive=True) }}"
-  when: haproxy_backends_override is defined{% endraw %}
+    myapp_backends: "{{ myapp_backends | default({}) | combine(myapp_backends_override, recursive=True) }}"
+  when: myapp_backends_override is defined{% endraw %}
 ```
 
 The `_override` variable is loaded by `include_vars` from each level's vars file, then merged into the
