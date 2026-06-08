@@ -295,8 +295,8 @@ class PuppetSubagent:
         """Analyze a single manifest file with caching."""
         file_path_str = str(pp_file.resolve())
 
-        cahed_manifest = self._manifest_cache.get(file_path_str)
-        if cahed_manifest:
+        cached_manifest = self._manifest_cache.get(file_path_str)
+        if cached_manifest:
             slog.debug(f"Using cached analysis for: {pp_file}")
             return self._manifest_cache[file_path_str]
 
