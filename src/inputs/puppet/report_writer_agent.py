@@ -18,7 +18,6 @@ from src.inputs.puppet.state import PuppetState
 from src.inputs.puppet.tools import HieraParserTool
 from src.inputs.tree_analysis import TreeSitterAnalyzer
 from src.types.telemetry import AgentMetrics
-from src.utils.path import Path
 
 
 class ReportWriterAgent(InputAgent[PuppetState]):
@@ -77,21 +76,6 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             return ""
 
         file_paths = set(state.structured_analysis.analyzed_file_paths)
-
-        if state.dependencies_dir:
-            deps_path = Path(state.dependencies_dir)
-            if deps_path.exists():
-                for file_path in deps_path.rglob("*"):
-                    if file_path.is_file() and file_path.suffix in {
-                        ".pp",
-                        ".erb",
-                        ".epp",
-                        ".rb",
-                        ".yaml",
-                        ".yml",
-                    }:
-                        file_paths.add(Path(file_path).relative_to_cwd())
-
         return "\n".join(sorted(file_paths))
 
     def _generate_tree_sitter_report(self, path: str) -> str:
