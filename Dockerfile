@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/ubi:latest
+FROM registry.access.redhat.com/ubi10/ubi:latest
 
 RUN dnf install -y \
     python3.12 \
@@ -9,8 +9,11 @@ RUN dnf install -y \
     gcc \
     gcc-c++ \
     make \
+    cmake \
     ruby \
     ruby-devel \
+    libffi-devel \
+    libyaml-devel \
     && dnf clean all
 
 # Uv is not part of ubi.
@@ -20,6 +23,7 @@ ENV PATH="/root/.local/bin:${PATH}"
 # Chef CLI is needed for chef agent (installed via gem for multi-arch support)
 RUN gem install chef-cli --no-document
 RUN gem install berkshelf
+RUN gem install r10k --no-document
 
 # Accept Chef licenses non-interactively
 ENV CHEF_LICENSE=accept-no-persist
