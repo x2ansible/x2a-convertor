@@ -7,6 +7,7 @@ Provides a reusable foundation with:
 - LLM invocation helpers (react, structured, direct)
 """
 
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any, ClassVar
@@ -18,6 +19,8 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 
+from src.config import get_settings
+from src.middleware.agent_dump import AgentDumpMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.model import get_model, get_runnable_config, report_tool_calls
 from src.types.base_state import BaseState
@@ -42,7 +45,10 @@ class BaseAgent[S: BaseState](ABC):
 
     def __init__(self, model: BaseChatModel | None = None):
         self.model = model or get_model()
-        self._log = get_logger(self.__class__.__module__).bind(agent=self.agent_name)
+        self.agent_id = str(uuid.uuid4())
+        self._log = get_logger(self.__class__.__module__).bind(
+            agent=self.agent_name, agent_id=self.agent_id
+        )
 
     @property
     def agent_name(self) -> str:
@@ -62,6 +68,8 @@ class BaseAgent[S: BaseState](ABC):
 
         When RULES_FILE is set, RulesMiddleware is included
         to inject rules as a message at agent startup.
+        When JSON_LINES is configured, AgentDumpMiddleware is included
+        to dump messages for debugging.
         """
         stack: list[AgentMiddleware] = []
         if self.RULES_FILE:
@@ -73,6 +81,9 @@ class BaseAgent[S: BaseState](ABC):
                 messages_to_keep=20,
             ),
         )
+        settings = get_settings()
+        if settings.logging.json_lines:
+            stack.append(AgentDumpMiddleware(self.agent_name, self.agent_id))
         return stack
 
     def __call__(self, state: S) -> S:
@@ -165,6 +176,7 @@ class BaseAgent[S: BaseState](ABC):
 
         agent = create_agent(
             model=self.model,
+            middleware=self.middleware(),
             response_format=schema,
         )
 

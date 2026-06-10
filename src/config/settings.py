@@ -274,6 +274,11 @@ class LoggingSettings(BaseSettings):
             description="Log level for x2convertor namespace",
         ),
     ] = "INFO"
+    json_lines: Path | None = Field(
+        default=None,
+        validation_alias="JSON_LINES",
+        description="Path to directory for dumping agent messages in JSON Lines format",
+    )
 
     @field_validator("log_level", mode="before")
     @classmethod
