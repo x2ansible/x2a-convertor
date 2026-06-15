@@ -52,6 +52,14 @@ class MetadataExtractionAgent(BaseAgent[InitState]):
         messages = self._build_messages(state.migration_plan_content)
         response = self.invoke_structured(MetadataCollection, messages, metrics)
 
+        if not response:
+            self._log.error(
+                "Failed to extract metadata: structured output validation failed"
+            )
+            return state.mark_failed(
+                "Metadata extraction failed: LLM did not return valid structured output"
+            )
+
         self._log.debug(f"LLM metadata extraction response: {response}")
 
         metadata_list = [module.model_dump(mode="json") for module in response.modules]
