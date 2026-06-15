@@ -15,6 +15,7 @@ from typing import Any, ClassVar
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langchain.agents.middleware.types import AgentMiddleware
+from langchain.agents.structured_output import StructuredOutputValidationError
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
@@ -169,25 +170,35 @@ class BaseAgent[S: BaseState](ABC):
     ) -> Any:
         """Invoke model with structured output schema.
 
-        Returns the parsed schema instance.
+        Returns the parsed schema instance, or None if validation fails.
 
         The reason why it's an agent it to be able to iterate if the model cannot do it in the first run.
         """
-
         agent = create_agent(
             model=self.model,
             middleware=self.middleware(),
             response_format=schema,
         )
 
-        result = agent.invoke(
-            {"messages": messages},
-            get_runnable_config(),
-        )
+        try:
+            result = agent.invoke(
+                {"messages": messages},
+                get_runnable_config(),
+            )
+
+        except StructuredOutputValidationError as e:
+            schema_name = getattr(schema, "__name__", str(schema))
+            self._log.error(
+                f"Structured output validation failed for schema '{schema_name}': {e.source}",
+                tool_name=e.tool_name,
+                ai_message_content=str(e.ai_message.content),
+            )
+            return None
 
         if metrics:
             input_tokens, output_tokens = self._extract_token_usage(result)
             metrics.record_tokens(input_tokens, output_tokens)
+
         return result.get("structured_response")
 
     def invoke_llm(
