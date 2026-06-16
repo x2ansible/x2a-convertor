@@ -22,6 +22,7 @@ from langchain_core.tools import BaseTool
 
 from src.config import get_settings
 from src.middleware.agent_dump import AgentDumpMiddleware
+from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.model import get_model, get_runnable_config, report_tool_calls
 from src.types.base_state import BaseState
@@ -43,6 +44,7 @@ class BaseAgent[S: BaseState](ABC):
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = []
     _NAME: ClassVar[str | None] = None
     RULES_FILE: ClassVar[str | None] = None
+    GOAL: ClassVar[str | None] = None
 
     def __init__(self, model: BaseChatModel | None = None):
         self.model = model or get_model()
@@ -50,6 +52,8 @@ class BaseAgent[S: BaseState](ABC):
         self._log = get_logger(self.__class__.__module__).bind(
             agent=self.agent_name, agent_id=self.agent_id
         )
+        # Cache middleware instances to preserve state (e.g., retry_count)
+        self._middleware_cache: list[AgentMiddleware] | None = None
 
     @property
     def agent_name(self) -> str:
@@ -67,12 +71,24 @@ class BaseAgent[S: BaseState](ABC):
     def middleware(self) -> list:
         """Return middleware list for conversation compaction.
 
+        When GOAL is set, GoalValidationMiddleware is added first
+        to validate goal achievement and retry if necessary.
         When RULES_FILE is set, RulesMiddleware is included
         to inject rules as a message at agent startup.
         When JSON_LINES is configured, AgentDumpMiddleware is included
         to dump messages for debugging.
+
+        Middleware instances are cached to preserve state across invocations
+        (e.g., retry_count in GoalValidationMiddleware).
         """
+        # Return cached middleware if available
+        if self._middleware_cache is not None:
+            return self._middleware_cache
+
+        # Build middleware stack once
         stack: list[AgentMiddleware] = []
+        if self.GOAL:
+            stack.append(GoalValidationMiddleware(self.GOAL, agent=self))
         if self.RULES_FILE:
             stack.append(RulesMiddleware(self.RULES_FILE))
         stack.append(
@@ -85,6 +101,9 @@ class BaseAgent[S: BaseState](ABC):
         settings = get_settings()
         if settings.logging.json_lines:
             stack.append(AgentDumpMiddleware(self.agent_name, self.agent_id))
+
+        # Cache for reuse
+        self._middleware_cache = stack
         return stack
 
     def __call__(self, state: S) -> S:
@@ -167,17 +186,26 @@ class BaseAgent[S: BaseState](ABC):
         schema: type,
         messages: Any,
         metrics: AgentMetrics | None = None,
+        **kwargs,
     ) -> Any:
         """Invoke model with structured output schema.
 
         Returns the parsed schema instance, or None if validation fails.
 
         The reason why it's an agent it to be able to iterate if the model cannot do it in the first run.
+
+        Args:
+            schema: Pydantic model schema for structured output
+            messages: Messages to send to the model
+            metrics: Optional metrics collector
+            middleware: Middleware stack to use. If None, uses self.middleware().
+                        Pass [] to bypass middleware (e.g., for validation to avoid recursion)
+            **kwargs: Additional arguments (e.g., tools=[...])
         """
         agent = create_agent(
             model=self.model,
-            middleware=self.middleware(),
             response_format=schema,
+            tools=kwargs.get("tools", []),
         )
 
         try:

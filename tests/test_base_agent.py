@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.messages.ai import UsageMetadata
 
 from src.base_agent import BaseAgent
+from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.types.base_state import BaseState
 
@@ -34,6 +35,16 @@ class RuledAgent(BaseAgent[BaseState]):
     """Agent with RULES_FILE set for testing."""
 
     RULES_FILE = "INPUT-AGENTS.md"
+
+    def execute(self, state: BaseState, metrics):
+        """Minimal execute implementation."""
+        return state
+
+
+class GoalAgent(BaseAgent[BaseState]):
+    """Agent with GOAL set for testing."""
+
+    GOAL = "Verify output file exists"
 
     def execute(self, state: BaseState, metrics):
         """Minimal execute implementation."""
@@ -437,10 +448,9 @@ class TestBaseAgentInvokeStructured:
 
 
 class TestBaseAgentMiddleware:
-    """Tests for BaseAgent.middleware() with RULES_FILE."""
+    """Tests for BaseAgent.middleware() configuration."""
 
-    def test_middleware_without_rules_file(self):
-        """Agent without RULES_FILE returns only SummarizationMiddleware."""
+    def test_middleware_without_rules_or_goal(self):
         agent = ConcreteAgent()
         stack = agent.middleware()
 
@@ -448,7 +458,6 @@ class TestBaseAgentMiddleware:
         assert isinstance(stack[0], SummarizationMiddleware)
 
     def test_middleware_with_rules_file(self):
-        """Agent with RULES_FILE prepends RulesMiddleware."""
         agent = RuledAgent()
         stack = agent.middleware()
 
@@ -456,12 +465,41 @@ class TestBaseAgentMiddleware:
         assert isinstance(stack[0], RulesMiddleware)
         assert isinstance(stack[1], SummarizationMiddleware)
 
+    def test_middleware_with_goal(self):
+        agent = GoalAgent()
+        stack = agent.middleware()
+
+        assert len(stack) == 2
+        assert isinstance(stack[0], GoalValidationMiddleware)
+        assert isinstance(stack[1], SummarizationMiddleware)
+
+    def test_middleware_with_goal_passes_agent_reference(self):
+        agent = GoalAgent()
+        stack = agent.middleware()
+        goal_mw = stack[0]
+
+        assert goal_mw.agent is agent
+        assert goal_mw.goal_description == "Verify output file exists"
+
+    def test_middleware_is_cached(self):
+        agent = GoalAgent()
+        first = agent.middleware()
+        second = agent.middleware()
+
+        assert first is second
+
     def test_rules_file_classvar_defaults_to_none(self):
-        """RULES_FILE defaults to None on BaseAgent subclasses."""
         agent = ConcreteAgent()
         assert agent.RULES_FILE is None
 
+    def test_goal_classvar_defaults_to_none(self):
+        agent = ConcreteAgent()
+        assert agent.GOAL is None
+
     def test_rules_file_classvar_set_on_subclass(self):
-        """RULES_FILE is accessible on subclasses that set it."""
         agent = RuledAgent()
         assert agent.RULES_FILE == "INPUT-AGENTS.md"
+
+    def test_goal_classvar_set_on_subclass(self):
+        agent = GoalAgent()
+        assert agent.GOAL == "Verify output file exists"

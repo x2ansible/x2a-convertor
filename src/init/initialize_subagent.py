@@ -37,6 +37,8 @@ class InitializeSubAgent(BaseAgent[InitState]):
         lambda: WriteFileTool(),
     ]
 
+    GOAL = f"Verify that the file '{MIGRATION_PLAN_FILE}' exists and contains valid migration plan content"
+
     SYSTEM_PROMPT_NAME = "init_migration_instructions"
     USER_PROMPT_NAME = "init_migration_plan_request"
 
