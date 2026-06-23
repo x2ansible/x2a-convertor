@@ -17,7 +17,7 @@ from langchain.agents.middleware import SummarizationMiddleware
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain.agents.structured_output import StructuredOutputValidationError
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import BaseTool
 
 from src.config import get_settings
@@ -45,6 +45,29 @@ class BaseAgent[S: BaseState](ABC):
     _NAME: ClassVar[str | None] = None
     RULES_FILE: ClassVar[str | None] = None
     GOAL: ClassVar[str | None] = None
+
+    STRUCTURED_ERROR = """You failed to generate a valid structured output. The validation error was:
+
+{validation_error}
+
+Schema required: {schema_name}
+
+Your response content was:
+{ai_message_content}
+
+Common issues:
+1. You returned a simple value (string, number, boolean) instead of a JSON object
+2. You're missing required fields defined in the schema
+3. Field types don't match the schema (e.g., string instead of list)
+4. Field names don't match exactly (check spelling and case)
+
+Please provide a complete response that:
+- Returns a valid JSON object (not a primitive value)
+- Includes ALL required fields from the {schema_name} schema
+- Uses correct data types for each field
+- Follows the exact field names specified in the schema
+
+Retry your response now, ensuring it matches the schema structure exactly."""
 
     def __init__(self, model: BaseChatModel | None = None):
         self.model = model or get_model()
@@ -186,6 +209,7 @@ class BaseAgent[S: BaseState](ABC):
         schema: type,
         messages: Any,
         metrics: AgentMetrics | None = None,
+        max_retries: int = 3,
         **kwargs,
     ) -> Any:
         """Invoke model with structured output schema.
@@ -202,32 +226,60 @@ class BaseAgent[S: BaseState](ABC):
                         Pass [] to bypass middleware (e.g., for validation to avoid recursion)
             **kwargs: Additional arguments (e.g., tools=[...])
         """
+        if max_retries <= 0:
+            max_retries = 1
+
         agent = create_agent(
             model=self.model,
             response_format=schema,
             tools=kwargs.get("tools", []),
         )
 
-        try:
-            result = agent.invoke(
-                {"messages": messages},
-                get_runnable_config(),
-            )
+        current_messages = messages
+        for attempt in range(max_retries):
+            try:
+                result = agent.invoke(
+                    {"messages": current_messages},
+                    get_runnable_config(),
+                )
 
-        except StructuredOutputValidationError as e:
-            schema_name = getattr(schema, "__name__", str(schema))
-            self._log.error(
-                f"Structured output validation failed for schema '{schema_name}': {e.source}",
-                tool_name=e.tool_name,
-                ai_message_content=str(e.ai_message.content),
-            )
-            return None
+                if metrics:
+                    input_tokens, output_tokens = self._extract_token_usage(result)
+                    metrics.record_tokens(input_tokens, output_tokens)
 
-        if metrics:
-            input_tokens, output_tokens = self._extract_token_usage(result)
-            metrics.record_tokens(input_tokens, output_tokens)
+                return result.get("structured_response")
 
-        return result.get("structured_response")
+            except StructuredOutputValidationError as e:
+                is_last_attempt = attempt == max_retries - 1
+                schema_name = getattr(schema, "__name__", str(schema))
+
+                self._log.error(
+                    f"Structured output validation failed for schema '{schema_name}' "
+                    f"(attempt {attempt + 1}/{max_retries}): {e.source}",
+                    tool_name=e.tool_name,
+                    ai_message_content=str(e.ai_message.content),
+                )
+
+                # These shouldn't be an issue, but just in case.
+                if not self.STRUCTURED_ERROR:
+                    return None
+
+                if not e.ai_message:
+                    return None
+
+                if is_last_attempt:
+                    return None
+
+                error_message = self.STRUCTURED_ERROR.format(
+                    validation_error=str(e.args[0]),
+                    schema_name=schema_name,
+                    ai_message_content=str(e.ai_message.content),
+                )
+                current_messages.append(e.ai_message)
+                current_messages.append(HumanMessage(content=error_message))
+                continue
+
+        return None
 
     def invoke_llm(
         self,
