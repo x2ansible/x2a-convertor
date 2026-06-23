@@ -75,7 +75,7 @@ class MigrationAnalysisWorkflow:
                 module_migration_plan="Technology detection failed, analysis not available"
             )
 
-        with telemetry_context(state.telemetry, "choose_subagent") as metrics:
+        with telemetry_context(state.telemetry, "Choose provider agent") as metrics:
             try:
                 analyzer = TechnologyRegistry.get_analyzer(technology, self.model)
             except ValueError:
@@ -86,12 +86,13 @@ class MigrationAnalysisWorkflow:
                     module_migration_plan=f"{technology.value} analysis not available"
                 )
 
-            module_plan = analyzer.invoke(
-                state.path, state.user_message, telemetry=state.telemetry
-            )
             if metrics:
                 metrics.record_metric("subagent", analyzer.__class__.__name__)
-            return state.update(module_migration_plan=module_plan)
+
+        module_plan = analyzer.invoke(
+            state.path, state.user_message, telemetry=state.telemetry
+        )
+        return state.update(module_migration_plan=module_plan)
 
     def _prepend_frontmatter(self, path: str, content: str) -> str:
         """Prepend YAML frontmatter with source-path to migration plan content."""
