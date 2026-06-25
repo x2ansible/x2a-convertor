@@ -6,7 +6,7 @@ based on user input and LLM analysis of the migration plans.
 
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from prompts.get_prompt import get_prompt
 from src.exporters.export_agent import ExportAgent
@@ -16,9 +16,16 @@ from src.utils.list_files import list_files
 
 
 class SourceMetadata(BaseModel):
-    """Structured output for module selection in export phase."""
+    """Module path selection for migration export.
 
-    path: str
+    Identifies the target module directory to migrate based on user requirements
+    and the module migration plan. The path must correspond to an actual module
+    directory mentioned in the migration plans.
+    """
+
+    path: str = Field(
+        description="Filesystem path to the module directory selected for migration from the module migration plan"
+    )
 
 
 class ModuleSelectionAgent(ExportAgent[ExportState]):
