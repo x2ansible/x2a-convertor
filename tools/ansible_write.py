@@ -451,13 +451,17 @@ class TaskfileValidator:
         rule = rule_result.rule
         detail = rule_result.detail or {}
 
-        # For R301 (FQCN), only flag if module name differs from FQCN
+        # For R301 (FQCN), only flag if module name differs from FQCN.
+        # Skip when fqcn is empty — ARI can't resolve import_tasks/include_tasks
+        # values and misreports the filename as the module name.
         if (
             rule.rule_id == "R301"
             and detail
             and "module" in detail
             and "fqcn" in detail
         ):
+            if not detail["fqcn"]:
+                return False
             return detail["module"] != detail["fqcn"]
 
         # verdict=True usually means issue found for error-detection rules

@@ -687,3 +687,61 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "main.yml:" in result
         # Should have a line number
         assert any(char.isdigit() for char in result)
+
+    def test_ari_validation_no_false_positive_import_tasks(self) -> None:
+        """Test that import_tasks with FQCN does not trigger R301 false positive.
+
+        ARI misidentifies the filename argument (e.g. 'install.yml') as the
+        module name and returns an empty FQCN, which previously caused a
+        spurious R301 warning.
+        """
+        yaml_content = """---
+- name: Set redis configuration variables
+  ansible.builtin.set_fact:
+    redis_port: "{{ redis_port | default(6379) }}"
+
+- name: Include install tasks
+  ansible.builtin.import_tasks: install.yml
+"""
+        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
+
+        assert "Successfully wrote" in result
+        assert "WARNING" not in result
+        assert "R301" not in result
+        assert Path(file_path).exists()
+
+    def test_ari_validation_no_false_positive_include_tasks(self) -> None:
+        """Test that include_tasks with FQCN does not trigger R301 false positive."""
+        yaml_content = """---
+- name: Include platform-specific tasks
+  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
+"""
+        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
+
+        assert "Successfully wrote" in result
+        assert "WARNING" not in result
+        assert "R301" not in result
+        assert Path(file_path).exists()
+
+    def test_ari_validation_still_catches_short_module_names(self) -> None:
+        """Test that R301 still catches actual non-FQCN module usage."""
+        yaml_content = """---
+- name: Install package
+  apt:
+    name: nginx
+    state: present
+"""
+        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+
+        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
+
+        assert "WARNING" in result
+        assert "R301" in result
+        assert "apt" in result
