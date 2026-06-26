@@ -395,8 +395,8 @@ class WriteAgent(ExportAgent[ExportState]):
                 metrics.record_metric("missing_files", len(final_state.missing_files))
             if final_state.export_state.checklist:
                 stats = final_state.export_state.checklist.get_stats()
-                metrics.record_metric("files_created", stats.get("complete", 0))
-                metrics.record_metric("files_total", stats.get("total", 0))
+                metrics.record_metric("files_created", stats.complete)
+                metrics.record_metric("files_total", stats.total)
 
         self._current_metrics = None
 

@@ -1,6 +1,7 @@
 """Migration checklist management system"""
 
 import json
+from dataclasses import dataclass
 from enum import Enum, StrEnum
 from pathlib import Path
 
@@ -15,6 +16,7 @@ __all__ = [
     "SUMMARY_SUCCESS_MESSAGE",
     "Checklist",
     "ChecklistItem",
+    "ChecklistStats",
     "ChecklistStatus",
 ]
 
@@ -28,6 +30,28 @@ class ChecklistStatus(StrEnum):
     COMPLETE = "complete"
     MISSING = "missing"
     ERROR = "error"
+
+
+@dataclass(frozen=True)
+class ChecklistStats:
+    """Immutable statistics snapshot for a migration checklist."""
+
+    total: int
+    complete: int
+    pending: int
+    missing: int
+    error: int
+
+    def to_markdown(self) -> str:
+        return "\n".join(
+            [
+                f"- **Total items:** {self.total}",
+                f"- **Completed:** {self.complete}",
+                f"- **Pending:** {self.pending}",
+                f"- **Missing:** {self.missing}",
+                f"- **Errors:** {self.error}",
+            ]
+        )
 
 
 class ChecklistItem(BaseModel):
@@ -208,32 +232,24 @@ class Checklist:
     # Query Methods
     # ============================================================================
 
-    def get_stats(self) -> dict[str, int]:
-        """Get statistics about checklist completion"""
-        stats = {
-            "total": len(self._items),
-            "complete": 0,
-            "pending": 0,
-            "missing": 0,
-            "error": 0,
-        }
-
+    def get_stats(self) -> ChecklistStats:
+        """Get statistics about checklist completion."""
+        counts = dict.fromkeys(ChecklistStatus, 0)
         for item in self._items:
-            if item.status == ChecklistStatus.COMPLETE:
-                stats["complete"] += 1
-            elif item.status == ChecklistStatus.PENDING:
-                stats["pending"] += 1
-            elif item.status == ChecklistStatus.MISSING:
-                stats["missing"] += 1
-            elif item.status == ChecklistStatus.ERROR:
-                stats["error"] += 1
+            counts[item.status] += 1
 
-        return stats
+        return ChecklistStats(
+            total=len(self._items),
+            complete=counts[ChecklistStatus.COMPLETE],
+            pending=counts[ChecklistStatus.PENDING],
+            missing=counts[ChecklistStatus.MISSING],
+            error=counts[ChecklistStatus.ERROR],
+        )
 
     def is_complete(self) -> bool:
-        """Check if all checklist items are complete"""
+        """Check if all checklist items are complete."""
         stats = self.get_stats()
-        return stats["complete"] == stats["total"] and stats["total"] > 0
+        return stats.complete == stats.total and stats.total > 0
 
     @property
     def items(self) -> tuple[ChecklistItem, ...]:
@@ -433,9 +449,9 @@ class Checklist:
         stats = self.get_stats()
         return (
             f"Checklist(module='{self.module_name}', "
-            f"total={stats['total']}, complete={stats['complete']}, "
-            f"pending={stats['pending']}, missing={stats['missing']}, "
-            f"error={stats['error']})"
+            f"total={stats.total}, complete={stats.complete}, "
+            f"pending={stats.pending}, missing={stats.missing}, "
+            f"error={stats.error})"
         )
 
     def __str__(self) -> str:
@@ -533,10 +549,10 @@ class Checklist:
         def checklist_summary_tool() -> str:
             """Get the summary of the checklist for the final report"""
             stats = self.get_stats()
-            if stats["total"] == stats["complete"]:
+            if stats.total == stats.complete:
                 return SUMMARY_SUCCESS_MESSAGE
 
-            return f"Checklist summary: {stats['total']} items, {stats['complete']} complete, {stats['pending']} pending, {stats['missing']} missing, {stats['error']} error"
+            return f"Checklist summary: {stats.total} items, {stats.complete} complete, {stats.pending} pending, {stats.missing} missing, {stats.error} error"
 
         return [
             add_task_tool,

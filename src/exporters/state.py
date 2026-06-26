@@ -16,6 +16,7 @@ from src.types import (
     DocumentFile,
     MigrationStateInterface,
 )
+from src.types.checklist import ChecklistStats
 from src.types.technology import Technology
 
 # Constants
@@ -153,7 +154,6 @@ class ExportState(BaseState, MigrationStateInterface):
         )
         checklist = self.checklist
         stats = checklist.get_stats()
-
         lines = (
             self._failure_report(stats, checklist)
             if self.failed
@@ -161,51 +161,46 @@ class ExportState(BaseState, MigrationStateInterface):
         )
 
         if self.telemetry:
-            lines.extend(["", "Telemetry:", self.telemetry.to_summary()])
+            lines.extend(["", "### Telemetry", "", self.telemetry.to_summary()])
 
         return "\n".join(lines)
 
-    def _failure_report(self, stats: dict, checklist: Checklist) -> list[str]:
+    def _failure_report(self, stats: ChecklistStats, checklist: Checklist) -> list[str]:
         """Build summary lines for a failed migration."""
         lines = [
-            f"MIGRATION FAILED for {self.module}",
+            f"## MIGRATION FAILED for {self.module}",
             "",
-            "Failure Reason:",
-            f"  {self.failure_reason}",
+            f"**Failure Reason:** {self.failure_reason}",
             "",
-            "Migration Summary:",
-            f"  Total items: {stats['total']}",
-            f"  Completed: {stats['complete']}",
-            f"  Pending: {stats['pending']}",
-            f"  Missing: {stats['missing']}",
-            f"  Errors: {stats['error']}",
-            f"  Write attempts: {self.write_attempt_counter}",
-            f"  Validation attempts: {self.validation_attempt_counter}",
+            "### Migration Summary",
             "",
-            "Partial Validation Report:",
-            self.validation_report or "Not run",
+            stats.to_markdown(),
+            f"- **Write attempts:** {self.write_attempt_counter}",
+            f"- **Validation attempts:** {self.validation_attempt_counter}",
+            "",
+            "### Partial Validation Report",
+            "",
+            self.validation_report or "_Not run_",
         ]
         if self.review_report:
-            lines.extend(["", "Review Report:", self.review_report])
-        lines.extend(["", "Partial Checklist:", checklist.to_markdown()])
+            lines.extend(["", "### Review Report", "", self.review_report])
+        lines.extend(["", "### Partial Checklist", "", checklist.to_markdown()])
         return lines
 
-    def _success_report(self, stats: dict, checklist: Checklist) -> list[str]:
+    def _success_report(self, stats: ChecklistStats, checklist: Checklist) -> list[str]:
         """Build summary lines for a successful migration."""
         lines = [
-            f"Migration Summary for {self.module}:",
-            f"  Total items: {stats['total']}",
-            f"  Completed: {stats['complete']}",
-            f"  Pending: {stats['pending']}",
-            f"  Missing: {stats['missing']}",
-            f"  Errors: {stats['error']}",
-            f"  Write attempts: {self.write_attempt_counter}",
-            f"  Validation attempts: {self.validation_attempt_counter}",
+            f"## Migration Summary for {self.module}",
             "",
-            "Final Validation Report:",
+            stats.to_markdown(),
+            f"- **Write attempts:** {self.write_attempt_counter}",
+            f"- **Validation attempts:** {self.validation_attempt_counter}",
+            "",
+            "### Final Validation Report",
+            "",
             self.validation_report,
         ]
         if self.review_report:
-            lines.extend(["", "Review Report:", self.review_report])
-        lines.extend(["", "Final checklist:", checklist.to_markdown()])
+            lines.extend(["", "### Review Report", "", str(self.review_report)])
+        lines.extend(["", "### Final Checklist", "", checklist.to_markdown()])
         return lines

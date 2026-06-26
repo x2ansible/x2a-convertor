@@ -18,6 +18,7 @@ from .checklist import (
     SUMMARY_SUCCESS_MESSAGE,
     Checklist,
     ChecklistItem,
+    ChecklistStats,
     ChecklistStatus,
 )
 from .credential import CredentialConfig
@@ -38,6 +39,7 @@ __all__ = [
     "BaseState",
     "Checklist",
     "ChecklistItem",
+    "ChecklistStats",
     "ChecklistStatus",
     "CredentialConfig",
     "DocumentFile",
