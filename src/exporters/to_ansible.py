@@ -177,15 +177,11 @@ class ToAnsibleSubagent:
         if state.failed:
             slog.error(f"Migration failed: {state.failure_reason}")
             state = state.update(current_phase=MigrationPhase.FAILED)
-            slog.error(
-                f"Migration failed: {stats['complete']}/{stats['total']} completed"
-            )
+            slog.error(f"Migration failed: {stats.complete}/{stats.total} completed")
         else:
             slog.info("Finalizing successful migration")
             state = state.update(current_phase=MigrationPhase.COMPLETE)
-            slog.info(
-                f"Migration finalized: {stats['complete']}/{stats['total']} completed"
-            )
+            slog.info(f"Migration finalized: {stats.complete}/{stats.total} completed")
 
         summary_text = state.report_status()
 
