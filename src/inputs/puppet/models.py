@@ -48,68 +48,119 @@ class PuppetDependencyList(BaseModel):
 
 
 class NestedExecutionItem(BaseModel):
-    """Nested execution item (used inside conditionals/iterations).
+    """Single Puppet resource or declaration inside a conditional or iteration block.
 
     Separate from ExecutionItem to avoid circular references which Bedrock doesn't support.
-    This level cannot contain further nesting.
+    This level cannot contain further nesting. Populate only the fields relevant to the type.
     """
 
-    type: str  # "resource", "class_include", "exported_resource", "virtual_resource", "collector"
+    type: str = Field(
+        description='Item type: "resource", "class_include", "exported_resource", "virtual_resource", or "collector"'
+    )
 
-    # Resource fields
-    resource_type: str | None = None
-    title: str | None = None
-    attributes: dict[str, Any] = Field(default_factory=dict)
+    resource_type: str | None = Field(
+        default=None,
+        description="Puppet resource type (e.g., 'file', 'package', 'service'). Set for resource/exported_resource/virtual_resource/collector types",
+    )
+    title: str | None = Field(
+        default=None,
+        description="Resource title or namevar (e.g., '/etc/nginx/nginx.conf'). Set for resource types",
+    )
+    attributes: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Resource attributes as key-value pairs (e.g., {'ensure': 'present', 'mode': '0644'})",
+    )
 
-    # Class include fields
-    class_name: str | None = None
-    relationship: str | None = None
+    class_name: str | None = Field(
+        default=None,
+        description="Fully qualified Puppet class name (e.g., 'apache::mod::ssl'). Set for class_include type",
+    )
+    relationship: str | None = Field(
+        default=None,
+        description="Relationship keyword: 'include', 'require', 'contain', or 'class'",
+    )
 
-    # Collector fields
-    query: str | None = None
+    query: str | None = Field(
+        default=None,
+        description="Collector query expression (e.g., 'tag == production'). Set for collector type",
+    )
 
-    # Optional note
-    note: str | None = None
+    note: str | None = Field(
+        default=None,
+        description="Additional context about this item when the resource has non-obvious behavior",
+    )
 
 
 class ExecutionItem(BaseModel):
-    """Unified execution item for Puppet manifests.
+    """Single execution step in a Puppet manifest.
 
     Uses a type discriminator with optional fields instead of discriminated unions
     to maintain Bedrock compatibility (Bedrock doesn't support oneOf).
-
-    Nested items use NestedExecutionItem to avoid circular references.
+    Populate only the fields relevant to the given type.
     """
 
-    type: str  # "resource", "class_include", "conditional", "iteration", etc.
+    type: str = Field(
+        description='Item type: "resource", "class_include", "conditional", "iteration", "exported_resource", "virtual_resource", or "collector"'
+    )
 
-    # Resource fields (type: resource, exported_resource, virtual_resource)
-    resource_type: str | None = None
-    title: str | None = None
-    attributes: dict[str, Any] = Field(default_factory=dict)
+    resource_type: str | None = Field(
+        default=None,
+        description="Puppet resource type (e.g., 'file', 'package', 'service'). Set for resource/exported_resource/virtual_resource/collector types",
+    )
+    title: str | None = Field(
+        default=None,
+        description="Resource title or namevar (e.g., '/etc/nginx/nginx.conf'). Set for resource types",
+    )
+    attributes: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Resource attributes as key-value pairs (e.g., {'ensure': 'present', 'mode': '0644'})",
+    )
 
-    # Class include fields (type: class_include)
-    class_name: str | None = None
-    relationship: str | None = None
+    class_name: str | None = Field(
+        default=None,
+        description="Fully qualified Puppet class name (e.g., 'apache::mod::ssl'). Set for class_include type",
+    )
+    relationship: str | None = Field(
+        default=None,
+        description="Relationship keyword: 'include', 'require', 'contain', or 'class'",
+    )
 
-    # Conditional fields (type: conditional)
-    condition: str | None = None
-    condition_type: str | None = None
+    condition: str | None = Field(
+        default=None,
+        description="Condition expression (e.g., '$::osfamily == RedHat'). Set for conditional type",
+    )
+    condition_type: str | None = Field(
+        default=None,
+        description="Conditional keyword: 'if', 'unless', 'case', or 'selector'",
+    )
 
-    # Iteration fields (type: iteration)
-    iterator_type: str | None = None
-    collection_variable: str | None = None
-    item_variable: str | None = None
+    iterator_type: str | None = Field(
+        default=None,
+        description="Iterator function: 'each', 'map', 'filter', or 'reduce'. Set for iteration type",
+    )
+    collection_variable: str | None = Field(
+        default=None,
+        description="Variable or expression being iterated over (e.g., '$packages')",
+    )
+    item_variable: str | None = Field(
+        default=None,
+        description="Loop variable name bound to each element (e.g., '$pkg')",
+    )
 
-    # Collector fields (type: collector)
-    query: str | None = None
+    query: str | None = Field(
+        default=None,
+        description="Collector query expression (e.g., 'tag == production'). Set for collector type",
+    )
 
-    # Nested execution order (for conditional, iteration)
-    # Uses NestedExecutionItem instead of ExecutionItem to avoid circular reference
-    execution_order: list[NestedExecutionItem] = Field(default_factory=list)
+    execution_order: list[NestedExecutionItem] = Field(
+        default_factory=list,
+        description="Nested execution items inside this block. Used for conditional and iteration types",
+    )
 
-    # Optional note
-    note: str | None = None
+    note: str | None = Field(
+        default=None,
+        description="Additional context about this item when the resource has non-obvious behavior",
+    )
 
     def format_label(self) -> str:
         """Format this item as a tree label based on its type."""
@@ -149,25 +200,55 @@ NestedExecutionItem.model_rebuild()
 
 
 class ClassInheritance(BaseModel):
-    """Class inheritance via the 'inherits' keyword."""
+    """Puppet class inheritance relationship via the 'inherits' keyword."""
 
-    parent_class: str
-    child_class: str
-    overridden_params: list[str] = Field(default_factory=list)
+    parent_class: str = Field(
+        description="Fully qualified name of the parent class being inherited from"
+    )
+    child_class: str = Field(
+        description="Fully qualified name of the child class that inherits"
+    )
+    overridden_params: list[str] = Field(
+        default_factory=list,
+        description="Parameter names from the parent class that the child overrides",
+    )
 
 
 class ManifestExecutionAnalysis(BaseModel):
-    """LLM structured output for a single .pp manifest."""
+    """Execution analysis of a single Puppet .pp manifest file.
 
-    class_name: str = ""
-    class_parameters: dict[str, str] = Field(default_factory=dict)
-    class_inherits: ClassInheritance | None = None
-    execution_order: list[ExecutionItem] = Field(
-        default_factory=list, description="Sequential execution order of all items"
+    Captures the class declaration, its parameters, inheritance, and the
+    sequential execution order of all resources and control structures.
+    """
+
+    class_name: str = Field(
+        default="",
+        description="Fully qualified Puppet class or defined type name (e.g., 'apache::vhost'). Empty if the manifest has no class declaration",
     )
-    puppetdb_queries: list[str] = Field(default_factory=list)
-    relationship_chains: list[str] = Field(default_factory=list)
-    fact_references: list[str] = Field(default_factory=list)
+    class_parameters: dict[str, str] = Field(
+        default_factory=dict,
+        description="Class parameters as name-to-default-value pairs (e.g., {'port': '80', 'docroot': '/var/www'})",
+    )
+    class_inherits: ClassInheritance | None = Field(
+        default=None,
+        description="Inheritance relationship if the class uses 'inherits'. Null if no inheritance",
+    )
+    execution_order: list[ExecutionItem] = Field(
+        default_factory=list,
+        description="All resources and control structures in the order they appear in the manifest",
+    )
+    puppetdb_queries: list[str] = Field(
+        default_factory=list,
+        description="PuppetDB query expressions found in the manifest (e.g., puppetdb_query() calls)",
+    )
+    relationship_chains: list[str] = Field(
+        default_factory=list,
+        description="Resource ordering chains using -> or ~> notation (e.g., 'Package[nginx] -> Service[nginx]')",
+    )
+    fact_references: list[str] = Field(
+        default_factory=list,
+        description="Facter fact variables referenced in the manifest (e.g., '$::osfamily', '$facts[os][family]')",
+    )
 
 
 # ============================================================================
@@ -176,23 +257,55 @@ class ManifestExecutionAnalysis(BaseModel):
 
 
 class HieraVariableMapping(BaseModel):
-    """Mapping of a single Hiera variable to its Ansible target."""
+    """Mapping of a single Hiera data key to its Ansible equivalent."""
 
-    puppet_key: str
-    value_type: str  # "string", "hash", "array", "integer", "boolean"
-    is_encrypted: bool = False
-    ansible_target: str = ""
-    ansible_variable_name: str = ""
+    puppet_key: str = Field(
+        description="Hiera lookup key (e.g., 'apache::port', 'profile::base::packages')"
+    )
+    value_type: str = Field(
+        description='Data type of the value: "string", "hash", "array", "integer", or "boolean"'
+    )
+    is_encrypted: bool = Field(
+        default=False,
+        description="Whether the value is encrypted with hiera-eyaml (ENC[...] wrapper)",
+    )
+    ansible_target: str = Field(
+        default="",
+        description="Suggested Ansible variable file or location (e.g., 'group_vars/all', 'host_vars/webserver')",
+    )
+    ansible_variable_name: str = Field(
+        default="",
+        description="Suggested Ansible variable name (e.g., 'apache_port', 'base_packages')",
+    )
 
 
 class HieraDataAnalysis(BaseModel):
-    """LLM structured output for a single Hiera data file."""
+    """Analysis of a single Hiera YAML data file.
 
-    variables: list[HieraVariableMapping] = Field(default_factory=list)
-    merge_behavior: dict[str, Any] = Field(default_factory=dict)
-    lookup_options: dict[str, Any] = Field(default_factory=dict)
-    cross_level_overrides: list[str] = Field(default_factory=list)
-    notes: str = ""
+    Extracts all key-value pairs, their types, merge strategies,
+    and maps them to Ansible variable equivalents.
+    """
+
+    variables: list[HieraVariableMapping] = Field(
+        default_factory=list,
+        description="All Hiera key-value pairs found in this data file with their Ansible mappings",
+    )
+    merge_behavior: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Merge strategy declarations (e.g., {'lookup_options': {'merge': 'deep'}})",
+    )
+    lookup_options: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Hiera lookup_options block if present, defining per-key merge and convert behavior",
+    )
+    cross_level_overrides: list[str] = Field(
+        default_factory=list,
+        description="Keys in this file that override values from a different hierarchy level",
+    )
+    notes: str = Field(
+        default="",
+        description="Additional observations about the data file (e.g., unusual patterns, migration concerns)",
+    )
 
 
 # ============================================================================
@@ -201,14 +314,35 @@ class HieraDataAnalysis(BaseModel):
 
 
 class PuppetTemplateAnalysis(BaseModel):
-    """LLM structured output for an ERB (.erb) or EPP (.epp) template."""
+    """Analysis of a Puppet ERB (.erb) or EPP (.epp) template file.
 
-    template_type: str  # "erb" or "epp"
-    variables_used: list[str] = Field(default_factory=list)
-    hiera_lookups: list[str] = Field(default_factory=list)
-    loops: list[str] = Field(default_factory=list)
-    ruby_logic: list[str] = Field(default_factory=list)
-    jinja2_equivalent_notes: str = ""
+    Extracts variables, logic blocks, and Hiera lookups to inform
+    the conversion to Ansible Jinja2 templates.
+    """
+
+    template_type: str = Field(
+        description='Template format: "erb" for Ruby ERB templates or "epp" for Puppet EPP templates'
+    )
+    variables_used: list[str] = Field(
+        default_factory=list,
+        description="Variable names referenced in the template (e.g., '@port', '$apache::docroot')",
+    )
+    hiera_lookups: list[str] = Field(
+        default_factory=list,
+        description="Hiera lookup calls found in the template (e.g., 'hiera(\"apache::port\")')",
+    )
+    loops: list[str] = Field(
+        default_factory=list,
+        description="Loop constructs as descriptive strings (e.g., 'each over @vhosts')",
+    )
+    ruby_logic: list[str] = Field(
+        default_factory=list,
+        description="Complex Ruby/Puppet logic blocks that need manual conversion (e.g., case statements, method calls)",
+    )
+    jinja2_equivalent_notes: str = Field(
+        default="",
+        description="Suggested Jinja2 equivalents or migration notes for complex template logic",
+    )
 
 
 # ============================================================================
@@ -217,14 +351,34 @@ class PuppetTemplateAnalysis(BaseModel):
 
 
 class CustomTypeAnalysis(BaseModel):
-    """LLM structured output for custom types, providers, facts, and functions."""
+    """Analysis of a Puppet custom type, provider, fact, or function.
 
-    component_type: str  # "type", "provider", "fact", "function"
-    name: str
-    parameters: list[dict[str, Any]] = Field(default_factory=list)
-    ansible_equivalent: str = ""
-    requires_custom_module: bool = False
-    note: str | None = None
+    Captures the component's interface and suggests the corresponding
+    Ansible mechanism (built-in module, custom module, or plugin).
+    """
+
+    component_type: str = Field(
+        description='Kind of Puppet component: "type", "provider", "fact", or "function"'
+    )
+    name: str = Field(
+        description="Component name as declared in Puppet (e.g., 'myapp_config', 'concat')"
+    )
+    parameters: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Parameter definitions with keys 'name', 'type', and optionally 'default' and 'description'",
+    )
+    ansible_equivalent: str = Field(
+        default="",
+        description="Suggested Ansible module or plugin that provides equivalent functionality (e.g., 'ansible.builtin.template')",
+    )
+    requires_custom_module: bool = Field(
+        default=False,
+        description="Whether this component has no Ansible equivalent and requires writing a custom module",
+    )
+    note: str | None = Field(
+        default=None,
+        description="Additional migration context or caveats for this component",
+    )
 
 
 # ============================================================================
@@ -233,22 +387,49 @@ class CustomTypeAnalysis(BaseModel):
 
 
 class CredentialEntry(BaseModel):
-    """A single detected credential or secret."""
+    """A single detected credential or secret in a Puppet module."""
 
-    purpose: str
-    variable_names: list[str] = Field(default_factory=list)
-    source_files: list[str] = Field(default_factory=list)
-    storage_method: str  # "eyaml", "hiera plaintext", "exec", "file source"
-    usage_context: str
-    ansible_recommendation: str  # "ansible-vault", "CyberArk lookup", "env var"
+    purpose: str = Field(
+        description="What this credential is used for (e.g., 'database root password', 'SSL certificate key')"
+    )
+    variable_names: list[str] = Field(
+        default_factory=list,
+        description="Puppet variable names that hold this credential (e.g., ['$db_password', '$mysql::root_pw'])",
+    )
+    source_files: list[str] = Field(
+        default_factory=list,
+        description="File paths where this credential is defined or referenced",
+    )
+    storage_method: str = Field(
+        description='How the credential is stored: "eyaml", "hiera plaintext", "exec", or "file source"'
+    )
+    usage_context: str = Field(
+        description="How and where the credential is consumed (e.g., 'passed to mysql::server class as root_password')"
+    )
+    ansible_recommendation: str = Field(
+        description='Suggested Ansible secret management approach: "ansible-vault", "CyberArk lookup", or "env var"'
+    )
 
 
 class CredentialAnalysis(BaseModel):
-    """LLM structured output for credential detection."""
+    """Credential and secret detection results for a Puppet module.
 
-    credentials: list[CredentialEntry] = Field(default_factory=list)
-    provider_info: str = ""
-    total_detected: int = 0
+    Identifies all credentials, secrets, and sensitive data in the module
+    along with their storage methods and Ansible migration recommendations.
+    """
+
+    credentials: list[CredentialEntry] = Field(
+        default_factory=list,
+        description="All credentials and secrets detected in the module",
+    )
+    provider_info: str = Field(
+        default="",
+        description="External secret provider details if applicable (e.g., 'HashiCorp Vault via hiera-vault backend')",
+    )
+    total_detected: int = Field(
+        default=0,
+        description="Total number of distinct credentials detected",
+    )
 
 
 # ============================================================================

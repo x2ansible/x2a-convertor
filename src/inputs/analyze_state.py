@@ -6,7 +6,7 @@ for the analyze phase, following the pattern from src/exporters/state.py.
 
 from dataclasses import dataclass, field, replace
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.const import MODULE_MIGRATION_PLAN_TEMPLATE
 from src.types import BaseState
@@ -14,11 +14,22 @@ from src.types.technology import Technology
 
 
 class ModuleSelection(BaseModel):
-    """Structured output for module selection."""
+    """Module selection for infrastructure analysis.
 
-    name: str
-    path: str
-    technology: Technology = Technology.CHEF
+    Identifies which module or cookbook to analyze from the migration plan.
+    The name and path must match an actual module listed in the migration plan.
+    """
+
+    name: str = Field(
+        description="Module or cookbook name as listed in the migration plan (e.g., 'web_server', 'nginx')"
+    )
+    path: str = Field(
+        description="Relative filesystem path to the module directory (e.g., 'cookbooks/web_server', 'modules/nginx')"
+    )
+    technology: Technology = Field(
+        default=Technology.CHEF,
+        description='Source technology of the module: "Chef", "Puppet", "PowerShell", or "Ansible"',
+    )
 
 
 @dataclass
