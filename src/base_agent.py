@@ -86,6 +86,15 @@ Please provide a complete response that:
 
 Retry your response now, ensuring it matches the schema structure exactly."""
 
+    TOOL_CALL_CORRECTION = """ERROR: You provided a text response instead of calling the structured output tool.
+
+This is NOT acceptable. You MUST call the '{schema_name}' tool with your analysis.
+
+DO NOT write explanations. DO NOT write conversational text.
+ONLY call the tool with the required data.
+
+Try again now, and this time CALL THE TOOL."""
+
     def __init__(self, model: BaseChatModel | None = None):
         self.model = model or get_model()
         self.agent_id = str(uuid.uuid4())
@@ -161,58 +170,6 @@ Retry your response now, ensuring it matches the schema structure exactly."""
 
     # --- Invocation Helpers ---
 
-    def _inject_structured_output_instruction(
-        self, messages: Any
-    ) -> list[dict[str, str]]:
-        """Inject structured output instruction into messages.
-
-        This helps GPT-OSS understand it MUST use the structured output tool
-        rather than outputting conversational text.
-
-        Args:
-            messages: Original messages (list of dicts or other format)
-
-        Returns:
-            List of message dicts with instruction injected
-        """
-        # Convert to list of dicts if needed
-        if not isinstance(messages, list):
-            messages = [messages]
-
-        message_list = []
-        for msg in messages:
-            if isinstance(msg, dict):
-                message_list.append(msg)
-            elif hasattr(msg, "role") and hasattr(msg, "content"):
-                message_list.append({"role": msg.role, "content": msg.content})
-            else:
-                # Fallback: convert to string content
-                message_list.append({"role": "user", "content": str(msg)})
-
-        # Find the last system message or insert at the beginning
-        last_system_idx = -1
-        for i, msg in enumerate(message_list):
-            if msg.get("role") == "system":
-                last_system_idx = i
-
-        if last_system_idx >= 0:
-            # Append instruction to existing system message
-            existing_content = message_list[last_system_idx].get("content", "")
-            message_list[last_system_idx]["content"] = (
-                f"{existing_content}\n\n{self.STRUCTURED_OUTPUT_INSTRUCTION}"
-            )
-        else:
-            # Insert new system message at the beginning
-            message_list.insert(
-                0,
-                {
-                    "role": "system",
-                    "content": self.STRUCTURED_OUTPUT_INSTRUCTION,
-                },
-            )
-
-        return message_list
-
     def _get_tools(self, state: S) -> list[BaseTool]:
         """Build tools from BASE_TOOLS and state, binding agent name on X2ATool instances."""
         tools = [factory() for factory in self.BASE_TOOLS]
@@ -222,8 +179,22 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             for tool in tools
         ]
 
+    @staticmethod
+    def _extract_message_tokens(message: AIMessage) -> tuple[int, int]:
+        """Extract tokens from a single AIMessage.
+
+        Returns:
+            Tuple of (input_tokens, output_tokens)
+        """
+        if not hasattr(message, "usage_metadata") or not message.usage_metadata:
+            return 0, 0
+
+        input_tokens = message.usage_metadata.get("input_tokens", 0)
+        output_tokens = message.usage_metadata.get("output_tokens", 0)
+        return input_tokens, output_tokens
+
     def _extract_token_usage(self, result: dict) -> tuple[int, int]:
-        """Extract total input and output tokens from AIMessage objects.
+        """Extract total input and output tokens from AIMessage objects in result dict.
 
         Returns:
             Tuple of (input_tokens, output_tokens)
@@ -232,13 +203,10 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         output_tokens = 0
 
         for msg in result.get("messages", []):
-            if not isinstance(msg, AIMessage):
-                continue
-            if not hasattr(msg, "usage_metadata") or not msg.usage_metadata:
-                continue
-
-            input_tokens += msg.usage_metadata.get("input_tokens", 0)
-            output_tokens += msg.usage_metadata.get("output_tokens", 0)
+            if isinstance(msg, AIMessage):
+                msg_in, msg_out = self._extract_message_tokens(msg)
+                input_tokens += msg_in
+                output_tokens += msg_out
 
         return input_tokens, output_tokens
 
@@ -268,8 +236,7 @@ Retry your response now, ensuring it matches the schema structure exactly."""
 
         if metrics:
             metrics.record_tool_calls(tool_calls)
-            input_tokens, output_tokens = self._extract_token_usage(result)
-            metrics.record_tokens(input_tokens, output_tokens)
+            metrics.record_tokens(*self._extract_token_usage(result))
 
         return result
 
@@ -298,42 +265,25 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         if max_retries <= 0:
             max_retries = 1
 
-        # Inject structured output instruction to help GPT-OSS understand it MUST use the tool
-        # This addresses Issue 2: non-deterministic tool calling behavior
-        current_messages = self._inject_structured_output_instruction(messages)
+        current_messages = [
+            {"role": "system", "content": self.STRUCTURED_OUTPUT_INSTRUCTION},
+            *messages,
+        ]
 
-        # Use with_structured_output directly on the model
-        # This gives us more control over the structured output behavior
-        # method="function_calling" converts schema to a tool call
         structured_model = self.model.with_structured_output(
             schema, method="function_calling"
         )
         for attempt in range(max_retries):
             try:
-                # Invoke structured model directly - it returns the parsed object or raises
                 result = structured_model.invoke(
                     current_messages,
                     get_runnable_config(),
                 )
 
-                # Record tokens if we got an AIMessage with metadata
-                # (with_structured_output might not return AIMessage, just the parsed object)
-                if (
-                    metrics
-                    and isinstance(result, AIMessage)
-                    and hasattr(result, "usage_metadata")
-                    and result.usage_metadata
-                ):
-                    input_tokens = result.usage_metadata.get("input_tokens", 0)
-                    output_tokens = result.usage_metadata.get("output_tokens", 0)
-                    metrics.record_tokens(input_tokens, output_tokens)
+                if metrics and isinstance(result, AIMessage):
+                    metrics.record_tokens(*self._extract_message_tokens(result))
 
-                # with_structured_output returns the structured object directly
-                structured_response = result
-
-                # Issue 2: GPT-OSS sometimes returns None instead of calling the tool
-                # In this case, structured_response will be None
-                if structured_response is None:
+                if result is None:
                     is_last_attempt = attempt == max_retries - 1
                     schema_name = getattr(schema, "__name__", str(schema))
 
@@ -345,75 +295,41 @@ Retry your response now, ensuring it matches the schema structure exactly."""
                     if is_last_attempt:
                         return None
 
-                    # Add a strong correction message
-                    correction_message = f"""ERROR: You provided a text response instead of calling the structured output tool.
-
-This is NOT acceptable. You MUST call the '{schema_name}' tool with your analysis.
-
-DO NOT write explanations. DO NOT write conversational text.
-ONLY call the tool with the required data.
-
-Try again now, and this time CALL THE TOOL."""
-
+                    correction_message = self.TOOL_CALL_CORRECTION.format(
+                        schema_name=schema_name
+                    )
                     current_messages.append(
                         {"role": "user", "content": correction_message}
                     )
                     continue
 
-                return structured_response
+                return result
 
             except StructuredOutputValidationError as e:
                 is_last_attempt = attempt == max_retries - 1
                 schema_name = getattr(schema, "__name__", str(schema))
+                ai_content = (
+                    str(e.ai_message.content)
+                    if hasattr(e, "ai_message") and e.ai_message
+                    else "No content"
+                )
 
                 self._log.error(
                     f"Structured output validation failed for schema '{schema_name}' "
                     f"(attempt {attempt + 1}/{max_retries}): {e.source}",
                     tool_name=getattr(e, "tool_name", None),
-                    ai_message_content=str(e.ai_message.content)
-                    if hasattr(e, "ai_message") and e.ai_message
-                    else "No content",
+                    ai_message_content=ai_content,
                 )
 
                 if is_last_attempt:
                     return None
-
-                # Extract AI message content for the error message
-                ai_content = (
-                    str(e.ai_message.content)
-                    if hasattr(e, "ai_message") and e.ai_message
-                    else "No response content"
-                )
 
                 error_message = self.STRUCTURED_ERROR.format(
                     validation_error=str(e.args[0]) if e.args else str(e),
                     schema_name=schema_name,
                     ai_message_content=ai_content,
                 )
-
-                # Add the error message to retry
                 current_messages.append({"role": "user", "content": error_message})
-                continue
-
-            except Exception as e:
-                # Catch any other exceptions (like empty content errors from Bedrock)
-                is_last_attempt = attempt == max_retries - 1
-                schema_name = getattr(schema, "__name__", str(schema))
-
-                self._log.error(
-                    f"Unexpected error during structured output invocation "
-                    f"for schema '{schema_name}' (attempt {attempt + 1}/{max_retries}): {e}"
-                )
-
-                if is_last_attempt:
-                    return None
-
-                # Add a generic retry message
-                retry_message = f"""ERROR: An error occurred while processing your response.
-
-Please try again and ensure you call the '{schema_name}' tool correctly with all required fields."""
-
-                current_messages.append({"role": "user", "content": retry_message})
                 continue
 
         return None
@@ -423,23 +339,12 @@ Please try again and ensure you call the '{schema_name}' tool correctly with all
         messages: list[dict[str, str]],
         metrics: AgentMetrics | None = None,
     ) -> str:
-        """Direct model invocation, returns content string.
-
-        Uses .text property to handle GPT-OSS Issue 4 & 5: reasoning_content blocks.
-        """
+        """Direct model invocation, returns content string."""
         result = self.model.invoke(messages, config=get_runnable_config())
-        if (
-            metrics
-            and isinstance(result, AIMessage)
-            and hasattr(result, "usage_metadata")
-            and result.usage_metadata
-        ):
-            input_tokens = result.usage_metadata.get("input_tokens", 0)
-            output_tokens = result.usage_metadata.get("output_tokens", 0)
-            metrics.record_tokens(input_tokens, output_tokens)
 
-        # Use .text property to extract text from potentially complex content
-        # (handles reasoning_content blocks from GPT-OSS)
+        if metrics and isinstance(result, AIMessage):
+            metrics.record_tokens(*self._extract_message_tokens(result))
+
         if isinstance(result, AIMessage) and hasattr(result, "text"):
             return result.text
         if isinstance(result.content, str):
