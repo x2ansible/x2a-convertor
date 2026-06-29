@@ -17,7 +17,7 @@ from langchain.agents.middleware import SummarizationMiddleware
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain.agents.structured_output import StructuredOutputValidationError
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 
 from src.config import get_settings
@@ -45,6 +45,23 @@ class BaseAgent[S: BaseState](ABC):
     _NAME: ClassVar[str | None] = None
     RULES_FILE: ClassVar[str | None] = None
     GOAL: ClassVar[str | None] = None
+
+    STRUCTURED_OUTPUT_INSTRUCTION = """CRITICAL INSTRUCTION - STRUCTURED OUTPUT REQUIRED:
+
+You MUST use the structured output tool that has been provided to you. This is NOT optional.
+
+DO NOT write a text response. DO NOT write explanatory text. DO NOT write conversational output.
+
+REQUIRED ACTION:
+1. Analyze the input according to the instructions
+2. IMMEDIATELY call the structured output tool with your analysis
+3. Ensure the tool call includes ALL required fields from the schema
+
+The structured output tool is the ONLY way to respond. Any text response will be rejected.
+
+If you are uncertain about any field, make your best analysis and include it in the tool call.
+If a field is optional and you have no data, you may omit it or use null.
+But you MUST call the tool - there is no alternative response format."""
 
     STRUCTURED_ERROR = """You failed to generate a valid structured output. The validation error was:
 
@@ -144,6 +161,58 @@ Retry your response now, ensuring it matches the schema structure exactly."""
 
     # --- Invocation Helpers ---
 
+    def _inject_structured_output_instruction(
+        self, messages: Any
+    ) -> list[dict[str, str]]:
+        """Inject structured output instruction into messages.
+
+        This helps GPT-OSS understand it MUST use the structured output tool
+        rather than outputting conversational text.
+
+        Args:
+            messages: Original messages (list of dicts or other format)
+
+        Returns:
+            List of message dicts with instruction injected
+        """
+        # Convert to list of dicts if needed
+        if not isinstance(messages, list):
+            messages = [messages]
+
+        message_list = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                message_list.append(msg)
+            elif hasattr(msg, "role") and hasattr(msg, "content"):
+                message_list.append({"role": msg.role, "content": msg.content})
+            else:
+                # Fallback: convert to string content
+                message_list.append({"role": "user", "content": str(msg)})
+
+        # Find the last system message or insert at the beginning
+        last_system_idx = -1
+        for i, msg in enumerate(message_list):
+            if msg.get("role") == "system":
+                last_system_idx = i
+
+        if last_system_idx >= 0:
+            # Append instruction to existing system message
+            existing_content = message_list[last_system_idx].get("content", "")
+            message_list[last_system_idx]["content"] = (
+                f"{existing_content}\n\n{self.STRUCTURED_OUTPUT_INSTRUCTION}"
+            )
+        else:
+            # Insert new system message at the beginning
+            message_list.insert(
+                0,
+                {
+                    "role": "system",
+                    "content": self.STRUCTURED_OUTPUT_INSTRUCTION,
+                },
+            )
+
+        return message_list
+
     def _get_tools(self, state: S) -> list[BaseTool]:
         """Build tools from BASE_TOOLS and state, binding agent name on X2ATool instances."""
         tools = [factory() for factory in self.BASE_TOOLS]
@@ -229,25 +298,69 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         if max_retries <= 0:
             max_retries = 1
 
-        agent = create_agent(
-            model=self.model,
-            response_format=schema,
-            tools=kwargs.get("tools", []),
-        )
+        # Inject structured output instruction to help GPT-OSS understand it MUST use the tool
+        # This addresses Issue 2: non-deterministic tool calling behavior
+        current_messages = self._inject_structured_output_instruction(messages)
 
-        current_messages = messages
+        # Use with_structured_output directly on the model
+        # This gives us more control over the structured output behavior
+        # method="function_calling" converts schema to a tool call
+        structured_model = self.model.with_structured_output(
+            schema, method="function_calling"
+        )
         for attempt in range(max_retries):
             try:
-                result = agent.invoke(
-                    {"messages": current_messages},
+                # Invoke structured model directly - it returns the parsed object or raises
+                result = structured_model.invoke(
+                    current_messages,
                     get_runnable_config(),
                 )
 
-                if metrics:
-                    input_tokens, output_tokens = self._extract_token_usage(result)
+                # Record tokens if we got an AIMessage with metadata
+                # (with_structured_output might not return AIMessage, just the parsed object)
+                if (
+                    metrics
+                    and isinstance(result, AIMessage)
+                    and hasattr(result, "usage_metadata")
+                    and result.usage_metadata
+                ):
+                    input_tokens = result.usage_metadata.get("input_tokens", 0)
+                    output_tokens = result.usage_metadata.get("output_tokens", 0)
                     metrics.record_tokens(input_tokens, output_tokens)
 
-                return result.get("structured_response")
+                # with_structured_output returns the structured object directly
+                structured_response = result
+
+                # Issue 2: GPT-OSS sometimes returns None instead of calling the tool
+                # In this case, structured_response will be None
+                if structured_response is None:
+                    is_last_attempt = attempt == max_retries - 1
+                    schema_name = getattr(schema, "__name__", str(schema))
+
+                    self._log.warning(
+                        f"Model returned None for structured output "
+                        f"for schema '{schema_name}' (attempt {attempt + 1}/{max_retries})"
+                    )
+
+                    if is_last_attempt:
+                        return None
+
+                    # Add a strong correction message
+                    correction_message = f"""ERROR: You provided a text response instead of calling the structured output tool.
+
+This is NOT acceptable. You MUST call the '{schema_name}' tool with your analysis.
+
+DO NOT write explanations. DO NOT write conversational text.
+ONLY call the tool with the required data.
+
+Try again now, and this time CALL THE TOOL."""
+
+                    current_messages.append(
+                        {"role": "user", "content": correction_message}
+                    )
+                    continue
+
+                return structured_response
 
             except StructuredOutputValidationError as e:
                 is_last_attempt = attempt == max_retries - 1
@@ -256,27 +369,51 @@ Retry your response now, ensuring it matches the schema structure exactly."""
                 self._log.error(
                     f"Structured output validation failed for schema '{schema_name}' "
                     f"(attempt {attempt + 1}/{max_retries}): {e.source}",
-                    tool_name=e.tool_name,
-                    ai_message_content=str(e.ai_message.content),
+                    tool_name=getattr(e, "tool_name", None),
+                    ai_message_content=str(e.ai_message.content)
+                    if hasattr(e, "ai_message") and e.ai_message
+                    else "No content",
                 )
-
-                # These shouldn't be an issue, but just in case.
-                if not self.STRUCTURED_ERROR:
-                    return None
-
-                if not e.ai_message:
-                    return None
 
                 if is_last_attempt:
                     return None
 
-                error_message = self.STRUCTURED_ERROR.format(
-                    validation_error=str(e.args[0]),
-                    schema_name=schema_name,
-                    ai_message_content=str(e.ai_message.content),
+                # Extract AI message content for the error message
+                ai_content = (
+                    str(e.ai_message.content)
+                    if hasattr(e, "ai_message") and e.ai_message
+                    else "No response content"
                 )
-                current_messages.append(e.ai_message)
-                current_messages.append(HumanMessage(content=error_message))
+
+                error_message = self.STRUCTURED_ERROR.format(
+                    validation_error=str(e.args[0]) if e.args else str(e),
+                    schema_name=schema_name,
+                    ai_message_content=ai_content,
+                )
+
+                # Add the error message to retry
+                current_messages.append({"role": "user", "content": error_message})
+                continue
+
+            except Exception as e:
+                # Catch any other exceptions (like empty content errors from Bedrock)
+                is_last_attempt = attempt == max_retries - 1
+                schema_name = getattr(schema, "__name__", str(schema))
+
+                self._log.error(
+                    f"Unexpected error during structured output invocation "
+                    f"for schema '{schema_name}' (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+
+                if is_last_attempt:
+                    return None
+
+                # Add a generic retry message
+                retry_message = f"""ERROR: An error occurred while processing your response.
+
+Please try again and ensure you call the '{schema_name}' tool correctly with all required fields."""
+
+                current_messages.append({"role": "user", "content": retry_message})
                 continue
 
         return None
@@ -286,7 +423,10 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         messages: list[dict[str, str]],
         metrics: AgentMetrics | None = None,
     ) -> str:
-        """Direct model invocation, returns content string."""
+        """Direct model invocation, returns content string.
+
+        Uses .text property to handle GPT-OSS Issue 4 & 5: reasoning_content blocks.
+        """
         result = self.model.invoke(messages, config=get_runnable_config())
         if (
             metrics
@@ -298,6 +438,10 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             output_tokens = result.usage_metadata.get("output_tokens", 0)
             metrics.record_tokens(input_tokens, output_tokens)
 
+        # Use .text property to extract text from potentially complex content
+        # (handles reasoning_content blocks from GPT-OSS)
+        if isinstance(result, AIMessage) and hasattr(result, "text"):
+            return result.text
         if isinstance(result.content, str):
             return result.content
         return str(result.content)
