@@ -4,7 +4,6 @@ It composes InputAgent subclasses as graph nodes following the pattern from
 src/inputs/chef/analyzer.py.
 """
 
-from pathlib import Path
 from typing import Literal
 
 from langgraph.graph import END, StateGraph
@@ -18,6 +17,7 @@ from src.types import Telemetry
 from src.types.file_analysis_state import FileAnalysisState
 from src.types.telemetry import telemetry_context
 from src.utils.logging import get_logger
+from src.utils.path import Path
 
 from .dependency_fetcher import PuppetDependencyAgent, resolve_puppet_module_root
 from .execution_tree_builder import PuppetExecutionTreeBuilder
@@ -161,7 +161,7 @@ class PuppetSubagent:
         slog.info(f"Discovering references to module '{module_name}'")
         context_manifests = self._path_resolver.find_referencing_manifests(module_name)
 
-        context_paths = [str(p) for p in context_manifests]
+        context_paths = [Path(p).relative_to_cwd() for p in context_manifests]
         slog.info(f"Found {len(context_paths)} context manifests (roles/profiles)")
         for cp in context_paths:
             slog.info(f"  {cp}")
@@ -181,7 +181,7 @@ class PuppetSubagent:
             slog.info(f"Profile chain: {profile_classes}")
 
         return state.update(
-            control_repo_root=str(repo_root),
+            control_repo_root=Path(repo_root).relative_to_cwd(),
             context_manifest_paths=context_paths,
             role_class=role_class,
             profile_classes=profile_classes,
@@ -293,15 +293,15 @@ class PuppetSubagent:
         self, pp_file: Path, slog
     ) -> ManifestAnalysisResult | None:
         """Analyze a single manifest file with caching."""
-        file_path_str = str(pp_file.resolve())
+        file_path_str = pp_file.relative_to_cwd()
 
         cached_manifest = self._manifest_cache.get(file_path_str)
         if cached_manifest:
-            slog.debug(f"Using cached analysis for: {pp_file}")
+            slog.debug(f"Using cached analysis for: {pp_file.relative_to_cwd()}")
             return self._manifest_cache[file_path_str]
 
         try:
-            slog.debug(f"Analyzing manifest: {pp_file}")
+            slog.debug(f"Analyzing manifest: {pp_file.relative_to_cwd()}")
             file_state = FileAnalysisState(user_message="", path=file_path_str)
             result_state = self._manifest_service(file_state)
             result = ManifestAnalysisResult(
@@ -310,7 +310,7 @@ class PuppetSubagent:
             self._manifest_cache[file_path_str] = result
             return result
         except Exception as e:
-            slog.warning(f"Failed to analyze manifest {pp_file}: {e}")
+            slog.warning(f"Failed to analyze manifest {pp_file.relative_to_cwd()}: {e}")
             return None
 
     def _analyze_manifests(
@@ -320,7 +320,7 @@ class PuppetSubagent:
         for pp_file in sorted(module_path.glob("**/manifests/**/*.pp")):
             if "spec/" in str(pp_file) or "test/" in str(pp_file):
                 continue
-            result = self._analyze_manifest_file(pp_file, slog)
+            result = self._analyze_manifest_file(Path(pp_file), slog)
             if result:
                 results.append(result)
         return results
@@ -350,11 +350,13 @@ class PuppetSubagent:
 
         for yaml_file in sorted(data_dir.glob("**/*.yaml")):
             try:
+                yaml_file = Path(yaml_file)
                 level_name = yaml_file.relative_to(data_dir).as_posix()
-                slog.debug(f"Analyzing Hiera data: {yaml_file}")
+                file_path_str = yaml_file.relative_to_cwd()
+                slog.debug(f"Analyzing Hiera data: {file_path_str}")
                 file_state = FileAnalysisState(
                     user_message="",
-                    path=str(yaml_file),
+                    path=file_path_str,
                     metadata={"hierarchy_level": level_name, "full_hierarchy": ""},
                 )
                 result_state = self._hiera_service(file_state)
@@ -362,17 +364,19 @@ class PuppetSubagent:
                 try:
                     raw_content = yaml_file.read_text()
                 except OSError as e:
-                    slog.warning(f"Could not read Hiera file {yaml_file}: {e}")
+                    slog.warning(f"Could not read Hiera file {file_path_str}: {e}")
                 results.append(
                     HieraDataAnalysisResult(
-                        file_path=str(yaml_file),
+                        file_path=file_path_str,
                         hierarchy_level=level_name,
                         raw_content=raw_content,
                         analysis=result_state.result,
                     )
                 )
             except Exception as e:
-                slog.warning(f"Failed to analyze Hiera data {yaml_file}: {e}")
+                slog.warning(
+                    f"Failed to analyze Hiera data {Path(yaml_file).relative_to_cwd()}: {e}"
+                )
 
         return results
 
@@ -385,16 +389,20 @@ class PuppetSubagent:
         for pattern in patterns:
             for tpl_file in sorted(module_path.glob(pattern)):
                 try:
-                    slog.debug(f"Analyzing template: {tpl_file}")
-                    file_state = FileAnalysisState(user_message="", path=str(tpl_file))
+                    tpl_file = Path(tpl_file)
+                    file_path_str = tpl_file.relative_to_cwd()
+                    slog.debug(f"Analyzing template: {file_path_str}")
+                    file_state = FileAnalysisState(user_message="", path=file_path_str)
                     result_state = self._template_service(file_state)
                     results.append(
                         TemplateAnalysisResult(
-                            file_path=str(tpl_file), analysis=result_state.result
+                            file_path=file_path_str, analysis=result_state.result
                         )
                     )
                 except Exception as e:
-                    slog.warning(f"Failed to analyze template {tpl_file}: {e}")
+                    slog.warning(
+                        f"Failed to analyze template {Path(tpl_file).relative_to_cwd()}: {e}"
+                    )
 
         return results
 
@@ -415,18 +423,22 @@ class PuppetSubagent:
         for pattern, component_type in patterns.items():
             for rb_file in sorted(module_path.glob(pattern)):
                 try:
-                    slog.debug(f"Analyzing {component_type}: {rb_file}")
-                    file_state = FileAnalysisState(user_message="", path=str(rb_file))
+                    rb_file = Path(rb_file)
+                    file_path_str = rb_file.relative_to_cwd()
+                    slog.debug(f"Analyzing {component_type}: {file_path_str}")
+                    file_state = FileAnalysisState(user_message="", path=file_path_str)
                     result_state = self._custom_type_service(file_state)
                     results.append(
                         CustomTypeAnalysisResult(
-                            file_path=str(rb_file),
+                            file_path=file_path_str,
                             component_type=component_type,
                             analysis=result_state.result,
                         )
                     )
                 except Exception as e:
-                    slog.warning(f"Failed to analyze {component_type} {rb_file}: {e}")
+                    slog.warning(
+                        f"Failed to analyze {component_type} {Path(rb_file).relative_to_cwd()}: {e}"
+                    )
 
         return results
 
