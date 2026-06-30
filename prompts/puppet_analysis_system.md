@@ -132,17 +132,30 @@ Hiera hierarchy concepts:
 
 ## File Structure
 
-**IMPORTANT: List files using RELATIVE PATHS (relative to the module root), one per line. DO NOT use tree structure format.**
+**CRITICAL REQUIREMENT: List files that appear in the EXECUTION TREE plus supporting files.**
 
-Example format:
-```
-manifests/init.pp
-manifests/config.pp
-data/common.yaml
-templates/config.erb
-```
+**Selection criteria**:
+1. Every .pp file mentioned in the execution tree (look at file path comments)
+2. Every .erb/.epp template file referenced in the execution tree
+3. All data/*.yaml Hiera files
+4. All lib/facter/*.rb custom facts
+5. All site/* control repo context files
 
-[List all relevant files with their relative paths from the module root]
+**Path format**: Use paths exactly as shown in DIRECTORY LISTING (do not modify or shorten them)
+
+**What to include**:
+- Module manifests: modules/*/manifests/*.pp that appear in the tree
+- Dependency manifests: modules/*/migration-dependencies/*/manifests/*.pp that appear in the tree
+- Templates: modules/*/templates/*.erb that appear in the tree
+- Dependency templates: modules/*/migration-dependencies/*/templates/*.epp that appear in the tree
+- Data files: All data/*.yaml files
+- Custom components: All lib/facter/*.rb files
+- Control repo: All site/*.pp files
+
+**What to exclude**:
+- Manifest files NOT referenced in the execution tree
+- Template files NOT used by any resource
+- Test files, README, LICENSE
 
 ## Module Explanation
 

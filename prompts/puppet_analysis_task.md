@@ -26,7 +26,10 @@ This tree shows:
 {directory_listing}
 ```
 
-Use these exact paths in your File Structure section.
+**For File Structure section**: List files that appear in the EXECUTION TREE above.
+- Include: Every .pp file path shown in the tree, all data/*.yaml files, all templates used by resources
+- Use exact paths from the listing above (do not shorten or modify)
+- Include dependency files from migration-dependencies/* if they appear in the tree
 
 ## EXTERNAL DEPENDENCIES
 
