@@ -1,8 +1,8 @@
-Analyze this Puppet manifest and return a JSON object with ONLY the fields that have content.
+Analyze this Puppet manifest. Extract the class name, parameters, and complete execution order.
 
 FILE: {{ file_path }}
 ```puppet
 {{ file_content }}
 ```
 
-Return minimal, valid JSON. Omit empty fields. Do not explain.
+Return the complete analysis. Include all fields that have values — especially class_name.
