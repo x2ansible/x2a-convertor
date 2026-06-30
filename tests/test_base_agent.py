@@ -347,7 +347,10 @@ class TestBaseAgentInvokeStructured:
         )
 
         parsed_obj = {"field": "value"}
-        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_obj}
+        mock_structured_model.invoke.return_value = {
+            "raw": ai_msg,
+            "parsed": parsed_obj,
+        }
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
@@ -366,7 +369,10 @@ class TestBaseAgentInvokeStructured:
         )
 
         parsed_obj = {"field": "value"}
-        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_obj}
+        mock_structured_model.invoke.return_value = {
+            "raw": ai_msg,
+            "parsed": parsed_obj,
+        }
 
         result = agent.invoke_structured(
             dict, [{"role": "user", "content": "test"}], None
@@ -380,7 +386,10 @@ class TestBaseAgentInvokeStructured:
         """Test that invoke_structured handles None result (model didn't call tool)."""
         from src.types.telemetry import AgentMetrics
 
-        mock_structured_model.invoke.return_value = {"raw": AIMessage(content=""), "parsed": None}
+        mock_structured_model.invoke.return_value = {
+            "raw": AIMessage(content=""),
+            "parsed": None,
+        }
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
@@ -400,7 +409,10 @@ class TestBaseAgentInvokeStructured:
         ai_msg = AIMessage(content="Response")
         parsed_obj = {"field": "value"}
 
-        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_obj}
+        mock_structured_model.invoke.return_value = {
+            "raw": ai_msg,
+            "parsed": parsed_obj,
+        }
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
@@ -421,7 +433,10 @@ class TestBaseAgentInvokeStructured:
         ai_msg.usage_metadata = None
         parsed_obj = {"field": "value"}
 
-        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_obj}
+        mock_structured_model.invoke.return_value = {
+            "raw": ai_msg,
+            "parsed": parsed_obj,
+        }
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
@@ -438,7 +453,10 @@ class TestBaseAgentInvokeStructured:
 
         ai_msg = AIMessage(content="Response")
         parsed_result = {"field": "value"}
-        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_result}
+        mock_structured_model.invoke.return_value = {
+            "raw": ai_msg,
+            "parsed": parsed_result,
+        }
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
