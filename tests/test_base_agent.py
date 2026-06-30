@@ -346,15 +346,15 @@ class TestBaseAgentInvokeStructured:
             UsageMetadata, {"input_tokens": 500, "output_tokens": 200}
         )
 
-        # New implementation returns the object directly, wrapped in AIMessage for tokens
-        mock_structured_model.invoke.return_value = ai_msg
+        parsed_obj = {"field": "value"}
+        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_obj}
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
             dict, [{"role": "user", "content": "test"}], metrics
         )
 
-        assert result == ai_msg
+        assert result == parsed_obj
         assert metrics.input_tokens == 500
         assert metrics.output_tokens == 200
 
@@ -365,13 +365,14 @@ class TestBaseAgentInvokeStructured:
             UsageMetadata, {"input_tokens": 500, "output_tokens": 200}
         )
 
-        mock_structured_model.invoke.return_value = ai_msg
+        parsed_obj = {"field": "value"}
+        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_obj}
 
         result = agent.invoke_structured(
             dict, [{"role": "user", "content": "test"}], None
         )
 
-        assert result == ai_msg
+        assert result == parsed_obj
 
     def test_invoke_structured_without_structured_response(
         self, agent, mock_structured_model
@@ -379,8 +380,7 @@ class TestBaseAgentInvokeStructured:
         """Test that invoke_structured handles None result (model didn't call tool)."""
         from src.types.telemetry import AgentMetrics
 
-        # Model returns None when it doesn't call the tool
-        mock_structured_model.invoke.return_value = None
+        mock_structured_model.invoke.return_value = {"raw": AIMessage(content=""), "parsed": None}
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
@@ -398,15 +398,16 @@ class TestBaseAgentInvokeStructured:
         from src.types.telemetry import AgentMetrics
 
         ai_msg = AIMessage(content="Response")
+        parsed_obj = {"field": "value"}
 
-        mock_structured_model.invoke.return_value = ai_msg
+        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_obj}
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
             dict, [{"role": "user", "content": "test"}], metrics
         )
 
-        assert result == ai_msg
+        assert result == parsed_obj
         assert metrics.input_tokens == 0
         assert metrics.output_tokens == 0
 
@@ -418,25 +419,26 @@ class TestBaseAgentInvokeStructured:
 
         ai_msg = AIMessage(content="Response")
         ai_msg.usage_metadata = None
+        parsed_obj = {"field": "value"}
 
-        mock_structured_model.invoke.return_value = ai_msg
+        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_obj}
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(
             dict, [{"role": "user", "content": "test"}], metrics
         )
 
-        assert result == ai_msg
+        assert result == parsed_obj
         assert metrics.input_tokens == 0
         assert metrics.output_tokens == 0
 
     def test_invoke_structured_no_ai_messages(self, agent, mock_structured_model):
-        """Test that invoke_structured handles non-AIMessage result."""
+        """Test that invoke_structured handles result without usage metadata."""
         from src.types.telemetry import AgentMetrics
 
-        # When model successfully parses, it might return the parsed object directly
+        ai_msg = AIMessage(content="Response")
         parsed_result = {"field": "value"}
-        mock_structured_model.invoke.return_value = parsed_result
+        mock_structured_model.invoke.return_value = {"raw": ai_msg, "parsed": parsed_result}
 
         metrics = AgentMetrics(name="TestAgent")
         result = agent.invoke_structured(

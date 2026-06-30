@@ -170,48 +170,25 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             for tool in tools
         ]
 
-    @staticmethod
-    def _extract_message_tokens(message: AIMessage) -> tuple[int, int]:
-        """Extract tokens from a single AIMessage.
-
-        Returns:
-            Tuple of (input_tokens, output_tokens)
-        """
-        if not hasattr(message, "usage_metadata") or not message.usage_metadata:
-            return 0, 0
-
-        input_tokens = message.usage_metadata.get("input_tokens", 0)
-        output_tokens = message.usage_metadata.get("output_tokens", 0)
-        return input_tokens, output_tokens
-
     def _extract_token_usage(self, result: dict) -> tuple[int, int]:
-        """Extract total input and output tokens from AIMessage objects in result dict.
+        """Extract total input and output tokens from AIMessage objects.
 
         Returns:
-            Tuple of (input_tokens, output_tokens)
+        Tuple of (input_tokens, output_tokens)
         """
         input_tokens = 0
         output_tokens = 0
 
         for msg in result.get("messages", []):
-            if isinstance(msg, AIMessage):
-                msg_in, msg_out = self._extract_message_tokens(msg)
-                input_tokens += msg_in
-                output_tokens += msg_out
+            if not isinstance(msg, AIMessage):
+                continue
+            if not hasattr(msg, "usage_metadata") or not msg.usage_metadata:
+                continue
+
+            input_tokens += msg.usage_metadata.get("input_tokens", 0)
+            output_tokens += msg.usage_metadata.get("output_tokens", 0)
 
         return input_tokens, output_tokens
-
-    @staticmethod
-    def _raise_missing_structured_output(schema: type) -> None:
-        """Raise error when model returns None instead of calling the structured output tool."""
-        schema_name = getattr(schema, "__name__", str(schema))
-        raise StructuredOutputValidationError(
-            tool_name=schema_name,
-            source=ValueError(
-                f"Model returned None instead of calling {schema_name} tool"
-            ),
-            ai_message=AIMessage(content="No tool call made"),
-        )
 
     def invoke_react(
         self,
@@ -239,7 +216,8 @@ Retry your response now, ensuring it matches the schema structure exactly."""
 
         if metrics:
             metrics.record_tool_calls(tool_calls)
-            metrics.record_tokens(*self._extract_token_usage(result))
+            input_tokens, output_tokens = self._extract_token_usage(result)
+            metrics.record_tokens(input_tokens, output_tokens)
 
         return result
 
@@ -274,7 +252,7 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         ]
 
         structured_model = self.model.with_structured_output(
-            schema, method="function_calling"
+            schema, method="function_calling", include_raw=True
         )
         for attempt in range(max_retries):
             try:
@@ -283,13 +261,28 @@ Retry your response now, ensuring it matches the schema structure exactly."""
                     get_runnable_config(),
                 )
 
-                if metrics and isinstance(result, AIMessage):
-                    metrics.record_tokens(*self._extract_message_tokens(result))
+                if (
+                    metrics
+                    and isinstance(result, dict)
+                    and isinstance(result.get("raw"), AIMessage)
+                    and hasattr(result["raw"], "usage_metadata")
+                    and result["raw"].usage_metadata
+                ):
+                    input_tokens = result["raw"].usage_metadata.get("input_tokens", 0)
+                    output_tokens = result["raw"].usage_metadata.get("output_tokens", 0)
+                    metrics.record_tokens(input_tokens, output_tokens)
 
                 if result is None:
-                    self._raise_missing_structured_output(schema)
+                    schema_name = getattr(schema, "__name__", str(schema))
+                    raise StructuredOutputValidationError(
+                        tool_name=schema_name,
+                        source=ValueError(
+                            f"Model returned None instead of calling {schema_name} tool"
+                        ),
+                        ai_message=AIMessage(content="No tool call made"),
+                    )
 
-                return result
+                return result.get("parsed")
 
             except StructuredOutputValidationError as e:
                 is_last_attempt = attempt == max_retries - 1
@@ -328,8 +321,15 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         """Direct model invocation, returns content string."""
         result = self.model.invoke(messages, config=get_runnable_config())
 
-        if metrics and isinstance(result, AIMessage):
-            metrics.record_tokens(*self._extract_message_tokens(result))
+        if (
+            metrics
+            and isinstance(result, AIMessage)
+            and hasattr(result, "usage_metadata")
+            and result.usage_metadata
+        ):
+            input_tokens = result.usage_metadata.get("input_tokens", 0)
+            output_tokens = result.usage_metadata.get("output_tokens", 0)
+            metrics.record_tokens(input_tokens, output_tokens)
 
         if isinstance(result, AIMessage) and hasattr(result, "text"):
             return result.text
