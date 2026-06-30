@@ -194,19 +194,26 @@ class PuppetExecutionTreeBuilder:
 
         for item in execution_order:
             if item.type == "resource":
-                details_parts = []
-                if item.attributes:
-                    for key, value in item.attributes.items():
-                        details_parts.append(f"{key}: {value}")
-                detail = ", ".join(details_parts) if details_parts else None
+                # Special case: class resources (class { 'name': ... }) should be expanded
+                if item.resource_type and item.resource_type.lower() == "class":
+                    # This is a parameterized class declaration - expand it
+                    child = self._expand_class(item.title)
+                    nodes.append(child)
+                else:
+                    # Regular resource - just show it
+                    details_parts = []
+                    if item.attributes:
+                        for key, value in item.attributes.items():
+                            details_parts.append(f"{key}: {value}")
+                    detail = ", ".join(details_parts) if details_parts else None
 
-                nodes.append(
-                    ExecutionTreeNode(
-                        node_type="resource",
-                        name=f"{item.resource_type}[{item.title}]",
-                        details=detail,
+                    nodes.append(
+                        ExecutionTreeNode(
+                            node_type="resource",
+                            name=f"{item.resource_type}[{item.title}]",
+                            details=detail,
+                        )
                     )
-                )
 
             elif item.type == "class_include":
                 child = self._expand_class(item.class_name)

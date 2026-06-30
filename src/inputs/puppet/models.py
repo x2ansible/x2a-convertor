@@ -223,7 +223,7 @@ class ManifestExecutionAnalysis(BaseModel):
 
     class_name: str = Field(
         default="",
-        description="Fully qualified Puppet class or defined type name (e.g., 'apache::vhost'). Empty if the manifest has no class declaration",
+        description="Fully qualified Puppet class or defined type name declared in this manifest (e.g., 'apache::vhost', 'profile_haproxy::install'). Extract from 'class <name>' or 'define <name>' declarations",
     )
     class_parameters: dict[str, str] = Field(
         default_factory=dict,
@@ -231,7 +231,7 @@ class ManifestExecutionAnalysis(BaseModel):
     )
     class_inherits: ClassInheritance | None = Field(
         default=None,
-        description="Inheritance relationship if the class uses 'inherits'. Null if no inheritance",
+        description="Inheritance relationship if the class uses 'inherits'. Must be a ClassInheritance object with parent_class and child_class fields, NOT a plain string. Null if no inheritance",
     )
     execution_order: list[ExecutionItem] = Field(
         default_factory=list,
