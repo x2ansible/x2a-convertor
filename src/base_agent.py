@@ -272,7 +272,11 @@ Retry your response now, ensuring it matches the schema structure exactly."""
                     output_tokens = result["raw"].usage_metadata.get("output_tokens", 0)
                     metrics.record_tokens(input_tokens, output_tokens)
 
-                if result is None:
+                parsed_result = (
+                    result.get("parsed") if isinstance(result, dict) else result
+                )
+
+                if parsed_result is None:
                     schema_name = getattr(schema, "__name__", str(schema))
                     raise StructuredOutputValidationError(
                         tool_name=schema_name,
@@ -282,7 +286,7 @@ Retry your response now, ensuring it matches the schema structure exactly."""
                         ai_message=AIMessage(content="No tool call made"),
                     )
 
-                return result.get("parsed")
+                return parsed_result
 
             except StructuredOutputValidationError as e:
                 is_last_attempt = attempt == max_retries - 1
