@@ -17,7 +17,7 @@ from langchain.agents.middleware import SummarizationMiddleware
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain.agents.structured_output import StructuredOutputValidationError
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 
 from src.config import get_settings
@@ -45,6 +45,23 @@ class BaseAgent[S: BaseState](ABC):
     _NAME: ClassVar[str | None] = None
     RULES_FILE: ClassVar[str | None] = None
     GOAL: ClassVar[str | None] = None
+
+    STRUCTURED_OUTPUT_INSTRUCTION = """CRITICAL INSTRUCTION - STRUCTURED OUTPUT REQUIRED:
+
+You MUST use the structured output tool that has been provided to you. This is NOT optional.
+
+DO NOT write a text response. DO NOT write explanatory text. DO NOT write conversational output.
+
+REQUIRED ACTION:
+1. Analyze the input according to the instructions
+2. IMMEDIATELY call the structured output tool with your analysis
+3. Ensure the tool call includes ALL required fields from the schema
+
+The structured output tool is the ONLY way to respond. Any text response will be rejected.
+
+If you are uncertain about any field, make your best analysis and include it in the tool call.
+If a field is optional and you have no data, you may omit it or use null.
+But you MUST call the tool - there is no alternative response format."""
 
     STRUCTURED_ERROR = """You failed to generate a valid structured output. The validation error was:
 
@@ -157,7 +174,7 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         """Extract total input and output tokens from AIMessage objects.
 
         Returns:
-            Tuple of (input_tokens, output_tokens)
+        Tuple of (input_tokens, output_tokens)
         """
         input_tokens = 0
         output_tokens = 0
@@ -229,54 +246,73 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         if max_retries <= 0:
             max_retries = 1
 
-        agent = create_agent(
-            model=self.model,
-            response_format=schema,
-            tools=kwargs.get("tools", []),
-        )
+        current_messages = [
+            {"role": "system", "content": self.STRUCTURED_OUTPUT_INSTRUCTION},
+            *messages,
+        ]
 
-        current_messages = messages
+        structured_model = self.model.with_structured_output(
+            schema, method="function_calling", include_raw=True
+        )
         for attempt in range(max_retries):
             try:
-                result = agent.invoke(
-                    {"messages": current_messages},
+                result = structured_model.invoke(
+                    current_messages,
                     get_runnable_config(),
                 )
 
-                if metrics:
-                    input_tokens, output_tokens = self._extract_token_usage(result)
+                if (
+                    metrics
+                    and isinstance(result, dict)
+                    and isinstance(result.get("raw"), AIMessage)
+                    and hasattr(result["raw"], "usage_metadata")
+                    and result["raw"].usage_metadata
+                ):
+                    input_tokens = result["raw"].usage_metadata.get("input_tokens", 0)
+                    output_tokens = result["raw"].usage_metadata.get("output_tokens", 0)
                     metrics.record_tokens(input_tokens, output_tokens)
 
-                return result.get("structured_response")
+                parsed_result = (
+                    result.get("parsed") if isinstance(result, dict) else result
+                )
+
+                if parsed_result is None:
+                    schema_name = getattr(schema, "__name__", str(schema))
+                    raise StructuredOutputValidationError(
+                        tool_name=schema_name,
+                        source=ValueError(
+                            f"Model returned None instead of calling {schema_name} tool"
+                        ),
+                        ai_message=AIMessage(content="No tool call made"),
+                    )
+
+                return parsed_result
 
             except StructuredOutputValidationError as e:
                 is_last_attempt = attempt == max_retries - 1
                 schema_name = getattr(schema, "__name__", str(schema))
+                ai_content = (
+                    str(e.ai_message.content)
+                    if hasattr(e, "ai_message") and e.ai_message
+                    else "No content"
+                )
 
                 self._log.error(
                     f"Structured output validation failed for schema '{schema_name}' "
                     f"(attempt {attempt + 1}/{max_retries}): {e.source}",
-                    tool_name=e.tool_name,
-                    ai_message_content=str(e.ai_message.content),
+                    tool_name=getattr(e, "tool_name", None),
+                    ai_message_content=ai_content,
                 )
-
-                # These shouldn't be an issue, but just in case.
-                if not self.STRUCTURED_ERROR:
-                    return None
-
-                if not e.ai_message:
-                    return None
 
                 if is_last_attempt:
                     return None
 
                 error_message = self.STRUCTURED_ERROR.format(
-                    validation_error=str(e.args[0]),
+                    validation_error=str(e.args[0]) if e.args else str(e),
                     schema_name=schema_name,
-                    ai_message_content=str(e.ai_message.content),
+                    ai_message_content=ai_content,
                 )
-                current_messages.append(e.ai_message)
-                current_messages.append(HumanMessage(content=error_message))
+                current_messages.append({"role": "user", "content": error_message})
                 continue
 
         return None
@@ -288,6 +324,7 @@ Retry your response now, ensuring it matches the schema structure exactly."""
     ) -> str:
         """Direct model invocation, returns content string."""
         result = self.model.invoke(messages, config=get_runnable_config())
+
         if (
             metrics
             and isinstance(result, AIMessage)
@@ -298,6 +335,8 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             output_tokens = result.usage_metadata.get("output_tokens", 0)
             metrics.record_tokens(input_tokens, output_tokens)
 
+        if isinstance(result, AIMessage) and hasattr(result, "text"):
+            return result.text
         if isinstance(result.content, str):
             return result.content
         return str(result.content)
