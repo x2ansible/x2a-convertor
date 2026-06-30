@@ -86,15 +86,6 @@ Please provide a complete response that:
 
 Retry your response now, ensuring it matches the schema structure exactly."""
 
-    TOOL_CALL_CORRECTION = """ERROR: You provided a text response instead of calling the structured output tool.
-
-This is NOT acceptable. You MUST call the '{schema_name}' tool with your analysis.
-
-DO NOT write explanations. DO NOT write conversational text.
-ONLY call the tool with the required data.
-
-Try again now, and this time CALL THE TOOL."""
-
     def __init__(self, model: BaseChatModel | None = None):
         self.model = model or get_model()
         self.agent_id = str(uuid.uuid4())
@@ -210,6 +201,18 @@ Try again now, and this time CALL THE TOOL."""
 
         return input_tokens, output_tokens
 
+    @staticmethod
+    def _raise_missing_structured_output(schema: type) -> None:
+        """Raise error when model returns None instead of calling the structured output tool."""
+        schema_name = getattr(schema, "__name__", str(schema))
+        raise StructuredOutputValidationError(
+            tool_name=schema_name,
+            source=ValueError(
+                f"Model returned None instead of calling {schema_name} tool"
+            ),
+            ai_message=AIMessage(content="No tool call made"),
+        )
+
     def invoke_react(
         self,
         state: S,
@@ -284,24 +287,7 @@ Try again now, and this time CALL THE TOOL."""
                     metrics.record_tokens(*self._extract_message_tokens(result))
 
                 if result is None:
-                    is_last_attempt = attempt == max_retries - 1
-                    schema_name = getattr(schema, "__name__", str(schema))
-
-                    self._log.warning(
-                        f"Model returned None for structured output "
-                        f"for schema '{schema_name}' (attempt {attempt + 1}/{max_retries})"
-                    )
-
-                    if is_last_attempt:
-                        return None
-
-                    correction_message = self.TOOL_CALL_CORRECTION.format(
-                        schema_name=schema_name
-                    )
-                    current_messages.append(
-                        {"role": "user", "content": correction_message}
-                    )
-                    continue
+                    self._raise_missing_structured_output(schema)
 
                 return result
 
