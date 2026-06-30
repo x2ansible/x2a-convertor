@@ -6,7 +6,6 @@ downloads them using r10k for analysis.
 
 import shutil
 import subprocess
-from pathlib import Path
 
 from prompts.get_prompt import get_prompt
 from src.inputs.input_agent import InputAgent
@@ -14,6 +13,7 @@ from src.inputs.puppet.models import PuppetDependencyList
 from src.inputs.puppet.state import PuppetState
 from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
+from src.utils.path import Path
 
 logger = get_logger(__name__)
 
