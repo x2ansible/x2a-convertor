@@ -64,6 +64,14 @@ class WriteAgent(ExportAgent[ExportState]):
     SYSTEM_PROMPT_NAME = "export_ansible_write_system"
     USER_PROMPT_NAME = "export_ansible_write_task"
 
+    # Increase summarization limits to prevent losing checklist context
+    # WriteAgent needs higher limits because:
+    # 1. Large checklists with many items must stay in context
+    # 2. File writing operations generate verbose tool results
+    # 3. For smaller models (GPT-OSS-120b), summarization can cause premature completion
+    MAX_TOKENS_BEFORE_SUMMARY = 50000  # Increased from default 20000
+    MESSAGES_TO_KEEP = 30  # Increased from default 20
+
     def __init__(self, model=None, max_attempts=None):
         super().__init__(model)
         self.max_attempts = get_config_int("MAX_WRITE_ATTEMPTS")

@@ -45,6 +45,8 @@ class BaseAgent[S: BaseState](ABC):
     _NAME: ClassVar[str | None] = None
     RULES_FILE: ClassVar[str | None] = None
     GOAL: ClassVar[str | None] = None
+    MAX_TOKENS_BEFORE_SUMMARY: ClassVar[int] = 20000
+    MESSAGES_TO_KEEP: ClassVar[int] = 20
 
     STRUCTURED_OUTPUT_INSTRUCTION = """CRITICAL INSTRUCTION - STRUCTURED OUTPUT REQUIRED:
 
@@ -134,8 +136,8 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         stack.append(
             SummarizationMiddleware(
                 model=self.model,
-                max_tokens_before_summary=20000,
-                messages_to_keep=20,
+                max_tokens_before_summary=self.MAX_TOKENS_BEFORE_SUMMARY,
+                messages_to_keep=self.MESSAGES_TO_KEEP,
             ),
         )
         settings = get_settings()
