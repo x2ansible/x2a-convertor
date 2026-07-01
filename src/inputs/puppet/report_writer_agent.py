@@ -72,11 +72,11 @@ class ReportWriterAgent(InputAgent[PuppetState]):
         return state.update(specification=response_messages[-1].content)
 
     def _build_file_listing(self, state: PuppetState) -> str:
-        if not state.structured_analysis:
+        """Build file listing from execution tree files only."""
+        if not state.execution_tree_file_paths:
             return ""
 
-        file_paths = set(state.structured_analysis.analyzed_file_paths)
-        return "\n".join(sorted(file_paths))
+        return "\n".join(state.execution_tree_file_paths)
 
     def _generate_tree_sitter_report(self, path: str) -> str:
         analyzer = TreeSitterAnalyzer()
