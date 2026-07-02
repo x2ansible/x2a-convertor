@@ -3,13 +3,13 @@
 from typing import cast
 
 import pytest
-from langchain.agents.middleware import SummarizationMiddleware
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.messages.ai import UsageMetadata
 
 from src.base_agent import BaseAgent
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
+from src.middleware.x2a_summarize import X2ASummarizationMiddleware
 from src.types.base_state import BaseState
 
 
@@ -468,6 +468,160 @@ class TestBaseAgentInvokeStructured:
         assert metrics.output_tokens == 0
 
 
+class TestBaseAgentTagOriginalMessages:
+    """Tests for BaseAgent._tag_original_messages static method."""
+
+    def test_tag_single_user_message(self):
+        messages = [{"role": "user", "content": "Hello"}]
+        result = ConcreteAgent._tag_original_messages(messages)
+
+        assert len(result) == 1
+        assert isinstance(result[0], HumanMessage)
+        assert result[0].content == "Hello"
+        assert result[0].additional_kwargs.get("x2a_original_message") is True
+
+    def test_tag_single_system_message(self):
+        from langchain_core.messages import SystemMessage
+
+        messages = [{"role": "system", "content": "You are a helpful assistant"}]
+        result = ConcreteAgent._tag_original_messages(messages)
+
+        assert len(result) == 1
+        assert isinstance(result[0], SystemMessage)
+        assert result[0].content == "You are a helpful assistant"
+        assert result[0].additional_kwargs.get("x2a_original_message") is True
+
+    def test_tag_mixed_messages(self):
+        from langchain_core.messages import SystemMessage
+
+        messages = [
+            {"role": "system", "content": "System prompt"},
+            {"role": "user", "content": "User question"},
+        ]
+        result = ConcreteAgent._tag_original_messages(messages)
+
+        assert len(result) == 2
+        assert isinstance(result[0], SystemMessage)
+        assert isinstance(result[1], HumanMessage)
+        assert result[0].additional_kwargs.get("x2a_original_message") is True
+        assert result[1].additional_kwargs.get("x2a_original_message") is True
+
+    def test_tag_multiple_user_messages(self):
+        messages = [
+            {"role": "user", "content": "First"},
+            {"role": "user", "content": "Second"},
+            {"role": "user", "content": "Third"},
+        ]
+        result = ConcreteAgent._tag_original_messages(messages)
+
+        assert len(result) == 3
+        for msg in result:
+            assert isinstance(msg, HumanMessage)
+            assert msg.additional_kwargs.get("x2a_original_message") is True
+
+    def test_tag_empty_content(self):
+        messages = [{"role": "user", "content": ""}]
+        result = ConcreteAgent._tag_original_messages(messages)
+
+        assert len(result) == 1
+        assert result[0].content == ""
+        assert result[0].additional_kwargs.get("x2a_original_message") is True
+
+    def test_tag_missing_role_defaults_to_user(self):
+        messages = [{"content": "Message without role"}]
+        result = ConcreteAgent._tag_original_messages(messages)
+
+        assert len(result) == 1
+        assert isinstance(result[0], HumanMessage)
+        assert result[0].additional_kwargs.get("x2a_original_message") is True
+
+    def test_tag_missing_content_defaults_to_empty(self):
+        messages = [{"role": "user"}]
+        result = ConcreteAgent._tag_original_messages(messages)
+
+        assert len(result) == 1
+        assert result[0].content == ""
+
+    def test_tag_preserves_independence(self):
+        """Ensure each message gets its own independent tag dict."""
+        messages = [
+            {"role": "user", "content": "First"},
+            {"role": "user", "content": "Second"},
+        ]
+        result = ConcreteAgent._tag_original_messages(messages)
+
+        # Modify one tag and ensure the other is unaffected
+        result[0].additional_kwargs["modified"] = True
+        assert "modified" not in result[1].additional_kwargs
+
+
+class TestBaseAgentInvokeReact:
+    """Tests for BaseAgent.invoke_react message tagging."""
+
+    @pytest.fixture
+    def agent(self):
+        """Create a test agent instance."""
+        return ConcreteAgent()
+
+    @pytest.fixture
+    def mock_agent_create(self, monkeypatch):
+        """Mock the create_agent function."""
+        from unittest.mock import Mock
+
+        mock_create = Mock()
+        monkeypatch.setattr("src.base_agent.create_agent", mock_create)
+        return mock_create
+
+    def test_invoke_react_tags_messages(self, agent, mock_agent_create):
+        """Test that invoke_react tags messages before passing to agent."""
+        from unittest.mock import Mock
+
+        from langchain_core.messages import SystemMessage
+
+        mock_agent_instance = Mock()
+        mock_agent_instance.invoke.return_value = {"messages": []}
+        mock_agent_create.return_value = mock_agent_instance
+
+        messages = [
+            {"role": "system", "content": "System prompt"},
+            {"role": "user", "content": "User input"},
+        ]
+
+        state = BaseState(user_message="test", path="/test")
+        agent.invoke_react(state, messages)
+
+        # Verify create_agent was called
+        assert mock_agent_create.called
+
+        # Verify invoke was called with tagged messages
+        invoke_call = mock_agent_instance.invoke.call_args
+        invoked_messages = invoke_call[0][0]["messages"]
+
+        assert len(invoked_messages) == 2
+        assert isinstance(invoked_messages[0], SystemMessage)
+        assert isinstance(invoked_messages[1], HumanMessage)
+        assert invoked_messages[0].additional_kwargs.get("x2a_original_message") is True
+        assert invoked_messages[1].additional_kwargs.get("x2a_original_message") is True
+
+    def test_invoke_react_preserves_message_content(self, agent, mock_agent_create):
+        """Test that message content is preserved during tagging."""
+        from unittest.mock import Mock
+
+        mock_agent_instance = Mock()
+        mock_agent_instance.invoke.return_value = {"messages": []}
+        mock_agent_create.return_value = mock_agent_instance
+
+        messages = [{"role": "user", "content": "Specific content to preserve"}]
+
+        state = BaseState(user_message="test", path="/test")
+        agent.invoke_react(state, messages)
+
+        invoke_call = mock_agent_instance.invoke.call_args
+        invoked_messages = invoke_call[0][0]["messages"]
+
+        assert invoked_messages[0].content == "Specific content to preserve"
+
+
 class TestBaseAgentMiddleware:
     """Tests for BaseAgent.middleware() configuration."""
 
@@ -476,7 +630,7 @@ class TestBaseAgentMiddleware:
         stack = agent.middleware()
 
         assert len(stack) == 1
-        assert isinstance(stack[0], SummarizationMiddleware)
+        assert isinstance(stack[0], X2ASummarizationMiddleware)
 
     def test_middleware_with_rules_file(self):
         agent = RuledAgent()
@@ -484,7 +638,7 @@ class TestBaseAgentMiddleware:
 
         assert len(stack) == 2
         assert isinstance(stack[0], RulesMiddleware)
-        assert isinstance(stack[1], SummarizationMiddleware)
+        assert isinstance(stack[1], X2ASummarizationMiddleware)
 
     def test_middleware_with_goal(self):
         agent = GoalAgent()
@@ -492,7 +646,7 @@ class TestBaseAgentMiddleware:
 
         assert len(stack) == 2
         assert isinstance(stack[0], GoalValidationMiddleware)
-        assert isinstance(stack[1], SummarizationMiddleware)
+        assert isinstance(stack[1], X2ASummarizationMiddleware)
 
     def test_middleware_with_goal_passes_agent_reference(self):
         agent = GoalAgent()
