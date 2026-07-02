@@ -13,17 +13,18 @@ from collections.abc import Callable
 from typing import Any, ClassVar
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import SummarizationMiddleware
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain.agents.structured_output import StructuredOutputValidationError
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
 
 from src.config import get_settings
+from src.const import X2A_ORIGINAL_MESSAGE
 from src.middleware.agent_dump import AgentDumpMiddleware
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
+from src.middleware.x2a_summarize import X2ASummarizationMiddleware
 from src.model import get_model, get_runnable_config, report_tool_calls
 from src.types.base_state import BaseState
 from src.types.telemetry import AgentMetrics, telemetry_context
@@ -46,7 +47,7 @@ class BaseAgent[S: BaseState](ABC):
     RULES_FILE: ClassVar[str | None] = None
     GOAL: ClassVar[str | None] = None
     MAX_TOKENS_BEFORE_SUMMARY: ClassVar[int] = 20000
-    MESSAGES_TO_KEEP: ClassVar[int] = 20
+    MESSAGES_TO_KEEP: ClassVar[int] = 6
 
     STRUCTURED_OUTPUT_INSTRUCTION = """CRITICAL INSTRUCTION - STRUCTURED OUTPUT REQUIRED:
 
@@ -134,9 +135,9 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         if self.RULES_FILE:
             stack.append(RulesMiddleware(self.RULES_FILE))
         stack.append(
-            SummarizationMiddleware(
+            X2ASummarizationMiddleware(
                 model=self.model,
-                max_tokens_before_summary=self.MAX_TOKENS_BEFORE_SUMMARY,
+                max_tokens=self.MAX_TOKENS_BEFORE_SUMMARY,
                 messages_to_keep=self.MESSAGES_TO_KEEP,
             ),
         )
@@ -203,13 +204,14 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         Returns the raw result dict from the agent.
         """
         tools = self._get_tools(state)
+        tagged_messages = self._tag_original_messages(messages)
 
         agent = create_agent(
             model=self.model, middleware=self.middleware(), tools=tools
         )
 
         result = agent.invoke(
-            {"messages": messages},
+            {"messages": tagged_messages},
             get_runnable_config(),
         )
 
@@ -342,6 +344,26 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         if isinstance(result.content, str):
             return result.content
         return str(result.content)
+
+    @staticmethod
+    def _tag_original_messages(
+        messages: list[dict[str, str]],
+    ) -> list[HumanMessage | SystemMessage]:
+        """Convert raw message dicts into tagged LangChain message objects."""
+        tag = {X2A_ORIGINAL_MESSAGE: True}
+        tagged: list[HumanMessage | SystemMessage] = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "system":
+                tagged.append(
+                    SystemMessage(content=content, additional_kwargs=tag.copy())
+                )
+            else:
+                tagged.append(
+                    HumanMessage(content=content, additional_kwargs=tag.copy())
+                )
+        return tagged
 
     @staticmethod
     def get_last_ai_message(result: dict) -> AIMessage | None:
