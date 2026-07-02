@@ -274,6 +274,11 @@ class PuppetSubagent:
                 tree_builder, tree_root, structured_analysis
             )
 
+            execution_tree_files = sorted(tree_builder.collect_file_paths(tree_root))
+            slog.info(
+                f"Execution tree includes {len(execution_tree_files)} manifest files"
+            )
+
             if metrics:
                 metrics.record_metric("manifests_analyzed", len(manifests))
                 metrics.record_metric("hiera_files_analyzed", len(hiera_data))
@@ -286,6 +291,7 @@ class PuppetSubagent:
         return state.update(
             structured_analysis=structured_analysis,
             execution_tree_summary=execution_tree_summary,
+            execution_tree_file_paths=execution_tree_files,
             credentials_analysis=credentials_analysis,
         )
 

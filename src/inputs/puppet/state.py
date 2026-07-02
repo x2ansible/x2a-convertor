@@ -32,6 +32,7 @@ class PuppetState(BaseState):
         default=None, kw_only=True
     )
     execution_tree_summary: str = field(default="", kw_only=True)
+    execution_tree_file_paths: list[str] = field(kw_only=True, default_factory=list)
     credentials_analysis: list[CredentialAnalysisResult] | None = field(
         default=None, kw_only=True
     )

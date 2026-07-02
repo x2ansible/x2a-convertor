@@ -115,6 +115,22 @@ class PuppetExecutionTreeBuilder:
 
         return "\n".join(lines)
 
+    def collect_file_paths(self, node: ExecutionTreeNode) -> set[str]:
+        """Collect all file paths from execution tree nodes.
+
+        Only class nodes have file_path set. This traverses the tree
+        depth-first and collects all non-None file paths.
+        """
+        paths = set()
+
+        if node.file_path:
+            paths.add(node.file_path)
+
+        for child in node.children:
+            paths.update(self.collect_file_paths(child))
+
+        return paths
+
     def _normalize_class_name(self, class_name: str) -> str:
         """Normalize class name by removing leading :: for consistent lookups."""
         return class_name.lstrip(":")
