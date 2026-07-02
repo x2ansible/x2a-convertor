@@ -73,12 +73,28 @@ When NO AAP discovery results are provided:
 - Do NOT add any collection dependencies
 - Write all tasks using ansible.builtin modules
 
+## Tool Usage Strategy
+
+**The migration plan has a "File Structure" section that lists ALL source files.**
+This is your primary source of truth for what files to migrate.
+
+**Your workflow:**
+1. Read the migration plan's "File Structure" section
+2. For EACH file listed there, add a checklist item
+3. Add Ansible structure files (meta/main.yml, handlers/main.yml, etc.)
+4. Verify completeness
+
+**Why File Structure is important:**
+- It's a complete, curated list of all files in the module
+- Every file there needs a checklist item
+- If you skip files from File Structure, the migration will be incomplete
+
 Important rules:
-- First, use list_checklist_tasks to see what items already exist
+- Use list_checklist_tasks to see what items already exist
 - If checklist already has items, preserve them - only add missing ones
-- Use the migration plan as your source of truth for WHAT needs to be migrated
-- Use the directory listing to verify files actually exist
+- Extract EVERY file from the migration plan's "File Structure" section
+- ALWAYS add required structure files: meta/main.yml and handlers/main.yml (minimum)
+- For Ansible structure files, use "N/A" as the source path
 - New items start with status "pending"
 - Do NOT modify or remove existing items - they may have already been addressed
-- For Ansible structure files, use "N/A" as the source path
-- Be thorough - ensure every file mentioned in the migration plan has been added to the checklist
+- Be systematic - go through File Structure line by line, then add structure files

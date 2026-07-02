@@ -18,10 +18,17 @@ The following collections are available in your organization's Private Automatio
 {{ aap_discovery.content }}
 
 **CRITICAL REQUIREMENT**: When a collection above covers a technology in the migration plan:
-1. Add a DEPENDENCIES checklist item using the EXACT collection FQCN from the discovery above (source_path="collection:<namespace>.<name>", target_path="requirements.yml")
+1. Add a DEPENDENCIES checklist item using the EXACT collection FQCN from the discovery above (source_path="collection:<namespace>.<name>", target_path="ansible/roles/{{module}}/requirements.yml")
 2. DO NOT add template items for technologies covered by a collection (the collection provides its own templates)
 3. DO NOT add custom task items for technologies covered by a collection
 4. The write agent will use `include_role` with the collection's roles
+{% else %}
+## No AAP Private Hub Collections Available
+
+If the role has external dependencies (like Ansible Galaxy collections), you MAY need to create:
+- N/A → ansible/roles/{{module}}/requirements.yml (for Ansible Galaxy collection dependencies)
+
+Only add this if the migration plan explicitly mentions external Ansible dependencies.
 {% endif %}
 
 {% if existing_checklist != "" %}
@@ -36,10 +43,50 @@ Only ADD new items that are missing from the checklist but mentioned in the migr
 
 Read the migration plan carefully and ensure the checklist is complete. Some files may not be used by the specific module, so you don't need to add all files to the checklist, only the ones described in the migration plan.
 
-FIRST: Use list_checklist_tasks to see what items already exist.
-THEN: USE add_checklist_task TOOL to add ONLY missing migration tasks:
+## WORKFLOW - FOLLOW THESE STEPS:
 
-TOOL: add_checklist_task(category, source_path, target_path, description)
+**STEP 1: EXTRACT all files from the migration plan's "File Structure" section**
+
+The migration plan contains a "## File Structure" section with a complete list of source files.
+You MUST create a checklist item for EVERY file listed in this section.
+
+Go through the File Structure section line by line and for each file:
+- Identify its category (templates, tasks/recipes, attributes/vars, files, etc.)
+- Determine the source path (exactly as shown in File Structure)
+- Determine the target Ansible path
+- Call add_checklist_task for that file
+
+**STEP 2: CHECK existing checklist items**
+- Use list_checklist_tasks to see what already exists (if resuming from previous run)
+- Skip files that are already in the checklist
+
+**STEP 3: ADD required Ansible structure files**
+
+After adding all files from File Structure, you MUST add these structure files.
+Call add_checklist_task for EACH of these:
+
+1. add_checklist_task(category="structure", source_path="N/A", target_path="ansible/roles/{{module}}/meta/main.yml", description="Role metadata")
+
+2. add_checklist_task(category="structure", source_path="N/A", target_path="ansible/roles/{{module}}/handlers/main.yml", description="Handlers file")
+
+3. Check if defaults/main.yml is already in checklist (from File Structure)
+   - If NOT already added: add_checklist_task(category="structure", source_path="N/A", target_path="ansible/roles/{{module}}/defaults/main.yml", description="Default variables")
+
+These are REQUIRED for every Ansible role. Do not skip them.
+
+**STEP 4: VERIFY completeness**
+- Use list_checklist_tasks to review what you've added
+- Count: File Structure has X files → you should have added X checklist items (minimum)
+
+## Tools Available:
+
+You have these tools to complete the workflow above:
+- list_checklist_tasks: See what items already exist in the checklist
+- add_checklist_task: Add new migration tasks to the checklist
+- list_directory: (Optional) Explore source directory if needed for verification
+- read_file: (Optional) Read file contents if needed for categorization
+
+Primary tool: add_checklist_task(category, source_path, target_path, description)
 
 Categories:
 - "templates": ERB templates → Jinja2 templates

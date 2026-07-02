@@ -135,6 +135,14 @@ class Checklist:
                 f"target_path must be a concrete file path, not a glob pattern: '{target_path}'"
             )
 
+        # Reject truncated or malformed paths
+        # Common malformations: ends with "->..." or contains "->" (arrow notation)
+        if "->" in target_path or target_path.endswith("..."):
+            raise ValueError(
+                f"target_path appears malformed or incomplete: '{target_path}'. "
+                f"Provide the complete file path (e.g., 'ansible/roles/modulename/tasks/file.yml')"
+            )
+
         # Check if task already exists
         existing_item = self.find_task(source_path, target_path)
         if existing_item:
