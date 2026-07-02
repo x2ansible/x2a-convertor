@@ -161,7 +161,9 @@ class ExportState(BaseState, MigrationStateInterface):
         )
 
         if self.telemetry:
-            lines.extend(["", "### Telemetry", "", self.telemetry.to_summary()])
+            lines.extend(
+                ["", "### Telemetry", "", "```", self.telemetry.to_summary(), "```"]
+            )
 
         return "\n".join(lines)
 
