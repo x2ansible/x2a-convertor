@@ -76,7 +76,7 @@ class ReviewAgent(ExportAgent[ExportState]):
         )
 
         message = self.get_last_ai_message(result)
-        review_report = message.content if message else ""
+        review_report = message.text if message else ""
 
         self._log.info(f"Review complete. Report length: {len(review_report)} chars")
 
