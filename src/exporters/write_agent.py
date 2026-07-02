@@ -72,6 +72,22 @@ class WriteAgent(ExportAgent[ExportState]):
     MAX_TOKENS_BEFORE_SUMMARY = 50000  # Increased from default 20000
     MESSAGES_TO_KEEP = 30  # Increased from default 20
 
+    GOAL = """Write ALL pending migration files from the checklist to disk. Every checklist item must be COMPLETE with its target file physically present.
+
+    Success Criteria:
+    1. Every checklist item with status PENDING or MISSING has been processed
+    2. Each target_path file physically exists on disk
+    3. Written files contain valid, non-placeholder content appropriate to their type
+    4. Zero checklist items remain in PENDING or MISSING status
+
+    VALIDATION INSTRUCTIONS:
+    - Review the conversation context to identify all target_path entries that were supposed to be written
+    - Use list_directory to verify the ansible role directory contains the expected files
+    - Use read_file to spot-check that written files contain valid content (not placeholders)
+    - Goal is achieved ONLY if all target files physically exist on disk
+    - In feedback, list any files that are missing or contain placeholder content
+    """
+
     def __init__(self, model=None, max_attempts=None):
         super().__init__(model)
         self.max_attempts = get_config_int("MAX_WRITE_ATTEMPTS")
