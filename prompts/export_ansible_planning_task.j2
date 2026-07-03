@@ -47,7 +47,7 @@ Read the migration plan carefully and ensure the checklist is complete. Some fil
 
 **STEP 1: EXTRACT all files from the migration plan's "File Structure" section**
 
-The migration plan contains a "## File Structure" section with a complete list of source files.
+The File Structure section lists all source files that are actually used/referenced in the migration.
 You MUST create a checklist item for EVERY file listed in this section.
 
 Go through the File Structure section line by line and for each file:
@@ -76,19 +76,9 @@ These are REQUIRED for every Ansible role. Do not skip them.
 
 **STEP 4: VERIFY completeness**
 - Use list_checklist_tasks to review what you've added
-- Count: File Structure has X files → you should have added X checklist items (minimum)
+- Ensure all files from File Structure are covered (either as individual items OR by collection dependencies)
 
-## Tools Available:
-
-You have these tools to complete the workflow above:
-- list_checklist_tasks: See what items already exist in the checklist
-- add_checklist_task: Add new migration tasks to the checklist
-- list_directory: (Optional) Explore source directory if needed for verification
-- read_file: (Optional) Read file contents if needed for categorization
-
-Primary tool: add_checklist_task(category, source_path, target_path, description)
-
-Categories:
+## Checklist Categories:
 - "templates": ERB templates → Jinja2 templates
 - "recipes": Chef recipes → Ansible tasks
 - "attributes": Chef attributes → Ansible variables
