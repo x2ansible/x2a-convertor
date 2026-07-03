@@ -161,7 +161,7 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
         message = self.get_last_ai_message(result)
         if message is None:
             return ""
-        return str(message.content)
+        return str(message.text)
 
     # -------------------------------------------------------------------------
     # Collection Extraction
