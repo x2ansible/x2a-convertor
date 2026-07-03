@@ -44,7 +44,7 @@ class TestChecklist:
 
         stats = ChecklistStats(total=10, complete=5, pending=3, missing=1, error=1)
         with pytest.raises(FrozenInstanceError):
-            stats.total = 20  # pyright: ignore
+            stats.total = 20  # pyrefly: ignore
 
     def test_stats_to_markdown(self):
         """Test markdown conversion of stats."""
@@ -421,7 +421,7 @@ class TestChecklist:
         items = checklist.items
 
         with pytest.raises(TypeError):
-            items[0] = None  # pyright: ignore
+            items[0] = None  # pyrefly: ignore
 
     # items_by_category() tests
     def test_items_by_category_with_include(self):
