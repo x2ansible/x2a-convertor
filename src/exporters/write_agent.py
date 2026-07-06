@@ -69,8 +69,8 @@ class WriteAgent(ExportAgent[ExportState]):
     # 1. Large checklists with many items must stay in context
     # 2. File writing operations generate verbose tool results
     # 3. For smaller models (GPT-OSS-120b), summarization can cause premature completion
-    MAX_TOKENS_BEFORE_SUMMARY = 50000  # Increased from default 20000
-    MESSAGES_TO_KEEP = 30  # Increased from default 20
+    MAX_TOKENS_BEFORE_SUMMARY = 30000  # Increased from default 20000
+    MESSAGES_TO_KEEP = 8  # Increased from default 20
 
     def __init__(self, model=None, max_attempts=None):
         super().__init__(model)

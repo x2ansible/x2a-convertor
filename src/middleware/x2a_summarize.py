@@ -54,6 +54,38 @@ class X2ASummarizationMiddleware(AgentMiddleware):
         messages: list[AnyMessage] = state["messages"]
         self._ensure_message_ids(messages)
 
+        result = self._prepare_summarization(messages)
+        if result is None:
+            return None
+
+        original, to_summarize, kept = result
+        summary_text = self._create_summary(to_summarize)
+
+        if summary_text is None:
+            return None
+        return self._build_result(original, summary_text, kept, len(to_summarize))
+
+    async def abefore_model(
+        self, state: Any, runtime: Runtime
+    ) -> dict[str, Any] | None:
+        messages: list[AnyMessage] = state["messages"]
+        self._ensure_message_ids(messages)
+
+        result = self._prepare_summarization(messages)
+        if result is None:
+            return None
+
+        original, to_summarize, kept = result
+        summary_text = await self._acreate_summary(to_summarize)
+
+        if summary_text is None:
+            return None
+
+        return self._build_result(original, summary_text, kept, len(to_summarize))
+
+    def _prepare_summarization(
+        self, messages: list[AnyMessage]
+    ) -> tuple[list[AnyMessage], list[AnyMessage], list[AnyMessage]] | None:
         token_count = self._token_counter(messages)
         if token_count < self._max_tokens:
             return None
@@ -76,75 +108,7 @@ class X2ASummarizationMiddleware(AgentMiddleware):
         if not to_summarize:
             return None
 
-        summary_text = self._create_summary(to_summarize)
-        summary_message = HumanMessage(
-            content=f"Summary of previous actions:\n\n{summary_text}",
-            id=str(uuid.uuid4()),
-        )
-
-        logger.info(
-            "Summarization complete",
-            original_count=len(original),
-            summarized_count=len(to_summarize),
-            kept_count=len(kept),
-        )
-        return {
-            "messages": [
-                RemoveMessage(id=REMOVE_ALL_MESSAGES),
-                *original,
-                summary_message,
-                *kept,
-            ]
-        }
-
-    async def abefore_model(
-        self, state: Any, runtime: Runtime
-    ) -> dict[str, Any] | None:
-        messages: list[AnyMessage] = state["messages"]
-        self._ensure_message_ids(messages)
-
-        token_count = self._token_counter(messages)
-        if token_count < self._max_tokens:
-            return None
-
-        logger.info(
-            "Token threshold exceeded, summarizing (async)",
-            token_count=token_count,
-            max_tokens=self._max_tokens,
-            message_count=len(messages),
-        )
-
-        original, non_original = self._partition_by_tag(messages)
-
-        if not non_original:
-            return None
-
-        kept = self._select_recent_messages(non_original)
-        to_summarize = non_original[: len(non_original) - len(kept)]
-
-        if not to_summarize:
-            return None
-
-        summary_text = await self._acreate_summary(to_summarize)
-        summary_message = HumanMessage(
-            content=f"Summary of previous actions:\n\n{summary_text}",
-            id=str(uuid.uuid4()),
-        )
-
-        logger.info(
-            "Summarization complete (async)",
-            original_count=len(original),
-            summarized_count=len(to_summarize),
-            kept_count=len(kept),
-        )
-        return {
-            "messages": [
-                RemoveMessage(id=REMOVE_ALL_MESSAGES),
-                *original,
-                summary_message,
-                *kept,
-            ]
-        }
+        return original, to_summarize, kept
 
     def _partition_by_tag(
         self, messages: list[AnyMessage]
@@ -163,6 +127,34 @@ class X2ASummarizationMiddleware(AgentMiddleware):
         ]
         return original, non_original
 
+    def _build_result(
+        self,
+        original: list[AnyMessage],
+        summary_text: str,
+        kept: list[AnyMessage],
+        summarized_count: int,
+    ) -> dict[str, Any]:
+        summary_message = HumanMessage(
+            content=f"Summary of previous actions:\n\n{summary_text}",
+            id=str(uuid.uuid4()),
+        )
+
+        logger.info(
+            "Summarization complete",
+            original_count=len(original),
+            summarized_count=summarized_count,
+            kept_count=len(kept),
+        )
+
+        return {
+            "messages": [
+                RemoveMessage(id=REMOVE_ALL_MESSAGES),
+                *original,
+                summary_message,
+                *kept,
+            ]
+        }
+
     def _select_recent_messages(self, messages: list[AnyMessage]) -> list[AnyMessage]:
         if len(messages) <= self._messages_to_keep:
             return list(messages)
@@ -171,35 +163,40 @@ class X2ASummarizationMiddleware(AgentMiddleware):
         cutoff = self._adjust_cutoff_for_tool_pairs(messages, cutoff)
         return messages[cutoff:]
 
-    def _create_summary(self, messages: list[AnyMessage]) -> str:
+    def _create_summary(self, messages: list[AnyMessage]) -> str | None:
         if not messages:
             return "No previous actions to summarize."
 
-        formatted = get_buffer_string(messages)
-        prompt_template = get_prompt("x2a_summarize")
-        prompt_text = prompt_template.format(messages=formatted)
+        prompt_text = self._build_summary_prompt(messages)
 
         try:
             response = self._model.invoke(prompt_text)
             return response.text.strip()
         except Exception as e:
-            logger.error("Summarization failed", error=str(e))
-            return f"Error generating summary: {e!s}"
+            logger.error(
+                "Summarization failed, keeping original messages", error=str(e)
+            )
+            return None
 
-    async def _acreate_summary(self, messages: list[AnyMessage]) -> str:
+    async def _acreate_summary(self, messages: list[AnyMessage]) -> str | None:
         if not messages:
             return "No previous actions to summarize."
 
-        formatted = get_buffer_string(messages)
-        prompt_template = get_prompt("x2a_summarize")
-        prompt_text = prompt_template.format(messages=formatted)
+        prompt_text = self._build_summary_prompt(messages)
 
         try:
             response = await self._model.ainvoke(prompt_text)
             return response.text.strip()
         except Exception as e:
-            logger.error("Summarization failed (async)", error=str(e))
-            return f"Error generating summary: {e!s}"
+            logger.error(
+                "Summarization failed, keeping original messages", error=str(e)
+            )
+            return None
+
+    def _build_summary_prompt(self, messages: list[AnyMessage]) -> str:
+        formatted = get_buffer_string(messages)
+        prompt_template = get_prompt("x2a_summarize")
+        return prompt_template.format(messages=formatted)
 
     @staticmethod
     def _adjust_cutoff_for_tool_pairs(messages: list[AnyMessage], cutoff: int) -> int:

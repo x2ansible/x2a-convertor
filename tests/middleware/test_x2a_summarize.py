@@ -629,7 +629,7 @@ class TestSummaryCreation:
 
         result = middleware._create_summary(messages)
 
-        assert "Error generating summary" in result
+        assert result is None
 
 
 class TestEndToEndScenarios:
@@ -721,3 +721,28 @@ class TestEndToEndScenarios:
 
         assert result is None
         model.invoke.assert_not_called()
+
+    def test_summarization_failure_keeps_original_messages(self, model, runtime):
+        """Test that when summarization fails, original messages are preserved."""
+        model.invoke.side_effect = Exception("Model unavailable")
+        middleware = X2ASummarizationMiddleware(
+            model, max_tokens=10, messages_to_keep=2
+        )
+
+        system_msg = SystemMessage(
+            content="You are a migration assistant",
+            additional_kwargs={X2A_ORIGINAL_MESSAGE: True},
+            id="msg1",
+        )
+        ai1 = AIMessage(content="Processing " * 50, id="msg2")
+        ai2 = AIMessage(content="Analyzing " * 50, id="msg3")
+        ai3 = AIMessage(content="Converting " * 50, id="msg4")
+        ai4 = AIMessage(content="Recent message", id="msg5")
+
+        messages = [system_msg, ai1, ai2, ai3, ai4]
+        state = {"messages": messages}
+
+        result = middleware.before_model(state, runtime)
+
+        assert result is None
+        model.invoke.assert_called_once()
