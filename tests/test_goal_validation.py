@@ -77,17 +77,17 @@ class TestBuildValidationPrompt:
         prompt = mw._build_validation_prompt(messages)
 
         assert "Create output.txt" in prompt
-        assert "[HumanMessage] Hello" in prompt
-        assert "[AIMessage] Done" in prompt
+        assert "Human: Hello" in prompt
+        assert "AI: Done" in prompt
 
-    def test_skips_messages_without_content(self, make_middleware):
+    def test_formats_messages_correctly(self, make_middleware):
         mw = make_middleware()
         msg_with_content = HumanMessage(content="visible")
-        msg_without_content = MagicMock(spec=[])
 
-        prompt = mw._build_validation_prompt([msg_with_content, msg_without_content])
+        prompt = mw._build_validation_prompt([msg_with_content])
 
         assert "visible" in prompt
+        assert "Human: visible" in prompt
 
 
 class TestRunValidation:

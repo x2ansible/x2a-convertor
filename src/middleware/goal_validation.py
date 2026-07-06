@@ -9,6 +9,7 @@ from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_core.messages import HumanMessage
+from langchain_core.messages.utils import get_buffer_string
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
@@ -16,11 +17,14 @@ from src.utils.logging import get_logger
 
 VALIDATION_PROMPT_TEMPLATE = """You are a read-only goal validation agent. Your ONLY job is to CHECK whether the following goal was achieved. You must NEVER create, write, or modify any files.
 
+<goal>
 GOAL: {goal}
+</goal>
 
 CONVERSATION CONTEXT:
+<messages>
 {context}
-
+</messages>
 Use ONLY the read-only tools (read_file, list_directory, file_search) to inspect existing files and verify the goal was met. Do NOT attempt to fix, create, or write anything.
 
 Provide:
@@ -73,11 +77,7 @@ class GoalValidationMiddleware(AgentMiddleware):
         return messages[: self.CONTEXT_HEAD] + messages[-self.CONTEXT_TAIL :]
 
     def _build_validation_prompt(self, context_messages: list) -> str:
-        context_text = "\n\n".join(
-            f"[{msg.__class__.__name__}] {msg.content}"
-            for msg in context_messages
-            if hasattr(msg, "content")
-        )
+        context_text = get_buffer_string(context_messages)
         return VALIDATION_PROMPT_TEMPLATE.format(
             goal=self.goal_description, context=context_text
         )
@@ -97,7 +97,6 @@ class GoalValidationMiddleware(AgentMiddleware):
                 metrics=None,
                 tools=validation_tools,
             )
-
             if not validation_result:
                 self._log.warning("No response from validation")
                 return False, "Validation did not respond"
