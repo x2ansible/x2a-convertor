@@ -72,6 +72,16 @@ class WriteAgent(ExportAgent[ExportState]):
     MAX_TOKENS_BEFORE_SUMMARY = 30000  # Increased from default 20000
     MESSAGES_TO_KEEP = 8  # Increased from default 20
 
+    GOAL = """All non-molecule checklist items that were PENDING or MISSING have been written to disk and marked COMPLETE.
+
+    What counts as done:
+    - Each target_path file exists with valid, converted content (not placeholders)
+    - Items already COMPLETE before the agent ran were left untouched
+    - Molecule category items were skipped (separate agent handles them)
+    - Pre-generated files (validate_credentials.yml, aap-configuration/*) were not overwritten
+    - Files with persistent ansible_write WARNINGs were marked complete after 3 fix attempts
+    """
+
     def __init__(self, model=None, max_attempts=None):
         super().__init__(model)
         self.max_attempts = get_config_int("MAX_WRITE_ATTEMPTS")
