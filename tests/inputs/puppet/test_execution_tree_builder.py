@@ -1,8 +1,16 @@
 """Tests for Puppet execution tree builder."""
 
 from src.inputs.puppet.execution_tree_builder import (
+    ClassNode,
+    CollectorNode,
+    ConditionalNode,
     ExecutionTreeNode,
+    ExportedResourceNode,
+    IterationNode,
     PuppetExecutionTreeBuilder,
+    RelationshipNode,
+    ResourceNode,
+    VirtualResourceNode,
 )
 from src.inputs.puppet.models import (
     ClassInheritance,
@@ -20,21 +28,20 @@ def _make_manifest(class_name, file_path, **kwargs) -> ManifestAnalysisResult:
     )
 
 
-class TestExecutionTreeNode:
+class TestExecutionTreeNodes:
     def test_class_format(self):
-        node = ExecutionTreeNode(
-            node_type="class",
-            name="profile_haproxy",
+        node = ClassNode(
+            name="profile_webapp",
             file_path="manifests/init.pp",
         )
         label = node.format_label()
-        assert "[class] profile_haproxy" in label
+        assert "[class] profile_webapp" in label
         assert "manifests/init.pp" in label
+        assert node.node_type == "class"
 
     def test_class_with_details(self):
-        node = ExecutionTreeNode(
-            node_type="class",
-            name="profile_haproxy",
+        node = ClassNode(
+            name="profile_webapp",
             file_path="manifests/init.pp",
             details="entry point",
         )
@@ -42,32 +49,45 @@ class TestExecutionTreeNode:
         assert "(entry point)" in label
 
     def test_resource_format(self):
-        node = ExecutionTreeNode(node_type="resource", name="package[haproxy]")
-        assert node.format_label() == "[resource] package[haproxy]"
+        node = ResourceNode(name="package[webapp]")
+        assert node.format_label() == "[resource] package[webapp]"
+        assert node.node_type == "resource"
 
     def test_iteration_format(self):
-        node = ExecutionTreeNode(node_type="iteration", name="$backends.each |$name|")
+        node = IterationNode(name="$backends.each |$name|")
         assert "LOOP" in node.format_label()
+        assert node.node_type == "iteration"
 
     def test_conditional_format(self):
-        node = ExecutionTreeNode(node_type="conditional", name="if $ssl_enabled")
+        node = ConditionalNode(name="if $ssl_enabled")
         assert "[conditional]" in node.format_label()
+        assert node.node_type == "conditional"
 
     def test_exported_format(self):
-        node = ExecutionTreeNode(node_type="exported", name="nagios_host[web01]")
+        node = ExportedResourceNode(name="nagios_host[web01]")
         assert "@@" in node.format_label()
+        assert node.node_type == "exported"
 
     def test_virtual_format(self):
-        node = ExecutionTreeNode(node_type="virtual", name="user[deploy]")
+        node = VirtualResourceNode(name="user[deploy]")
         assert "@" in node.format_label()
+        assert node.node_type == "virtual"
 
-    def test_unknown_type_format(self):
-        node = ExecutionTreeNode(node_type="unknown", name="something")
-        assert node.format_label() == "something"
+    def test_collector_format(self):
+        node = CollectorNode(name="Nagios_host <| tag == production |>")
+        assert "<<| |>>" in node.format_label()
+        assert node.node_type == "collector"
 
-    def test_unknown_type_with_details(self):
-        node = ExecutionTreeNode(node_type="unknown", name="something", details="extra")
-        assert node.format_label() == "something (extra)"
+    def test_relationship_format(self):
+        node = RelationshipNode(name="Package[nginx] -> Service[nginx]")
+        assert "[ordering]" in node.format_label()
+        assert node.node_type == "relationship"
+
+    def test_base_class_is_abstract(self):
+        import pytest
+
+        with pytest.raises(TypeError):
+            ExecutionTreeNode(name="test")  # pyrefly: ignore[bad-instantiation]
 
 
 class TestPuppetExecutionTreeBuilder:
@@ -75,24 +95,24 @@ class TestPuppetExecutionTreeBuilder:
         analysis = PuppetStructuredAnalysis(
             manifests=[
                 _make_manifest(
-                    "profile_haproxy",
+                    "profile_webapp",
                     "manifests/init.pp",
                     execution_order=[
                         ExecutionItem(
                             type="class_include",
-                            class_name="profile_haproxy::install",
+                            class_name="profile_webapp::install",
                             relationship="include",
                         ),
                     ],
                 ),
                 _make_manifest(
-                    "profile_haproxy::install",
+                    "profile_webapp::install",
                     "manifests/install.pp",
                     execution_order=[
                         ExecutionItem(
                             type="resource",
                             resource_type="package",
-                            title="haproxy",
+                            title="webapp",
                             attributes={"ensure": "installed"},
                         ),
                     ],
@@ -102,35 +122,38 @@ class TestPuppetExecutionTreeBuilder:
         builder = PuppetExecutionTreeBuilder(analysis)
         root = builder.build_tree()
 
-        assert root.name == "profile_haproxy"
+        assert root.name == "profile_webapp"
         assert root.node_type == "class"
+        assert isinstance(root, ClassNode)
         assert len(root.children) == 1
         child = root.children[0]
-        assert child.name == "profile_haproxy::install"
+        assert child.name == "profile_webapp::install"
+        assert isinstance(child, ClassNode)
         assert len(child.children) == 1
+        assert isinstance(child.children[0], ResourceNode)
         assert "package" in child.children[0].name
 
     def test_entry_class_detection_via_init_pp(self):
         analysis = PuppetStructuredAnalysis(
             manifests=[
-                _make_manifest("profile_haproxy::config", "manifests/config.pp"),
-                _make_manifest("profile_haproxy", "manifests/init.pp"),
+                _make_manifest("profile_webapp::config", "manifests/config.pp"),
+                _make_manifest("profile_webapp", "manifests/init.pp"),
             ]
         )
         builder = PuppetExecutionTreeBuilder(analysis)
         root = builder.build_tree()
-        assert root.name == "profile_haproxy"
+        assert root.name == "profile_webapp"
 
     def test_entry_class_fallback_to_first(self):
         analysis = PuppetStructuredAnalysis(
             manifests=[
-                _make_manifest("profile_haproxy::config", "manifests/config.pp"),
-                _make_manifest("profile_haproxy::install", "manifests/install.pp"),
+                _make_manifest("profile_webapp::config", "manifests/config.pp"),
+                _make_manifest("profile_webapp::install", "manifests/install.pp"),
             ]
         )
         builder = PuppetExecutionTreeBuilder(analysis)
         root = builder.build_tree()
-        assert root.name == "profile_haproxy::config"
+        assert root.name == "profile_webapp::config"
 
     def test_no_manifests(self):
         analysis = PuppetStructuredAnalysis()
@@ -232,7 +255,7 @@ class TestPuppetExecutionTreeBuilder:
         builder = PuppetExecutionTreeBuilder(analysis)
         root = builder.build_tree()
 
-        cond_nodes = [c for c in root.children if c.node_type == "conditional"]
+        cond_nodes = [c for c in root.children if isinstance(c, ConditionalNode)]
         assert len(cond_nodes) == 1
         assert "ssl_enabled" in cond_nodes[0].name
 
@@ -257,7 +280,7 @@ class TestPuppetExecutionTreeBuilder:
         builder = PuppetExecutionTreeBuilder(analysis)
         root = builder.build_tree()
 
-        iter_nodes = [c for c in root.children if c.node_type == "iteration"]
+        iter_nodes = [c for c in root.children if isinstance(c, IterationNode)]
         assert len(iter_nodes) == 1
         assert "$backends" in iter_nodes[0].name
 
@@ -285,8 +308,8 @@ class TestPuppetExecutionTreeBuilder:
         builder = PuppetExecutionTreeBuilder(analysis)
         root = builder.build_tree()
 
-        exported = [c for c in root.children if c.node_type == "exported"]
-        virtual = [c for c in root.children if c.node_type == "virtual"]
+        exported = [c for c in root.children if isinstance(c, ExportedResourceNode)]
+        virtual = [c for c in root.children if isinstance(c, VirtualResourceNode)]
         assert len(exported) == 1
         assert "nagios_host" in exported[0].name
         assert len(virtual) == 1
@@ -299,7 +322,7 @@ class TestPuppetExecutionTreeBuilder:
                     "main",
                     "manifests/init.pp",
                     relationship_chains=[
-                        "Package[haproxy] -> File[haproxy.cfg] ~> Service[haproxy]"
+                        "Package[webapp] -> File[webapp.cfg] ~> Service[webapp]"
                     ],
                 ),
             ]
@@ -307,9 +330,9 @@ class TestPuppetExecutionTreeBuilder:
         builder = PuppetExecutionTreeBuilder(analysis)
         root = builder.build_tree()
 
-        rel_nodes = [c for c in root.children if c.node_type == "relationship"]
+        rel_nodes = [c for c in root.children if isinstance(c, RelationshipNode)]
         assert len(rel_nodes) == 1
-        assert "Package[haproxy]" in rel_nodes[0].name
+        assert "Package[webapp]" in rel_nodes[0].name
 
     def test_resource_details_extraction(self):
         analysis = PuppetStructuredAnalysis(
@@ -321,7 +344,7 @@ class TestPuppetExecutionTreeBuilder:
                         ExecutionItem(
                             type="resource",
                             resource_type="file",
-                            title="/etc/haproxy/haproxy.cfg",
+                            title="/etc/webapp/app.cfg",
                             attributes={
                                 "ensure": "file",
                                 "owner": "root",
@@ -332,7 +355,7 @@ class TestPuppetExecutionTreeBuilder:
                             type="resource",
                             resource_type="exec",
                             title="reload_config",
-                            attributes={"command": "/usr/sbin/haproxy -c"},
+                            attributes={"command": "/usr/sbin/webapp -c"},
                         ),
                     ],
                 ),
@@ -342,8 +365,10 @@ class TestPuppetExecutionTreeBuilder:
         root = builder.build_tree()
 
         file_node = root.children[0]
+        assert isinstance(file_node, ResourceNode)
         assert "ensure: file" in (file_node.details or "")
         exec_node = root.children[1]
+        assert isinstance(exec_node, ResourceNode)
         assert "command:" in (exec_node.details or "")
 
 
@@ -356,7 +381,7 @@ class TestFormatTree:
                     "manifests/init.pp",
                     execution_order=[
                         ExecutionItem(
-                            type="resource", resource_type="package", title="haproxy"
+                            type="resource", resource_type="package", title="webapp"
                         ),
                         ExecutionItem(
                             type="class_include",
@@ -373,7 +398,7 @@ class TestFormatTree:
         output = builder.format_tree(root)
 
         assert "[class] main" in output
-        assert "[resource] package[haproxy]" in output
+        assert "[resource] package[webapp]" in output
         assert "[class] main::config" in output
         assert "├── " in output or "└── " in output
 

@@ -3,33 +3,21 @@
 
 ---
 
-# YOUR DATA SOURCES
+# DATA SOURCES
 
-You have everything you need below. Do NOT read manifest files - the execution tree already shows what they do.
+The execution tree, directory listing, dependencies, credentials, and control repo context are provided below. Do NOT re-read files already covered here.
 
-## EXECUTION TREE (Your primary source)
+## EXECUTION TREE (Primary source)
 
 ```
 {execution_tree}
 ```
-
-This tree shows:
-- Every class in execution order with file paths
-- Every resource (package, file, service, etc.) with ALL its attributes
-- All conditionals (if/unless/case) and what they check
-- All loops (.each) with the collection being iterated
-- Relationship chains (-> and ~>)
 
 ## DIRECTORY LISTING
 
 ```
 {directory_listing}
 ```
-
-**For File Structure section**: List files that appear in the EXECUTION TREE above.
-- Include: Every .pp file path shown in the tree, all data/*.yaml files, all templates used by resources
-- Use exact paths from the listing above (do not shorten or modify)
-- Include dependency files from migration-dependencies/* if they appear in the tree
 
 ## EXTERNAL DEPENDENCIES
 
@@ -63,53 +51,22 @@ This tree shows:
 
 ---
 
-# YOUR TASK
+# TASK
 
-Write a detailed migration plan by walking through the execution tree step-by-step.
+Write a migration plan by walking through the execution tree step-by-step.
 
-**Step 1:** Use the `parse_hiera_config` tool
+1. Call `parse_hiera_config` ONCE, then read the Hiera YAML files it reports.
+2. If the tree contains loops, read `init.pp` ONCE for class parameter defaults to resolve loop variables.
+3. Write the migration plan using the format and examples from the system prompt. Resolve all Puppet variables to actual values.
 
-**Step 2:** Use `read_file` to read the Hiera YAML files shown by parse_hiera_config
-
-**Step 3:** Write the migration plan following the template and examples from the system prompt
-
----
-
-# CRITICAL RULES
-
-1. **Use the execution tree as your source** - Every resource, class, and relationship is shown there
-2. **List ALL resource details** - Package names, file paths, service names, template mappings, exact attribute values
-3. **Expand iterations** - When the tree shows a loop, list every item explicitly by name (get names from Hiera data)
-4. **Follow the tree into dependencies** - When a class includes another class, describe what that class does by following its branch in the tree
-5. **Be specific** - Use exact paths, exact package names, exact ports, exact configuration values
-6. **No vague language** - Never say "configures X" or "sets up Y" - say exactly what packages, files, services are managed
-7. **Follow the examples** - The system prompt has detailed examples showing the level of detail expected
+**STOP after step 3.** You should need at most 5-8 tool calls total.
 
 ---
 
-# WHAT NOT TO DO
+# KEY RULES
 
-- Don't read manifest files (.pp) - use the execution tree instead
-- Don't read template files (.erb, .epp) - they're already analyzed
-- Don't say "for each item" - list the items explicitly
-- Don't be vague - be specific about every resource
-- Don't skip dependency modules - expand into them and describe what they do
-
----
-
-# OUTPUT FORMAT
-
-Your response should be markdown text following the template from the system prompt.
-
-Look at the **GOOD EXAMPLES** in the system prompt - that's the level of detail expected.
-
-**File Structure:** One file per line, exact paths from directory listing above
-
-**Module Explanation:** Walk through the execution tree, listing:
-- Exact package names
-- File paths with modes and owners
-- Template source → destination mappings
-- Service names with ensure/enable values
-- All loop iterations with explicit item names from Hiera
-- Resource counts per class
-
+- Use the execution tree as your source — every resource and relationship is shown there
+- Follow all formatting rules from the system prompt (compact resource-per-line format, resolved values, expanded loops)
+- When a class includes another, walk through what that class does
+- When a loop variable is empty: state "Loop runs 0 times" then describe the default/implicit instance with resolved values
+- Do NOT read manifest files for execution order, read template files, or call `parse_hiera_config` more than once

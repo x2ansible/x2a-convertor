@@ -23,7 +23,7 @@ Based on the Hiera hierarchy level, map variables to Ansible targets:
 | role/%{role}.yaml | group_vars/{role}.yml |
 
 ANSIBLE VARIABLE NAMING:
-- Strip the module prefix: profile_haproxy::backends -> haproxy_backends
+- Strip the module prefix: profile_webapp::backends -> webapp_backends
 - Convert to snake_case if not already
 - Prefix with a short module identifier to avoid collisions
 
