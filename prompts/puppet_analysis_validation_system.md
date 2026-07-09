@@ -43,7 +43,7 @@ The following issues were found:
    - This class contains 4 resources that should be migrated
 
 2. **Template Render Count Mismatch**
-   - Template `haproxy.cfg.erb` renders once per backend
+   - Template `app.conf.erb` renders once per backend
    - Migration plan says it renders once total
 ```
 

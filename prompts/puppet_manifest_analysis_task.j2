@@ -1,8 +1,22 @@
-Analyze this Puppet manifest. Extract the class name, parameters, and complete execution order.
+Analyze this Puppet manifest and extract the COMPLETE execution order.
+
+CRITICAL: Walk through the ENTIRE class/define body from START to END. Extract EVERY resource, conditional, iteration, and class include in sequential order. Do NOT stop after extracting conditionals - continue to the end of the class body.
 
 FILE: {{ file_path }}
 ```puppet
 {{ file_content }}
 ```
 
-Return the complete analysis. Include all fields that have values — especially class_name.
+REQUIREMENTS:
+1. Extract class_name and all parameters
+2. Walk through the class body sequentially and extract EVERY execution item:
+   - ALL conditionals (if, unless, case)
+   - ALL resources (file, exec, service, package, etc.)
+   - ALL class includes
+   - ALL iterations (.each, .map, etc.)
+3. Extract all relationship chains (->,-~>)
+4. Extract all fact references
+
+IMPORTANT: The execution_order list must include EVERY resource and control structure in the order they appear in the class body, from the opening { to the closing }.
+
+Return the complete analysis. Include all fields that have values — especially class_name and a COMPLETE execution_order list.

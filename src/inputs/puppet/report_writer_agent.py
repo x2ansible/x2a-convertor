@@ -63,7 +63,6 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             control_repo_summary,
         )
         result = self.invoke_react(state, messages, metrics)
-
         response_messages = result.get("messages", [])
         if len(response_messages) < 2:
             return state.mark_failed("Invalid response from Puppet agent")
