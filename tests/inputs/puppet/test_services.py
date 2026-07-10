@@ -6,7 +6,6 @@ from src.inputs.puppet.models import (
     CredentialAnalysis,
     CustomTypeAnalysis,
     HieraDataAnalysis,
-    ManifestExecutionAnalysis,
     PuppetTemplateAnalysis,
 )
 from src.inputs.puppet.services import (
@@ -27,20 +26,22 @@ class TestManifestAnalysisService:
     """Test ManifestAnalysisService."""
 
     def test_returns_empty_for_missing_file(self, tmp_path):
-        """Should return empty analysis when file doesn't exist."""
+        """Should raise FileNotFoundError when file doesn't exist."""
+        import pytest
+
         service = ManifestAnalysisService(model=None)
         state = _make_file_state(str(tmp_path / "nonexistent.pp"))
-        result = service(state).result
-        assert isinstance(result, ManifestExecutionAnalysis)
-        assert result.execution_order == []
+        with pytest.raises(FileNotFoundError, match="Manifest file not found"):
+            service(state)
 
     def test_returns_empty_for_nonexistent_path(self):
-        """Should return empty analysis for non-existent path."""
+        """Should raise FileNotFoundError for non-existent path."""
+        import pytest
+
         service = ManifestAnalysisService(model=None)
         state = _make_file_state(str(Path("/nonexistent/init.pp")))
-        result = service(state).result
-        assert isinstance(result, ManifestExecutionAnalysis)
-        assert result.execution_order == []
+        with pytest.raises(FileNotFoundError, match="Manifest file not found"):
+            service(state)
 
 
 class TestHieraDataAnalysisService:

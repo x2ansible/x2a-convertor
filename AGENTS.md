@@ -145,3 +145,4 @@ uv run app.py publish "module-name" \
 - Modular architecture supports adding new input/output formats
 - Never use emojis
 - Keep code complexity small and avoid using else clauses
+- When passing file content to LLM prompts, use `DocumentFile` from `src/types/document.py` and its `to_document()` XML format (`<document><source>...</source><document_content>...</document_content></document>`) instead of raw file content with code fences
