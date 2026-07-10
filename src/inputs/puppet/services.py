@@ -6,6 +6,7 @@ Each service has a single responsibility (SRP).
 
 from prompts.get_prompt import get_prompt
 from src.inputs.input_agent import InputAgent
+from src.types.document import DocumentFile
 from src.types.file_analysis_state import FileAnalysisState
 from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
@@ -33,13 +34,14 @@ class ManifestAnalysisService(InputAgent[FileAnalysisState]):
     ) -> FileAnalysisState:
         file_path = Path(state.path)
         if not file_path.exists():
-            logger.warning(f"File not found: {file_path.relative_to_cwd()}")
-            return state.update(result=ManifestExecutionAnalysis())
+            raise FileNotFoundError(
+                f"Manifest file not found: {file_path.relative_to_cwd()}"
+            )
 
-        file_content = file_path.read_text()
+        document = DocumentFile.from_path(file_path)
         system_prompt = get_prompt("puppet_manifest_analysis_system").format()
         task_prompt = get_prompt("puppet_manifest_analysis_task").format(
-            file_path=str(file_path), file_content=file_content
+            document=document.to_document()
         )
 
         try:
@@ -50,6 +52,11 @@ class ManifestAnalysisService(InputAgent[FileAnalysisState]):
             result = self.invoke_structured(
                 ManifestExecutionAnalysis, messages, metrics
             )
+            if not result:
+                logger.error(
+                    f"Empty analysis result for manifest {file_path.relative_to_cwd()}"
+                )
+                return state.update(result=ManifestExecutionAnalysis())
             execution_count = len(result.execution_order)
             logger.info(
                 f"Extracted {execution_count} execution items "
