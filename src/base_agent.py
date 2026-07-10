@@ -17,11 +17,16 @@ from langchain.agents.middleware.types import AgentMiddleware
 from langchain.agents.structured_output import StructuredOutputValidationError
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
 from src.config import get_settings
 from src.const import X2A_ORIGINAL_MESSAGE
-from src.middleware.agent_dump import AgentDumpMiddleware
+from src.middleware.agent_dump import (
+    AgentDumpCallbackHandler,
+    AgentDumpMiddleware,
+    SnapshotWriter,
+)
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.middleware.x2a_summarize import X2ASummarizationMiddleware
@@ -95,8 +100,8 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         self._log = get_logger(self.__class__.__module__).bind(
             agent=self.agent_name, agent_id=self.agent_id
         )
-        # Cache middleware instances to preserve state (e.g., retry_count)
         self._middleware_cache: list[AgentMiddleware] | None = None
+        self._snapshot_writer: SnapshotWriter | None = None
 
     @property
     def agent_name(self) -> str:
@@ -143,7 +148,7 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         )
         settings = get_settings()
         if settings.logging.json_lines:
-            stack.append(AgentDumpMiddleware(self.agent_name, self.agent_id))
+            stack.append(AgentDumpMiddleware(self._get_snapshot_writer()))
 
         # Cache for reuse
         self._middleware_cache = stack
@@ -172,6 +177,25 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             tool.with_agent(self.agent_name) if isinstance(tool, X2ATool) else tool
             for tool in tools
         ]
+
+    def _get_snapshot_writer(self) -> SnapshotWriter:
+        if self._snapshot_writer is None:
+            self._snapshot_writer = SnapshotWriter(self.agent_name, self.agent_id)
+        return self._snapshot_writer
+
+    def _get_runnable_config(self) -> RunnableConfig:
+        config = get_runnable_config()
+        settings = get_settings()
+        if not settings.logging.json_lines:
+            return config
+
+        handler = AgentDumpCallbackHandler(self._get_snapshot_writer())
+        existing = config.get("callbacks")
+        if isinstance(existing, list):
+            config["callbacks"] = [*existing, handler]
+        else:
+            config["callbacks"] = [handler]
+        return config
 
     def _extract_token_usage(self, result: dict) -> tuple[int, int]:
         """Extract total input and output tokens from AIMessage objects.
@@ -262,7 +286,7 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             try:
                 result = structured_model.invoke(
                     current_messages,
-                    get_runnable_config(),
+                    self._get_runnable_config(),
                 )
 
                 if (
@@ -327,7 +351,7 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         metrics: AgentMetrics | None = None,
     ) -> str:
         """Direct model invocation, returns content string."""
-        result = self.model.invoke(messages, config=get_runnable_config())
+        result = self.model.invoke(messages, config=self._get_runnable_config())
 
         if (
             metrics
