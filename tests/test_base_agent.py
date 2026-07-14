@@ -468,6 +468,309 @@ class TestBaseAgentInvokeStructured:
         assert metrics.output_tokens == 0
 
 
+class TestBaseAgentInvokeStructuredRetries:
+    """Tests for BaseAgent.invoke_structured retry mechanism."""
+
+    @pytest.fixture
+    def agent(self):
+        """Create a test agent instance."""
+        return ConcreteAgent()
+
+    @pytest.fixture
+    def mock_structured_model(self, agent):
+        """Mock the model's with_structured_output method."""
+        from unittest.mock import Mock
+
+        mock_structured = Mock()
+        mock_model = Mock()
+        mock_model.with_structured_output.return_value = mock_structured
+
+        agent.model = mock_model
+
+        return mock_structured
+
+    def test_retry_on_first_failure_then_success(self, agent, mock_structured_model):
+        """Test that invoke_structured retries after first failure and succeeds."""
+        from src.types.telemetry import AgentMetrics
+
+        # First attempt: parsing_error is set, parsed is None
+        ai_msg_1 = AIMessage(content="invalid response")
+        ai_msg_1.usage_metadata = cast(
+            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
+        )
+
+        # Second attempt: success
+        ai_msg_2 = AIMessage(content="valid response")
+        ai_msg_2.usage_metadata = cast(
+            UsageMetadata, {"input_tokens": 150, "output_tokens": 75}
+        )
+        parsed_obj = {"field": "value"}
+
+        mock_structured_model.invoke.side_effect = [
+            {
+                "raw": ai_msg_1,
+                "parsed": None,
+                "parsing_error": "ValidationError: missing required field",
+            },
+            {"raw": ai_msg_2, "parsed": parsed_obj},
+        ]
+
+        metrics = AgentMetrics(name="TestAgent")
+        result = agent.invoke_structured(
+            dict, [{"role": "user", "content": "test"}], metrics, max_retries=3
+        )
+
+        assert result == parsed_obj
+        assert mock_structured_model.invoke.call_count == 2
+        # Token usage accumulated across both attempts
+        assert metrics.input_tokens == 250  # 100 + 150
+        assert metrics.output_tokens == 125  # 50 + 75
+
+    def test_retry_on_multiple_failures_then_success(
+        self, agent, mock_structured_model
+    ):
+        """Test multiple failures before success."""
+        from src.types.telemetry import AgentMetrics
+
+        ai_msg_1 = AIMessage(content="fail 1")
+        ai_msg_1.usage_metadata = cast(
+            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
+        )
+
+        ai_msg_2 = AIMessage(content="fail 2")
+        ai_msg_2.usage_metadata = cast(
+            UsageMetadata, {"input_tokens": 110, "output_tokens": 55}
+        )
+
+        ai_msg_3 = AIMessage(content="success")
+        ai_msg_3.usage_metadata = cast(
+            UsageMetadata, {"input_tokens": 120, "output_tokens": 60}
+        )
+        parsed_obj = {"field": "value"}
+
+        mock_structured_model.invoke.side_effect = [
+            {"raw": ai_msg_1, "parsed": None, "parsing_error": "Error 1"},
+            {"raw": ai_msg_2, "parsed": None, "parsing_error": "Error 2"},
+            {"raw": ai_msg_3, "parsed": parsed_obj},
+        ]
+
+        metrics = AgentMetrics(name="TestAgent")
+        result = agent.invoke_structured(
+            dict, [{"role": "user", "content": "test"}], metrics, max_retries=3
+        )
+
+        assert result == parsed_obj
+        assert mock_structured_model.invoke.call_count == 3
+        assert metrics.input_tokens == 330  # 100 + 110 + 120
+        assert metrics.output_tokens == 165  # 50 + 55 + 60
+
+    def test_max_retries_reached_returns_none(self, agent, mock_structured_model):
+        """Test that None is returned when max_retries is exhausted."""
+        from src.types.telemetry import AgentMetrics
+
+        ai_msg = AIMessage(content="always fails")
+        ai_msg.usage_metadata = cast(
+            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
+        )
+
+        mock_structured_model.invoke.return_value = {
+            "raw": ai_msg,
+            "parsed": None,
+            "parsing_error": "Persistent validation error",
+        }
+
+        metrics = AgentMetrics(name="TestAgent")
+        result = agent.invoke_structured(
+            dict,
+            [{"role": "user", "content": "test"}],
+            metrics,
+            max_retries=3,
+        )
+
+        assert result is None
+        # Should attempt exactly max_retries times
+        assert mock_structured_model.invoke.call_count == 3
+        # Tokens accumulated across all attempts
+        assert metrics.input_tokens == 300  # 100 * 3
+        assert metrics.output_tokens == 150  # 50 * 3
+
+    def test_retry_messages_include_error_feedback(self, agent, mock_structured_model):
+        """Test that retry attempts include error feedback message."""
+        ai_msg_1 = AIMessage(content="invalid")
+        ai_msg_1.usage_metadata = cast(
+            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
+        )
+
+        ai_msg_2 = AIMessage(content="valid")
+        parsed_obj = {"field": "value"}
+
+        mock_structured_model.invoke.side_effect = [
+            {
+                "raw": ai_msg_1,
+                "parsed": None,
+                "parsing_error": "Missing required field: name",
+            },
+            {"raw": ai_msg_2, "parsed": parsed_obj},
+        ]
+
+        result = agent.invoke_structured(
+            dict, [{"role": "user", "content": "original request"}], max_retries=2
+        )
+
+        assert result == parsed_obj
+        # Check that second invocation includes feedback message
+        second_call_messages = mock_structured_model.invoke.call_args_list[1][0][0]
+        assert len(second_call_messages) == 3  # system + user + error feedback
+        assert second_call_messages[2]["role"] == "user"
+        assert "Missing required field: name" in second_call_messages[2]["content"]
+        assert "dict" in second_call_messages[2]["content"]  # schema name
+
+    def test_max_retries_minimum_of_one(self, agent, mock_structured_model):
+        """Test that max_retries=0 is clamped to 1."""
+        ai_msg = AIMessage(content="response")
+        parsed_obj = {"field": "value"}
+
+        mock_structured_model.invoke.return_value = {
+            "raw": ai_msg,
+            "parsed": parsed_obj,
+        }
+
+        result = agent.invoke_structured(
+            dict,
+            [{"role": "user", "content": "test"}],
+            max_retries=0,  # Should be clamped to 1
+        )
+
+        assert result == parsed_obj
+        # Should invoke at least once
+        assert mock_structured_model.invoke.call_count == 1
+
+    def test_retry_without_metrics(self, agent, mock_structured_model):
+        """Test that retries work without metrics tracking."""
+        ai_msg_1 = AIMessage(content="fail")
+        ai_msg_2 = AIMessage(content="success")
+        parsed_obj = {"field": "value"}
+
+        mock_structured_model.invoke.side_effect = [
+            {"raw": ai_msg_1, "parsed": None, "parsing_error": "Error"},
+            {"raw": ai_msg_2, "parsed": parsed_obj},
+        ]
+
+        result = agent.invoke_structured(
+            dict,
+            [{"role": "user", "content": "test"}],
+            metrics=None,
+            max_retries=2,
+        )
+
+        assert result == parsed_obj
+        assert mock_structured_model.invoke.call_count == 2
+
+    def test_retry_with_missing_parsing_error_key(self, agent, mock_structured_model):
+        """Test handling when parsing_error key is missing from result."""
+        from src.types.telemetry import AgentMetrics
+
+        ai_msg_1 = AIMessage(content="fail")
+        ai_msg_1.usage_metadata = cast(
+            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
+        )
+
+        ai_msg_2 = AIMessage(content="success")
+        parsed_obj = {"field": "value"}
+
+        mock_structured_model.invoke.side_effect = [
+            {"raw": ai_msg_1, "parsed": None},  # No parsing_error key
+            {"raw": ai_msg_2, "parsed": parsed_obj},
+        ]
+
+        metrics = AgentMetrics(name="TestAgent")
+        result = agent.invoke_structured(
+            dict, [{"role": "user", "content": "test"}], metrics, max_retries=2
+        )
+
+        assert result == parsed_obj
+        # Should still retry despite missing parsing_error
+        assert mock_structured_model.invoke.call_count == 2
+
+    def test_retry_accumulates_messages_correctly(self, agent, mock_structured_model):
+        """Test that each retry adds to the message history."""
+        # Track messages at call time (not after mutation)
+        call_time_messages = []
+
+        def capture_and_return(messages, *args, **kwargs):
+            # Capture a COPY of the messages at call time
+            call_time_messages.append(list(messages))
+            # Return responses in order
+            return_values = [
+                {
+                    "raw": AIMessage(content="fail 1"),
+                    "parsed": None,
+                    "parsing_error": "Error 1",
+                },
+                {
+                    "raw": AIMessage(content="fail 2"),
+                    "parsed": None,
+                    "parsing_error": "Error 2",
+                },
+                {"raw": AIMessage(content="success"), "parsed": {"field": "value"}},
+            ]
+            return return_values[len(call_time_messages) - 1]
+
+        mock_structured_model.invoke.side_effect = capture_and_return
+
+        result = agent.invoke_structured(
+            dict,
+            [{"role": "user", "content": "original"}],
+            max_retries=3,
+        )
+
+        assert result == {"field": "value"}
+        assert mock_structured_model.invoke.call_count == 3
+
+        # Verify message count increases with each retry
+        assert len(call_time_messages) == 3
+
+        # First call: system + original
+        assert len(call_time_messages[0]) == 2
+        assert call_time_messages[0][0]["role"] == "system"
+        assert call_time_messages[0][1]["content"] == "original"
+
+        # Second call: system + original + error feedback from attempt 1
+        assert len(call_time_messages[1]) == 3
+        assert "Error 1" in call_time_messages[1][2]["content"]
+
+        # Third call: system + original + error1 + error2
+        assert len(call_time_messages[2]) == 4
+        assert "Error 1" in call_time_messages[2][2]["content"]
+        assert "Error 2" in call_time_messages[2][3]["content"]
+
+    def test_retry_includes_ai_message_content_in_error(
+        self, agent, mock_structured_model
+    ):
+        """Test that error feedback includes the AI's actual response content."""
+        ai_msg = AIMessage(content="I returned a string instead of calling the tool")
+
+        mock_structured_model.invoke.side_effect = [
+            {
+                "raw": ai_msg,
+                "parsed": None,
+                "parsing_error": "Expected tool call, got text",
+            },
+            {"raw": AIMessage(content=""), "parsed": {"field": "value"}},
+        ]
+
+        result = agent.invoke_structured(
+            dict, [{"role": "user", "content": "test"}], max_retries=2
+        )
+
+        assert result == {"field": "value"}
+
+        # Check error message includes AI content
+        second_call = mock_structured_model.invoke.call_args_list[1][0][0]
+        error_message = second_call[2]["content"]
+        assert "I returned a string instead of calling the tool" in error_message
+
+
 class TestBaseAgentTagOriginalMessages:
     """Tests for BaseAgent._tag_original_messages static method."""
 
