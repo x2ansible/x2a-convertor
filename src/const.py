@@ -16,3 +16,6 @@ INPUT_AGENTS_FILE = "INPUT-AGENTS.md"
 EXPORT_AGENTS_FILE = "EXPORT-AGENTS.md"
 
 X2A_ORIGINAL_MESSAGE = "x2a_original_message"
+
+
+ADVERSARIAL_REPORT_FILENAME = "agent-adversarial-report.json"
