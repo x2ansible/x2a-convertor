@@ -6,6 +6,7 @@ from langchain.chat_models import init_chat_model
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
+from langchain_core.outputs import LLMResult
 from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_core.runnables import RunnableConfig
 from pydantic import SecretStr
@@ -14,6 +15,31 @@ from src.config import get_settings
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class FinishReasonCallbackHandler(BaseCallbackHandler):
+    """Log a warning when the model is cut off by its output token limit."""
+
+    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
+        for generation_list in response.generations:
+            for generation in generation_list:
+                info = generation.generation_info or {}
+                msg = getattr(generation, "message", None)
+                msg_metadata = getattr(msg, "response_metadata", {}) or {}
+                if (
+                    info.get("finish_reason") == "length"
+                    or msg_metadata.get("finish_reason") == "length"
+                    or msg_metadata.get("stopReason") == "max_tokens"
+                ):
+                    usage = getattr(msg, "usage_metadata", None) or {}
+                    model_name = msg_metadata.get("model_name", "unknown")
+                    logger.warning(
+                        "Model hit the output token limit",
+                        model=model_name,
+                        input_tokens=usage.get("input_tokens", "unknown"),
+                        output_tokens=usage.get("output_tokens", "unknown"),
+                        suggestion="Reduce the input size or increase MAX_TOKENS.",
+                    )
 
 
 class DebugToolEventHandler(BaseCallbackHandler):
@@ -89,7 +115,7 @@ def get_runnable_config() -> RunnableConfig:
     settings = get_settings()
     return {
         "recursion_limit": settings.processing.recursion_limit,
-        "callbacks": [DebugToolEventHandler()],
+        "callbacks": [DebugToolEventHandler(), FinishReasonCallbackHandler()],
     }
 
 
@@ -178,7 +204,6 @@ def get_model() -> BaseChatModel:
             logger.warning("OPENAI_API_BASE is not set")
         logger.debug(f"OPENAI_API_BASE: {kwargs['base_url']}")
         logger.info(f"OpenAI timeout: {settings.llm.read_timeout}s")
-
     kwargs["model_provider"] = provider
     logger.info(
         f"Using the '{provider}' provider with the '{model_name}' model for accessing LLM"
