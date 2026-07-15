@@ -7,13 +7,13 @@ CRITICAL: Walk through the ENTIRE class/define body from START to END. Extract E
 REQUIREMENTS:
 1. Extract class_name and all parameters
 2. Walk through the class body sequentially and extract EVERY execution item:
-   - ALL conditionals (if, unless, case)
+   - ALL conditionals (if/unless use execution_order; case uses case_branches)
    - ALL resources (file, exec, service, package, etc.)
    - ALL class includes
    - ALL iterations (.each, .map, etc.)
 3. Extract all relationship chains (->,-~>)
 4. Extract all fact references
 
-IMPORTANT: The execution_order list must include EVERY resource and control structure in the order they appear in the class body, from the opening { to the closing }.
+IMPORTANT: The execution_order list must include EVERY resource and control structure in the order they appear in the class body, from the opening { to the closing }. Resources AFTER a case statement must still be included.
 
 Return the complete analysis. Include all fields that have values — especially class_name and a COMPLETE execution_order list.
