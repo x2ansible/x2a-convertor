@@ -8,6 +8,7 @@ from pathlib import Path
 import click
 from dotenv import load_dotenv
 
+from src.adversarial import run_adversarial
 from src.config.settings import get_settings
 from src.const import METADATA_FILENAME
 from src.error_details import get_error_human_message
@@ -312,6 +313,44 @@ def report(
         source_dir=source_dir,
     )
     click.echo("Report sent successfully.")
+
+
+@cli.command("adversarial-run")
+@click.option(
+    "--phase",
+    required=True,
+    type=click.Choice(["analyze", "migrate"]),
+    help="Workflow phase to run adversarial agents for",
+)
+@click.option(
+    "--source-dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+    default=".",
+    callback=change_dir_callback,
+    is_eager=True,
+    help="Source directory containing migration artifacts to review",
+)
+@click.option(
+    "--report-path",
+    type=click.Path(),
+    default=None,
+    help="Path to a report file where findings will be appended",
+)
+@click.option(
+    "--config",
+    required=True,
+    help="Path to adversarial agents JSON config",
+)
+@handle_exceptions
+def adversarial_run(phase, source_dir, report_path, config) -> None:
+    """Run adversarial validation agents for a workflow phase."""
+    report_file = Path(report_path) if report_path else None
+    run_adversarial(
+        phase=phase,
+        source_dir=source_dir,
+        config_path=config,
+        report_path=report_file,
+    )
 
 
 if __name__ == "__main__":
