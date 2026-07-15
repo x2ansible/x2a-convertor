@@ -14,7 +14,9 @@ from typing import TYPE_CHECKING
 from src.utils.logging import get_logger
 
 from .models import (
+    CaseBranch,
     ManifestAnalysisResult,
+    NestedExecutionItem,
     PuppetStructuredAnalysis,
 )
 
@@ -114,6 +116,21 @@ class ConditionalNode(ExecutionTreeNode):
 
     def format_label(self) -> str:
         return f"[conditional] {self.name}"
+
+
+@dataclass
+class CaseBranchNode(ExecutionTreeNode):
+    """A single branch within a case statement."""
+
+    @property
+    def node_type(self) -> str:
+        return "case_branch"
+
+    def format_label(self) -> str:
+        label = f"[branch] {self.name}"
+        if self.details:
+            label += f" ({self.details})"
+        return label
 
 
 @dataclass
@@ -424,6 +441,77 @@ class PuppetExecutionTreeBuilder:
 
         return None
 
+    def _build_case_branch_nodes(
+        self, case_branches: list[CaseBranch]
+    ) -> list[ExecutionTreeNode]:
+        nodes: list[ExecutionTreeNode] = []
+        for branch in case_branches:
+            branch_node = CaseBranchNode(
+                name=branch.pattern,
+                details=branch.note,
+            )
+            branch_node.children.extend(self._build_nested_nodes(branch.items))
+            nodes.append(branch_node)
+        return nodes
+
+    def _build_nested_nodes(
+        self, items: list[NestedExecutionItem]
+    ) -> list[ExecutionTreeNode]:
+        nodes: list[ExecutionTreeNode] = []
+        for item in items:
+            if item.type == "resource":
+                if item.resource_type and item.resource_type.lower() == "class":
+                    if not item.title:
+                        continue
+                    nodes.append(self._expand_class(item.title))
+                elif item.resource_type and self._is_defined_type(item.resource_type):
+                    if not item.title:
+                        continue
+                    nodes.append(
+                        self._expand_defined_type(item.resource_type, item.title)
+                    )
+                else:
+                    details_parts = [
+                        f"{k}: {v}" for k, v in (item.attributes or {}).items()
+                    ]
+                    detail = ", ".join(details_parts) if details_parts else None
+                    resource_node = ResourceNode(
+                        name=f"{item.resource_type}[{item.title}]",
+                        details=detail,
+                    )
+                    template_child = self._extract_template_reference(item)
+                    if template_child:
+                        resource_node.children.append(template_child)
+                    nodes.append(resource_node)
+
+            elif item.type == "class_include":
+                if not item.class_name:
+                    continue
+                nodes.append(self._expand_class(item.class_name))
+
+            elif item.type == "exported_resource":
+                nodes.append(
+                    ExportedResourceNode(
+                        name=f"{item.resource_type}[{item.title}]",
+                    )
+                )
+
+            elif item.type == "virtual_resource":
+                nodes.append(
+                    VirtualResourceNode(
+                        name=f"{item.resource_type}[{item.title}]",
+                    )
+                )
+
+            elif item.type == "collector":
+                nodes.append(
+                    CollectorNode(
+                        name=f"{item.resource_type} <| {item.query} |>",
+                    )
+                )
+
+        return nodes
+
     def _build_execution_nodes(self, execution_order: list) -> list[ExecutionTreeNode]:
         nodes: list[ExecutionTreeNode] = []
 
@@ -458,24 +546,28 @@ class PuppetExecutionTreeBuilder:
                 nodes.append(child)
 
             elif item.type == "conditional":
-                if hasattr(item, "execution_order"):
-                    cond_node = ConditionalNode(
-                        name=f"{item.condition_type} {item.condition}",
-                    )
+                cond_node = ConditionalNode(
+                    name=f"{item.condition_type} {item.condition}",
+                )
+                if item.condition_type == "case" and item.case_branches:
                     cond_node.children.extend(
-                        self._build_execution_nodes(item.execution_order)
+                        self._build_case_branch_nodes(item.case_branches)
                     )
-                    nodes.append(cond_node)
+                elif item.execution_order:
+                    cond_node.children.extend(
+                        self._build_nested_nodes(item.execution_order)
+                    )
+                nodes.append(cond_node)
 
             elif item.type == "iteration":
-                if hasattr(item, "execution_order"):
-                    iter_node = IterationNode(
-                        name=f"{item.collection_variable}.{item.iterator_type} |{item.item_variable}|",
-                    )
+                iter_node = IterationNode(
+                    name=f"{item.collection_variable}.{item.iterator_type} |{item.item_variable}|",
+                )
+                if item.execution_order:
                     iter_node.children.extend(
-                        self._build_execution_nodes(item.execution_order)
+                        self._build_nested_nodes(item.execution_order)
                     )
-                    nodes.append(iter_node)
+                nodes.append(iter_node)
 
             elif item.type == "exported_resource":
                 nodes.append(

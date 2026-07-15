@@ -1,6 +1,7 @@
 """Tests for Puppet execution tree builder."""
 
 from src.inputs.puppet.execution_tree_builder import (
+    CaseBranchNode,
     ClassNode,
     CollectorNode,
     ConditionalNode,
@@ -13,10 +14,12 @@ from src.inputs.puppet.execution_tree_builder import (
     VirtualResourceNode,
 )
 from src.inputs.puppet.models import (
+    CaseBranch,
     ClassInheritance,
     ExecutionItem,
     ManifestAnalysisResult,
     ManifestExecutionAnalysis,
+    NestedExecutionItem,
     PuppetStructuredAnalysis,
 )
 
@@ -435,3 +438,321 @@ class TestFormatTree:
         assert "[class] a" in lines[0]
         assert "[class] b" in lines[1]
         assert "[class] c" in lines[2]
+
+
+class TestCaseBranchesInTree:
+    def test_simple_case_branches(self):
+        analysis = PuppetStructuredAnalysis(
+            manifests=[
+                _make_manifest(
+                    "profile_packages",
+                    "manifests/init.pp",
+                    execution_order=[
+                        ExecutionItem(
+                            type="conditional",
+                            condition="$facts['os']['family']",
+                            condition_type="case",
+                            case_branches=[
+                                CaseBranch(
+                                    pattern="RedHat",
+                                    items=[
+                                        NestedExecutionItem(
+                                            type="resource",
+                                            resource_type="package",
+                                            title="httpd",
+                                            attributes={"ensure": "installed"},
+                                        ),
+                                    ],
+                                ),
+                                CaseBranch(
+                                    pattern="Debian",
+                                    items=[
+                                        NestedExecutionItem(
+                                            type="resource",
+                                            resource_type="package",
+                                            title="apache2",
+                                            attributes={"ensure": "installed"},
+                                        ),
+                                    ],
+                                ),
+                                CaseBranch(
+                                    pattern="default",
+                                    items=[],
+                                    note="Unsupported OS",
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ]
+        )
+        builder = PuppetExecutionTreeBuilder(analysis)
+        root = builder.build_tree()
+
+        cond_nodes = [c for c in root.children if isinstance(c, ConditionalNode)]
+        assert len(cond_nodes) == 1
+        assert "case" in cond_nodes[0].name
+
+        branch_nodes = [
+            c for c in cond_nodes[0].children if isinstance(c, CaseBranchNode)
+        ]
+        assert len(branch_nodes) == 3
+        assert branch_nodes[0].name == "RedHat"
+        assert branch_nodes[1].name == "Debian"
+        assert branch_nodes[2].name == "default"
+
+        redhat_resources = [
+            c for c in branch_nodes[0].children if isinstance(c, ResourceNode)
+        ]
+        assert len(redhat_resources) == 1
+        assert "httpd" in redhat_resources[0].name
+
+        assert len(branch_nodes[2].children) == 0
+
+    def test_case_with_resources_after(self):
+        analysis = PuppetStructuredAnalysis(
+            manifests=[
+                _make_manifest(
+                    "profile_webserver",
+                    "manifests/init.pp",
+                    execution_order=[
+                        ExecutionItem(
+                            type="conditional",
+                            condition="$::osfamily",
+                            condition_type="case",
+                            case_branches=[
+                                CaseBranch(
+                                    pattern="RedHat",
+                                    items=[
+                                        NestedExecutionItem(
+                                            type="resource",
+                                            resource_type="package",
+                                            title="httpd",
+                                            attributes={"ensure": "installed"},
+                                        ),
+                                        NestedExecutionItem(
+                                            type="resource",
+                                            resource_type="service",
+                                            title="httpd",
+                                            attributes={"ensure": "running"},
+                                        ),
+                                    ],
+                                ),
+                                CaseBranch(
+                                    pattern="Debian",
+                                    items=[
+                                        NestedExecutionItem(
+                                            type="resource",
+                                            resource_type="package",
+                                            title="apache2",
+                                            attributes={"ensure": "installed"},
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        ExecutionItem(
+                            type="resource",
+                            resource_type="file",
+                            title="/etc/webserver/custom.conf",
+                            attributes={"ensure": "file", "mode": "0644"},
+                        ),
+                        ExecutionItem(
+                            type="resource",
+                            resource_type="exec",
+                            title="reload-webserver",
+                            attributes={"command": "/usr/bin/systemctl reload httpd"},
+                        ),
+                    ],
+                ),
+            ]
+        )
+        builder = PuppetExecutionTreeBuilder(analysis)
+        root = builder.build_tree()
+
+        assert len(root.children) == 3
+
+        assert isinstance(root.children[0], ConditionalNode)
+
+        resource_nodes = [c for c in root.children if isinstance(c, ResourceNode)]
+        assert len(resource_nodes) == 2
+        resource_names = [r.name for r in resource_nodes]
+        assert any("custom.conf" in n for n in resource_names)
+        assert any("reload-webserver" in n for n in resource_names)
+
+    def test_case_branch_with_class_include(self):
+        analysis = PuppetStructuredAnalysis(
+            manifests=[
+                _make_manifest(
+                    "profile_app",
+                    "manifests/init.pp",
+                    execution_order=[
+                        ExecutionItem(
+                            type="conditional",
+                            condition="$::osfamily",
+                            condition_type="case",
+                            case_branches=[
+                                CaseBranch(
+                                    pattern="RedHat",
+                                    items=[
+                                        NestedExecutionItem(
+                                            type="class_include",
+                                            class_name="profile_app::redhat",
+                                            relationship="include",
+                                        ),
+                                    ],
+                                ),
+                                CaseBranch(
+                                    pattern="Debian",
+                                    items=[
+                                        NestedExecutionItem(
+                                            type="class_include",
+                                            class_name="profile_app::debian",
+                                            relationship="include",
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+                _make_manifest(
+                    "profile_app::redhat",
+                    "manifests/redhat.pp",
+                    execution_order=[
+                        ExecutionItem(
+                            type="resource",
+                            resource_type="package",
+                            title="httpd",
+                            attributes={"ensure": "installed"},
+                        ),
+                    ],
+                ),
+                _make_manifest(
+                    "profile_app::debian",
+                    "manifests/debian.pp",
+                    execution_order=[
+                        ExecutionItem(
+                            type="resource",
+                            resource_type="package",
+                            title="apache2",
+                            attributes={"ensure": "installed"},
+                        ),
+                    ],
+                ),
+            ]
+        )
+        builder = PuppetExecutionTreeBuilder(analysis)
+        root = builder.build_tree()
+
+        cond_node = root.children[0]
+        assert isinstance(cond_node, ConditionalNode)
+
+        redhat_branch = cond_node.children[0]
+        assert isinstance(redhat_branch, CaseBranchNode)
+        assert redhat_branch.name == "RedHat"
+        assert len(redhat_branch.children) == 1
+        assert isinstance(redhat_branch.children[0], ClassNode)
+        assert redhat_branch.children[0].name == "profile_app::redhat"
+
+        debian_branch = cond_node.children[1]
+        assert isinstance(debian_branch, CaseBranchNode)
+        assert len(debian_branch.children) == 1
+        assert isinstance(debian_branch.children[0], ClassNode)
+        assert debian_branch.children[0].name == "profile_app::debian"
+
+    def test_case_branch_with_multiple_resource_types(self):
+        analysis = PuppetStructuredAnalysis(
+            manifests=[
+                _make_manifest(
+                    "main",
+                    "manifests/init.pp",
+                    execution_order=[
+                        ExecutionItem(
+                            type="conditional",
+                            condition="$env",
+                            condition_type="case",
+                            case_branches=[
+                                CaseBranch(
+                                    pattern="production",
+                                    items=[
+                                        NestedExecutionItem(
+                                            type="resource",
+                                            resource_type="package",
+                                            title="nginx",
+                                        ),
+                                        NestedExecutionItem(
+                                            type="exported_resource",
+                                            resource_type="nagios_host",
+                                            title="web01",
+                                        ),
+                                        NestedExecutionItem(
+                                            type="virtual_resource",
+                                            resource_type="user",
+                                            title="deploy",
+                                        ),
+                                        NestedExecutionItem(
+                                            type="collector",
+                                            resource_type="Nagios_host",
+                                            query="tag == production",
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ]
+        )
+        builder = PuppetExecutionTreeBuilder(analysis)
+        root = builder.build_tree()
+
+        branch = root.children[0].children[0]
+        assert isinstance(branch, CaseBranchNode)
+        assert len(branch.children) == 4
+        assert isinstance(branch.children[0], ResourceNode)
+        assert isinstance(branch.children[1], ExportedResourceNode)
+        assert isinstance(branch.children[2], VirtualResourceNode)
+        assert isinstance(branch.children[3], CollectorNode)
+
+    def test_case_format_tree_output(self):
+        analysis = PuppetStructuredAnalysis(
+            manifests=[
+                _make_manifest(
+                    "main",
+                    "manifests/init.pp",
+                    execution_order=[
+                        ExecutionItem(
+                            type="conditional",
+                            condition="$::osfamily",
+                            condition_type="case",
+                            case_branches=[
+                                CaseBranch(
+                                    pattern="RedHat",
+                                    items=[
+                                        NestedExecutionItem(
+                                            type="resource",
+                                            resource_type="package",
+                                            title="httpd",
+                                        ),
+                                    ],
+                                ),
+                                CaseBranch(
+                                    pattern="default",
+                                    items=[],
+                                    note="Unsupported OS",
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ]
+        )
+        builder = PuppetExecutionTreeBuilder(analysis)
+        root = builder.build_tree()
+        output = builder.format_tree(root)
+
+        assert "[conditional] case" in output
+        assert "[branch] RedHat" in output
+        assert "[branch] default" in output
+        assert "[resource] package[httpd]" in output
