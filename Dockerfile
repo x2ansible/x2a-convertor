@@ -14,7 +14,6 @@ RUN dnf install -y \
     ruby-devel \
     libffi-devel \
     libyaml-devel \
-    ripgrep \
     && dnf clean all
 
 # Uv is not part of ubi.

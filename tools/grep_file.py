@@ -1,8 +1,6 @@
 """Grep tool for searching file contents by regex pattern."""
 
-import json
 import re
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -45,9 +43,7 @@ class GrepFileTool(X2ATool):
         except re.error as e:
             return f"Error: invalid regex pattern: {e}"
 
-        results = self._ripgrep(pattern, target, include)
-        if results is None:
-            results = self._python_grep(pattern, target, include)
+        results = self._grep(pattern, target, include)
 
         if not results:
             return "No matches found"
@@ -63,40 +59,7 @@ class GrepFileTool(X2ATool):
                 lines.append(f"{file_path}:{line_num}:{content}")
         return "\n".join(lines)
 
-    def _ripgrep(
-        self, pattern: str, target: Path, include: str | None
-    ) -> dict[str, list[tuple[int, str]]] | None:
-        cmd = ["rg", "--json"]
-        if include:
-            cmd.extend(["--glob", include])
-        cmd.extend(["--", pattern, str(target)])
-
-        try:
-            proc = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30, check=False
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            return None
-
-        if proc.returncode == 2:
-            return None
-
-        results: dict[str, list[tuple[int, str]]] = {}
-        for line in proc.stdout.splitlines():
-            try:
-                data = json.loads(line)
-                if data["type"] != "match":
-                    continue
-                file_path = data["data"]["path"]["text"]
-                line_num = data["data"]["line_number"]
-                content = data["data"]["lines"]["text"].rstrip("\n")
-                results.setdefault(file_path, []).append((line_num, content))
-            except (json.JSONDecodeError, KeyError):
-                continue
-
-        return results
-
-    def _python_grep(
+    def _grep(
         self, pattern: str, target: Path, include: str | None
     ) -> dict[str, list[tuple[int, str]]]:
         regex = re.compile(pattern)

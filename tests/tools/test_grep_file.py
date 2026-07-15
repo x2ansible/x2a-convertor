@@ -88,28 +88,28 @@ class TestGrepFileTool:
         result = tool._run("nginx", path=str(search_dir), include="*.rb")
         assert result == "No matches found"
 
-    def test_python_grep_finds_matches(self, tool, search_dir):
-        results = tool._python_grep("shell", search_dir, include=None)
+    def test_grep_finds_matches(self, tool, search_dir):
+        results = tool._grep("shell", search_dir, include=None)
         assert len(results) > 0
 
-    def test_python_grep_returns_line_numbers(self, tool, search_dir):
-        results = tool._python_grep("shell", search_dir, include=None)
+    def test_grep_returns_line_numbers(self, tool, search_dir):
+        results = tool._grep("shell", search_dir, include=None)
         for matches in results.values():
             for line_num, _ in matches:
                 assert isinstance(line_num, int)
                 assert line_num >= 1
 
-    def test_python_grep_include_filter(self, tool, search_dir):
-        results = tool._python_grep("nginx", search_dir, include="*.md")
+    def test_grep_include_filter(self, tool, search_dir):
+        results = tool._grep("nginx", search_dir, include="*.md")
         file_names = [str(k) for k in results]
         assert all("README" in f for f in file_names)
 
-    def test_python_grep_no_match_returns_empty(self, tool, search_dir):
-        results = tool._python_grep("ZZZNOMATCH", search_dir, include=None)
+    def test_grep_no_match_returns_empty(self, tool, search_dir):
+        results = tool._grep("ZZZNOMATCH", search_dir, include=None)
         assert results == {}
 
-    def test_python_grep_regex_pattern(self, tool, search_dir):
-        results = tool._python_grep(r"nginx_\w+:", search_dir, include=None)
+    def test_grep_regex_pattern(self, tool, search_dir):
+        results = tool._grep(r"nginx_\w+:", search_dir, include=None)
         assert len(results) > 0
 
     def test_truncates_at_max_results(self, tool, tmp_path):
