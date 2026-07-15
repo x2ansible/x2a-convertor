@@ -37,6 +37,12 @@ Fact references — extract ALL of these:
 - Legacy: $::osfamily, $::operatingsystem, $::kernel
 - Conditional usage: case $facts['os']['name'] { ... }
 
+Case statements:
+- Model as ONE conditional with condition_type="case" and case_branches (NOT execution_order)
+- Each CaseBranch: pattern (literal, regex, or "default") + items (nested resources)
+- Include ALL branches, even empty ones
+- For if/unless conditionals, continue using execution_order
+
 Class inheritance:
 When a class uses `inherits`, set class_inherits as an OBJECT (not a string) with:
 - parent_class: the inherited class name

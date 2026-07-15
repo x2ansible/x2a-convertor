@@ -47,6 +47,26 @@ class PuppetDependencyList(BaseModel):
 # ============================================================================
 
 
+class CaseBranch(BaseModel):
+    """Single branch in a Puppet case statement.
+
+    Represents one pattern match and its associated resources.
+    Used to maintain Bedrock compatibility while properly modeling case branches.
+    """
+
+    pattern: str = Field(
+        description="Case branch pattern: literal string ('RedHat'), regex (/^web\\d+/), or 'default'"
+    )
+    items: list["NestedExecutionItem"] = Field(
+        default_factory=list,
+        description="Resources and declarations executed when this pattern matches",
+    )
+    note: str | None = Field(
+        default=None,
+        description="Additional context about this branch (e.g., 'OS-specific package installation')",
+    )
+
+
 class NestedExecutionItem(BaseModel):
     """Single Puppet resource or declaration inside a conditional or iteration block.
 
@@ -152,9 +172,14 @@ class ExecutionItem(BaseModel):
         description="Collector query expression (e.g., 'tag == production'). Set for collector type",
     )
 
+    case_branches: list[CaseBranch] = Field(
+        default_factory=list,
+        description="For 'case' conditionals: list of branches with patterns and items. Each branch represents one pattern match (e.g., 'RedHat', 'Debian', 'default') and its resources. Leave empty for if/unless conditionals.",
+    )
+
     execution_order: list[NestedExecutionItem] = Field(
         default_factory=list,
-        description="Nested execution items inside this block. Used for conditional and iteration types",
+        description="Nested execution items inside this block. Used for if/unless conditional and iteration types. For case statements, use case_branches instead.",
     )
 
     note: str | None = Field(
@@ -172,6 +197,9 @@ class ExecutionItem(BaseModel):
             return f"{self.relationship} {self.class_name}"
 
         if self.type == "conditional":
+            if self.condition_type == "case" and self.case_branches:
+                branch_count = len(self.case_branches)
+                return f"case {self.condition} ({branch_count} branches)"
             return f"{self.condition_type} {self.condition}"
 
         if self.type == "iteration":
@@ -189,9 +217,10 @@ class ExecutionItem(BaseModel):
         return f"{self.type} ({self.note})" if self.note else self.type
 
 
-# Force Pydantic to rebuild the model to ensure no forward references
-ExecutionItem.model_rebuild()
+# Force Pydantic to rebuild the models to ensure no forward references
+CaseBranch.model_rebuild()
 NestedExecutionItem.model_rebuild()
+ExecutionItem.model_rebuild()
 
 
 # ============================================================================
