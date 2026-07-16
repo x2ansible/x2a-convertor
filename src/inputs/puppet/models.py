@@ -527,6 +527,31 @@ class CredentialAnalysisResult(BaseModel):
     analysis: CredentialAnalysis
 
 
+class PuppetDiscoveryResult(BaseModel):
+    """Structured result from the Puppet control repo discovery agent.
+
+    Captures the control repo layout, role/profile chain, and all manifest
+    paths that should be included in the analysis scope.
+    """
+
+    control_repo_root: str | None = Field(
+        default=None,
+        description="Relative path to the control repo root (the directory containing environment.conf). None if standalone module.",
+    )
+    role_class: str | None = Field(
+        default=None,
+        description="Role class name that serves as the entry point (e.g., 'role::haproxy'). None if no role found.",
+    )
+    profile_classes: list[str] = Field(
+        default_factory=list,
+        description="Profile class names forming the chain between role and module (e.g., ['profile::loadbalancer::haproxy'])",
+    )
+    context_manifest_paths: list[str] = Field(
+        default_factory=list,
+        description="Relative paths to role/profile manifest files that reference the target module and should be analyzed",
+    )
+
+
 class PuppetStructuredAnalysis(BaseModel):
     """Aggregate of all analysis results from a Puppet module."""
 

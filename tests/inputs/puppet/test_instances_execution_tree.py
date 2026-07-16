@@ -74,7 +74,7 @@ def test_defined_type_expansion():
         custom_types=[],
     )
 
-    builder = PuppetExecutionTreeBuilder(structured, path_resolver=None)
+    builder = PuppetExecutionTreeBuilder(structured)
     tree = builder.build_tree(entry_class="redis")
 
     # Format the tree
@@ -114,7 +114,7 @@ def test_defined_type_not_analyzed():
         manifests=[main_class], hiera_data=[], templates=[], custom_types=[]
     )
 
-    builder = PuppetExecutionTreeBuilder(structured, path_resolver=None)
+    builder = PuppetExecutionTreeBuilder(structured)
     tree = builder.build_tree(entry_class="mymodule")
 
     formatted = builder.format_tree(tree)
