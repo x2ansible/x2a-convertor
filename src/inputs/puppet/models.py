@@ -338,6 +338,62 @@ class HieraDataAnalysis(BaseModel):
 
 
 # ============================================================================
+# Hiera Agent Analysis Models (for on-demand analysis of large repos)
+# ============================================================================
+
+
+class HieraFileAnalysis(BaseModel):
+    """Analysis of a single relevant hiera data file found by the HieraAnalysisAgent."""
+
+    file_path: str = Field(description="Path to the hiera YAML file")
+    hierarchy_level: str = Field(
+        default="",
+        description="Position in the hierarchy (e.g., 'common.yaml', 'environment/production.yaml')",
+    )
+    variables: list[HieraVariableMapping] = Field(
+        default_factory=list,
+        description="All relevant Hiera key-value pairs with their Ansible mappings",
+    )
+    merge_behavior: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Merge strategy declarations found in this file",
+    )
+    lookup_options: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Hiera lookup_options block if present",
+    )
+    cross_level_overrides: list[str] = Field(
+        default_factory=list,
+        description="Keys that override values from a different hierarchy level",
+    )
+    notes: str = Field(
+        default="",
+        description="Observations about this file relevant to Ansible migration",
+    )
+
+
+class HieraAgentAnalysis(BaseModel):
+    """Aggregate hiera analysis produced by the HieraAnalysisAgent.
+
+    Contains per-file analysis for only the relevant hiera data files
+    (those containing keys referenced by the module's manifests).
+    """
+
+    files: list[HieraFileAnalysis] = Field(
+        default_factory=list,
+        description="Analysis of each relevant hiera data file",
+    )
+    unreferenced_keys_found: list[str] = Field(
+        default_factory=list,
+        description="Hiera keys found in data files that are NOT referenced by any manifest lookup",
+    )
+    summary: str = Field(
+        default="",
+        description="Brief summary of the hiera data landscape and migration considerations",
+    )
+
+
+# ============================================================================
 # Template Analysis Models
 # ============================================================================
 

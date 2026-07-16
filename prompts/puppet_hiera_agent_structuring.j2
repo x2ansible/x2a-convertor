@@ -1,0 +1,26 @@
+You are a Puppet Hiera data analyst. Based on the exploration findings below, produce a structured analysis of all relevant hiera data files for Ansible migration.
+
+## Exploration Findings
+{{ findings }}
+
+## Lookup Keys Referenced by Manifests
+{% for key in lookup_keys %}
+- `{{ key }}`
+{% endfor %}
+
+## Instructions
+Produce a structured analysis that includes:
+1. For each relevant file found: the file path, hierarchy level, all variables with their Ansible mappings, merge behavior, lookup_options, and any cross-level overrides
+2. Any hiera keys found in the data files that are NOT in the lookup keys list above (unreferenced keys)
+3. A brief summary of the overall hiera data landscape
+
+ANSIBLE VARIABLE NAMING:
+- Strip the module prefix: profile_webapp::backends -> webapp_backends
+- Convert to snake_case
+- Prefix with a short module identifier to avoid collisions
+
+ANSIBLE VARIABLE TARGETS:
+- common.yaml -> defaults/main.yml
+- environment/*.yaml -> group_vars/{environment}.yml
+- os/*.yaml -> group_vars/{os_family}.yml
+- nodes/*.yaml -> host_vars/{hostname}.yml

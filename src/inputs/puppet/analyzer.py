@@ -10,6 +10,7 @@ from langgraph.graph import END, StateGraph
 
 from src.inputs.puppet.analysis_validation_agent import AnalysisValidationAgent
 from src.inputs.puppet.cleanup_agent import CleanupAgent
+from src.inputs.puppet.hiera_analysis_agent import HieraAnalysisAgent
 from src.inputs.puppet.report_writer_agent import ReportWriterAgent
 from src.inputs.puppet.state import PuppetState
 from src.model import get_model, get_runnable_config
@@ -33,7 +34,6 @@ from .models import (
 from .services import (
     CredentialDetectionService,
     CustomTypeAnalysisService,
-    HieraDataAnalysisService,
     ManifestAnalysisService,
     TemplateAnalysisService,
 )
@@ -57,7 +57,7 @@ class PuppetSubagent:
 
         # Services (Dependency Injection)
         self._manifest_service = ManifestAnalysisService(self.model)
-        self._hiera_service = HieraDataAnalysisService(self.model)
+        self._hiera_agent = HieraAnalysisAgent(model=self.model)
         self._template_service = TemplateAnalysisService(self.model)
         self._custom_type_service = CustomTypeAnalysisService(self.model)
         self._credential_service = CredentialDetectionService(self.model)
@@ -158,16 +158,8 @@ class PuppetSubagent:
                         for dep_module in dep_modules:
                             dep_manifests = self._analyze_manifests(dep_module, slog)
                             manifests.extend(dep_manifests)
-            slog.info("Step 2: Analyzing Hiera data files")
-            hiera_data = self._analyze_hiera_data(module_path, slog)
 
-            if state.control_repo_root:
-                repo_root = Path(state.control_repo_root)
-                slog.info("Step 2b: Analyzing environment-level Hiera data")
-                env_hiera = self._analyze_hiera_data(repo_root, slog)
-                hiera_data.extend(env_hiera)
-
-            slog.info("Step 3: Analyzing templates")
+            slog.info("Step 2: Analyzing templates")
             templates = self._analyze_templates(module_path, slog)
 
             if state.dependencies_dir:
@@ -178,6 +170,17 @@ class PuppetSubagent:
                             dep_templates = self._analyze_templates(dep_module, slog)
                             templates.extend(dep_templates)
 
+            slog.info("Step 3: Analyzing Hiera data files (agent-driven)")
+            data_roots = [module_path]
+            if state.control_repo_root:
+                data_roots.append(Path(state.control_repo_root))
+            hiera_data = self._hiera_agent.analyze(
+                data_roots=data_roots,
+                manifests=manifests,
+                templates=templates,
+                state=state,
+                metrics=metrics,
+            )
             slog.info("Step 4: Analyzing custom types and components")
             custom_types = self._analyze_custom_types(module_path, slog)
 
@@ -273,48 +276,6 @@ class PuppetSubagent:
             result = self._analyze_manifest_file(pp_file, slog)
             if result:
                 results.append(result)
-        return results
-
-    def _analyze_hiera_data(
-        self, module_path: Path, slog
-    ) -> list[HieraDataAnalysisResult]:
-        """Analyze all YAML files under the data/ directory."""
-        results: list[HieraDataAnalysisResult] = []
-        data_dir = module_path / "data"
-        if not data_dir.exists():
-            slog.info("No data/ directory found")
-            return results
-
-        for yaml_file in sorted(data_dir.glob("**/*.yaml")):
-            try:
-                yaml_file = Path(yaml_file)
-                level_name = yaml_file.relative_to(data_dir).as_posix()
-                file_path_str = yaml_file.relative_to_cwd()
-                slog.debug(f"Analyzing Hiera data: {file_path_str}")
-                file_state = FileAnalysisState(
-                    user_message="",
-                    path=file_path_str,
-                    metadata={"hierarchy_level": level_name, "full_hierarchy": ""},
-                )
-                result_state = self._hiera_service(file_state)
-                raw_content = ""
-                try:
-                    raw_content = yaml_file.read_text()
-                except OSError as e:
-                    slog.warning(f"Could not read Hiera file {file_path_str}: {e}")
-                results.append(
-                    HieraDataAnalysisResult(
-                        file_path=file_path_str,
-                        hierarchy_level=level_name,
-                        raw_content=raw_content,
-                        analysis=result_state.result,
-                    )
-                )
-            except Exception as e:
-                slog.warning(
-                    f"Failed to analyze Hiera data {Path(yaml_file).relative_to_cwd()}: {e}"
-                )
-
         return results
 
     def _analyze_templates(

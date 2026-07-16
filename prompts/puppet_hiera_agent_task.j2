@@ -1,0 +1,32 @@
+# Hiera Data Analysis Task
+
+## Module Path
+{{ module_path }}
+
+## Hiera Hierarchy Structure
+```
+{{ hierarchy_summary }}
+```
+
+## Hiera Data Directories to Search
+{% for data_dir in data_dirs %}
+- {{ data_dir }}
+{% endfor %}
+
+## Lookup Keys from Manifests ({{ lookup_keys | length }} keys)
+These are the hiera keys referenced by the module's manifests via lookup(), hiera(), or automatic parameter lookup:
+{% for key in lookup_keys %}
+- `{{ key }}`
+{% endfor %}
+
+## Instructions
+1. Use `grep_file` to search for the lookup keys across the hiera data directories listed above
+2. Read the files that contain matches to understand the full variable definitions
+3. Also read common.yaml (or equivalent base-level file) if it exists — it often contains lookup_options and default values that affect all levels
+4. After exploring all relevant files, provide a comprehensive summary of:
+   - Which files contain which lookup keys
+   - The variable types and values found
+   - Any encrypted values (ENC[PKCS7,...])
+   - Merge strategies (lookup_options sections)
+   - Cross-level overrides (same key defined at multiple levels)
+   - Mapping recommendations for Ansible variable files
