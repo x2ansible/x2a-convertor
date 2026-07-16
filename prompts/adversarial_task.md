@@ -1,3 +1,9 @@
+## Your Validation Focus
+
+{agent_prompt}
+
+## Workspace
+
 Review the migration artifacts in the following workspace for issues matching your validation focus.
 
 Workspace: {source_path}

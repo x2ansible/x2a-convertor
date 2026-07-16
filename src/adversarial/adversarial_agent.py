@@ -106,10 +106,10 @@ class AdversarialAgent(BaseAgent[BaseState]):
         """Investigate the workspace with read-only tools and return the agent's analysis."""
         default_severity = "CRITICAL" if self.critical else "WARNING"
         system_prompt = get_prompt(self.SYSTEM_PROMPT_NAME).format(
-            agent_prompt=self.prompt,
             default_severity=default_severity,
         )
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
+            agent_prompt=self.prompt,
             source_path=state.path,
         )
 
