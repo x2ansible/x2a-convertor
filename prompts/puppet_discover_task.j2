@@ -1,0 +1,23 @@
+Explore the directory structure starting from `{{ path }}` to discover the Puppet control repo context for the module `{{ module_name }}`.
+
+## Your Tasks
+
+1. **Find the control repo root**: Walk up from `{{ path }}` looking for `environment.conf`. List parent directories until you find it or reach the filesystem root.
+
+2. **Read environment.conf**: If found, read it to extract the `modulepath` directive. Note which directories are listed.
+
+3. **Search for referencing manifests**: Search across the modulepath for `.pp` files that reference `{{ module_name }}` using include, contain, require, or class declarations. Use grep to search efficiently.
+
+4. **Follow the chain upward**: For each manifest that references `{{ module_name }}`, determine its class name and search for manifests that reference IT. This discovers the role -> profile -> module chain.
+
+5. **Classify results**: For each discovered manifest, determine if it belongs to a role (class name starts with `role::`) or profile (class name starts with `profile::`)
+
+{% if dependencies_dir %}
+6. **Inspect external dependencies**: The directory `{{ dependencies_dir }}` contains fetched external Puppet modules that `{{ module_name }}` depends on.
+   - List `{{ dependencies_dir }}` to discover available dependency modules
+   - For each dependency module found, read its `manifests/init.pp` and any other manifest files to understand what classes and resources it provides
+   - Search dependency manifests for references to `{{ module_name }}` and for classes that `{{ module_name }}` uses (via include, contain, require, or class declarations)
+   - Include relevant dependency manifest paths in the final manifest list
+{% endif %}
+
+Report all discovered manifest paths (including from dependencies), the control repo root (if found), the role entry point class, and all profile classes in the chain.

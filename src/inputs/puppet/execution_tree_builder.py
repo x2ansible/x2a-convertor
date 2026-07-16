@@ -9,7 +9,6 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 from src.utils.logging import get_logger
 
@@ -19,9 +18,6 @@ from .models import (
     NestedExecutionItem,
     PuppetStructuredAnalysis,
 )
-
-if TYPE_CHECKING:
-    from .path_resolver import PuppetPathResolver
 
 logger = get_logger(__name__)
 
@@ -228,13 +224,8 @@ class TemplateNode(ExecutionTreeNode):
 class PuppetExecutionTreeBuilder:
     """Builds execution tree from Puppet manifest analysis results."""
 
-    def __init__(
-        self,
-        structured_analysis: PuppetStructuredAnalysis,
-        path_resolver: PuppetPathResolver | None = None,
-    ):
+    def __init__(self, structured_analysis: PuppetStructuredAnalysis):
         self.analysis = structured_analysis
-        self.path_resolver = path_resolver
         self._visited: set[str] = set()
 
         self._manifest_map: dict[str, ManifestAnalysisResult] = {}
@@ -314,12 +305,7 @@ class PuppetExecutionTreeBuilder:
 
         manifest = self._manifest_map.get(normalized)
         if manifest is None:
-            details = "class not analyzed"
-            if self.path_resolver:
-                resolved = self.path_resolver.resolve_class(class_name)
-                if resolved:
-                    details = f"external class — {resolved}"
-            return ClassNode(name=class_name, details=details)
+            return ClassNode(name=class_name, details="class not analyzed")
 
         analysis = manifest.analysis
         node = ClassNode(name=class_name, file_path=manifest.file_path)

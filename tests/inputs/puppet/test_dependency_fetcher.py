@@ -1,98 +1,14 @@
 """Tests for Puppet dependency fetcher agent."""
 
 import subprocess
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from src.inputs.puppet.dependency_fetcher import (
     DEPENDENCIES_DIR,
     PuppetDependencyAgent,
-    resolve_puppet_module_root,
 )
 from src.inputs.puppet.models import PuppetDependency
 from src.inputs.puppet.state import PuppetState
-
-
-class TestResolvePuppetModuleRoot:
-    """Test resolve_puppet_module_root standalone function."""
-
-    def test_resolve_from_manifests_dir(self, tmp_path):
-        """Test resolving from manifests directory."""
-        module_root = tmp_path / "mymodule"
-        manifests_dir = module_root / "manifests"
-        manifests_dir.mkdir(parents=True)
-
-        result = resolve_puppet_module_root(str(manifests_dir))
-        assert result == module_root
-
-    def test_resolve_from_init_pp_file(self, tmp_path):
-        """Test resolving from manifests/init.pp file."""
-        module_root = tmp_path / "mymodule"
-        manifests_dir = module_root / "manifests"
-        manifests_dir.mkdir(parents=True)
-        init_file = manifests_dir / "init.pp"
-        init_file.write_text("class mymodule {}")
-
-        result = resolve_puppet_module_root(str(init_file))
-        assert result == module_root
-
-    def test_resolve_from_nested_manifest_file(self, tmp_path):
-        """Test resolving from nested manifest file."""
-        module_root = tmp_path / "mymodule"
-        manifests_dir = module_root / "manifests"
-        manifests_dir.mkdir(parents=True)
-        nested_file = manifests_dir / "config" / "settings.pp"
-        nested_file.parent.mkdir(parents=True)
-        nested_file.write_text("class mymodule::config::settings {}")
-
-        result = resolve_puppet_module_root(str(nested_file))
-        assert result == module_root
-
-    def test_resolve_from_module_root(self, tmp_path):
-        """Test resolving when already at module root."""
-        module_root = tmp_path / "mymodule"
-        manifests_dir = module_root / "manifests"
-        manifests_dir.mkdir(parents=True)
-
-        result = resolve_puppet_module_root(str(module_root))
-        assert result == module_root
-
-    def test_resolve_returns_path_when_no_manifests_found(self, tmp_path):
-        """Test that function returns the path itself when no manifests dir found."""
-        some_dir = tmp_path / "notamodule"
-        some_dir.mkdir()
-
-        result = resolve_puppet_module_root(str(some_dir))
-        assert result == some_dir.resolve()
-
-    def test_resolve_handles_deeply_nested_structure(self, tmp_path):
-        """Test resolving from deeply nested directory structure."""
-        module_root = tmp_path / "puppet" / "modules" / "mymodule"
-        manifests_dir = module_root / "manifests"
-        deep_dir = manifests_dir / "a" / "b" / "c"
-        deep_dir.mkdir(parents=True)
-        deep_file = deep_dir / "deep.pp"
-        deep_file.write_text("class mymodule::a::b::c::deep {}")
-
-        result = resolve_puppet_module_root(str(deep_file))
-        assert result == module_root
-
-    def test_resolve_with_relative_path(self, tmp_path):
-        """Test resolving with relative path input."""
-        module_root = tmp_path / "mymodule"
-        manifests_dir = module_root / "manifests"
-        manifests_dir.mkdir(parents=True)
-
-        # Change to tmp_path and use relative path
-        import os
-
-        original_cwd = Path.cwd()
-        try:
-            os.chdir(tmp_path)
-            result = resolve_puppet_module_root("mymodule/manifests")
-            assert result == module_root.resolve()
-        finally:
-            os.chdir(original_cwd)
 
 
 class TestPuppetDependencyAgentFindPuppetfile:
