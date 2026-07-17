@@ -48,6 +48,11 @@ This repository contains [technology type] that need individual migration planni
 ### MODULE INVENTORY
 [List each module with description and location. Do NOT list external dependencies here]
 
+**CRITICAL PATH VERIFICATION:**
+Before listing any module, you MUST verify the path exists using the `list_directory` or `file_search` tools.
+Only include modules whose paths you have confirmed actually exist in the repository.
+Incorrect paths will cause downstream migration failures.
+
 **GOOD EXAMPLES:**
 - **postgresql**:
     - Description: PostgreSQL 14 database server with replication, backup automation, and performance tuning configurations

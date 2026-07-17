@@ -37,7 +37,11 @@ class InitializeSubAgent(BaseAgent[InitState]):
         lambda: WriteFileTool(),
     ]
 
-    GOAL = f"Verify that the file '{MIGRATION_PLAN_FILE}' exists and contains valid migration plan content"
+    GOAL = (
+        f"Verify that the file '{MIGRATION_PLAN_FILE}' exists and contains valid migration plan content. "
+        f"CRITICAL: All module paths in the MODULE INVENTORY section must be correct and point to "
+        f"directories that actually exist in the repository."
+    )
 
     SYSTEM_PROMPT_NAME = "init_migration_instructions"
     USER_PROMPT_NAME = "init_migration_plan_request"
