@@ -67,6 +67,7 @@ Use these variables directly in your tasks instead of any third-party secret loo
 CRITICAL INSTRUCTIONS:
 - Process ALL items marked "pending" or "missing" in the checklist
 - NEVER write or overwrite files marked "complete"
+- SKIP all items in the "molecule" category. A separate agent handles molecule tests
 - Work autonomously without asking for user input
 - Do NOT stop after listing items - immediately begin processing them
 
@@ -100,9 +101,20 @@ Process every item that is NOT marked "complete". For EACH pending item, execute
 
 After all files are written, run ansible_lint on output directory to catch syntax issues.
 
-## Step 4: Report Summary
+## Step 4: Final Checklist Verification
 
-After processing all items, provide final report:
+**BEFORE finishing, you MUST:**
+1. Call `list_checklist_tasks` to get the current state of ALL tasks
+2. For each task that has a target file that exists on disk:
+   - Verify it is marked "complete" in the checklist
+   - If NOT marked complete but file exists, call `update_checklist_task` to mark it complete
+3. Ensure NO files that exist on disk are left with "pending" or "missing" status
+
+This is CRITICAL - the checklist must accurately reflect what was written to disk.
+
+## Step 5: Report Summary
+
+After processing all items and verifying the checklist, provide final report:
 - **COMPLETED**: List all successfully migrated files
 - **SKIPPED**: List files skipped (already exists/complete)
 - **ISSUES**: List any errors encountered
