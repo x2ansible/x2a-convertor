@@ -26,6 +26,8 @@ class FinishReasonCallbackHandler(BaseCallbackHandler):
                 info = generation.generation_info or {}
                 msg = getattr(generation, "message", None)
                 msg_metadata = getattr(msg, "response_metadata", {}) or {}
+                # OpenAI puts finish_reason in generation_info or response_metadata;
+                # Bedrock puts it in response_metadata as stopReason
                 if (
                     info.get("finish_reason") == "length"
                     or msg_metadata.get("finish_reason") == "length"
