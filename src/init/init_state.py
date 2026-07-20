@@ -18,7 +18,7 @@ class InitState(BaseState):
     failed, failure_reason).
 
     Init-specific attributes:
-        directory_listing: Files found in repository (for context)
+        directory_listing: Root-level directory listing for initial context
         refresh: Flag to skip plan generation if plan exists
         migration_plan_content: Generated high-level migration plan
         migration_plan_path: Path where migration plan was written
@@ -32,8 +32,6 @@ class InitState(BaseState):
     # - telemetry: Telemetry | None (kw_only)
     # - failed: bool (kw_only)
     # - failure_reason: str (kw_only)
-
-    # Init-specific fields (all keyword-only since they follow kw_only fields from BaseState)
     directory_listing: str = field(kw_only=True)
     refresh: bool = field(default=False, kw_only=True)
     migration_plan_content: str = field(default="", kw_only=True)

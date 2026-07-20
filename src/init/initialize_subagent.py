@@ -39,8 +39,10 @@ class InitializeSubAgent(BaseAgent[InitState]):
 
     GOAL = (
         f"Verify that the file '{MIGRATION_PLAN_FILE}' exists and contains valid migration plan content. "
-        f"CRITICAL: All module paths in the MODULE INVENTORY section must be correct and point to "
-        f"directories that actually exist in the repository."
+        f"CRITICAL: Every module that has a manifests/init.pp (Puppet), recipes/default.rb (Chef), "
+        f"or .psd1 manifest (PowerShell) must appear as a separate entry in the MODULE INVENTORY. "
+        f"Use file_search to confirm no modules were missed. "
+        f"All module paths must point to directories that actually exist in the repository."
     )
 
     SYSTEM_PROMPT_NAME = "init_migration_instructions"
@@ -77,7 +79,6 @@ class InitializeSubAgent(BaseAgent[InitState]):
             ],
             metrics,
         )
-
         # Print messages for visibility
         for msg in result["messages"]:
             msg.pretty_print()
