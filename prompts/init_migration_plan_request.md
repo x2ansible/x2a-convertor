@@ -2,12 +2,13 @@ Analyze this directory for migration to Ansible.
 
 User requirements: {user_requirements}
 
-The current directory structure (max depth 3, excluding hidden files):
+Use `list_directory` and `file_search` to explore the repository structure. Do not assume any structure, discover it by navigating the directory tree, current list directory is:
+
 ```
 {files}
 ```
 
-Based on this structure, create a comprehensive `{migration_plan_file}` file that follows the template structure.
+Based on your findings, create a comprehensive `{migration_plan_file}` file that follows the template structure.
 
 Focus on:
 1. Identifying the current technology (Chef, Puppet, Salt, PowerShell, etc.) from file extensions and structure (.rb for Chef, .ps1/.psm1/.psd1 for PowerShell, .pp for Puppet, .sls for Salt)

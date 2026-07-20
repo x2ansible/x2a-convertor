@@ -19,15 +19,37 @@ The plan must summarize in detail all modules, dependencies, security issues, an
 Follow these steps in order:
 
 1. **Root Directory Scan**: Use `list_directory(dir_path=.)` to see all top-level files and folders.
-2. **Dependency Review**: Use `read_file` on dependency files to identify dependencies:
+2. **Module Discovery with file_search**: Immediately after the root scan, run ALL of the following `file_search` calls to detect every technology present. Repositories often mix technologies (e.g., Puppet modules with PowerShell scripts inside). You MUST run every search, not just the first technology you recognize:
+   - `file_search(pattern="**/manifests/init.pp")` — discovers Puppet modules
+   - `file_search(pattern="**/recipes/default.rb")` — discovers Chef cookbooks
+   - `file_search(pattern="**/*.psd1")` — discovers PowerShell module manifests
+
+   **Puppet module structure**: A Puppet module is a directory that contains a `manifests/` subdirectory with `.pp` files. The main entry point is always `manifests/init.pp`:
+   ```
+   <module_name>/
+     manifests/
+       init.pp        # main class (class <module_name>)
+       config.pp      # optional subclasses
+       install.pp
+     templates/       # .erb/.epp templates
+     files/           # static files
+     data/            # Hiera module data
+     metadata.json    # module metadata and dependencies
+   ```
+   - Each path returned by `file_search` represents an individual module — you MUST list each one separately in the MODULE INVENTORY
+   - When modules are nested under category directories (e.g., `<parent>/<category>/<module_name>/manifests/init.pp`), each `<module_name>` is a separate module — do NOT group them by `<category>` or `<parent>`
+3. **Dependency Review**: Use `read_file` on dependency files to identify dependencies:
    - **Chef**: `Berksfile`, `Policyfile.rb`, `metadata.rb`
    - **PowerShell**: `requirements.psd1`, module manifests (`.psd1`), `Import-Module` statements in scripts
-3. **Metadata Review**: Read metadata files to gather module information:
+   - **Puppet**: `Puppetfile`, `metadata.json` inside each module, `environment.conf`
+4. **Metadata Review**: Read metadata files to gather module information:
    - **Chef**: `metadata.rb`, `metadata.json`
    - **PowerShell**: `.psd1` module manifests, script headers, `#Requires` statements
-4. **Content Review**: Read all source files to understand logic, dependencies, and environment assumptions:
+   - **Puppet**: `metadata.json` inside each module directory, `environment.conf` at the control repo root, `hiera.yaml`
+5. **Content Review**: Read all source files to understand logic, dependencies, and environment assumptions:
    - **Chef**: `.rb` recipe files in `recipes/`, `providers/`, `attributes/`
    - **PowerShell**: `.ps1` scripts, `.psm1` modules, DSC `Configuration` blocks, `Param()` blocks
+   - **Puppet**: `.pp` manifest files in `manifests/` directories, `.erb`/`.epp` templates, Hiera data files in `data/`
 
 Do not use generic examples but base your plan strictly on the actual repository content.
 Do not proceed to plan generation until you have explored the entire repository.
@@ -84,10 +106,23 @@ Incorrect paths will cause downstream migration failures.
     - Technology: PowerShell
     - Key Features: DSC SqlSetup, SqlDatabase resources, scheduled task for backups
 
+- **ntp**:
+    - Description: NTP time synchronization service with chrony configuration and drift monitoring
+    - Path: modules/ntp
+    - Technology: Puppet
+    - Key Features: chrony.conf template, server pool configuration, service management
+
+- **profile_webserver**:
+    - Description: Nginx reverse proxy profile with SSL termination and upstream health checks
+    - Path: site/profiles/profile_webserver
+    - Technology: Puppet
+    - Key Features: nginx.conf ERB template, Let's Encrypt integration, Hiera-driven vhost configuration
+
 **BAD EXAMPLES (DO NOT DO THIS):**
 - **postgres**: Database cookbook (TOO VAGUE - no details about features, version, or purpose)
 - **web**: Web server module at cookbooks/web (UNCLEAR - what web server? what configuration?)
 - **app**: Application deployment (INSUFFICIENT - what app? what runtime? what dependencies?)
+- **site**: All modules at site/ (WRONG - this groups multiple modules into one entry. Each directory under the modulepath that has its own manifests/ directory must be listed as a separate module)
 
 ### Infrastructure Files
 

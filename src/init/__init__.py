@@ -15,27 +15,40 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def list_with_depth(dir_path: str, max_depth=2) -> str:
-    """Recursively list files up to a maximum depth.
+def list_with_depth(dir_path: str, max_depth=1) -> str:
+    """Recursively list directory structure as an indented tree.
+
+    Shows files at depth 1 (root-level) for technology detection,
+    but only directories at deeper levels to reduce context bloat.
+    Uses tree-style indentation to avoid repeating parent paths.
 
     Args:
         dir_path: Directory path to start listing from
-        max_depth: Maximum depth to traverse (default: 2)
+        max_depth: Maximum depth to traverse (default: 1)
 
     Returns:
-        Newline-separated string of relative file paths
+        Tree-formatted string of the directory structure
     """
     path = Path(dir_path)
-    items: list[str] = []
+    entries: list[tuple[str, ...]] = []
     for item in path.rglob("*"):
         relative = item.relative_to(path)
-        # Skip hidden files/directories
         if any(part.startswith(".") for part in relative.parts):
             continue
         depth = len(relative.parts)
-        if depth <= max_depth:
-            items.append(str(relative))
-    return "\n".join(sorted(items))
+        if depth > max_depth:
+            continue
+        if depth > 1 and item.is_file():
+            continue
+        entries.append(relative.parts)
+
+    entries.sort()
+    lines: list[str] = []
+    for parts in entries:
+        indent = "  " * (len(parts) - 1)
+        suffix = "/" if (path / Path(*parts)).is_dir() else ""
+        lines.append(f"{indent}{parts[-1]}{suffix}")
+    return "\n".join(lines)
 
 
 def init_project(user_requirements: str, source_dir: str = ".", refresh: bool = False):
@@ -61,8 +74,8 @@ def init_project(user_requirements: str, source_dir: str = ".", refresh: bool = 
     slog.debug(f"Source dir: {source_dir}")
     slog.debug(f"Refresh mode: {refresh}")
 
-    # Prepare directory listing
-    files = list_with_depth(".", max_depth=3)
+    # Prepare compact directory listing (root files + directories only)
+    files = list_with_depth(".", max_depth=2)
 
     # Create initial state
     telemetry = Telemetry(phase="init")

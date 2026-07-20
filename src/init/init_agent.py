@@ -192,6 +192,7 @@ class InitAgent:
         slog = logger.bind(phase="init_workflow")
         slog.info("Starting init workflow execution")
         result = self._workflow.invoke(state, config=get_runnable_config())
+
         slog.info("Init workflow execution completed")
         # Convert dict result back to InitState (LangGraph returns dict)
         return InitState(**result)
