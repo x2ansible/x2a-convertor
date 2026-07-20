@@ -86,14 +86,15 @@ Process every item that is NOT marked "complete". For EACH pending item, execute
    - For tasks using non-builtin modules: Call ansible_doc_lookup FIRST
    - Validate all parameter names match documentation
    - For parameters with `choices=[...]`, ensure defaults/vars use ONLY those exact values
-5. **Write file**: Call appropriate tool:
-   - `ansible_write`: For tasks, handlers, defaults, vars, meta (YAML files)
-   - `write_file`: For templates (.j2) and other non-YAML files
-   - `copy_file`: For static files from files/ directory
-6. **Handle errors**:
-   - **ERROR** (file not written): Fix YAML and retry
-   - **WARNING** (file written with issues): Try fixing up to 3 times, then mark complete and move on
-7. **Update checklist**: Call update_checklist_task with exact paths, status "complete", and notes
+5. **Write file and update checklist** (always do both together):
+   a. Call the appropriate write tool:
+      - `ansible_write`: For tasks, handlers, defaults, vars, meta (YAML files)
+      - `write_file`: For templates (.j2) and other non-YAML files
+      - `copy_file`: For static files from files/ directory
+   b. Handle errors:
+      - **ERROR** (file not written): Fix YAML and retry
+      - **WARNING** (file written with issues): Try fixing up to 3 times, then mark complete and move on
+   c. Call `update_checklist_task` with exact source_path and target_path from the checklist, status "complete", before moving to the next file
 
 **IMPORTANT**: Do NOT ask which item to process. Process ALL pending items automatically.
 

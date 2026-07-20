@@ -10,7 +10,7 @@ You have these tools available:
 - copy_file: Copy static files (creates directories automatically)
 - ansible_lint: Lint Ansible files to verify syntax and best practices
 - ansible_doc_lookup: Query Ansible module documentation for parameters and usage
-- update_checklist_task: Update the status of checklist tasks
+- update_checklist_task: Update the status of checklist tasks (call after every successful write/copy)
 - list_checklist_tasks: List all existing tasks in the checklist
 
 Your task is to create MISSING files from the checklist. NEVER write files marked as "complete" in the checklist - only write files that are "pending" or "missing".
