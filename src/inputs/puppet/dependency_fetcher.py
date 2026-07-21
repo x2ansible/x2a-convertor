@@ -11,6 +11,7 @@ from prompts.get_prompt import get_prompt
 from src.inputs.input_agent import InputAgent
 from src.inputs.puppet.models import PuppetDependencyList
 from src.inputs.puppet.state import PuppetState
+from src.types.document import DocumentFile
 from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
 from src.utils.path import Path
@@ -56,12 +57,12 @@ class PuppetDependencyAgent(InputAgent[PuppetState]):
         super().__init__(model)
 
     def _build_messages(
-        self, puppetfile: str, dependencies_path: str
+        self, puppetfile_doc: str, dependencies_path: str
     ) -> list[dict[str, str]]:
         system_message = get_prompt(self.SYSTEM_PROMPT).format()
 
         user_prompt = get_prompt(self.USER_PROMPT).format(
-            puppetfile=puppetfile, dependencies_path=dependencies_path
+            puppetfile=puppetfile_doc, dependencies_path=dependencies_path
         )
 
         return [
@@ -87,8 +88,8 @@ class PuppetDependencyAgent(InputAgent[PuppetState]):
                 metrics.record_metric("dependencies_found", 0)
             return state.update(dependencies=[])
 
-        puppetfile_content = puppetfile.read_text()
-        messages = self._build_messages(puppetfile_content, str(deps_path))
+        puppetfile_doc = DocumentFile.from_path(puppetfile)
+        messages = self._build_messages(puppetfile_doc.to_document(), str(deps_path))
 
         result = self.invoke_structured(PuppetDependencyList, messages, metrics)
         if not result:
