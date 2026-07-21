@@ -1,35 +1,38 @@
 """Goal validation middleware with retry logic."""
 
-from collections.abc import Callable
 from copy import deepcopy
-from typing import Any, ClassVar
+from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware, hook_config
-from langchain_community.tools.file_management.file_search import FileSearchTool
-from langchain_community.tools.file_management.list_dir import ListDirectoryTool
-from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_core.messages import HumanMessage
 from langchain_core.messages.utils import get_buffer_string
-from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
 
-VALIDATION_PROMPT_TEMPLATE = """You are a read-only goal validation agent. Your ONLY job is to CHECK whether the following goal was achieved. You must NEVER create, write, or modify any files.
+EXPLORE_PROMPT_TEMPLATE = """You are a read-only verification agent. Use the available tools to check whether the following goal was achieved. Do NOT create, write, or modify any files.
 
 <goal>
-GOAL: {goal}
+{goal}
 </goal>
 
 CONVERSATION CONTEXT:
 <messages>
 {context}
 </messages>
-Use ONLY the read-only tools (read_file, list_directory, file_search) to inspect existing files and verify the goal was met. Do NOT attempt to fix, create, or write anything.
 
-Provide:
-- achieved: true if the goal is fully met, false otherwise
-- feedback: Specific details about what was verified or what is missing/incorrect
+Use the tools to inspect the relevant files and report exactly what you found.
+"""
+
+CLASSIFY_PROMPT_TEMPLATE = """Based on the following verification findings, determine whether the goal was achieved.
+
+<goal>
+{goal}
+</goal>
+
+<findings>
+{findings}
+</findings>
 """
 
 RETRY_MESSAGE_TEMPLATE = """The goal was not achieved. Please address the following issues:
@@ -58,17 +61,16 @@ class GoalValidationMiddleware(AgentMiddleware):
     CONTEXT_HEAD = 3
     CONTEXT_TAIL = 2
 
-    BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
-        lambda: FileSearchTool(),
-        lambda: ListDirectoryTool(),
-        lambda: ReadFileTool(),
-    ]
-
     def __init__(self, goal_description: str, agent: Any):
         self._log = get_logger(__name__)
         self.goal_description = goal_description
         self.agent = agent
         self.retry_count = 0
+        # Guards against re-entrant validation: invoke_react runs through the
+        # agent's cached middleware stack, which includes this same instance.
+        # Without this flag, after_agent would fire again after the explore
+        # phase completes, causing infinite recursion.
+        self._in_validation = False
 
     def _extract_context_messages(self, messages: list) -> list:
         max_passthrough = self.CONTEXT_HEAD + self.CONTEXT_TAIL
@@ -76,44 +78,59 @@ class GoalValidationMiddleware(AgentMiddleware):
             return messages
         return messages[: self.CONTEXT_HEAD] + messages[-self.CONTEXT_TAIL :]
 
-    def _build_validation_prompt(self, context_messages: list) -> str:
-        context_text = get_buffer_string(context_messages)
-        return VALIDATION_PROMPT_TEMPLATE.format(
-            goal=self.goal_description, context=context_text
-        )
-
     def _run_validation(self, state: dict) -> tuple[bool, str]:
         self._log.info("Running goal validation", retry_count=self.retry_count)
 
         messages = state.get("messages", [])
         context_messages = self._extract_context_messages(messages)
-        validation_prompt = self._build_validation_prompt(context_messages)
+        context_text = get_buffer_string(context_messages)
+
+        explore_prompt = EXPLORE_PROMPT_TEMPLATE.format(
+            goal=self.goal_description,
+            context=context_text,
+        )
 
         try:
-            validation_tools = [factory() for factory in self.BASE_TOOLS]
-            validation_result = self.agent.invoke_structured(
-                schema=GoalValidationResult,
-                messages=[{"role": "user", "content": validation_prompt}],
-                metrics=None,
-                tools=validation_tools,
+            self._in_validation = True
+            explore_result = self.agent.invoke_react(
+                state=state,
+                messages=[{"role": "user", "content": explore_prompt}],
             )
-            if not validation_result:
+
+            last_ai = self.agent.get_last_ai_message(explore_result)
+            findings = str(last_ai.content) if last_ai else "No findings available"
+
+            classify_prompt = CLASSIFY_PROMPT_TEMPLATE.format(
+                goal=self.goal_description,
+                findings=findings,
+            )
+            result = self.agent.invoke_structured(
+                schema=GoalValidationResult,
+                messages=[{"role": "user", "content": classify_prompt}],
+            )
+
+            if not result:
                 self._log.warning("No response from validation")
                 return False, "Validation did not respond"
 
             self._log.debug(
                 "Validation result",
-                achieved=validation_result.achieved,
-                feedback=validation_result.feedback,
+                achieved=result.achieved,
+                feedback=result.feedback,
             )
-            return validation_result.achieved, validation_result.feedback
+            return result.achieved, result.feedback
 
         except Exception as e:
             self._log.error("Validation failed", error=str(e))
             return False, f"Validation error: {e!s}"
+        finally:
+            self._in_validation = False
 
     @hook_config(can_jump_to=["model"])
     def after_agent(self, state, runtime):
+        if self._in_validation:
+            return state
+
         original_state = deepcopy(state)
 
         self._log.info(
