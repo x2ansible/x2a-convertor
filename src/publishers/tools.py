@@ -829,7 +829,10 @@ def sync_to_aap(
             # paths against the synced repo, so templates can't be created
             # until the sync finishes.
             if update_id:
-                _wait_for_project_sync(client, update_id)
+                _wait_for_project_sync(
+                    client, update_id,
+                    timeout_s=int(settings.aap.sync_timeout_s),
+                )
             try:
                 molecule_templates = _setup_molecule_on_aap(
                     client=client,
@@ -858,7 +861,7 @@ def sync_to_aap(
 def _wait_for_project_sync(
     client: "AAPClient",
     update_id: int,
-    timeout_s: int = 120,
+    timeout_s: int = 300,
     poll_interval_s: int = 5,
 ) -> None:
     """Poll AAP until a project update job finishes.
