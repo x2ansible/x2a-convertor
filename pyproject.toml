@@ -25,6 +25,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "markdownify>=0.14.1",
     "kubernetes>=35.0.0",
+    "langchain-google-vertexai>=2.0.0",
 ]
 
 [tool.pyrefly]

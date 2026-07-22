@@ -22,7 +22,7 @@ class LLMSettings(BaseSettings):
         description="Language model to use",
     )
     max_tokens: int = Field(
-        default=8192,
+        default=8192 * 2,
         validation_alias="MAX_TOKENS",
         description="Maximum tokens for LLM responses",
     )
@@ -70,6 +70,21 @@ class OpenAISettings(BaseSettings):
     api_key: SecretStr = Field(
         default=SecretStr("not-needed"),
         description="API key for OpenAI provider",
+    )
+
+
+class GoogleSettings(BaseSettings):
+    """Vertex AI configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="GOOGLE_", extra="ignore")
+
+    cloud_project: str | None = Field(
+        default=None,
+        description="GCP project ID for Vertex AI",
+    )
+    cloud_location: str = Field(
+        default="us-central1",
+        description="GCP region for Vertex AI",
     )
 
 
@@ -320,6 +335,7 @@ class Settings(BaseSettings):
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
     openai: OpenAISettings = Field(default_factory=OpenAISettings)
+    google: GoogleSettings = Field(default_factory=GoogleSettings)
     aws: AWSSettings = Field(default_factory=AWSSettings)
     aap: AAPSettings = Field(default_factory=AAPSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
