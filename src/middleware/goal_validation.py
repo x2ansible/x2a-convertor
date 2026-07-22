@@ -98,7 +98,7 @@ class GoalValidationMiddleware(AgentMiddleware):
             )
 
             last_ai = self.agent.get_last_ai_message(explore_result)
-            findings = str(last_ai.content) if last_ai else "No findings available"
+            findings = last_ai.text if last_ai else "No findings available"
 
             classify_prompt = CLASSIFY_PROMPT_TEMPLATE.format(
                 goal=self.goal_description,
