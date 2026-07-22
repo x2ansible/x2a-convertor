@@ -55,7 +55,7 @@ shared:
   descriptions:
     init: "This will create a **migration-plan.md** with a lot of details."
     analyze: "This will make a blueprint of what the model understands about the migration of that cookbook. In this case, it will create a **migration-plan-nginx-multisite.md**"
-    migrate: "This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details. When AAP env vars are set, it will also search your Private Automation Hub for reusable collections (see [AAP Discovery Agent]({% link concepts/export-agents.md %}#aap-discovery-agent-optional))."
+    migrate: "This will generate real Ansible code, primarily in `ansible/roles/nginx_multisite` with all details. When AAP env vars are set, it will also search your Private Automation Hub for reusable collections (see [AAP Discovery Agent]({% link phases/migrate.md %}#aap-discovery-agent-optional))."
     publish_project: "This creates (or appends to) an Ansible project under `<project-id>/ansible-project/`. On the first module it creates the full skeleton (ansible.cfg, collections, inventory). On subsequent modules it adds the role and playbook."
     publish_aap: "This creates or updates an AAP Project pointing to the given repository and branch, then triggers a project sync."
 
