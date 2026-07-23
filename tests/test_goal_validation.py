@@ -1,7 +1,6 @@
 """Tests for GoalValidationMiddleware."""
 
 from copy import deepcopy
-from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,21 +11,37 @@ from src.middleware.goal_validation import (
     GoalValidationResult,
 )
 
+EXPLORE_FINDINGS = "Verified: migration-plan.md exists and contains expected content."
+
 
 class FakeAgent:
-    BASE_TOOLS: ClassVar[list] = [lambda: MagicMock()]
-
-    def __init__(self, structured_result=None):
+    def __init__(self, structured_result=None, explore_content=EXPLORE_FINDINGS):
         self._structured_result = structured_result
+        self._explore_content = explore_content
 
-    def invoke_structured(self, **kwargs):
+    def invoke_react(self, state, messages, metrics=None):
+        return {"messages": [AIMessage(content=self._explore_content)]}
+
+    def invoke_structured(self, schema, messages, metrics=None, max_retries=3):
         return self._structured_result
+
+    @staticmethod
+    def get_last_ai_message(result):
+        messages = result.get("messages", [])
+        return next(
+            (msg for msg in reversed(messages) if isinstance(msg, AIMessage)),
+            None,
+        )
 
 
 @pytest.fixture
 def make_middleware():
-    def _factory(goal="Test goal", structured_result=None):
-        agent = FakeAgent(structured_result=structured_result)
+    def _factory(
+        goal="Test goal", structured_result=None, explore_content=EXPLORE_FINDINGS
+    ):
+        agent = FakeAgent(
+            structured_result=structured_result, explore_content=explore_content
+        )
         return GoalValidationMiddleware(goal, agent=agent)
 
     return _factory
@@ -69,27 +84,6 @@ class TestExtractContextMessages:
         assert mw._extract_context_messages([]) == []
 
 
-class TestBuildValidationPrompt:
-    def test_includes_goal_and_context(self, make_middleware):
-        mw = make_middleware(goal="Create output.txt")
-        messages = [HumanMessage(content="Hello"), AIMessage(content="Done")]
-
-        prompt = mw._build_validation_prompt(messages)
-
-        assert "Create output.txt" in prompt
-        assert "Human: Hello" in prompt
-        assert "AI: Done" in prompt
-
-    def test_formats_messages_correctly(self, make_middleware):
-        mw = make_middleware()
-        msg_with_content = HumanMessage(content="visible")
-
-        prompt = mw._build_validation_prompt([msg_with_content])
-
-        assert "visible" in prompt
-        assert "Human: visible" in prompt
-
-
 class TestRunValidation:
     def test_goal_achieved(self, make_middleware):
         mw = make_middleware(
@@ -97,9 +91,7 @@ class TestRunValidation:
                 achieved=True, feedback="File exists"
             )
         )
-        state = {"messages": [HumanMessage(content="create file")]}
-
-        achieved, feedback = mw._run_validation(state)
+        achieved, feedback = mw._run_validation({"messages": []})
 
         assert achieved is True
         assert feedback == "File exists"
@@ -110,36 +102,37 @@ class TestRunValidation:
                 achieved=False, feedback="File missing"
             )
         )
-        state = {"messages": [HumanMessage(content="create file")]}
-
-        achieved, feedback = mw._run_validation(state)
+        achieved, feedback = mw._run_validation({"messages": []})
 
         assert achieved is False
         assert feedback == "File missing"
 
     def test_none_result_returns_false(self, make_middleware):
         mw = make_middleware(structured_result=None)
-        state = {"messages": []}
-
-        achieved, feedback = mw._run_validation(state)
+        achieved, feedback = mw._run_validation({"messages": []})
 
         assert achieved is False
         assert "did not respond" in feedback
 
-    def test_exception_returns_false(self, make_middleware):
-        mw = make_middleware()
-        mw.agent.invoke_structured = MagicMock(
-            side_effect=RuntimeError("LLM unavailable")
-        )
-        state = {"messages": []}
-
-        achieved, feedback = mw._run_validation(state)
-
-        assert achieved is False
-        assert "LLM unavailable" in feedback
-
-    def test_passes_middleware_tools_not_agent_tools(self):
+    def test_explore_prompt_contains_goal(self):
         agent = MagicMock()
+        agent.invoke_react.return_value = {"messages": [AIMessage(content="findings")]}
+        agent.get_last_ai_message.return_value = AIMessage(content="findings")
+        agent.invoke_structured.return_value = GoalValidationResult(
+            achieved=True, feedback="ok"
+        )
+        mw = GoalValidationMiddleware("Create output.txt", agent=agent)
+
+        mw._run_validation({"messages": []})
+
+        explore_messages = agent.invoke_react.call_args[1]["messages"]
+        assert any("Create output.txt" in m["content"] for m in explore_messages)
+
+    def test_classify_prompt_contains_findings(self):
+        findings = "Found migration-plan.md with 3 modules listed."
+        agent = MagicMock()
+        agent.invoke_react.return_value = {"messages": [AIMessage(content=findings)]}
+        agent.get_last_ai_message.return_value = AIMessage(content=findings)
         agent.invoke_structured.return_value = GoalValidationResult(
             achieved=True, feedback="ok"
         )
@@ -147,12 +140,55 @@ class TestRunValidation:
 
         mw._run_validation({"messages": []})
 
-        call_kwargs = agent.invoke_structured.call_args[1]
-        tool_types = {type(t).__name__ for t in call_kwargs["tools"]}
-        assert "FileSearchTool" in tool_types
-        assert "ListDirectoryTool" in tool_types
-        assert "ReadFileTool" in tool_types
-        assert "WriteFileTool" not in tool_types
+        classify_messages = agent.invoke_structured.call_args[1]["messages"]
+        assert any(findings in m["content"] for m in classify_messages)
+
+    def test_invoke_react_called_before_invoke_structured(self):
+        call_order = []
+        agent = MagicMock()
+        agent.invoke_react.side_effect = lambda **kw: (
+            call_order.append("react"),
+            {"messages": [AIMessage(content="findings")]},
+        )[1]
+        agent.get_last_ai_message.return_value = AIMessage(content="findings")
+        agent.invoke_structured.side_effect = lambda **kw: (
+            call_order.append("structured"),
+            GoalValidationResult(achieved=True, feedback="ok"),
+        )[1]
+        mw = GoalValidationMiddleware("goal", agent=agent)
+
+        mw._run_validation({"messages": []})
+
+        assert call_order == ["react", "structured"]
+
+    def test_exception_in_explore_returns_false(self, make_middleware):
+        mw = make_middleware()
+        mw.agent.invoke_react = MagicMock(side_effect=RuntimeError("LLM unavailable"))
+        achieved, feedback = mw._run_validation({"messages": []})
+
+        assert achieved is False
+        assert "LLM unavailable" in feedback
+
+    def test_exception_in_classify_returns_false(self, make_middleware):
+        mw = make_middleware()
+        mw.agent.invoke_structured = MagicMock(side_effect=RuntimeError("timeout"))
+        achieved, feedback = mw._run_validation({"messages": []})
+
+        assert achieved is False
+        assert "timeout" in feedback
+
+    def test_in_validation_flag_cleared_after_success(self, make_middleware):
+        mw = make_middleware(
+            structured_result=GoalValidationResult(achieved=True, feedback="ok")
+        )
+        mw._run_validation({"messages": []})
+        assert mw._in_validation is False
+
+    def test_in_validation_flag_cleared_after_exception(self, make_middleware):
+        mw = make_middleware()
+        mw.agent.invoke_react = MagicMock(side_effect=RuntimeError("fail"))
+        mw._run_validation({"messages": []})
+        assert mw._in_validation is False
 
 
 class TestAfterAgent:
@@ -240,3 +276,12 @@ class TestAfterAgent:
         assert result["messages"][0].content == "original"
         assert len(result["messages"]) == 2
         assert len(state["messages"]) == 1
+
+    def test_skips_validation_when_in_validation(self, make_middleware):
+        mw = make_middleware()
+        mw._in_validation = True
+        state = {"messages": [HumanMessage(content="msg")]}
+
+        result = mw.after_agent(state, runtime=None)
+
+        assert result is state
