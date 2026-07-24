@@ -26,12 +26,14 @@ class FinishReasonCallbackHandler(BaseCallbackHandler):
                 info = generation.generation_info or {}
                 msg = getattr(generation, "message", None)
                 msg_metadata = getattr(msg, "response_metadata", {}) or {}
-                # OpenAI puts finish_reason in generation_info or response_metadata;
-                # Bedrock puts it in response_metadata as stopReason
+                # OpenAI: finish_reason == "length" (in generation_info or response_metadata)
+                # Bedrock: stopReason == "max_tokens"
+                # Vertex AI / Gemini: finish_reason == "MAX_TOKENS"
                 if (
                     info.get("finish_reason") == "length"
                     or msg_metadata.get("finish_reason") == "length"
                     or msg_metadata.get("stopReason") == "max_tokens"
+                    or msg_metadata.get("finish_reason") == "MAX_TOKENS"
                 ):
                     usage = getattr(msg, "usage_metadata", None) or {}
                     model_name = msg_metadata.get("model_name", "unknown")
@@ -149,12 +151,25 @@ def get_model() -> BaseChatModel:
 
     logger.debug(f"Model parameters: {kwargs}")
 
-    # Default
-    provider = "openai"
-
-    # If AWS_BEARER_TOKEN_BEDROCK is set, use the AWS Bedrock
-    if settings.aws.bearer_token_bedrock or settings.aws.access_key_id:
+    if settings.google.cloud_project:
+        provider = "google_vertexai"
+    elif settings.aws.bearer_token_bedrock or settings.aws.access_key_id:
         provider = "bedrock_converse"
+    else:
+        provider = "openai"
+
+    # Vertex AI expects bare model IDs without routing prefixes
+    # (e.g. "google/gemini-2.5-pro" → "gemini-2.5-pro").
+    if provider == "google_vertexai":
+        model_name = model_name.split("/")[-1]
+        kwargs["project"] = settings.google.cloud_project
+        kwargs["location"] = settings.google.cloud_location
+        logger.info(
+            f"Vertex AI project={settings.google.cloud_project} "
+            f"location={settings.google.cloud_location}"
+        )
+
+    elif provider == "bedrock_converse":
         region_name = settings.aws.region
         kwargs["region_name"] = region_name
         logger.debug(f"AWS_REGION: {region_name}")
@@ -197,8 +212,8 @@ def get_model() -> BaseChatModel:
 
             logger.info("Using AWS credentials from environment with Bedrock provider")
 
-    # If the provider is OpenAI, use the specific OpenAI endpoint information
-    if provider == "openai":
+    else:
+        # OpenAI-compatible provider
         kwargs["base_url"] = settings.openai.api_base
         kwargs["api_key"] = settings.openai.api_key.get_secret_value()
         kwargs["timeout"] = settings.llm.read_timeout
