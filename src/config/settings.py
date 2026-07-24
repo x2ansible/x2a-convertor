@@ -145,6 +145,10 @@ class AAPSettings(BaseSettings):
         default=30.0,
         description="Request timeout in seconds",
     )
+    sync_timeout_s: float = Field(
+        default=300.0,
+        description="Project sync poll timeout in seconds",
+    )
     project_name: str | None = Field(
         default=None,
         description="Project name in AAP",
