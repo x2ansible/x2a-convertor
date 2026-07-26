@@ -1,9 +1,9 @@
 """Validated write tool that automatically routes YAML files to ansible_write."""
 
 from pathlib import Path
-from typing import Any
 
 from langchain_community.tools.file_management.write import WriteFileTool
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from tools.ansible_write import AnsibleWriteTool
@@ -39,7 +39,7 @@ class ValidatedWriteTool(X2ATool):
         "YAML files (.yml, .yaml) are automatically validated via ansible_write. "
         "Use for .j2 templates and non-YAML files."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = ValidatedWriteInput
+    args_schema: ArgsSchema | None = ValidatedWriteInput
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)

@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
-from typing import Any
 
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from tools.base_tool import X2ATool
@@ -40,7 +40,7 @@ class SedTool(X2ATool):
         "Returns success message or error if pattern not found on that line."
     )
 
-    args_schema: dict[str, Any] | type[BaseModel] | None = SedToolInput
+    args_schema: ArgsSchema | None = SedToolInput
 
     # pyrefly: ignore
     def _run(

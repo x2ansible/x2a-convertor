@@ -12,7 +12,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class LLMSettings(BaseSettings):
-    """LLM provider configuration."""
+    """LLM provider configuration.
+
+    The model string follows LiteLLM format: provider/model-name.
+    Credentials are read directly from the environment by LiteLLM — no code changes needed to switch providers.
+
+    Provider env vars:
+      OpenAI / compatible endpoints  OPENAI_API_KEY, OPENAI_API_BASE
+      Anthropic                       ANTHROPIC_API_KEY
+      AWS Bedrock                     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+                                      or AWS_BEARER_TOKEN_BEDROCK for token-based auth
+      Google Vertex AI                VERTEXAI_PROJECT, VERTEXAI_LOCATION, GOOGLE_APPLICATION_CREDENTIALS
+      Google Gemini (direct)          GEMINI_API_KEY
+    """
 
     model_config = SettingsConfigDict(extra="ignore")
 
@@ -34,7 +46,7 @@ class LLMSettings(BaseSettings):
     reasoning_effort: str | None = Field(
         default=None,
         validation_alias="REASONING_EFFORT",
-        description="Claude reasoning effort level",
+        description="Reasoning effort level",
     )
     rate_limit_requests: int | None = Field(
         default=None,
@@ -54,49 +66,7 @@ class LLMSettings(BaseSettings):
     connect_timeout: int = Field(
         default=60,
         validation_alias="LLM_CONNECT_TIMEOUT",
-        description="Connection timeout in seconds for LLM API connections (applies to both Bedrock and OpenAI)",
-    )
-
-
-class OpenAISettings(BaseSettings):
-    """OpenAI-specific configuration."""
-
-    model_config = SettingsConfigDict(env_prefix="OPENAI_", extra="ignore")
-
-    api_base: str | None = Field(
-        default=None,
-        description="OpenAI/compatible API endpoint",
-    )
-    api_key: SecretStr = Field(
-        default=SecretStr("not-needed"),
-        description="API key for OpenAI provider",
-    )
-
-
-class AWSSettings(BaseSettings):
-    """AWS Bedrock configuration."""
-
-    model_config = SettingsConfigDict(env_prefix="AWS_", extra="ignore")
-
-    bearer_token_bedrock: SecretStr | None = Field(
-        default=None,
-        description="AWS Bedrock bearer token",
-    )
-    access_key_id: SecretStr | None = Field(
-        default=None,
-        description="AWS access key ID",
-    )
-    secret_access_key: SecretStr | None = Field(
-        default=None,
-        description="AWS secret access key",
-    )
-    session_token: SecretStr | None = Field(
-        default=None,
-        description="AWS session token (temporary credentials)",
-    )
-    region: str = Field(
-        default="eu-west-2",
-        description="AWS region for Bedrock",
+        description="Connection timeout in seconds for LLM API calls",
     )
 
 
@@ -319,8 +289,6 @@ class Settings(BaseSettings):
     )
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
-    openai: OpenAISettings = Field(default_factory=OpenAISettings)
-    aws: AWSSettings = Field(default_factory=AWSSettings)
     aap: AAPSettings = Field(default_factory=AAPSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)

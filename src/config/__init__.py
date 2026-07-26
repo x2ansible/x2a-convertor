@@ -15,17 +15,14 @@ Usage:
     # Access processing settings
     recursion_limit = settings.processing.recursion_limit
 
-    # Access sensitive values (use .get_secret_value() for actual value)
-    api_key = settings.openai.api_key.get_secret_value()
+
 """
 
 from src.config.settings import (
     AAPSettings,
-    AWSSettings,
     LLMSettings,
     LoggingSettings,
     MoleculeSettings,
-    OpenAISettings,
     ProcessingSettings,
     Settings,
     get_settings,
@@ -34,11 +31,9 @@ from src.config.settings import (
 
 __all__ = [
     "AAPSettings",
-    "AWSSettings",
     "LLMSettings",
     "LoggingSettings",
     "MoleculeSettings",
-    "OpenAISettings",
     "ProcessingSettings",
     "Settings",
     "get_settings",

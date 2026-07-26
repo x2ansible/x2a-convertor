@@ -33,6 +33,7 @@ from ansible_risk_insight import ARIScanner, Config
 from ansible_risk_insight.scanner import LoadType
 from jinja2 import Environment, FileSystemLoader
 from langchain_community.tools.file_management.write import WriteFileTool
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from tools.base_tool import X2ATool
@@ -649,7 +650,7 @@ class AnsibleWriteTool(X2ATool):
         "NEVER use write_file for .yml/.yaml files."
     )
 
-    args_schema: dict[str, Any] | type[BaseModel] | None = AnsibleWriteInput
+    args_schema: ArgsSchema | None = AnsibleWriteInput
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)

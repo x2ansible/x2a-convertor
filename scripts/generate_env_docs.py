@@ -14,11 +14,9 @@ sys.path.insert(0, str(project_root))
 
 from src.config.settings import (  # noqa: E402
     AAPSettings,
-    AWSSettings,
     LLMSettings,
     LoggingSettings,
     MoleculeSettings,
-    OpenAISettings,
     ProcessingSettings,
 )
 
@@ -26,8 +24,6 @@ from src.config.settings import (  # noqa: E402
 # Using Any for the class type to avoid pyrefly issues with pydantic models
 SETTINGS_CLASSES: list[tuple[str, Any, str]] = [
     ("LLM", LLMSettings, ""),
-    ("OpenAI", OpenAISettings, "OPENAI_"),
-    ("AWS Bedrock", AWSSettings, "AWS_"),
     ("Ansible Automation Platform", AAPSettings, "AAP_"),
     ("Processing", ProcessingSettings, ""),
     ("Logging", LoggingSettings, ""),
