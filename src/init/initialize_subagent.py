@@ -39,9 +39,12 @@ class InitializeSubAgent(BaseAgent[InitState]):
 
     GOAL = (
         f"Verify that the file '{MIGRATION_PLAN_FILE}' exists and contains valid migration plan content. "
-        f"CRITICAL: Every module that has a manifests/init.pp (Puppet), recipes/default.rb (Chef), "
-        f"or .psd1 manifest (PowerShell) must appear as a separate entry in the MODULE INVENTORY. "
-        f"Use file_search to confirm no modules were missed. "
+        f"CRITICAL: For Puppet repositories, every direct child directory of each modulepath entry "
+        f"(read from environment.conf, puppet.conf, or defaulting to modules/) must appear as a separate "
+        f"entry in the MODULE INVENTORY. Names containing '::' are classes, not modules, and must not "
+        f"appear as MODULE INVENTORY entries. "
+        f"For Chef, every directory containing recipes/default.rb must appear. "
+        f"For PowerShell, every directory containing a .psd1 manifest must appear. "
         f"All module paths must point to directories that actually exist in the repository."
     )
 

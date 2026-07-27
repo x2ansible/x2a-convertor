@@ -19,25 +19,15 @@ The plan must summarize in detail all modules, dependencies, security issues, an
 Follow these steps in order:
 
 1. **Root Directory Scan**: Use `list_directory(dir_path=.)` to see all top-level files and folders.
-2. **Module Discovery with file_search**: Immediately after the root scan, run ALL of the following `file_search` calls to detect every technology present. Repositories often mix technologies (e.g., Puppet modules with PowerShell scripts inside). You MUST run every search, not just the first technology you recognize:
-   - `file_search(pattern="**/manifests/init.pp")` — discovers Puppet modules
-   - `file_search(pattern="**/recipes/default.rb")` — discovers Chef cookbooks
-   - `file_search(pattern="**/*.psd1")` — discovers PowerShell module manifests
-
-   **Puppet module structure**: A Puppet module is a directory that contains a `manifests/` subdirectory with `.pp` files. The main entry point is always `manifests/init.pp`:
-   ```
-   <module_name>/
-     manifests/
-       init.pp        # main class (class <module_name>)
-       config.pp      # optional subclasses
-       install.pp
-     templates/       # .erb/.epp templates
-     files/           # static files
-     data/            # Hiera module data
-     metadata.json    # module metadata and dependencies
-   ```
-   - Each path returned by `file_search` represents an individual module — you MUST list each one separately in the MODULE INVENTORY
-   - When modules are nested under category directories (e.g., `<parent>/<category>/<module_name>/manifests/init.pp`), each `<module_name>` is a separate module — do NOT group them by `<category>` or `<parent>`
+2. **Module Discovery**: Identify all modules present in the repository. Repositories often mix technologies — you MUST check for every technology, not just the first one you recognize.
+   - **Chef**: `file_search(pattern="**/recipes/default.rb")` — each result's grandparent directory is a cookbook
+   - **PowerShell**: `file_search(pattern="**/*.psd1")` — each result is a module manifest
+   - **Puppet**: Follow these steps in order to enumerate modules correctly:
+     1. **Find the modulepath**: Read `environment.conf` at the repo root for its `modulepath` directive. If not present, check `puppet.conf`. If neither exists, assume `modules/` at the repo root.
+     2. **Strip system paths**: Ignore `$basemodulepath` and any absolute paths outside the repo.
+     3. **List direct children**: For each remaining modulepath entry, run `list_directory` on it. Every immediate subdirectory found is a module — add it to the MODULE INVENTORY with its full path. 
+     4. **Classes are not modules**: Any name containing `::` is a class inside a module, not a module itself.
+     5. **Confirm with file_search**: Run `file_search(pattern="*init.pp")` as a cross-check to verify you have not missed any module directories.
 3. **Dependency Review**: Use `read_file` on dependency files to identify dependencies:
    - **Chef**: `Berksfile`, `Policyfile.rb`, `metadata.rb`
    - **PowerShell**: `requirements.psd1`, module manifests (`.psd1`), `Import-Module` statements in scripts
@@ -122,7 +112,8 @@ Incorrect paths will cause downstream migration failures.
 - **postgres**: Database cookbook (TOO VAGUE - no details about features, version, or purpose)
 - **web**: Web server module at cookbooks/web (UNCLEAR - what web server? what configuration?)
 - **app**: Application deployment (INSUFFICIENT - what app? what runtime? what dependencies?)
-- **site**: All modules at site/ (WRONG - this groups multiple modules into one entry. Each directory under the modulepath that has its own manifests/ directory must be listed as a separate module)
+- **site**: All modules at site/ (WRONG — `site/` is a modulepath entry, not a module. Each direct child directory of `site/` is its own module.)
+- **webserver::vhost**: Virtual host class (WRONG — any name containing `::` is a class inside a module, not a module itself. `webserver::vhost` belongs to the `webserver` module. List the module directory, never its internal classes.)
 
 ### Infrastructure Files
 
