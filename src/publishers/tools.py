@@ -863,31 +863,59 @@ def _wait_for_project_sync(
     update_id: int,
     timeout_s: int = 300,
     poll_interval_s: int = 5,
+    max_retries: int = 2,
 ) -> None:
     """Poll AAP until a project update job finishes.
 
     AAP validates playbook paths against the synced repo content, so
     job templates cannot be created until the sync completes.
 
+    Transient AAP Receptor errors (worker crashes, JSON parse failures)
+    are retried by triggering a new project update.
+
     Raises:
-        RuntimeError: If sync fails or times out.
+        RuntimeError: If sync fails after all retries or times out.
     """
     deadline = time.monotonic() + timeout_s
+    retries_left = max_retries
+    current_update_id = update_id
+
     while time.monotonic() < deadline:
-        data = client.get_project_update(update_id=update_id)
+        data = client.get_project_update(update_id=current_update_id)
         status = data.get("status", "")
         if status == "successful":
-            logger.info(f"Project sync completed (update_id={update_id})")
+            logger.info(f"Project sync completed (update_id={current_update_id})")
             return
         if status in ("failed", "error", "canceled"):
-            raise RuntimeError(
-                f"Project sync {status} (update_id={update_id}): "
-                f"{data.get('result_traceback', 'no details')}"
+            if retries_left <= 0:
+                raise RuntimeError(
+                    f"Project sync {status} (update_id={current_update_id}): "
+                    f"{data.get('result_traceback', 'no details')}"
+                )
+            project_id = data.get("project")
+            explanation = data.get("job_explanation", "")
+            logger.warning(
+                "Project sync %s (update_id=%s, retries_left=%d): %s",
+                status, current_update_id, retries_left, explanation[:200],
             )
+            retries_left -= 1
+            if project_id:
+                new_update = client.start_project_update(project_id=project_id)
+                current_update_id = int(new_update["id"])
+                logger.info(
+                    "Retrying project sync (new update_id=%s)", current_update_id,
+                )
+            else:
+                raise RuntimeError(
+                    f"Project sync {status} and cannot retry "
+                    f"(no project_id in response)"
+                )
+            time.sleep(poll_interval_s)
+            continue
         logger.debug(f"Project sync status: {status}, waiting...")
         time.sleep(poll_interval_s)
     raise RuntimeError(
-        f"Project sync timed out after {timeout_s}s (update_id={update_id})"
+        f"Project sync timed out after {timeout_s}s (update_id={current_update_id})"
     )
 
 
