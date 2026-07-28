@@ -827,7 +827,8 @@ def sync_to_aap(
         if update_id is not None:
             update_id = int(update_id)
             logger.info(
-                "Using auto-triggered project update (id=%s)", update_id,
+                "Using auto-triggered project update (id=%s)",
+                update_id,
             )
         else:
             logger.info(
@@ -842,7 +843,8 @@ def sync_to_aap(
         if ee_image and project_id:
             if update_id:
                 _wait_for_project_sync(
-                    client, update_id,
+                    client,
+                    update_id,
                     timeout_s=int(settings.aap.sync_timeout_s),
                 )
             try:
@@ -916,14 +918,18 @@ def _wait_for_project_sync(
             explanation = data.get("job_explanation", "")
             logger.warning(
                 "Project sync %s (update_id=%s, retries_left=%d): %s",
-                status, current_update_id, retries_left, explanation[:200],
+                status,
+                current_update_id,
+                retries_left,
+                explanation[:200],
             )
             retries_left -= 1
             if project_id:
                 new_update = client.start_project_update(project_id=project_id)
                 current_update_id = int(new_update["id"])
                 logger.info(
-                    "Retrying project sync (new update_id=%s)", current_update_id,
+                    "Retrying project sync (new update_id=%s)",
+                    current_update_id,
                 )
             else:
                 raise RuntimeError(
