@@ -77,7 +77,9 @@ class CredentialAgent(ExportAgent[ExportState]):
         """Extract credentials using LLM structured output."""
         try:
             messages = [{"role": "user", "content": prompt}]
-            result = self.invoke_structured(CredentialExtractionOutput, messages, metrics)
+            result = self.invoke_structured(
+                CredentialExtractionOutput, messages, metrics
+            )
             if isinstance(result, CredentialExtractionOutput):
                 return result.credentials
             return []
