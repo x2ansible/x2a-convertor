@@ -188,8 +188,9 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
         )
 
         try:
+            messages = [{"role": "user", "content": extraction_prompt}]
             extraction_result = self.invoke_structured(
-                CollectionExtractionOutput, extraction_prompt
+                CollectionExtractionOutput, messages
             )
             if isinstance(extraction_result, CollectionExtractionOutput):
                 return extraction_result.collections
