@@ -28,9 +28,10 @@ class TestArtifactType:
         assert ArtifactType.MIGRATED_SOURCES.value == "migrated_sources"
         assert ArtifactType.PROJECT_METADATA.value == "project_metadata"
         assert ArtifactType.ANSIBLE_PROJECT.value == "ansible_project"
+        assert ArtifactType.ADVERSARIAL_REPORT.value == "adversarial_report"
 
     def test_enum_count(self):
-        assert len(ArtifactType) == 5
+        assert len(ArtifactType) == 6
 
 
 class TestReportClientParseArtifact:
