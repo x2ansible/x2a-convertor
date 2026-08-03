@@ -1,6 +1,7 @@
 """Adversarial agents package for validating migration artifacts."""
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,12 @@ def run_adversarial(
     """
     _log.info(f"Starting adversarial run for phase '{phase}'")
 
+    # Capture the caller's working directory before changing into source_dir so
+    # telemetry and the JSON summary are written there, not inside source_dir.
+    work_dir = Path.cwd()
+
+    os.chdir(source_dir)
+
     telemetry = Telemetry(phase=f"adversarial-{phase}")
     state = BaseState(user_message="", path=source_dir)
     manager = AdversarialAgentManager(phase=phase, config_path=config_path)
@@ -42,6 +49,7 @@ def run_adversarial(
         state=state, telemetry=telemetry, report_path=report_path
     )
 
+    os.chdir(work_dir)
     telemetry.stop().save()
     _log.info(f"Telemetry summary:\n{telemetry.to_summary()}")
 

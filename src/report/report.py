@@ -24,6 +24,7 @@ class ArtifactType(StrEnum):
     MIGRATED_SOURCES = "migrated_sources"
     PROJECT_METADATA = "project_metadata"
     ANSIBLE_PROJECT = "ansible_project"
+    ADVERSARIAL_REPORT = "adversarial_report"
 
 
 class ReportClient:
