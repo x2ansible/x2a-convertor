@@ -326,8 +326,6 @@ def report(
     "--source-dir",
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
     default=".",
-    callback=change_dir_callback,
-    is_eager=True,
     help="Source directory containing migration artifacts to review",
 )
 @click.option(
