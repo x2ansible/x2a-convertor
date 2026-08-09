@@ -64,6 +64,7 @@ You will receive detailed structured analysis showing:
   - Provider files (.rb) that are used by custom resources
   - Template files (.erb) that are rendered by recipes or providers
   - Attribute files (.rb) that define default values
+  - Static files (files/default/* or files/*) that are deployed by cookbook_file or remote_file resources
 - Exclude irrelevant files:
   - Documentation: README, LICENSE, CHANGELOG
   - Development files: .editorconfig, .gitignore, .rubocop.yml
@@ -167,6 +168,11 @@ migration-dependencies/cookbook_artifacts/dependency-name-1.0.0/recipes/default.
 **Attributes:**
 ```
 [List .rb attribute files with defaults, with relative paths from structured analysis]
+```
+
+**Files:**
+```
+[List static files deployed by cookbook_file or remote_file resources (files/default/* or files/*), with relative paths from structured analysis. Omit if none.]
 ```
 migration-dependencies/cookbook_artifacts/[dependency-name]-*/templates/default/config.erb
 migration-dependencies/cookbook_artifacts/[dependency-name]-*/templates/default/init.erb
