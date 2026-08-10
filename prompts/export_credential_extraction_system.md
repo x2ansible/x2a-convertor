@@ -42,10 +42,6 @@ Rules:
 
 ---
 
-## High-Level Migration Plan
-
-{high_level_migration_plan}
-
 ## Module Migration Plan
 
 {migration_plan}
