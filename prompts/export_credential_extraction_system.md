@@ -42,6 +42,16 @@ Rules:
 
 ---
 
+## High-Level Migration Plan
+
+Read this for naming conventions, prefixes, and credential handling instructions
+that apply across the project.
+
+{high_level_migration_plan}
+
 ## Module Migration Plan
+
+Extract all credentials from this section. This is the plan for the specific module
+being migrated.
 
 {migration_plan}

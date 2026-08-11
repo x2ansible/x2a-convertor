@@ -69,6 +69,7 @@ class CredentialAgent(ExportAgent[ExportState]):
     def _build_extraction_prompt(self, state: ExportState) -> str:
         """Build the prompt for credential extraction from migration plan."""
         return get_prompt(self.EXTRACTION_PROMPT_NAME).format(
+            high_level_migration_plan=state.high_level_migration_plan.to_document(),
             migration_plan=state.module_migration_plan.to_document(),
         )
 
