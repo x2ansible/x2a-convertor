@@ -33,6 +33,7 @@ project-excludes = [
     "**/node_modules",
     "**/__pycache__",
     "**/*venv/**/*",
+    "vulture_whitelist.py",
 ]
 search_path = ["."]
 
@@ -44,6 +45,7 @@ dev = [
     "pytest-mock>=3.14.0",
     "responses>=0.25.0",
     "ruff>=0.13.2",
+    "vulture>=2.16",
 ]
 
 [tool.pytest.ini_options]
@@ -54,7 +56,9 @@ markers = [
 
 [tool.ruff]
 # Exclude the logging module itself from the ban
-extend-exclude = ["src/utils/logging.py"]
+# vulture_whitelist.py intentionally references undefined/unused names -- that's
+# how vulture whitelists are written, not real code for ruff to lint.
+extend-exclude = ["src/utils/logging.py", "vulture_whitelist.py"]
 
 [tool.ruff.lint]
 select = [
