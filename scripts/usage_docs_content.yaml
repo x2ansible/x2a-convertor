@@ -17,18 +17,31 @@ shared:
   requirements_intro: |
     ## Requirements
 
-    This example uses the AWS Bedrock provider. You'll need to configure the following environment variables:
+    X2A Convertor uses [LiteLLM](https://docs.litellm.ai/) to support multiple LLM providers.
+    The `LLM_MODEL` environment variable follows the `provider/model-name` format:
 
-    - **AWS_REGION**: The AWS region where the model will run
-    - **AWS_BEARER_TOKEN_BEDROCK**: The API key to connect to the LLM
-    - **LLM_MODEL**: The model to use (this guide uses `anthropic.claude-3-7-sonnet-20250219-v1:0`). Note: Some regions require the `us.` prefix
+    | Provider | Example `LLM_MODEL` value | Credentials required |
+    |----------|--------------------------|----------------------|
+    | AWS Bedrock | `bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0` | `AWS_REGION`, `AWS_BEARER_TOKEN_BEDROCK` (or `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`) |
+    | Anthropic | `anthropic/claude-3-7-sonnet-20250219` | `ANTHROPIC_API_KEY` |
+    | OpenAI | `openai/gpt-4o` | `OPENAI_API_KEY` |
+    | OpenAI-compatible (custom endpoint) | `openai/your-model` | `OPENAI_API_KEY`, `OPENAI_API_BASE` |
+    | Google Gemini | `gemini/gemini-1.5-pro` | `GEMINI_API_KEY` |
+    | Google Vertex AI | `vertex_ai/gemini-1.5-pro` | `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, `GOOGLE_APPLICATION_CREDENTIALS` |
+
+    All provider credentials are read directly from the environment by LiteLLM.
+
+    This example uses AWS Bedrock. Swap `LLM_MODEL` and the matching credential variables to use a different provider.
 
   env_exports: |
 
     Export these variables in your shell before running commands:
 
     ```bash
-    export LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0
+    # LLM provider — format: provider/model-name (see Requirements table above)
+    export LLM_MODEL=bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0
+
+    # AWS Bedrock credentials
     export AWS_REGION=your-aws-region
     export AWS_BEARER_TOKEN_BEDROCK=your-bearer-token
 
@@ -127,12 +140,12 @@ docker:
   # Environment variables passed to container for each command type
   env_vars:
     llm:
-      - "LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0"
+      - "LLM_MODEL=bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0"
       - "AWS_REGION=$AWS_REGION"
       - "AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK"
     # migrate uses llm vars + optional AAP vars for collection discovery
     migrate:
-      - "LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0"
+      - "LLM_MODEL=bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0"
       - "AWS_REGION=$AWS_REGION"
       - "AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK"
       - "AAP_CONTROLLER_URL=$AAP_CONTROLLER_URL"

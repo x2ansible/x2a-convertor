@@ -160,7 +160,6 @@ def get_model() -> BaseChatModel:
     AWS_ACCESS_KEY_ID, etc.) are read directly from the environment by LiteLLM.
     """
     llm_settings = get_settings().llm
-    logger.info(f"Initializing model: {llm_settings.model}")
 
     kwargs: dict[str, Any] = {
         "router": _build_router(llm_settings),
@@ -172,8 +171,22 @@ def get_model() -> BaseChatModel:
             check_every_n_seconds=0.2,
             max_bucket_size=10,
         )
-        logger.info(
-            f"Rate limiter enabled: {llm_settings.rate_limit_requests} requests/second"
-        )
 
-    return ChatLiteLLMRouter(**kwargs)
+    chat_model = ChatLiteLLMRouter(**kwargs)
+
+    model_name, provider, *_ = litellm.get_llm_provider(chat_model.model)
+    log_kwargs: dict[str, Any] = {
+        "provider": provider,
+        "model": model_name,
+        "max_tokens": llm_settings.max_tokens,
+        "temperature": llm_settings.temperature,
+        "max_retries": llm_settings.max_retries,
+        "connect_timeout": llm_settings.connect_timeout,
+        "read_timeout": llm_settings.read_timeout,
+        "rate_limit_requests_per_second": llm_settings.rate_limit_requests,
+    }
+    if llm_settings.reasoning_effort is not None:
+        log_kwargs["reasoning_effort"] = llm_settings.reasoning_effort
+    logger.info("LLM initialized", **log_kwargs)
+
+    return chat_model
