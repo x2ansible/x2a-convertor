@@ -166,18 +166,6 @@ class CollectorNode(ExecutionTreeNode):
 
 
 @dataclass
-class PuppetDBQueryNode(ExecutionTreeNode):
-    """A PuppetDB query node."""
-
-    @property
-    def node_type(self) -> str:
-        return "puppetdb_query"
-
-    def format_label(self) -> str:
-        return f"[puppetdb_query] {self.name}"
-
-
-@dataclass
 class RelationshipNode(ExecutionTreeNode):
     """An ordering/notification relationship chain."""
 

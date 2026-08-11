@@ -15,7 +15,6 @@ from src.utils.path import Path
 from .models import (
     CredentialAnalysis,
     CustomTypeAnalysis,
-    HieraDataAnalysis,
     ManifestExecutionAnalysis,
     PuppetTemplateAnalysis,
 )
@@ -68,51 +67,6 @@ class ManifestAnalysisService(InputAgent[FileAnalysisState]):
                 f"Failed to analyze manifest {file_path.relative_to_cwd()}: {e}"
             )
             return state.update(result=ManifestExecutionAnalysis())
-
-
-class HieraDataAnalysisService(InputAgent[FileAnalysisState]):
-    """Service for analyzing Hiera data files using LLM.
-
-    Responsibility: Extract variable mapping to Ansible targets,
-    merge behavior, and cross-level overrides.
-    """
-
-    def execute(
-        self, state: FileAnalysisState, metrics: AgentMetrics | None
-    ) -> FileAnalysisState:
-        file_path = Path(state.path)
-        if not file_path.exists():
-            logger.warning(f"Hiera data file not found: {file_path.relative_to_cwd()}")
-            return state.update(result=HieraDataAnalysis())
-
-        hierarchy_level = state.metadata.get("hierarchy_level", "")
-        full_hierarchy = state.metadata.get("full_hierarchy", "")
-
-        file_content = file_path.read_text()
-        system_prompt = get_prompt("puppet_hiera_analysis_system").format()
-        task_prompt = get_prompt("puppet_hiera_analysis_task").format(
-            file_path=str(file_path),
-            file_content=file_content,
-            hierarchy_level=hierarchy_level,
-            full_hierarchy=full_hierarchy,
-        )
-
-        try:
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": task_prompt},
-            ]
-            result = self.invoke_structured(HieraDataAnalysis, messages, metrics)
-            logger.info(
-                f"Extracted {len(result.variables)} variables from {file_path.relative_to_cwd()} "
-                f"(level: {hierarchy_level})"
-            )
-            return state.update(result=result)
-        except Exception as e:
-            logger.error(
-                f"Failed to analyze Hiera data {file_path.relative_to_cwd()}: {e}"
-            )
-            return state.update(result=HieraDataAnalysis())
 
 
 class TemplateAnalysisService(InputAgent[FileAnalysisState]):

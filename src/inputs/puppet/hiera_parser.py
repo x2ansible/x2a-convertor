@@ -9,7 +9,7 @@ Supports Hiera v3 and v5 with file-based backends. Known limitations:
 - mapped_paths entries are not yet supported (uncommon)
 - glob entries are treated as standard path patterns
 
-Semantic analysis of file contents is handled by HieraDataAnalysisService.
+Semantic analysis of file contents is handled by HieraAnalysisAgent.
 """
 
 import re
@@ -63,14 +63,6 @@ class HieraConfigParser:
             f"{self._hierarchy.total_data_files} data files found"
         )
         return self._hierarchy
-
-    def get_data_files_by_level(self) -> dict[str, list[str]]:
-        hierarchy = self.parse()
-        return {
-            level.name: level.resolved_files
-            for level in hierarchy.levels
-            if level.resolved_files
-        }
 
     def _find_hiera_config(self) -> Path | None:
         candidates = [

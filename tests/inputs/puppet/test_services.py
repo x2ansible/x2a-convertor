@@ -5,13 +5,11 @@ from pathlib import Path
 from src.inputs.puppet.models import (
     CredentialAnalysis,
     CustomTypeAnalysis,
-    HieraDataAnalysis,
     PuppetTemplateAnalysis,
 )
 from src.inputs.puppet.services import (
     CredentialDetectionService,
     CustomTypeAnalysisService,
-    HieraDataAnalysisService,
     ManifestAnalysisService,
     TemplateAnalysisService,
 )
@@ -42,32 +40,6 @@ class TestManifestAnalysisService:
         state = _make_file_state(str(Path("/nonexistent/init.pp")))
         with pytest.raises(FileNotFoundError, match="Manifest file not found"):
             service(state)
-
-
-class TestHieraDataAnalysisService:
-    """Test HieraDataAnalysisService."""
-
-    def test_returns_empty_for_missing_file(self, tmp_path):
-        """Should return empty analysis when file doesn't exist."""
-        service = HieraDataAnalysisService(model=None)
-        state = _make_file_state(
-            str(tmp_path / "nonexistent.yaml"),
-            metadata={"hierarchy_level": "common", "full_hierarchy": ""},
-        )
-        result = service(state).result
-        assert isinstance(result, HieraDataAnalysis)
-        assert result.variables == []
-
-    def test_returns_empty_for_nonexistent_path(self):
-        """Should return empty analysis for non-existent path."""
-        service = HieraDataAnalysisService(model=None)
-        state = _make_file_state(
-            str(Path("/nonexistent/common.yaml")),
-            metadata={"hierarchy_level": "common", "full_hierarchy": ""},
-        )
-        result = service(state).result
-        assert isinstance(result, HieraDataAnalysis)
-        assert result.variables == []
 
 
 class TestTemplateAnalysisService:

@@ -220,32 +220,6 @@ class TestHieraConfigParserEdgeCases:
 
         assert hierarchy.levels == []
 
-    def test_get_data_files_by_level(self, tmp_path):
-        module_path = tmp_path / "profile_test"
-        module_path.mkdir()
-        config = {
-            "version": 5,
-            "defaults": {"datadir": "data"},
-            "hierarchy": [
-                {"name": "OS", "path": "os/%{facts.os.family}.yaml"},
-                {"name": "Common", "path": "common.yaml"},
-            ],
-        }
-        (module_path / "hiera.yaml").write_text(yaml.dump(config))
-        (module_path / "data").mkdir()
-        (module_path / "data" / "common.yaml").write_text("---\n")
-        os_dir = module_path / "data" / "os"
-        os_dir.mkdir()
-        (os_dir / "RedHat.yaml").write_text("---\n")
-
-        parser = HieraConfigParser(str(module_path))
-        by_level = parser.get_data_files_by_level()
-
-        assert "OS" in by_level
-        assert "Common" in by_level
-        assert len(by_level["OS"]) == 1
-        assert len(by_level["Common"]) == 1
-
     def test_hiera_config_in_parent_dir(self, tmp_path):
         """Test finding hiera.yaml in parent directories."""
         (tmp_path / "hiera.yaml").write_text(

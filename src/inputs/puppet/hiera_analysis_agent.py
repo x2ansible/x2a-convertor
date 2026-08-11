@@ -1,8 +1,8 @@
 """On-demand Hiera data analysis agent.
 
-Replaces the brute-force per-file HieraDataAnalysisService with a ReAct agent
-that uses tools (grep, read, list_dir) to find and analyze only the hiera data
-files relevant to the module being migrated.
+Uses a ReAct agent with tools (grep, read, list_dir) to find and analyze
+only the hiera data files relevant to the module being migrated, instead
+of running the LLM against every hiera file individually.
 
 Two-phase LLM approach:
   Phase 1 — invoke_react: agent explores hiera files with tools

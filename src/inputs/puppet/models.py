@@ -25,10 +25,6 @@ class PuppetDependency(BaseModel):
     )
 
     @property
-    def is_forge(self) -> bool:
-        return self.source == "forge"
-
-    @property
     def is_git(self) -> bool:
         return self.source == "git"
 
@@ -234,9 +230,6 @@ class ClassInheritance(BaseModel):
     parent_class: str = Field(
         description="Fully qualified name of the parent class being inherited from"
     )
-    child_class: str = Field(
-        description="Fully qualified name of the child class that inherits"
-    )
     overridden_params: list[str] = Field(
         default_factory=list,
         description="Parameter names from the parent class that the child overrides",
@@ -260,7 +253,7 @@ class ManifestExecutionAnalysis(BaseModel):
     )
     class_inherits: ClassInheritance | None = Field(
         default=None,
-        description="Inheritance relationship if the class uses 'inherits'. Must be a ClassInheritance object with parent_class and child_class fields, NOT a plain string. Null if no inheritance",
+        description="Inheritance relationship if the class uses 'inherits'. Must be a ClassInheritance object with a parent_class field, NOT a plain string. Null if no inheritance",
     )
     execution_order: list[ExecutionItem] = Field(
         default_factory=list,
@@ -297,14 +290,6 @@ class HieraVariableMapping(BaseModel):
     is_encrypted: bool = Field(
         default=False,
         description="Whether the value is encrypted with hiera-eyaml (ENC[...] wrapper)",
-    )
-    ansible_target: str = Field(
-        default="",
-        description="Suggested Ansible variable file or location (e.g., 'group_vars/all', 'host_vars/webserver')",
-    )
-    ansible_variable_name: str = Field(
-        default="",
-        description="Suggested Ansible variable name (e.g., 'apache_port', 'base_packages')",
     )
 
 
@@ -383,10 +368,6 @@ class HieraAgentAnalysis(BaseModel):
         default_factory=list,
         description="Analysis of each relevant hiera data file",
     )
-    unreferenced_keys_found: list[str] = Field(
-        default_factory=list,
-        description="Hiera keys found in data files that are NOT referenced by any manifest lookup",
-    )
     summary: str = Field(
         default="",
         description="Brief summary of the hiera data landscape and migration considerations",
@@ -424,10 +405,6 @@ class PuppetTemplateAnalysis(BaseModel):
         default_factory=list,
         description="Complex Ruby/Puppet logic blocks that need manual conversion (e.g., case statements, method calls)",
     )
-    jinja2_equivalent_notes: str = Field(
-        default="",
-        description="Suggested Jinja2 equivalents or migration notes for complex template logic",
-    )
 
 
 # ============================================================================
@@ -452,14 +429,6 @@ class CustomTypeAnalysis(BaseModel):
         default_factory=list,
         description="Parameter definitions with keys 'name', 'type', and optionally 'default' and 'description'",
     )
-    ansible_equivalent: str = Field(
-        default="",
-        description="Suggested Ansible module or plugin that provides equivalent functionality (e.g., 'ansible.builtin.template')",
-    )
-    requires_custom_module: bool = Field(
-        default=False,
-        description="Whether this component has no Ansible equivalent and requires writing a custom module",
-    )
     note: str | None = Field(
         default=None,
         description="Additional migration context or caveats for this component",
@@ -480,19 +449,6 @@ class CredentialEntry(BaseModel):
     variable_names: list[str] = Field(
         default_factory=list,
         description="Puppet variable names that hold this credential (e.g., ['$db_password', '$mysql::root_pw'])",
-    )
-    source_files: list[str] = Field(
-        default_factory=list,
-        description="File paths where this credential is defined or referenced",
-    )
-    storage_method: str = Field(
-        description='How the credential is stored: "eyaml", "hiera plaintext", "exec", or "file source"'
-    )
-    usage_context: str = Field(
-        description="How and where the credential is consumed (e.g., 'passed to mysql::server class as root_password')"
-    )
-    ansible_recommendation: str = Field(
-        description='Suggested Ansible secret management approach: "ansible-vault", "CyberArk lookup", or "env var"'
     )
 
 
