@@ -228,6 +228,35 @@ Structured output models live in technology-specific `models.py` files:
 - `src/inputs/ansible/models.py`
 - `src/types/metadata.py`, `src/types/credential.py`, `src/types/rules.py`
 
+### Keep Logic on the Class That Owns the Data
+
+When a class holds data that other components need to transform, format, or summarize, put that logic on the owning class — not on the caller. This applies to formatting for prompts, building summaries, computing derived values, and any operation that walks a class's internal fields.
+
+```python
+# Good: the model knows how to present itself
+class StructuredAnalysis(BaseModel):
+    items: list[AnalysisResult] = Field(default_factory=list)
+
+    def format_summary(self) -> str:
+        ...
+
+# Caller delegates
+summary = state.structured_analysis.format_summary()
+
+# Bad: caller reaches into model internals
+lines = []
+for item in state.structured_analysis.items:
+    lines.append(f"### {item.level} (`{item.file_path}`)")
+    for var in item.analysis.variables:
+        lines.append(f"- `{var.key}` (type: {var.value_type})")
+```
+
+Guidelines:
+- **Models** expose `format_*()` methods for any data they own that other components need as text
+- **Agents stay thin** — they call the model method, never iterate over model internals to build strings
+- **States and dataclasses** follow the same rule — if a state holds structured data, add a method rather than letting every consumer reimplement the traversal
+- **Test the logic where it lives** — edge cases for formatting and computation belong in the model's test file, not the caller's
+
 ## Tools
 
 Custom tools extend `X2ATool` (`tools/base_tool.py`), which provides structured logging bound to the agent that invokes the tool:
