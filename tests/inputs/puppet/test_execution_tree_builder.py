@@ -227,7 +227,6 @@ class TestPuppetExecutionTreeBuilder:
                     "manifests/init.pp",
                     class_inherits=ClassInheritance(
                         parent_class="parent",
-                        child_class="child",
                         overridden_params=["package_name"],
                     ),
                 ),

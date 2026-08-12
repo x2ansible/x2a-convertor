@@ -24,6 +24,9 @@ uv run ruff check . --fix
 # Type checking
 uv run pyrefly check
 
+# Dead code detection
+make check-deadcode
+
 # Run tests (excludes evals)
 uv run pytest -m "not eval"
 
@@ -310,6 +313,13 @@ uv run pytest -m "eval"       # LLM evaluation tests
 ```
 
 Tests are organized under `tests/` mirroring the `src/` structure. Evals are marked with `@pytest.mark.eval` and test actual LLM output quality.
+
+## Dead Code Detection
+
+`make check-deadcode` runs `vulture` against `src/` and `app.py` to find unused functions, classes, methods, and variables.
+
+- `vulture_whitelist.py` (project root) suppresses known false positives -- framework hooks that look unused to static analysis but are invoked dynamically (Pydantic `model_config`, Click CLI entry points, `__exit__` signature params, LangChain/LangGraph callback and middleware overrides). Whitelist entries match by bare name across the whole codebase, so only add unambiguous framework-required names there
+- Remaining findings default to 60% confidence and need manual review -- some are genuinely dead code, others are Pydantic model fields populated/read dynamically (e.g. via serialization) that vulture can't trace
 
 ## File Organization
 

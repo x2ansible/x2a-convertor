@@ -131,7 +131,6 @@ class TestClassInheritance:
     def test_basic(self):
         inh = ClassInheritance(
             parent_class="profile_haproxy::params",
-            child_class="profile_haproxy",
         )
         assert inh.parent_class == "profile_haproxy::params"
         assert inh.overridden_params == []
@@ -139,7 +138,6 @@ class TestClassInheritance:
     def test_with_overrides(self):
         inh = ClassInheritance(
             parent_class="base",
-            child_class="derived",
             overridden_params=["package_name", "service_name"],
         )
         assert len(inh.overridden_params) == 2
@@ -152,19 +150,14 @@ class TestHieraVariableMapping:
         )
         assert var.puppet_key == "profile_haproxy::package_name"
         assert var.is_encrypted is False
-        assert var.ansible_target == ""
-        assert var.ansible_variable_name == ""
 
     def test_encrypted(self):
         var = HieraVariableMapping(
             puppet_key="profile_haproxy::stats_password",
             value_type="string",
             is_encrypted=True,
-            ansible_target="defaults/main.yml",
-            ansible_variable_name="haproxy_stats_password",
         )
         assert var.is_encrypted is True
-        assert var.ansible_variable_name == "haproxy_stats_password"
 
 
 class TestHieraHierarchy:
@@ -240,7 +233,6 @@ class TestPuppetStructuredAnalysis:
                     analysis=CustomTypeAnalysis(
                         component_type="fact",
                         name="haproxy_version",
-                        ansible_equivalent="ansible.builtin.command: haproxy -v",
                     ),
                 ),
             ],
@@ -291,12 +283,8 @@ class TestCredentialModels:
         entry = CredentialEntry(
             purpose="HAProxy stats page authentication",
             variable_names=["profile_haproxy::stats_password"],
-            source_files=["data/common.yaml"],
-            storage_method="eyaml",
-            usage_context="HAProxy stats listen section",
-            ansible_recommendation="ansible-vault",
         )
-        assert entry.storage_method == "eyaml"
+        assert entry.purpose == "HAProxy stats page authentication"
         assert len(entry.variable_names) == 1
 
     def test_credential_analysis(self):
@@ -305,10 +293,6 @@ class TestCredentialModels:
                 CredentialEntry(
                     purpose="Stats password",
                     variable_names=["stats_password"],
-                    source_files=["common.yaml"],
-                    storage_method="eyaml",
-                    usage_context="stats",
-                    ansible_recommendation="vault",
                 )
             ],
             total_detected=1,

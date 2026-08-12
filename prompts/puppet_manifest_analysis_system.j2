@@ -46,9 +46,8 @@ Case statements:
 Class inheritance:
 When a class uses `inherits`, set class_inherits as an OBJECT (not a string) with:
 - parent_class: the inherited class name
-- child_class: the inheriting class name
 Example: `class tomcat::instance (...) inherits tomcat::params {` →
-  class_inherits: {"parent_class": "tomcat::params", "child_class": "tomcat::instance"}
+  class_inherits: {"parent_class": "tomcat::params"}
 
 Class parameter serialization format:
 Serialize each parameter as: "param_name": "Type, default: value"

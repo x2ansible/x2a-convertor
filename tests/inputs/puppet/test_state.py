@@ -83,5 +83,5 @@ class TestPuppetState:
         ]
         new_state = state.update(dependencies=deps)
         assert len(new_state.dependencies) == 2
-        assert new_state.dependencies[0].is_forge
+        assert new_state.dependencies[0].source == "forge"
         assert new_state.dependencies[1].is_git
