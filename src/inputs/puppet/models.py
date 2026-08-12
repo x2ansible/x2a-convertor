@@ -588,3 +588,22 @@ class PuppetStructuredAnalysis(BaseModel):
         files.extend(t.file_path for t in self.templates)
         files.extend(c.file_path for c in self.custom_types)
         return sorted(set(files))
+
+    def format_hiera_summary(self) -> str:
+        if not self.hiera_data:
+            return "No hiera data analyzed."
+
+        lines: list[str] = []
+        for result in self.hiera_data:
+            lines.append(f"### {result.hierarchy_level} (`{result.file_path}`)")
+            for var in result.analysis.variables:
+                lines.append(f"- `{var.puppet_key}` (type: {var.value_type})")
+            if result.analysis.cross_level_overrides:
+                lines.append("**Cross-level overrides:**")
+                for override in result.analysis.cross_level_overrides:
+                    lines.append(f"- {override}")
+            if result.analysis.notes:
+                lines.append(f"Notes: {result.analysis.notes}")
+            lines.append("")
+
+        return "\n".join(lines)

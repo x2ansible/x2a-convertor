@@ -164,12 +164,18 @@ class HieraAnalysisAgent(InputAgent[PuppetState]):
         if not hierarchies:
             return "No hiera.yaml found"
 
-        hierarchy = hierarchies[0]
-        lines = [f"Hiera v{hierarchy.version}"]
-        for level in hierarchy.levels:
-            file_count = len(level.resolved_files)
+        lines: list[str] = []
+        for idx, hierarchy in enumerate(hierarchies):
+            scope = "Module-level" if idx == 0 else "Environment-level"
+            lines.append(f"{scope} Hiera v{hierarchy.version}:")
+            for level in hierarchy.levels:
+                file_count = len(level.resolved_files)
+                lines.append(
+                    f"  - {level.name}: {level.path_pattern} ({file_count} files resolved)"
+                )
+        if len(hierarchies) > 1:
             lines.append(
-                f"  - {level.name}: {level.path_pattern} ({file_count} files resolved)"
+                "\nNote: Environment-level data has HIGHER priority than module-level data."
             )
         return "\n".join(lines)
 

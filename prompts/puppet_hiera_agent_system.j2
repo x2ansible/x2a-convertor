@@ -44,6 +44,9 @@ ENCRYPTED VALUES:
 - These should map to ansible-vault encrypted variables
 - Flag these clearly
 
+HIERA RESOLUTION PRIORITY:
+In Puppet, when the same key exists at both the environment/control-repo level and the module level, the environment-level value WINS (higher priority). Module-level data (inside */<module>/data/) acts as defaults that can be overridden by environment-level data (the top-level data/ directory). When reporting cross-level overrides, clearly state which value takes effect at runtime.
+
 IMPORTANT:
 - Be thorough with the lookup keys — search for ALL of them
 - Note when the same key appears at multiple hierarchy levels (cross-level override)
