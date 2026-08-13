@@ -10,8 +10,6 @@ from src.inputs.puppet.models import (
     ExecutionItem,
     HieraDataAnalysis,
     HieraDataAnalysisResult,
-    HieraHierarchy,
-    HieraLevel,
     HieraVariableMapping,
     ManifestAnalysisResult,
     ManifestExecutionAnalysis,
@@ -158,33 +156,6 @@ class TestHieraVariableMapping:
             is_encrypted=True,
         )
         assert var.is_encrypted is True
-
-
-class TestHieraHierarchy:
-    def test_empty(self):
-        h = HieraHierarchy()
-        assert h.version == 5
-        assert h.levels == []
-        assert h.total_data_files == 0
-
-    def test_with_levels(self):
-        h = HieraHierarchy(
-            version=5,
-            levels=[
-                HieraLevel(
-                    name="Per-node", path_pattern="nodes/%{trusted.certname}.yaml"
-                ),
-                HieraLevel(
-                    name="Common",
-                    path_pattern="common.yaml",
-                    resolved_files=["/tmp/data/common.yaml"],
-                ),
-            ],
-            total_data_files=1,
-        )
-        assert len(h.levels) == 2
-        assert h.levels[0].resolved_files == []
-        assert h.levels[1].resolved_files == ["/tmp/data/common.yaml"]
 
 
 class TestPuppetStructuredAnalysis:

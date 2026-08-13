@@ -474,29 +474,6 @@ class CredentialAnalysis(BaseModel):
 
 
 # ============================================================================
-# Hiera Hierarchy Models (from deterministic parser)
-# ============================================================================
-
-
-class HieraLevel(BaseModel):
-    """A single level in the Hiera hierarchy."""
-
-    name: str
-    path_pattern: str
-    datadir: str = "data"
-    resolved_files: list[str] = Field(default_factory=list)
-
-
-class HieraHierarchy(BaseModel):
-    """Parsed hiera.yaml structure."""
-
-    version: int = 5
-    defaults: dict[str, Any] = Field(default_factory=dict)
-    levels: list[HieraLevel] = Field(default_factory=list)
-    total_data_files: int = 0
-
-
-# ============================================================================
 # Analysis Result Models (for workflow)
 # ============================================================================
 

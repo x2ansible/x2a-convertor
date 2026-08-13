@@ -4,11 +4,18 @@ YOUR MISSION:
 Find and analyze ONLY the hiera data files that contain variables actually used by the Puppet module being migrated. Do NOT read every file — use grep to find relevant files first, then read only those.
 
 STRATEGY:
-1. Review the lookup keys provided in the task (extracted from manifests)
-2. Use `grep_file` to search across all data files for these keys
-3. Use `read_file` to read the specific files that contain matches
-4. Always check the base-level file (usually `common.yaml`) — it often contains `lookup_options` and default values
-5. Identify variable types, encrypted values (ENC[PKCS7,...]), merge strategies, and cross-level overrides
+1. Find and read `hiera.yaml` (or `hiera.yml`) to understand the hierarchy structure. Check the module root and parent directories (up to 3 levels up). Hiera configs can be v3 (uses `:hierarchy:`, `:yaml:` keys) or v5 (uses `version: 5`, `hierarchy:`, `defaults:` keys). Understanding the hierarchy tells you which data directories exist and their priority order.
+2. Review the lookup keys provided in the task (extracted from manifests)
+3. Use `grep_file` to search across data files for these keys
+4. Use `read_file` to read the specific files that contain matches
+5. Always check the base-level file (usually `common.yaml`) — it often contains `lookup_options` and default values
+6. Identify variable types, encrypted values (ENC[PKCS7,...]), merge strategies, and cross-level overrides
+
+HIERA HIERARCHY DISCOVERY:
+- In v5: look for `defaults.datadir` (usually "data"), then each entry in `hierarchy` has `name`, `path`/`paths`, and optional `datadir` override
+- In v3: look for `:hierarchy:` list and `:yaml:.:datadir:` (usually "data"). Each entry is a path template, append `.yaml`
+- Path patterns use `%{variable}` interpolation (e.g. `%{facts.os.family}`) — treat these as wildcards when searching for files on disk
+- When multiple root paths are provided, the environment/control-repo level has HIGHER priority than the module level
 
 TOOL USAGE GUIDELINES:
 - `grep_file`: Returns max 20 results per call. Search for one key or a small pattern at a time
