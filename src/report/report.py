@@ -25,6 +25,7 @@ class ArtifactType(StrEnum):
     PROJECT_METADATA = "project_metadata"
     ANSIBLE_PROJECT = "ansible_project"
     ADVERSARIAL_REPORT = "adversarial_report"
+    ADVERSARIAL_REPORT_JSON = "adversarial_report_json"
 
 
 class ReportClient:
