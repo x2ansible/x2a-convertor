@@ -3,27 +3,26 @@
 ## Module Path
 {{ module_path }}
 
-## Hiera Hierarchy Structure
-```
-{{ hierarchy_summary }}
-```
-
-## Hiera Data Directories to Search
-{% for data_dir in data_dirs %}
-- {{ data_dir }}
+## Root Paths to Search
+These are the root directories where hiera.yaml and data directories may exist:
+{% for root_path in root_paths -%}
+- {{ root_path }}
 {% endfor %}
 
 ## Lookup Keys from Manifests ({{ lookup_keys | length }} keys)
 These are the hiera keys referenced by the module's manifests via lookup(), hiera(), or automatic parameter lookup:
-{% for key in lookup_keys %}
+{% for key in lookup_keys -%}
 - `{{ key }}`
 {% endfor %}
 
 ## Instructions
-1. Use `grep_file` to search for the lookup keys across the hiera data directories listed above
-2. Read the files that contain matches to understand the full variable definitions
-3. Also read common.yaml (or equivalent base-level file) if it exists — it often contains lookup_options and default values that affect all levels
-4. After exploring all relevant files, provide a comprehensive summary of:
+1. Start by finding and reading `hiera.yaml` (or `hiera.yml`) in each root path listed above — check the root itself and up to 3 parent directories. This file defines the hierarchy structure (v3 or v5 format) and tells you where data files live and their priority order.
+2. Based on what you find in hiera.yaml, identify the data directories and hierarchy levels
+3. Use `grep_file` to search for the lookup keys across the hiera data directories
+4. Read the files that contain matches to understand the full variable definitions
+5. Also read common.yaml (or equivalent base-level file) if it exists — it often contains lookup_options and default values that affect all levels
+6. After exploring all relevant files, provide a comprehensive summary of:
+   - The hiera hierarchy structure you discovered (version, levels, priorities)
    - Which files contain which lookup keys
    - The variable types and values found
    - Any encrypted values (ENC[PKCS7,...])

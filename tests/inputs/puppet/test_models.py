@@ -10,8 +10,6 @@ from src.inputs.puppet.models import (
     ExecutionItem,
     HieraDataAnalysis,
     HieraDataAnalysisResult,
-    HieraHierarchy,
-    HieraLevel,
     HieraVariableMapping,
     ManifestAnalysisResult,
     ManifestExecutionAnalysis,
@@ -160,33 +158,6 @@ class TestHieraVariableMapping:
         assert var.is_encrypted is True
 
 
-class TestHieraHierarchy:
-    def test_empty(self):
-        h = HieraHierarchy()
-        assert h.version == 5
-        assert h.levels == []
-        assert h.total_data_files == 0
-
-    def test_with_levels(self):
-        h = HieraHierarchy(
-            version=5,
-            levels=[
-                HieraLevel(
-                    name="Per-node", path_pattern="nodes/%{trusted.certname}.yaml"
-                ),
-                HieraLevel(
-                    name="Common",
-                    path_pattern="common.yaml",
-                    resolved_files=["/tmp/data/common.yaml"],
-                ),
-            ],
-            total_data_files=1,
-        )
-        assert len(h.levels) == 2
-        assert h.levels[0].resolved_files == []
-        assert h.levels[1].resolved_files == ["/tmp/data/common.yaml"]
-
-
 class TestPuppetStructuredAnalysis:
     def _make_analysis(self):
         return PuppetStructuredAnalysis(
@@ -276,6 +247,147 @@ class TestPuppetStructuredAnalysis:
         )
         paths = analysis.analyzed_file_paths
         assert len(paths) == 1
+
+
+class TestFormatHieraSummary:
+    def test_no_hiera_data(self):
+        analysis = PuppetStructuredAnalysis()
+        assert analysis.format_hiera_summary() == "No hiera data analyzed."
+
+    def test_single_file_single_variable(self):
+        analysis = PuppetStructuredAnalysis(
+            hiera_data=[
+                HieraDataAnalysisResult(
+                    file_path="data/common.yaml",
+                    hierarchy_level="Common defaults",
+                    analysis=HieraDataAnalysis(
+                        variables=[
+                            HieraVariableMapping(
+                                puppet_key="profile_postgresql::version",
+                                value_type="string",
+                            )
+                        ]
+                    ),
+                ),
+            ],
+        )
+        result = analysis.format_hiera_summary()
+        assert "### Common defaults (`data/common.yaml`)" in result
+        assert "- `profile_postgresql::version` (type: string)" in result
+
+    def test_multiple_files(self):
+        analysis = PuppetStructuredAnalysis(
+            hiera_data=[
+                HieraDataAnalysisResult(
+                    file_path="site-modules/mymod/data/common.yaml",
+                    hierarchy_level="Module defaults",
+                    analysis=HieraDataAnalysis(
+                        variables=[
+                            HieraVariableMapping(
+                                puppet_key="mymod::version",
+                                value_type="string",
+                            )
+                        ]
+                    ),
+                ),
+                HieraDataAnalysisResult(
+                    file_path="data/common.yaml",
+                    hierarchy_level="Environment defaults",
+                    analysis=HieraDataAnalysis(
+                        variables=[
+                            HieraVariableMapping(
+                                puppet_key="mymod::version",
+                                value_type="string",
+                            ),
+                            HieraVariableMapping(
+                                puppet_key="mymod::port",
+                                value_type="integer",
+                            ),
+                        ]
+                    ),
+                ),
+            ],
+        )
+        result = analysis.format_hiera_summary()
+        assert "### Module defaults" in result
+        assert "### Environment defaults" in result
+        assert result.count("`mymod::version`") == 2
+        assert "`mymod::port` (type: integer)" in result
+
+    def test_cross_level_overrides(self):
+        analysis = PuppetStructuredAnalysis(
+            hiera_data=[
+                HieraDataAnalysisResult(
+                    file_path="data/common.yaml",
+                    hierarchy_level="Common defaults",
+                    analysis=HieraDataAnalysis(
+                        variables=[
+                            HieraVariableMapping(
+                                puppet_key="mymod::version",
+                                value_type="string",
+                            )
+                        ],
+                        cross_level_overrides=[
+                            "mymod::version overrides module-level default"
+                        ],
+                    ),
+                ),
+            ],
+        )
+        result = analysis.format_hiera_summary()
+        assert "**Cross-level overrides:**" in result
+        assert "mymod::version overrides module-level default" in result
+
+    def test_notes_included(self):
+        analysis = PuppetStructuredAnalysis(
+            hiera_data=[
+                HieraDataAnalysisResult(
+                    file_path="data/common.yaml",
+                    hierarchy_level="Common defaults",
+                    analysis=HieraDataAnalysis(
+                        variables=[],
+                        notes="Environment overrides module default for version",
+                    ),
+                ),
+            ],
+        )
+        result = analysis.format_hiera_summary()
+        assert "Notes: Environment overrides module default for version" in result
+
+    def test_no_overrides_or_notes_omits_sections(self):
+        analysis = PuppetStructuredAnalysis(
+            hiera_data=[
+                HieraDataAnalysisResult(
+                    file_path="data/common.yaml",
+                    hierarchy_level="Common defaults",
+                    analysis=HieraDataAnalysis(
+                        variables=[
+                            HieraVariableMapping(
+                                puppet_key="mymod::enabled",
+                                value_type="boolean",
+                            )
+                        ],
+                    ),
+                ),
+            ],
+        )
+        result = analysis.format_hiera_summary()
+        assert "**Cross-level overrides:**" not in result
+        assert "Notes:" not in result
+
+    def test_empty_variables_list(self):
+        analysis = PuppetStructuredAnalysis(
+            hiera_data=[
+                HieraDataAnalysisResult(
+                    file_path="data/os/Debian.yaml",
+                    hierarchy_level="OS family",
+                    analysis=HieraDataAnalysis(variables=[]),
+                ),
+            ],
+        )
+        result = analysis.format_hiera_summary()
+        assert "### OS family (`data/os/Debian.yaml`)" in result
+        assert "puppet_key" not in result
 
 
 class TestCredentialModels:

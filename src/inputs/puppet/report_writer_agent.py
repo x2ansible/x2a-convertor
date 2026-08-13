@@ -15,7 +15,6 @@ from langchain_core.tools import BaseTool
 from prompts.get_prompt import get_prompt
 from src.inputs.input_agent import InputAgent
 from src.inputs.puppet.state import PuppetState
-from src.inputs.puppet.tools import HieraParserTool
 from src.inputs.tree_analysis import TreeSitterAnalyzer
 from src.types.telemetry import AgentMetrics
 
@@ -38,9 +37,6 @@ class ReportWriterAgent(InputAgent[PuppetState]):
     SYSTEM_PROMPT_NAME = "puppet_analysis_system"
     USER_PROMPT_NAME = "puppet_analysis_task"
 
-    def extra_tools_from_state(self, state: PuppetState) -> list[BaseTool]:
-        return [HieraParserTool(module_path=state.path)]
-
     def execute(self, state: PuppetState, metrics: AgentMetrics | None) -> PuppetState:
         self._log.info("Generating migration specification")
 
@@ -51,6 +47,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
         custom_types_summary = self._build_custom_types_summary(state)
         puppetdb_summary = self._build_puppetdb_summary(state)
         control_repo_summary = self._build_control_repo_summary(state)
+        hiera_summary = self._build_hiera_summary(state)
 
         messages = self._build_messages(
             state,
@@ -61,6 +58,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             custom_types_summary,
             puppetdb_summary,
             control_repo_summary,
+            hiera_summary,
         )
         result = self.invoke_react(state, messages, metrics)
         response_messages = result.get("messages", [])
@@ -225,6 +223,11 @@ class ReportWriterAgent(InputAgent[PuppetState]):
 
         return "\n".join(lines)
 
+    def _build_hiera_summary(self, state: PuppetState) -> str:
+        if not state.structured_analysis:
+            return "No hiera data analyzed."
+        return state.structured_analysis.format_hiera_summary()
+
     def _build_messages(
         self,
         state: PuppetState,
@@ -235,6 +238,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
         custom_types_summary: str,
         puppetdb_summary: str,
         control_repo_summary: str,
+        hiera_summary: str,
     ) -> list[dict[str, str]]:
         system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
@@ -248,6 +252,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             custom_types_summary=custom_types_summary,
             puppetdb_summary=puppetdb_summary,
             control_repo_summary=control_repo_summary,
+            hiera_summary=hiera_summary,
         )
         return [
             {"role": "system", "content": system_message},

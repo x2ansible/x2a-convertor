@@ -49,6 +49,12 @@ The execution tree, directory listing, dependencies, credentials, and control re
 {control_repo_summary}
 ```
 
+## HIERA DATA ANALYSIS
+
+The following hiera data was pre-analyzed across all hierarchy levels (module-level AND environment-level). Environment-level data has HIGHER priority than module-level defaults — when the same key appears in both, the environment-level value is the one that takes effect at runtime.
+
+{hiera_summary}
+
 ---
 
 # TASK
