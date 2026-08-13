@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate environment variable documentation from pydantic-settings."""
 
+import inspect
 import sys
 from pathlib import Path
 from typing import Any, get_args, get_origin
@@ -85,6 +86,23 @@ def get_type_string(annotation: Any) -> str:
     )
 
 
+def get_class_notes(settings_class: Any) -> str | None:
+    """Extract any docstring content beyond the summary line.
+
+    Settings classes document provider env vars that LiteLLM reads directly
+    from the environment (e.g. OPENAI_API_KEY) as prose in the class
+    docstring rather than as pydantic fields, so they never appear in the
+    generated table. Surfacing that prose keeps the docs from omitting them.
+    """
+    doc = inspect.getdoc(settings_class)
+    if not doc:
+        return None
+
+    _summary, _, body = doc.partition("\n\n")
+    body = body.strip()
+    return body or None
+
+
 def get_default_string(default: Any, type_str: str) -> str:
     """Format the default value for display."""
     if default is None:
@@ -139,6 +157,12 @@ def generate_env_docs(
     for category_name, settings_class, env_prefix in SETTINGS_CLASSES:
         lines.append(f"## {category_name} Configuration")
         lines.append("")
+
+        notes = get_class_notes(settings_class)
+        if notes:
+            lines.append(notes)
+            lines.append("")
+
         lines.append("| Variable | Type | Default | Description |")
         lines.append("|----------|------|---------|-------------|")
 

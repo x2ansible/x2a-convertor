@@ -18,12 +18,12 @@ class LLMSettings(BaseSettings):
     Credentials are read directly from the environment by LiteLLM — no code changes needed to switch providers.
 
     Provider env vars:
-      OpenAI / compatible endpoints  OPENAI_API_KEY, OPENAI_API_BASE
-      Anthropic                       ANTHROPIC_API_KEY
-      AWS Bedrock                     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
-                                      or AWS_BEARER_TOKEN_BEDROCK for token-based auth
-      Google Vertex AI                VERTEXAI_PROJECT, VERTEXAI_LOCATION, GOOGLE_APPLICATION_CREDENTIALS
-      Google Gemini (direct)          GEMINI_API_KEY
+
+    - OpenAI / compatible endpoints: `OPENAI_API_KEY`, `OPENAI_API_BASE`
+    - Anthropic: `ANTHROPIC_API_KEY`
+    - AWS Bedrock: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (or `AWS_BEARER_TOKEN_BEDROCK` for token-based auth)
+    - Google Vertex AI: `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, `GOOGLE_APPLICATION_CREDENTIALS`
+    - Google Gemini (direct): `GEMINI_API_KEY`
     """
 
     model_config = SettingsConfigDict(extra="ignore")
