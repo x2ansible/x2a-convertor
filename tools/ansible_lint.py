@@ -3,7 +3,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import ansiblelint
 from ansiblelint.__main__ import fix
@@ -12,6 +11,7 @@ from ansiblelint.config import Options
 from ansiblelint.errors import MatchError
 from ansiblelint.rules import BaseRule, RulesCollection
 from ansiblelint.runner import LintResult, get_matches
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
@@ -232,7 +232,7 @@ class AnsibleLintTool(X2ATool):
         "Use autofix=true to automatically fix issues (default), or autofix=false to only report them. "
         "Setting autofix=false is recommended when fixing may introduce new issues."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = AnsibleLintInput
+    args_schema: ArgsSchema | None = AnsibleLintInput
 
     def _has_syntax_errors(self, result: LintResult) -> bool:
         """Check if lint result contains syntax errors."""

@@ -2,8 +2,8 @@
 
 import re
 from pathlib import Path
-from typing import Any
 
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from tools.base_tool import X2ATool
@@ -30,7 +30,7 @@ class GrepFileTool(X2ATool):
         "e.g. all tasks using the shell module, all become directives, "
         "or any hardcoded values. Supports optional filename glob filter."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = GrepFileInput
+    args_schema: ArgsSchema | None = GrepFileInput
 
     # pyrefly: ignore
     def _run(self, pattern: str, path: str = ".", include: str | None = None) -> str:

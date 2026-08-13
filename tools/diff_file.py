@@ -1,7 +1,7 @@
 import difflib
 from pathlib import Path
-from typing import Any
 
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from tools.base_tool import X2ATool
@@ -22,7 +22,7 @@ class DiffFileTool(X2ATool):
         "Useful for comparing source files with generated files to identify "
         "missing or incorrect content."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = DiffFileInput
+    args_schema: ArgsSchema | None = DiffFileInput
 
     # pyrefly: ignore
     def _run(

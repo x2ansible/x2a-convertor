@@ -1,14 +1,10 @@
 """Tests for centralized configuration settings."""
 
-from pydantic import SecretStr
-
 from src.config import (
     AAPSettings,
-    AWSSettings,
     LLMSettings,
     LoggingSettings,
     MoleculeSettings,
-    OpenAISettings,
     ProcessingSettings,
     Settings,
     get_settings,
@@ -36,55 +32,6 @@ class TestLLMSettings:
         assert settings.model == "gpt-4"
         assert settings.max_tokens == 16384
         assert settings.temperature == 0.7
-
-
-class TestOpenAISettings:
-    """Tests for OpenAI configuration."""
-
-    def test_default_values(self):
-        settings = OpenAISettings()
-        assert settings.api_base is None
-        assert settings.api_key.get_secret_value() == "not-needed"
-
-    def test_env_override(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_BASE", "https://custom.api.com")
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-secret")
-
-        settings = OpenAISettings()
-        assert settings.api_base == "https://custom.api.com"
-        assert settings.api_key.get_secret_value() == "sk-secret"
-
-    def test_api_key_is_secret(self, monkeypatch):
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-verysecret123")
-
-        settings = OpenAISettings()
-        assert isinstance(settings.api_key, SecretStr)
-        # Secret should not be visible in repr
-        assert "sk-verysecret123" not in repr(settings.api_key)
-
-
-class TestAWSSettings:
-    """Tests for AWS configuration."""
-
-    def test_default_values(self):
-        settings = AWSSettings()
-        assert settings.bearer_token_bedrock is None
-        assert settings.access_key_id is None
-        assert settings.secret_access_key is None
-        assert settings.session_token is None
-        assert settings.region == "eu-west-2"
-
-    def test_env_override(self, monkeypatch):
-        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAEXAMPLE")
-        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secretkey123")
-        monkeypatch.setenv("AWS_REGION", "us-east-1")
-
-        settings = AWSSettings()
-        assert settings.access_key_id is not None
-        assert settings.secret_access_key is not None
-        assert settings.access_key_id.get_secret_value() == "AKIAEXAMPLE"
-        assert settings.secret_access_key.get_secret_value() == "secretkey123"
-        assert settings.region == "us-east-1"
 
 
 class TestAAPSettings:
@@ -184,8 +131,6 @@ class TestSettings:
     def test_has_all_nested_settings(self):
         settings = Settings()
         assert isinstance(settings.llm, LLMSettings)
-        assert isinstance(settings.openai, OpenAISettings)
-        assert isinstance(settings.aws, AWSSettings)
         assert isinstance(settings.aap, AAPSettings)
         assert isinstance(settings.processing, ProcessingSettings)
         assert isinstance(settings.logging, LoggingSettings)

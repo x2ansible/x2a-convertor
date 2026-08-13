@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from typing import Any
 
 # Ansible Python API imports
 from ansible import context
@@ -11,6 +10,7 @@ from ansible.parsing.dataloader import DataLoader
 from ansible.playbook.play import Play
 from ansible.plugins.loader import init_plugin_loader
 from ansible.vars.manager import VariableManager
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
@@ -102,7 +102,7 @@ class AnsibleRoleCheckTool(X2ATool):
         "Returns validation results with specific errors or confirmation of valid role."
     )
 
-    args_schema: dict[str, Any] | type[BaseModel] | None = AnsibleRoleCheckInput
+    args_schema: ArgsSchema | None = AnsibleRoleCheckInput
 
     # pyrefly: ignore
     def _run(self, ansible_role_path: str) -> str:

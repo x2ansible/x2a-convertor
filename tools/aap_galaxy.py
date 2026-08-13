@@ -6,8 +6,7 @@ Private Automation Hub (Galaxy API) for deduplication during migration.
 
 from __future__ import annotations
 
-from typing import Any
-
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from src.config import AAPSettings, get_settings
@@ -97,7 +96,7 @@ class AAPSearchCollectionsTool(X2ATool):
         "(e.g., 'nginx', 'redis', 'postgresql') or patterns (e.g., 'security', 'monitoring'). "
         "Returns matching collections with their summaries."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = SearchCollectionsInput
+    args_schema: ArgsSchema | None = SearchCollectionsInput
 
     # pyrefly: ignore
     def _run(self, keywords: list[str]) -> str:
@@ -142,7 +141,7 @@ class AAPGetCollectionDetailTool(X2ATool):
         "modules, and variables. Use this after finding a relevant collection to "
         "understand what it provides and how it can be used in the migration."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = GetCollectionDetailInput
+    args_schema: ArgsSchema | None = GetCollectionDetailInput
 
     # pyrefly: ignore
     def _run(self, namespace: str, name: str) -> str:

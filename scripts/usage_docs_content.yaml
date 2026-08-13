@@ -21,14 +21,18 @@ shared:
 
     - **AWS_REGION**: The AWS region where the model will run
     - **AWS_BEARER_TOKEN_BEDROCK**: The API key to connect to the LLM
-    - **LLM_MODEL**: The model to use (this guide uses `anthropic.claude-3-7-sonnet-20250219-v1:0`). Note: Some regions require the `us.` prefix
+    - **LLM_MODEL**: The model to use (this guide uses `bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0`)
+
 
   env_exports: |
 
     Export these variables in your shell before running commands:
 
     ```bash
-    export LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0
+    # LLM provider — format: provider/model-name (see Requirements table above)
+    export LLM_MODEL=bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0
+
+    # AWS Bedrock credentials
     export AWS_REGION=your-aws-region
     export AWS_BEARER_TOKEN_BEDROCK=your-bearer-token
 
@@ -127,12 +131,12 @@ docker:
   # Environment variables passed to container for each command type
   env_vars:
     llm:
-      - "LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0"
+      - "LLM_MODEL=bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0"
       - "AWS_REGION=$AWS_REGION"
       - "AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK"
     # migrate uses llm vars + optional AAP vars for collection discovery
     migrate:
-      - "LLM_MODEL=anthropic.claude-3-7-sonnet-20250219-v1:0"
+      - "LLM_MODEL=bedrock/anthropic.claude-3-7-sonnet-20250219-v1:0"
       - "AWS_REGION=$AWS_REGION"
       - "AWS_BEARER_TOKEN_BEDROCK=$AWS_BEARER_TOKEN_BEDROCK"
       - "AAP_CONTROLLER_URL=$AAP_CONTROLLER_URL"

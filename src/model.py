@@ -1,17 +1,18 @@
 from collections import Counter
 from typing import Any
 
-from botocore.config import Config as BotoConfig
-from langchain.chat_models import init_chat_model
+import httpx
+import litellm
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import LLMResult
 from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_core.runnables import RunnableConfig
-from pydantic import SecretStr
+from langchain_litellm import ChatLiteLLMRouter
 
 from src.config import get_settings
+from src.config.settings import LLMSettings
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,13 +27,7 @@ class FinishReasonCallbackHandler(BaseCallbackHandler):
                 info = generation.generation_info or {}
                 msg = getattr(generation, "message", None)
                 msg_metadata = getattr(msg, "response_metadata", {}) or {}
-                # OpenAI puts finish_reason in generation_info or response_metadata;
-                # Bedrock puts it in response_metadata as stopReason
-                if (
-                    info.get("finish_reason") == "length"
-                    or msg_metadata.get("finish_reason") == "length"
-                    or msg_metadata.get("stopReason") == "max_tokens"
-                ):
+                if info.get("finish_reason") == "length":
                     usage = getattr(msg, "usage_metadata", None) or {}
                     model_name = msg_metadata.get("model_name", "unknown")
                     logger.warning(
@@ -121,97 +116,77 @@ def get_runnable_config() -> RunnableConfig:
     }
 
 
-def get_model() -> BaseChatModel:
-    """Initialize and return the configured language model"""
-    settings = get_settings()
+def _build_router(llm_settings: LLMSettings) -> litellm.Router:
+    """Build a LiteLLM Router from settings"""
+    timeout = httpx.Timeout(
+        connect=llm_settings.connect_timeout,
+        read=llm_settings.read_timeout,
+        write=llm_settings.read_timeout,
+        pool=llm_settings.connect_timeout,
+    )
 
-    model_name = settings.llm.model
-    logger.info(f"Initializing model: {model_name}")
-
-    kwargs: dict[str, Any] = {
-        "max_tokens": settings.llm.max_tokens,
-        "temperature": settings.llm.temperature,
+    litellm_params: dict[str, Any] = {
+        "model": llm_settings.model,
+        "timeout": timeout,
+        "max_tokens": llm_settings.max_tokens,
+        "temperature": llm_settings.temperature,
     }
 
-    if settings.llm.reasoning_effort:
-        kwargs["reasoning_effort"] = settings.llm.reasoning_effort
+    if llm_settings.reasoning_effort is not None:
+        litellm_params["reasoning_effort"] = llm_settings.reasoning_effort
 
-    # Configure rate limiter if enabled
-    if settings.llm.rate_limit_requests:
-        requests_per_second = settings.llm.rate_limit_requests
-        rate_limiter = InMemoryRateLimiter(
-            requests_per_second=requests_per_second,
+    return litellm.Router(
+        model_list=[
+            {
+                "model_name": llm_settings.model,
+                "litellm_params": litellm_params,
+            }
+        ],
+        num_retries=llm_settings.max_retries,
+    )
+
+
+def get_model() -> BaseChatModel:
+    """Initialize and return the configured language model via LiteLLM Router.
+
+    Model strings follow LiteLLM format: provider/model-name
+      openai/gpt-4o
+      anthropic/claude-3-5-sonnet-20241022
+      bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+      gemini/gemini-1.5-pro
+      vertex_ai/gemini-1.5-pro
+
+    All provider credentials (OPENAI_API_KEY, OPENAI_API_BASE, ANTHROPIC_API_KEY,
+    AWS_ACCESS_KEY_ID, etc.) are read directly from the environment by LiteLLM.
+    """
+    llm_settings = get_settings().llm
+
+    kwargs: dict[str, Any] = {
+        "router": _build_router(llm_settings),
+    }
+
+    if llm_settings.rate_limit_requests:
+        kwargs["rate_limiter"] = InMemoryRateLimiter(
+            requests_per_second=llm_settings.rate_limit_requests,
             check_every_n_seconds=0.2,
             max_bucket_size=10,
         )
-        kwargs["rate_limiter"] = rate_limiter
-        logger.info(f"Rate limiter enabled: {requests_per_second} requests/second")
 
-    logger.debug(f"Model parameters: {kwargs}")
+    chat_model = ChatLiteLLMRouter(**kwargs)
 
-    # Default
-    provider = "openai"
+    model_name, provider, *_ = litellm.get_llm_provider(chat_model.model)
+    log_kwargs: dict[str, Any] = {
+        "provider": provider,
+        "model": model_name,
+        "max_tokens": llm_settings.max_tokens,
+        "temperature": llm_settings.temperature,
+        "max_retries": llm_settings.max_retries,
+        "connect_timeout": llm_settings.connect_timeout,
+        "read_timeout": llm_settings.read_timeout,
+        "rate_limit_requests_per_second": llm_settings.rate_limit_requests,
+    }
+    if llm_settings.reasoning_effort is not None:
+        log_kwargs["reasoning_effort"] = llm_settings.reasoning_effort
+    logger.info("LLM initialized", **log_kwargs)
 
-    # If AWS_BEARER_TOKEN_BEDROCK is set, use the AWS Bedrock
-    if settings.aws.bearer_token_bedrock or settings.aws.access_key_id:
-        provider = "bedrock_converse"
-        region_name = settings.aws.region
-        kwargs["region_name"] = region_name
-        logger.debug(f"AWS_REGION: {region_name}")
-
-        # Configure botocore-level retry and timeout for throttling (429) and server errors
-        max_retries = settings.llm.max_retries
-        read_timeout = settings.llm.read_timeout
-        connect_timeout = settings.llm.connect_timeout
-        kwargs["config"] = BotoConfig(
-            retries={"max_attempts": max_retries, "mode": "adaptive"},
-            read_timeout=read_timeout,
-            connect_timeout=connect_timeout,
-        )
-        logger.info(
-            f"Bedrock config: {max_retries} max attempts with adaptive backoff, "
-            f"read_timeout={read_timeout}s, connect_timeout={connect_timeout}s"
-        )
-
-        # If we have access keys, pass them as SecretStr
-        if settings.aws.access_key_id and settings.aws.secret_access_key:
-            access_key_id = settings.aws.access_key_id.get_secret_value()
-            secret_access_key = settings.aws.secret_access_key.get_secret_value()
-
-            # Debug logging to verify credentials are loaded
-            logger.debug(f"AWS_ACCESS_KEY_ID length: {len(access_key_id)}")
-            logger.debug(f"AWS_SECRET_ACCESS_KEY length: {len(secret_access_key)}")
-            logger.debug(
-                f"AWS_ACCESS_KEY_ID starts with: {access_key_id[:4] if len(access_key_id) >= 4 else 'N/A'}"
-            )
-
-            # Wrap credentials in SecretStr as required by ChatBedrockConverse
-            kwargs["aws_access_key_id"] = SecretStr(access_key_id)
-            kwargs["aws_secret_access_key"] = SecretStr(secret_access_key)
-
-            # Include session token if present (for temporary credentials)
-            if settings.aws.session_token:
-                session_token = settings.aws.session_token.get_secret_value()
-                kwargs["aws_session_token"] = SecretStr(session_token)
-                logger.debug(f"AWS_SESSION_TOKEN length: {len(session_token)}")
-
-            logger.info("Using AWS credentials from environment with Bedrock provider")
-
-    # If the provider is OpenAI, use the specific OpenAI endpoint information
-    if provider == "openai":
-        kwargs["base_url"] = settings.openai.api_base
-        kwargs["api_key"] = settings.openai.api_key.get_secret_value()
-        kwargs["timeout"] = settings.llm.read_timeout
-        if not kwargs["base_url"]:
-            logger.warning("OPENAI_API_BASE is not set")
-        logger.debug(f"OPENAI_API_BASE: {kwargs['base_url']}")
-        logger.info(f"OpenAI timeout: {settings.llm.read_timeout}s")
-    kwargs["model_provider"] = provider
-    logger.info(
-        f"Using the '{provider}' provider with the '{model_name}' model for accessing LLM"
-    )
-
-    return init_chat_model(
-        model_name,
-        **kwargs,
-    )
+    return chat_model

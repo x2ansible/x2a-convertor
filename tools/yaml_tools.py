@@ -1,6 +1,5 @@
-from typing import Any
-
 import yaml
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from tools.base_tool import X2ATool
@@ -27,7 +26,7 @@ class YamlValidateTool(X2ATool):
         "Use this when you need to ensure YAML is valid and get a clean version back. "
         "Returns the linted YAML if valid, or an error message if invalid."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = YamlValidateInput
+    args_schema: ArgsSchema | None = YamlValidateInput
 
     # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:
@@ -60,7 +59,7 @@ class YamlLintTool(X2ATool):
         "Use this to check if YAML is valid without getting the reformatted content. "
         "Returns either 'Success, the provided yaml content is valid.' if no issues found, or specific error messages if problems detected."
     )
-    args_schema: dict[str, Any] | type[BaseModel] | None = YamlLintInput
+    args_schema: ArgsSchema | None = YamlLintInput
 
     # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:

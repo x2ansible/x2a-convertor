@@ -8,6 +8,7 @@ from ansible import context
 from ansible.cli import CLI
 from ansible.cli.doc import DocCLI
 from ansible.utils.context_objects import CLIArgs
+from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
@@ -169,7 +170,7 @@ class AnsibleDocLookupTool(X2ATool):
         "Returns formatted documentation for understanding module usage and parameters."
     )
 
-    args_schema: type[BaseModel] | dict[str, Any] | None = AnsibleDocLookupInput
+    args_schema: ArgsSchema | None = AnsibleDocLookupInput
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
