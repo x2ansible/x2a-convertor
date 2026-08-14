@@ -266,7 +266,7 @@ class WriteAgent(ExportAgent[ExportState]):
         slog.info(f"Checklist after writing:\n{export_state.checklist.to_markdown()}")
         message = self.get_last_ai_message(result)
         if message:
-            export_state = export_state.update(last_output=message.content)
+            export_state = export_state.update(last_output=message.text)
             slog.info("Write iteration completed")
         else:
             slog.warning("Write agent did not produce output")

@@ -66,7 +66,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
             return state.mark_failed("Invalid response from Puppet agent")
 
         self._log.info("Migration specification generated")
-        return state.update(specification=response_messages[-1].content)
+        return state.update(specification=response_messages[-1].text)
 
     def _build_file_listing(self, state: PuppetState) -> str:
         """Build file listing from execution tree files only."""

@@ -297,7 +297,7 @@ class ValidationAgent(ExportAgent[ExportState]):
 
         message = self.get_last_ai_message(result)
         if message:
-            export_state = export_state.update(validation_report=message.content)
+            export_state = export_state.update(validation_report=message.text)
 
         state.export_state = export_state
         state.last_result = result

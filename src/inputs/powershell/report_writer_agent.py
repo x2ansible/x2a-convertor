@@ -52,7 +52,7 @@ class ReportWriterAgent(InputAgent[PowerShellAnalysisState]):
             return state.mark_failed("Invalid response from PowerShell agent")
 
         self._log.info("Migration specification generated")
-        return state.update(specification=response_messages[-1].content)
+        return state.update(specification=response_messages[-1].text)
 
     def _build_file_listing(self, state: PowerShellAnalysisState) -> str:
         """Build file listing from structured analysis."""
