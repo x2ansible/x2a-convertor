@@ -29,9 +29,23 @@ class TestArtifactType:
         assert ArtifactType.PROJECT_METADATA.value == "project_metadata"
         assert ArtifactType.ANSIBLE_PROJECT.value == "ansible_project"
         assert ArtifactType.ADVERSARIAL_REPORT.value == "adversarial_report"
+        assert ArtifactType.ADVERSARIAL_REPORT_JSON.value == "adversarial_report_json"
 
     def test_enum_count(self):
-        assert len(ArtifactType) == 6
+        assert len(ArtifactType) == 7
+
+    def test_adversarial_report_json_is_valid_artifact_type(self):
+        client = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-1",
+            artifact_pairs=[f"adversarial_report_json:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
+        )
+        artifacts = client._build_artifacts()
+
+        assert len(artifacts) == 1
+        assert artifacts[0]["type"] == "adversarial_report_json"
+        assert artifacts[0]["value"] == PLAN_URL
 
 
 class TestReportClientParseArtifact:
