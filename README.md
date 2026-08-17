@@ -186,7 +186,7 @@ AWS Bedrock supports two authentication methods (use one, not both):
 **Option 1: IAM Credentials (Recommended)**
 
 ```bash
-export LLM_MODEL="us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+export LLM_MODEL="bedrock/global.anthropic.claude-sonnet-4-5-20250929-v1:0"
 export AWS_REGION="us-east-2"
 export AWS_ACCESS_KEY_ID="AKIA..."
 export AWS_SECRET_ACCESS_KEY="..."
@@ -195,7 +195,7 @@ export AWS_SECRET_ACCESS_KEY="..."
 **Option 2: Bearer Token (API Key)**
 
 ```bash
-export LLM_MODEL="us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+export LLM_MODEL="bedrock/global.anthropic.claude-sonnet-4-5-20250929-v1:0"
 export AWS_REGION="us-east-2"
 export AWS_BEARER_TOKEN_BEDROCK="ABSKQmVkcm9j..."
 ```
