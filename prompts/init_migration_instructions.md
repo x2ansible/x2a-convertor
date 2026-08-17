@@ -23,7 +23,7 @@ Follow these steps in order:
    - **Chef**: `file_search(pattern="**/recipes/default.rb")` — each result's grandparent directory is a cookbook
    - **PowerShell**: `file_search(pattern="**/*.psd1")` — each result is a module manifest
    - **Puppet**: Follow these steps in order to enumerate modules correctly:
-     1. **Find the modulepath**: Read `environment.conf` at the repo root for its `modulepath` directive. If not present, check `puppet.conf`. If neither exists, assume `modules/` at the repo root.
+     1. **Find the modulepath**: Read `environment.conf` at the repo root for its `modulepath` directive. If not present, look for `modules/` or `profiles/` directories at the repo root and treat them as the modulepath.
      2. **Strip system paths**: Ignore `$basemodulepath` and any absolute paths outside the repo.
      3. **List direct children**: For each remaining modulepath entry, run `list_directory` on it. Every immediate subdirectory found is a module — add it to the MODULE INVENTORY with its full path. 
      4. **Classes are not modules**: Any name containing `::` is a class inside a module, not a module itself.
@@ -112,7 +112,7 @@ Incorrect paths will cause downstream migration failures.
 - **postgres**: Database cookbook (TOO VAGUE - no details about features, version, or purpose)
 - **web**: Web server module at cookbooks/web (UNCLEAR - what web server? what configuration?)
 - **app**: Application deployment (INSUFFICIENT - what app? what runtime? what dependencies?)
-- **site**: All modules at site/ (WRONG — `site/` is a modulepath entry, not a module. Each direct child directory of `site/` is its own module.)
+- **site**: All modules at site/ (WRONG — `site/` is a modulepath/is likely a modulepath, not a module. Each direct child directory of `site/` is its own module.)
 - **webserver::vhost**: Virtual host class (WRONG — any name containing `::` is a class inside a module, not a module itself. `webserver::vhost` belongs to the `webserver` module. List the module directory, never its internal classes.)
 
 ### Infrastructure Files
