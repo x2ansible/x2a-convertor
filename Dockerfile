@@ -16,9 +16,7 @@ RUN dnf install -y \
     libyaml-devel \
     && dnf clean all
 
-# Uv is not part of ubi.
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:${PATH}"
+RUN python3.12 -m pip install --no-cache-dir uv  # installs to /usr/local/bin, already on PATH
 
 # Chef CLI is needed for chef agent (installed via gem for multi-arch support)
 RUN gem install chef-cli --no-document
