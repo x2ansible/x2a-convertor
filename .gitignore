@@ -20,3 +20,5 @@ deploy/secrets.yaml
 *.secrets.yaml
 
 docs/
+
+.mcp.json
