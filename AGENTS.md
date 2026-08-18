@@ -350,6 +350,37 @@ Tests are organized under `tests/` mirroring the `src/` structure. Evals are mar
 - `vulture_whitelist.py` (project root) suppresses known false positives -- framework hooks that look unused to static analysis but are invoked dynamically (Pydantic `model_config`, Click CLI entry points, `__exit__` signature params, LangChain/LangGraph callback and middleware overrides). Whitelist entries match by bare name across the whole codebase, so only add unambiguous framework-required names there
 - Remaining findings default to 60% confidence and need manual review -- some are genuinely dead code, others are Pydantic model fields populated/read dynamically (e.g. via serialization) that vulture can't trace
 
+## Jira Tracking
+
+Work for this project is tracked in the Red Hat Jira instance under the **FlightPath** project, tagged with the `x2a` label.
+
+- **Instance:** `https://redhat.atlassian.net` (cloudId `2b9e35e3-6bd3-4cec-b838-f4249ee02432`)
+- **Project:** `FLPATH`
+- **Label:** `x2a`
+- **Base filter (JQL):** `project = FLPATH AND labels = x2a ORDER BY Rank ASC`
+- **Web view:** https://redhat.atlassian.net/issues?jql=project%20%3D%20FLPATH%20AND%20labels%20%3D%20x2a%20ORDER%20BY%20Rank%20ASC
+
+### Status Buckets
+
+Issues are grouped into two working buckets by status:
+
+| Bucket | Statuses |
+|---|---|
+| **TO DO** | `Refinement`, `Backlog`, `New` |
+| **In Progress** | `In Progress`, `Code Review` |
+
+Ready-JQL for each bucket (append `ORDER BY Rank ASC`):
+
+```
+# TO DO
+project = FLPATH AND labels = x2a AND status IN (Refinement, Backlog, New)
+
+# In Progress
+project = FLPATH AND labels = x2a AND status IN ("In Progress", "Code Review")
+```
+
+To scope any query to the current user's assigned work, add `AND assignee = currentUser()`.
+
 ## File Organization
 
 - `input/` or `examples/` -- Source repositories to analyze
