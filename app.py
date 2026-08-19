@@ -13,6 +13,7 @@ from src.config.settings import get_settings
 from src.const import METADATA_FILENAME
 from src.error_details import get_error_human_message
 from src.exporters.migrate import migrate_module
+from src.health import check_aap, check_galaxy, check_model
 from src.init import init_project
 from src.inputs.analyze import analyze_project
 from src.publishers.publish import publish_aap, publish_project
@@ -349,6 +350,25 @@ def adversarial_run(phase, source_dir, report_path, config) -> None:
         config_path=config,
         report_path=report_file,
     )
+
+
+@cli.command("health-check")
+def health_check_cmd() -> None:
+    """Check connectivity to the configured model and AAP."""
+    click.echo("Running health checks...\n")
+    checks = [check_model(), check_aap(), check_galaxy()]
+
+    for status, message in checks:
+        if status == "ok":
+            label = click.style("[OK]  ", fg="green", bold=True)
+        elif status == "fail":
+            label = click.style("[FAIL]", fg="red", bold=True)
+        else:
+            label = click.style("[SKIP]", fg="yellow", bold=True)
+        click.echo(f"{label} {message}")
+
+    if any(status == "fail" for status, _ in checks):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
