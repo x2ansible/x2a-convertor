@@ -63,11 +63,6 @@ class MoleculeAgent(ExportAgent[ExportState]):
         self._graph = self._build_internal_graph()
         self._current_metrics: AgentMetrics | None = None
 
-    def extra_tools_from_state(self, state: ExportState) -> list[BaseTool]:
-        if state.checklist is None:
-            return []
-        return state.checklist.get_tools()
-
     def _build_internal_graph(self):
         """Build the internal StateGraph for molecule test generation."""
         workflow = StateGraph(MoleculeAgentState)

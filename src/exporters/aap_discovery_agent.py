@@ -104,11 +104,6 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
         super().__init__(model)
         self._settings = get_settings().aap
 
-    def extra_tools_from_state(self, state: ExportState) -> list[BaseTool]:
-        if state.checklist is None:
-            return []
-        return state.checklist.get_tools()
-
     def execute(self, state: ExportState, metrics: AgentMetrics | None) -> ExportState:
         """Execute AAP discovery and update state with results."""
         if not self._settings.is_galaxy_enabled():
