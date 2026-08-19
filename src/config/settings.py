@@ -4,11 +4,42 @@ This module provides type-safe configuration with environment variable loading,
 validation, and sensible defaults for all x2a-convertor settings.
 """
 
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class SummaryContextSize(StrEnum):
+    """Controls how aggressively conversation history is summarized.
+
+    Each level applies a multiplier to the agent's MAX_TOKENS_BEFORE_SUMMARY
+    threshold. Higher values preserve more conversation context before
+    triggering summarization, at the cost of using more of the model's
+    context window.
+
+    The effective threshold is capped at the model's context window size.
+    """
+
+    COMPACT = "compact"  # 1x   -- current default behavior
+    MEDIUM = "medium"  # 1.5x
+    LARGE = "large"  # 2x
+    FULL = "full"  # 3x
+
+    @property
+    def multiplier(self) -> float:
+        """Return the token multiplier for this context size."""
+        return _MULTIPLIERS[self]
+
+
+_MULTIPLIERS: dict[SummaryContextSize, float] = {
+    SummaryContextSize.COMPACT: 1.0,
+    SummaryContextSize.MEDIUM: 1.5,
+    SummaryContextSize.LARGE: 2.0,
+    SummaryContextSize.FULL: 3.0,
+}
 
 
 class LLMSettings(BaseSettings):
@@ -68,6 +99,19 @@ class LLMSettings(BaseSettings):
         validation_alias="LLM_CONNECT_TIMEOUT",
         description="Connection timeout in seconds for LLM API calls",
     )
+    summary_context_size: SummaryContextSize = Field(
+        default=SummaryContextSize.COMPACT,
+        validation_alias="SUMMARY_CONTEXT_SIZE",
+        description="Controls conversation summarization aggressiveness. "
+        "Higher values keep more context before summarizing (compact=1x, medium=1.5x, large=2x, full=3x).",
+    )
+
+    @field_validator("summary_context_size", mode="before")
+    @classmethod
+    def lowercase_summary_context_size(cls, v: str) -> str:
+        if isinstance(v, str):
+            return v.lower()
+        return v
 
 
 class AAPSettings(BaseSettings):

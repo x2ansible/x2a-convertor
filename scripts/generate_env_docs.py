@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate environment variable documentation from pydantic-settings."""
 
+import enum
 import inspect
 import sys
 from pathlib import Path
@@ -80,6 +81,11 @@ def get_type_string(annotation: Any) -> str:
         args = get_args(annotation)
         return f"enum: {', '.join(repr(a) for a in args)}"
 
+    # Handle Enum types
+    if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
+        values = [member.value for member in annotation]
+        return f"enum: {', '.join(repr(v) for v in values)}"
+
     # Fallback
     return (
         str(annotation).replace("typing.", "").replace("<class '", "").replace("'>", "")
@@ -121,6 +127,8 @@ def get_default_string(default: Any, type_str: str) -> str:
         return f"`{default}`"
     if isinstance(default, (int, float)):
         return f"`{default}`"
+    if isinstance(default, enum.Enum):
+        return f"`{default.value}`"
     return f"`{default}`"
 
 
