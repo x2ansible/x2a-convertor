@@ -38,11 +38,6 @@ class PlanningAgent(ExportAgent[ExportState]):
     SYSTEM_PROMPT_NAME = "export_ansible_planning_system"
     USER_PROMPT_NAME = "export_ansible_planning_task"
 
-    def extra_tools_from_state(self, state: ExportState) -> list[BaseTool]:
-        if state.checklist is None:
-            return []
-        return state.checklist.get_tools()
-
     def execute(self, state: ExportState, metrics: AgentMetrics | None) -> ExportState:
         """Execute planning phase."""
         self._log.info(
