@@ -353,6 +353,91 @@ IMPORTANT: Use Ubuntu release names (bionic, focal) NOT version numbers ("18.04"
 {% include 'write_from_puppet.md' %}
 {% endif %}
 
+ARGUMENT SPECS:
+Every role MUST include a meta/argument_specs.yml file that documents all role parameters.
+Generate this file AFTER writing defaults/main.yml, using the variables defined there.
+
+Write this file using ansible_write to: <role_path>/meta/argument_specs.yml
+
+Format:
+```yaml
+---
+argument_specs:
+  main:
+    short_description: <one-line description from meta/main.yml>
+    description:
+      - <longer description of what the role does>
+    options:
+      <variable_name>:
+        type: <str|bool|int|float|dict|list>
+        required: <true if no default, false if default exists>
+        default: <value from defaults/main.yml>
+        description: <what this variable controls>
+```
+
+Type mapping from defaults/main.yml values:
+  - quoted string or bare word        -> type: str
+  - true / false                      -> type: bool
+  - integer                           -> type: int
+  - float                             -> type: float
+  - YAML dict / mapping               -> type: dict
+  - YAML list / sequence              -> type: list
+
+For dict options with known structure, add `options:` to describe the nested keys.
+For list options with dict elements, add `elements: dict` and nested `options:`.
+
+Edge cases:
+- No defaults/main.yml: Generate an argument_specs with just `short_description` and no `options:`
+- Credential variables (injected by AAP at runtime, not in defaults): Include with `required: true` and no default, with a description noting they are injected by AAP credential types
+- Variables from vars/main.yml: These are role-internal and should NOT appear in argument_specs (they are not user-facing parameters)
+
+Example: given defaults/main.yml containing:
+```yaml
+myrole_app_port: 8080
+myrole_enable_tls: true
+myrole_allowed_hosts:
+  - localhost
+myrole_config:
+  max_connections: 100
+  timeout: 30
+```
+
+Generate meta/argument_specs.yml as:
+```yaml
+---
+argument_specs:
+  main:
+    short_description: Install and configure the application service
+    description:
+      - Deploys the application with configurable networking and TLS settings.
+    options:
+      myrole_app_port:
+        type: int
+        required: false
+        default: 8080
+        description: TCP port the application listens on.
+      myrole_enable_tls:
+        type: bool
+        required: false
+        default: true
+        description: Whether to enable TLS for the application.
+      myrole_allowed_hosts:
+        type: list
+        elements: str
+        required: false
+        default:
+          - localhost
+        description: List of hostnames allowed to connect.
+      myrole_config:
+        type: dict
+        required: false
+        default:
+          max_connections: 100
+          timeout: 30
+        description: >-
+          Application configuration parameters.
+```
+
 Do NOT generate molecule files (molecule/default/*) — they are handled by a separate MoleculeAgent.
 Skip any checklist items in the MOLECULE category.
 
