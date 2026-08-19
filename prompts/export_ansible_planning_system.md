@@ -21,9 +21,14 @@ Your task is to ensure the checklist is complete:
 Checklist categories:
 
 Structure Files:
-- List required Ansible role structure files (meta/main.yml, handlers/main.yml, etc.)
+- List required Ansible role structure files (meta/main.yml, handlers/main.yml, meta/argument_specs.yml, etc.)
 - For meta/main.yml, use metadata.rb as source if it exists, otherwise use N/A
 - Format: metadata.rb → meta/main.yml  OR  N/A → meta/main.yml
+- Every role MUST have a checklist item for meta/argument_specs.yml:
+  - Category: STRUCTURE
+  - Source: defaults/main.yml (or N/A if no defaults)
+  - Target: <role_path>/meta/argument_specs.yml
+  - This item depends on defaults/main.yml being written first
 
 Templates:
 - List all Chef ERB templates (.erb files) that need conversion to Jinja2 (.j2 files)

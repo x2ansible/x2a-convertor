@@ -63,7 +63,18 @@ Common patterns:
 
 Fix: Move `variables:` content to task-level `vars:`.
 
-### 6. Molecule Test Correctness
+### 6. Missing Argument Specs
+
+Roles that have defaults/main.yml but no meta/argument_specs.yml.
+
+Common patterns:
+- defaults/main.yml exists with role variables but meta/argument_specs.yml is missing
+- meta/argument_specs.yml exists but does not cover all variables from defaults/main.yml
+- argument_specs.yml has incorrect types that do not match the default values
+
+Fix: Generate argument_specs.yml from defaults/main.yml with correct types and descriptions. Use `ansible_write` to write the file to `<role_path>/meta/argument_specs.yml`.
+
+### 7. Molecule Test Correctness
 
 Molecule test files (converge.yml, verify.yml) that violate the execution environment constraints or will fail at runtime.
 
