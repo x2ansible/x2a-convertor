@@ -19,6 +19,74 @@ container on OpenShift:
 - NO prepare.yml — do not generate this file
 - ALL file paths must use `/tmp/molecule_test/` as prefix — the container user cannot write to /etc, /opt, etc.
 
+QUALITY RULES — MANDATORY (apply to ALL molecule YAML):
+
+LOOP RULES:
+1. Every `loop:` MUST include `loop_control:` with `loop_var: item_<descriptive_name>`
+2. NEVER use bare `item`
+3. ALWAYS use bracket notation: `item_app['key']` not `item_app.key`
+4. When looping over structured data (dicts/lists of dicts), prefer simple string lists
+   over multi-key dict lists to avoid YAML duplicate-key lint errors
+
+CORRECT — loop over simple strings:
+```yaml
+- name: Create site configs
+  ansible.builtin.copy:
+    dest: "/tmp/molecule_test/etc/myapp/sites/{{ item_name }}.conf"
+    content: |
+      # config for {{ item_name }}
+      server_name {{ item_name }};
+    mode: "0644"
+    backup: true
+  loop:
+    - app1.example.com
+    - app2.example.com
+  loop_control:
+    loop_var: item_name
+```
+
+WRONG — multi-key dicts cause duplicate-key lint errors (L098):
+```yaml
+  loop:
+    - name: app1.example.com
+      port: 80
+    - name: app2.example.com
+      port: 8080
+  loop_control:
+    loop_var: item_app
+```
+If you absolutely need multiple fields per item, define them as a `vars:` block or
+split into separate tasks.
+
+EXPLICIT STATE:
+- `ansible.builtin.file` MUST set `state:` explicitly (`directory`, `file`, `absent`)
+
+FILE OPERATIONS:
+- `ansible.builtin.copy` MUST include `backup: true`
+- Do NOT use Jinja2 filter expressions (e.g. `{{ var | hash('md5') }}`) inside
+  `ansible.builtin.copy` `content:` blocks — use plain static placeholder text instead
+
+REGISTERED VARIABLES IN ASSERTIONS:
+- When using `register:` with a loop, loop over `registered_var['results']`
+- In the assertion loop, reference `item_result['stat']`, `item_result['content']`, etc.
+- Always use `loop_control: loop_var: item_result`
+- NEVER use registered variables inside `{{ }}` Jinja expressions (e.g. `fail_msg`)
+  This triggers M005 (untrusted registered variable in Jinja) in Ansible 2.19+
+  CORRECT: `fail_msg: "File not found"`
+  WRONG:   `fail_msg: "{{ config_stat_results }} not found"`
+  The `that:` conditions in `ansible.builtin.assert` are safe — only `{{ }}` is affected
+
+COMMAND / SHELL AVOIDANCE:
+- Prefer Ansible modules over `ansible.builtin.command` or `ansible.builtin.shell`
+- If a command is unavoidable, use static strings — NEVER interpolate variables into `cmd:`
+  CORRECT: `cmd: systemctl daemon-reload`
+  WRONG:   `cmd: "systemctl restart {{ item_svc }}"`
+  Use `ansible.builtin.copy` or `ansible.builtin.template` to create files with variable paths
+
+COMPLEXITY:
+- If verify.yml would exceed ~15 tasks, split into multiple plays (each with its own `hosts: all`)
+  or use `ansible.builtin.include_tasks` to group related checks
+
 ## How to generate converge.yml
 
 Read the role's tasks (tasks/main.yml and any included files) to understand what files,
@@ -37,20 +105,25 @@ Format:
   tasks:
     - name: Create expected directories
       ansible.builtin.file:
-        path: "{{ item }}"
+        path: "{{ item_dir }}"
         state: directory
         mode: "0755"
       loop:
         - /tmp/molecule_test/etc/myapp/conf.d
         - /tmp/molecule_test/var/lib/myapp
+      loop_control:
+        loop_var: item_dir
 
     - name: Create expected config files
       ansible.builtin.copy:
         content: "# config content matching what role would produce"
-        dest: "{{ item }}"
+        dest: "{{ item_config }}"
         mode: "0644"
+        backup: true
       loop:
         - /tmp/molecule_test/etc/myapp/myapp.conf
+      loop_control:
+        loop_var: item_config
 ```
 
 ## How to generate verify.yml
@@ -79,18 +152,25 @@ Use the stat → assert → slurp → assert pattern for file verification:
   hosts: all
   gather_facts: false
   tasks:
-    - name: Check config file exists
+    - name: Check config files exist
       ansible.builtin.stat:
-        path: /tmp/molecule_test/etc/myapp/myapp.conf
-      register: config_file
+        path: "{{ item_config }}"
+      loop:
+        - /tmp/molecule_test/etc/myapp/myapp.conf
+        - /tmp/molecule_test/etc/myapp/site.conf
+      loop_control:
+        loop_var: item_config
+      register: config_stat_results
 
-    - name: Assert config file was created
+    - name: Assert config files were created
       ansible.builtin.assert:
         that:
-          - config_file.stat.exists
-          - config_file.stat.size > 0
-        fail_msg: "Config file not found"
-        success_msg: "Config file exists"
+          - item_result['stat']['exists']
+          - item_result['stat']['size'] > 0
+        fail_msg: "Expected config file not found"
+      loop: "{{ config_stat_results['results'] }}"
+      loop_control:
+        loop_var: item_result
 
     # For service/port checks that can't run in container:
     - name: Check service is running
@@ -114,3 +194,12 @@ Use the stat → assert → slurp → assert pattern for file verification:
 5. Generate verify.yml that translates pre-flight checks into Ansible assertions
 6. Use write_file (NOT ansible_write) for all molecule YAML files — they are playbooks, not task files
 7. Mark each completed file in the checklist using update_checklist_task
+
+BEFORE WRITING ANY YAML, verify EVERY task against this checklist:
+- [ ] Every `loop:` has `loop_control:` with `loop_var: item_<name>` (no bare `item`)
+- [ ] Every loop variable uses bracket notation: `item_x['key']` not `item_x.key`
+- [ ] Every `ansible.builtin.copy` has `backup: true`
+- [ ] Every `ansible.builtin.file` has explicit `state:`
+- [ ] No registered variables inside `{{ }}` Jinja expressions (avoid M005)
+- [ ] No variable interpolation in `command`/`shell` `cmd:` (avoid R101)
+- [ ] verify.yml split into multiple plays if >15 tasks
