@@ -818,18 +818,35 @@ def sync_to_aap(
         if not aap_project_id:
             return AAPSyncResult.from_error("AAP API did not return a project id")
 
-        update = client.start_project_update(project_id=aap_project_id)
-        update_id = int(update["id"]) if "id" in update else None
+        # AAP auto-triggers an SCM sync when a project is created or its
+        # scm_branch/scm_url changes.  Use that auto-triggered update
+        # instead of firing a redundant start_project_update() — the
+        # explicit call queues a second sync behind the first and causes
+        # queue contention + Receptor race conditions.
+        update_id = project.get("current_update")
+        if update_id is not None:
+            update_id = int(update_id)
+            logger.info(
+                "Using auto-triggered project update (id=%s)",
+                update_id,
+            )
+        else:
+            logger.info(
+                "No auto-triggered update detected, explicitly triggering sync",
+            )
+            update = client.start_project_update(project_id=aap_project_id)
+            update_id = int(update["id"]) if "id" in update else None
 
         # Register x2a EE, inventory, and create run-ready job templates
         molecule_templates: list[MoleculeTemplateInfo] = []
         ee_image = settings.aap.ee_image
         if ee_image and project_id:
-            # Wait for project sync to complete — AAP validates playbook
-            # paths against the synced repo, so templates can't be created
-            # until the sync finishes.
             if update_id:
-                _wait_for_project_sync(client, update_id)
+                _wait_for_project_sync(
+                    client,
+                    update_id,
+                    timeout_s=int(settings.aap.sync_timeout_s),
+                )
             try:
                 molecule_templates = _setup_molecule_on_aap(
                     client=client,
@@ -843,13 +860,21 @@ def sync_to_aap(
             except Exception as e:
                 logger.warning(f"Molecule AAP setup failed (non-fatal): {e}")
 
+        update_status = ""
+        if update_id:
+            try:
+                update_data = client.get_project_update(update_id=update_id)
+                update_status = update_data.get("status", "")
+            except Exception:
+                pass
+
         return AAPSyncResult(
             enabled=True,
             project_name=project_name,
             molecule_templates=molecule_templates,
             project_id=aap_project_id,
             project_update_id=update_id,
-            project_update_status=update.get("status", ""),
+            project_update_status=update_status,
         )
     except (requests.exceptions.RequestException, RuntimeError, ValueError) as e:
         return AAPSyncResult.from_error(str(e))
@@ -858,33 +883,65 @@ def sync_to_aap(
 def _wait_for_project_sync(
     client: "AAPClient",
     update_id: int,
-    timeout_s: int = 120,
+    timeout_s: int = 300,
     poll_interval_s: int = 5,
+    max_retries: int = 2,
 ) -> None:
     """Poll AAP until a project update job finishes.
 
     AAP validates playbook paths against the synced repo content, so
     job templates cannot be created until the sync completes.
 
+    Transient AAP Receptor errors (worker crashes, JSON parse failures)
+    are retried by triggering a new project update.
+
     Raises:
-        RuntimeError: If sync fails or times out.
+        RuntimeError: If sync fails after all retries or times out.
     """
     deadline = time.monotonic() + timeout_s
+    retries_left = max_retries
+    current_update_id = update_id
+
     while time.monotonic() < deadline:
-        data = client.get_project_update(update_id=update_id)
+        data = client.get_project_update(update_id=current_update_id)
         status = data.get("status", "")
         if status == "successful":
-            logger.info(f"Project sync completed (update_id={update_id})")
+            logger.info(f"Project sync completed (update_id={current_update_id})")
             return
         if status in ("failed", "error", "canceled"):
-            raise RuntimeError(
-                f"Project sync {status} (update_id={update_id}): "
-                f"{data.get('result_traceback', 'no details')}"
+            if retries_left <= 0:
+                raise RuntimeError(
+                    f"Project sync {status} (update_id={current_update_id}): "
+                    f"{data.get('result_traceback', 'no details')}"
+                )
+            project_id = data.get("project")
+            explanation = data.get("job_explanation", "")
+            logger.warning(
+                "Project sync %s (update_id=%s, retries_left=%d): %s",
+                status,
+                current_update_id,
+                retries_left,
+                explanation[:200],
             )
+            retries_left -= 1
+            if project_id:
+                new_update = client.start_project_update(project_id=project_id)
+                current_update_id = int(new_update["id"])
+                logger.info(
+                    "Retrying project sync (new update_id=%s)",
+                    current_update_id,
+                )
+            else:
+                raise RuntimeError(
+                    f"Project sync {status} and cannot retry "
+                    f"(no project_id in response)"
+                )
+            time.sleep(poll_interval_s)
+            continue
         logger.debug(f"Project sync status: {status}, waiting...")
         time.sleep(poll_interval_s)
     raise RuntimeError(
-        f"Project sync timed out after {timeout_s}s (update_id={update_id})"
+        f"Project sync timed out after {timeout_s}s (update_id={current_update_id})"
     )
 
 
