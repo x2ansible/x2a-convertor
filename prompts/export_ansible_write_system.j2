@@ -72,12 +72,15 @@ CORRECT — task-level vars:
 - name: Deploy configuration
   ansible.builtin.template:
     src: app.conf.j2
-    dest: "/etc/app/{{ item.key }}.conf"
+    dest: "/etc/app/{{ item_app['key'] }}.conf"
     mode: "0644"
+    backup: true
   vars:
-    app_name: "{{ item.key }}"
-    app_port: "{{ item.value.port }}"
-  loop: "{{ apps | dict2items }}"{% endraw %}
+    app_name: "{{ item_app['key'] }}"
+    app_port: "{{ item_app['value']['port'] }}"
+  loop: "{{ apps | dict2items }}"
+  loop_control:
+    loop_var: item_app{% endraw %}
 ```
 
 WRONG — `variables` is not a valid module parameter:
@@ -85,9 +88,9 @@ WRONG — `variables` is not a valid module parameter:
 - name: Deploy configuration
   ansible.builtin.template:
     src: app.conf.j2
-    dest: "/etc/app/{{ item.key }}.conf"
+    dest: "/etc/app/{{ item_app['key'] }}.conf"
     variables:
-      app_name: "{{ item.key }}"{% endraw %}
+      app_name: "{{ item_app['key'] }}"{% endraw %}
 ```
 
 Chef's `template` resource uses `variables(...)` — in Ansible, the equivalent is `vars:` at the task level.
@@ -98,6 +101,90 @@ Migrated roles should be portable across OS families unless the source explicitl
 - When service users, paths, or package names differ across OS families, use variables with
   `ansible_os_family` conditionals in defaults/main.yml rather than hardcoding values
 - Put OS-dependent values in defaults/main.yml as variables, not hardcoded in templates or tasks
+
+ANSIBLE QUALITY RULES — MANDATORY (apply to ALL generated YAML):
+
+LOOP RULES (violations are blockers):
+1. Every `loop:` MUST include `loop_control:` with `loop_var: item_<descriptive_name>`
+2. NEVER use bare `item` — ALWAYS use a prefixed loop variable
+3. ALWAYS use bracket notation on loop variable keys: `item_app['key']`, `item_app['value']`
+4. NEVER use dot notation on loop variables: `item.key`, `item.value`, `item_app.key` are ALL WRONG
+
+CORRECT:{% raw %}
+```yaml
+- name: Create directories
+  ansible.builtin.file:
+    path: "{{ item_app['value']['data_dir'] }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ my_apps | dict2items }}"
+  loop_control:
+    loop_var: item_app
+```{% endraw %}
+
+WRONG (missing loop_control, dot notation):{% raw %}
+```yaml
+- name: Create directories
+  ansible.builtin.file:
+    path: "{{ item.value.data_dir }}"
+    state: directory
+  loop: "{{ my_apps | dict2items }}"
+```{% endraw %}
+
+PACKAGE INSTALLATION:
+- Install multiple packages as a list — NEVER loop over individual package names
+- CORRECT:
+  ```yaml
+  - name: Install required packages
+    ansible.builtin.package:
+      name:
+        - pkg_a
+        - pkg_b
+        - pkg_c
+      state: present
+  ```
+- WRONG (loops over individual packages):
+  ```yaml
+  - name: Install packages
+    ansible.builtin.package:
+      name: "{{ item_pkg }}"
+      state: present
+    loop:
+      - pkg_a
+      - pkg_b
+    loop_control:
+      loop_var: item_pkg
+  ```
+
+EXPLICIT STATE:
+- `ansible.builtin.file` MUST set `state:` explicitly (`directory`, `file`, `link`, `absent`)
+- `ansible.builtin.package` MUST set `state:` explicitly (`present`, `absent`, `latest`)
+- `ansible.builtin.service` MUST set `state:` explicitly (`started`, `stopped`, `restarted`)
+
+FILE OPERATIONS:
+- ALL `ansible.builtin.template` tasks MUST include `backup: true`
+- ALL `ansible.builtin.copy` tasks MUST include `backup: true`
+- Use role-relative paths in `src:` — never `../templates/` or `../files/` prefixes
+  - For templates: `src: site.conf.j2` (Ansible looks in `templates/` automatically)
+  - For copy: `src: data/index.html` (Ansible looks in `files/` automatically)
+
+LINE LENGTH AND FORMATTING:
+- Keep ALL YAML lines under 160 characters
+- For long shell commands, use YAML block scalar (`|`) and break across lines
+- For any long or complex CLI command, first check whether an Ansible module exists
+  by using the `ansible_doc_lookup` tool — prefer native modules over shell invocations
+- When a shell command is truly unavoidable, use backslash continuation inside `|` blocks
+
+COMMAND / SHELL SAFETY:
+- Prefer Ansible modules over `ansible.builtin.command` or `ansible.builtin.shell`
+- When `command`/`shell` is unavoidable, minimize variable interpolation in `cmd:`
+- For multi-argument commands, use `argv:` list form instead of string `cmd:` when possible
+- Keep command lines under 160 characters — use YAML block scalar (`|`) for long commands
+
+BEST PRACTICES:
+- Prefer `ansible.builtin.template` or `ansible.builtin.blockinfile` over `ansible.builtin.lineinfile`
+- Populate `galaxy_tags` in meta/main.yml with relevant tags
+- Prefer certified/validated collections over community modules (e.g. `ansible.posix.firewalld` over `community.general.ufw`)
 
 RECIPES (.rb → .yml tasks):
 - Convert Chef resources to Ansible modules using FQCN (Fully Qualified Collection Names)
@@ -213,7 +300,7 @@ YAML QUOTING RULES FOR ANSIBLE:
 
 2. **When clauses with special characters:**
    CORRECT: when: "variable is not search('value: with: colons')"
-   CORRECT: when: "item.value == 'string'"
+   CORRECT: when: "my_var == 'string'"
    WRONG: when: variable is not search('value: with: colons')  # Colon causes "mapping values not allowed"
 
 3. **Values containing colons - MUST quote:**
@@ -339,8 +426,13 @@ galaxy_info:
       versions:
         - "8"
         - "9"
-  galaxy_tags: []
+  galaxy_tags:
+    - <tag1>
+    - <tag2>
 ```
+IMPORTANT: `galaxy_tags` MUST be populated with relevant tags derived from the role's purpose
+(e.g. for a web server role: `webserver`, `http`, `ssl`). Never leave it as an empty list.
+
 IMPORTANT: Always include `namespace: x2a` — Molecule's galaxy prerun check requires a valid namespace.
 
 IMPORTANT: Use Ubuntu release names (bionic, focal) NOT version numbers ("18.04", "20.04")
@@ -458,5 +550,14 @@ CRITICAL: Use EXACT paths from checklist when calling update_checklist_task.
 Example: If checklist shows "cookbooks/app/recipes/default.rb → ansible/roles/app/tasks/default.yml"
 - source_path = "cookbooks/app/recipes/default.rb"
 - target_path = "ansible/roles/app/tasks/default.yml"
+
+BEFORE WRITING ANY YAML, verify EVERY task against this checklist:
+- [ ] Every `loop:` has `loop_control:` with `loop_var: item_<name>` (no bare `item`)
+- [ ] Every loop variable uses bracket notation: `item_x['key']` not `item_x.key` or `item.key`
+- [ ] Every `ansible.builtin.template` has `backup: true`
+- [ ] Every `ansible.builtin.copy` has `backup: true`
+- [ ] Every `ansible.builtin.file` has explicit `state:`
+- [ ] Package installs use a name list, not a loop
+- [ ] `meta/main.yml` includes `galaxy_tags:` with relevant tags
 
 Work systematically through the entire checklist.
