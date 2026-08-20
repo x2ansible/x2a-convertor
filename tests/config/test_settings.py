@@ -1,5 +1,7 @@
 """Tests for centralized configuration settings."""
 
+import pytest
+
 from src.config import (
     AAPSettings,
     LLMSettings,
@@ -7,6 +9,7 @@ from src.config import (
     MoleculeSettings,
     ProcessingSettings,
     Settings,
+    SummaryContextSize,
     get_settings,
     reset_settings,
 )
@@ -23,6 +26,10 @@ class TestLLMSettings:
         assert settings.reasoning_effort is None
         assert settings.rate_limit_requests is None
 
+    def test_default_summary_context_size(self):
+        settings = LLMSettings()
+        assert settings.summary_context_size == SummaryContextSize.COMPACT
+
     def test_env_override(self, monkeypatch):
         monkeypatch.setenv("LLM_MODEL", "gpt-4")
         monkeypatch.setenv("MAX_TOKENS", "16384")
@@ -32,6 +39,42 @@ class TestLLMSettings:
         assert settings.model == "gpt-4"
         assert settings.max_tokens == 16384
         assert settings.temperature == 0.7
+
+    @pytest.mark.parametrize(
+        "env_value,expected",
+        [
+            ("compact", SummaryContextSize.COMPACT),
+            ("medium", SummaryContextSize.MEDIUM),
+            ("large", SummaryContextSize.LARGE),
+            ("full", SummaryContextSize.FULL),
+            ("COMPACT", SummaryContextSize.COMPACT),
+            ("LARGE", SummaryContextSize.LARGE),
+        ],
+    )
+    def test_summary_context_size_env_override(self, monkeypatch, env_value, expected):
+        monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", env_value)
+        settings = LLMSettings()
+        assert settings.summary_context_size == expected
+
+
+class TestSummaryContextSize:
+    """Tests for SummaryContextSize enum."""
+
+    def test_multiplier_values(self):
+        assert SummaryContextSize.COMPACT.multiplier == 1.0
+        assert SummaryContextSize.MEDIUM.multiplier == 1.5
+        assert SummaryContextSize.LARGE.multiplier == 2.0
+        assert SummaryContextSize.FULL.multiplier == 3.0
+
+    def test_string_values(self):
+        assert SummaryContextSize.COMPACT.value == "compact"
+        assert SummaryContextSize.MEDIUM.value == "medium"
+        assert SummaryContextSize.LARGE.value == "large"
+        assert SummaryContextSize.FULL.value == "full"
+
+    def test_invalid_value_raises(self):
+        with pytest.raises(ValueError):
+            SummaryContextSize("tiny")
 
 
 class TestAAPSettings:

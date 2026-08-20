@@ -29,7 +29,12 @@ from src.middleware.agent_dump import (
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.middleware.x2a_summarize import X2ASummarizationMiddleware
-from src.model import get_model, get_runnable_config, report_tool_calls
+from src.model import (
+    get_context_window,
+    get_model,
+    get_runnable_config,
+    report_tool_calls,
+)
 from src.types.base_state import BaseState
 from src.types.telemetry import AgentMetrics, telemetry_context
 from src.utils.logging import get_logger
@@ -140,10 +145,11 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             stack.append(GoalValidationMiddleware(self.GOAL, agent=self))
         if self.RULES_FILE:
             stack.append(RulesMiddleware(self.RULES_FILE))
+        effective_max_tokens = self._effective_summary_threshold()
         stack.append(
             X2ASummarizationMiddleware(
                 model=self.model,
-                max_tokens=self.MAX_TOKENS_BEFORE_SUMMARY,
+                max_tokens=effective_max_tokens,
                 messages_to_keep=self.MESSAGES_TO_KEEP,
             ),
         )
@@ -154,6 +160,35 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         # Cache for reuse
         self._middleware_cache = stack
         return stack
+
+    def _effective_summary_threshold(self) -> int:
+        """Compute the effective max_tokens for summarization.
+
+        Applies the summary_context_size multiplier to the agent's
+        MAX_TOKENS_BEFORE_SUMMARY and caps it at the model's context window.
+        """
+        settings = get_settings()
+        multiplier = settings.llm.summary_context_size.multiplier
+        scaled = int(self.MAX_TOKENS_BEFORE_SUMMARY * multiplier)
+
+        context_window = get_context_window()
+        if scaled > context_window:
+            self._log.warning(
+                "Summary threshold exceeds context window, capping",
+                requested=scaled,
+                context_window=context_window,
+                agent=self.agent_name,
+            )
+            return context_window
+
+        if multiplier != 1.0:
+            self._log.info(
+                "Summary threshold scaled",
+                base=self.MAX_TOKENS_BEFORE_SUMMARY,
+                multiplier=multiplier,
+                effective=scaled,
+            )
+        return scaled
 
     def __call__(self, state: S) -> S:
         """Entry point. Wraps execute() with automatic telemetry + logging."""

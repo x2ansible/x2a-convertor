@@ -15,6 +15,8 @@ from src.config import get_settings
 from src.config.settings import LLMSettings
 from src.utils.logging import get_logger
 
+DEFAULT_CONTEXT_WINDOW = 128_000
+
 logger = get_logger(__name__)
 
 
@@ -190,3 +192,24 @@ def get_model() -> BaseChatModel:
     logger.info("LLM initialized", **log_kwargs)
 
     return chat_model
+
+
+def get_context_window() -> int:
+    """Return the model's max input token capacity.
+
+    Uses litellm.get_model_info() to auto-detect the context window.
+    Falls back to DEFAULT_CONTEXT_WINDOW (128k) for unknown models.
+    """
+    model = get_settings().llm.model
+    try:
+        info = litellm.get_model_info(model)
+        value = info.get("max_input_tokens")
+        if value and isinstance(value, int):
+            return value
+    except Exception:
+        logger.warning(
+            "Could not detect context window from litellm, using default",
+            model=model,
+            default=DEFAULT_CONTEXT_WINDOW,
+        )
+    return DEFAULT_CONTEXT_WINDOW

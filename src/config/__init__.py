@@ -25,6 +25,7 @@ from src.config.settings import (
     MoleculeSettings,
     ProcessingSettings,
     Settings,
+    SummaryContextSize,
     get_settings,
     reset_settings,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "MoleculeSettings",
     "ProcessingSettings",
     "Settings",
+    "SummaryContextSize",
     "get_settings",
     "reset_settings",
 ]
