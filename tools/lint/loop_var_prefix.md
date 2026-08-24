@@ -29,12 +29,12 @@ Use unique loop variable names with proper prefixes to avoid conflicts in nested
 ```yaml
 - name: Task with proper loop_var prefix
   ansible.builtin.debug:
-    var: myrole_item
+    var: item_myrole
   loop:
     - foo
     - bar
   loop_control:
-    loop_var: myrole_item  # Unique name with role prefix
+    loop_var: item_myrole  # Unique name with item_ prefix
 ```
 
-Tip: Configure the prefix pattern in `.ansible-lint` with `loop_var_prefix: "^(__|{role}_)"` and enable with `enable_list: [loop-var-prefix]`.
+Tip: Configure the prefix pattern in `.ansible-lint` with `loop_var_prefix: "^(__|item_)"` and enable with `enable_list: [loop-var-prefix]`.
