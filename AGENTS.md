@@ -199,6 +199,15 @@ When writing or modifying prompts:
    {% include 'write_from_puppet.md' %}
    {% endif %}
    ```
+7. **Wrap literal Ansible/Jinja syntax in `{% raw %}...{% endraw %}`** whenever a `.j2` prompt embeds example YAML containing `{{ ... }}` expressions (e.g. `{{ item }}`, `loop_var` examples). Since prompts are themselves rendered as Jinja2 templates, unescaped `{{ }}` in embedded examples will be interpreted as template variables instead of shown literally:
+   ```jinja2
+   ```yaml {% raw %}
+   - name: Install packages
+     ansible.builtin.package:
+       name: "{{ item_pkg }}"
+   {% endraw %}
+   ```
+   ```
 
 ## Structured Output
 
