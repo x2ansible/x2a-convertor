@@ -48,7 +48,7 @@ PACKAGE INSTALLATION:
       state: present
   ```
 - WRONG (loops over individual packages):
-  ```yaml
+  ```yaml {% raw %}
   - name: Install packages
     ansible.builtin.package:
       name: "{{ item_pkg }}"
@@ -57,7 +57,7 @@ PACKAGE INSTALLATION:
       - pkg_a
       - pkg_b
     loop_control:
-      loop_var: item_pkg
+      loop_var: item_pkg{% endraw %}
   ```
 
 EXPLICIT STATE:
