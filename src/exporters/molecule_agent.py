@@ -196,7 +196,7 @@ verifier:
 
         ansible_path = export_state.get_ansible_path()
 
-        system_message = str(get_prompt(self.SYSTEM_PROMPT_NAME))
+        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = str(
             get_prompt(self.USER_PROMPT_NAME).format(
                 module=export_state.module,

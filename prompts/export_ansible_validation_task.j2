@@ -94,7 +94,7 @@ ansible/roles/other_role/handlers/main.yml:12 [yaml] Wrong indentation...
 3. **Study what it does:**
    - What commands does it run? (command, shell, package, service, etc.)
    - What loops exist? (loop, with_items)
-   - What variables are used? (item, ansible_facts, custom vars)
+   - What variables are used? (loop variables, ansible_facts, custom vars)
    - What handlers are notified?
 
 4. **Fix ONLY the specific error** reported by ansible-lint:
@@ -124,7 +124,7 @@ ansible/roles/other_role/handlers/main.yml:12 [yaml] Wrong indentation...
 
 **DO NOT REMOVE:**
 - Loops (`loop:`, `with_items:`) - these are intentional
-- Variables that iterate (`item`, `{% raw %}{{ item }}{% endraw %}`)
+- Loop variables (e.g. `{% raw %}{{ item_myrole }}{% endraw %}`)
 - Handler notifications (`notify:`)
 - Existing logic or functionality
 
@@ -363,6 +363,8 @@ tasks/ssl.yml:25 [no-changed-when] Commands should not change things if nothing 
     - test.cluster.local
     - ci.cluster.local
     - status.cluster.local
+  loop_control:
+    loop_var: item_ssl
 ```
 
 **Step 2 - Identify what's working:**
@@ -373,13 +375,15 @@ tasks/ssl.yml:25 [no-changed-when] Commands should not change things if nothing 
 ```yaml
 ---
 - name: Generate SSL certificates
-  ansible.builtin.command: openssl req -x509 -newkey rsa:4096 -nodes -keyout /etc/ssl/private/{% raw %}{{ item }}{% endraw %}.key -out /etc/ssl/certs/{% raw %}{{ item }}{% endraw %}.crt -days 365 -subj "/C=US/ST=State/L=Locality/O=Organization/CN={% raw %}{{ item }}{% endraw %}"
+  ansible.builtin.command: openssl req -x509 -newkey rsa:4096 -nodes -keyout /etc/ssl/private/{% raw %}{{ item_ssl }}{% endraw %}.key -out /etc/ssl/certs/{% raw %}{{ item_ssl }}{% endraw %}.crt -days 365 -subj "/C=US/ST=State/L=Locality/O=Organization/CN={% raw %}{{ item_ssl }}{% endraw %}"
   loop:
     - test.cluster.local
     - ci.cluster.local
     - status.cluster.local
+  loop_control:
+    loop_var: item_ssl
   changed_when: true
-  creates: /etc/ssl/certs/{% raw %}{{ item }}{% endraw %}.crt
+  creates: /etc/ssl/certs/{% raw %}{{ item_ssl }}{% endraw %}.crt
 ```
 
 **Changes made:**
@@ -387,7 +391,7 @@ tasks/ssl.yml:25 [no-changed-when] Commands should not change things if nothing 
 - ✓ Added `changed_when: true`
 - ✓ Added `creates` for idempotency
 - ✓ KEPT the loop (3 certificates, not 1!)
-- ✓ KEPT the variable `{% raw %}{{ item }}{% endraw %}`
+- ✓ KEPT the loop variable `{% raw %}{{ item_ssl }}{% endraw %}`
 
 **Step 4 - Write and update:**
 ```
@@ -520,7 +524,7 @@ For each file you fix, respond with:
 ```
 Fixing: tasks/ssl.yml
 Errors: [fqcn], [no-changed-when]
-Preserved: loop over 3 sites, item variable
+Preserved: loop over 3 sites, loop variable
 Changes: Added ansible.builtin.command, added changed_when
 Status: ✓ Written
 ```

@@ -1,0 +1,91 @@
+ANSIBLE QUALITY RULES — MANDATORY (apply to ALL generated YAML):
+
+LOOP RULES (violations are blockers):
+1. Every `loop:` MUST include `loop_control:` with `loop_var: item_{role_name}` (e.g. `item_myapp`).
+2. NEVER use bare `item` — ALWAYS use a prefixed loop variable with `item_` prefix.
+3. ALWAYS use bracket notation on loop variable keys: `item_myapp['key']`, `item_myapp['value']`
+4. NEVER use dot notation on loop variables: `item.key`, `item.value`, `item_myapp.key` are ALL WRONG
+
+CORRECT:{% raw %}
+```yaml
+- name: Create directories
+  ansible.builtin.file:
+    path: "{{ item_myapp['value']['data_dir'] }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ my_apps | dict2items }}"
+  loop_control:
+    loop_var: item_myapp
+```{% endraw %}
+
+WRONG (missing loop_control, dot notation):{% raw %}
+```yaml
+- name: Create directories
+  ansible.builtin.file:
+    path: "{{ item.value.data_dir }}"
+    state: directory
+  loop: "{{ my_apps | dict2items }}"
+```{% endraw %}
+
+WRONG (duplicate keys in the same dict cause YAML L098 lint errors):{% raw %}
+```yaml
+  loop:
+    - name: app1.example.com
+      name: duplicate.example.com  # L098: duplicate key
+```{% endraw %}
+NOTE: List of dicts is perfectly fine when items need multiple fields. Only duplicate keys within the same dict are forbidden.
+
+PACKAGE INSTALLATION:
+- Install multiple packages as a list — NEVER loop over individual package names
+- CORRECT:
+  ```yaml
+  - name: Install required packages
+    ansible.builtin.package:
+      name:
+        - pkg_a
+        - pkg_b
+        - pkg_c
+      state: present
+  ```
+- WRONG (loops over individual packages):
+  ```yaml
+  - name: Install packages
+    ansible.builtin.package:
+      name: "{{ item_pkg }}"
+      state: present
+    loop:
+      - pkg_a
+      - pkg_b
+    loop_control:
+      loop_var: item_pkg
+  ```
+
+EXPLICIT STATE:
+- `ansible.builtin.file` MUST set `state:` explicitly (`directory`, `file`, `link`, `absent`)
+- `ansible.builtin.package` MUST set `state:` explicitly (`present`, `absent`)
+- `ansible.builtin.service` MUST set `state:` explicitly (`started`, `stopped`, `restarted`)
+
+FILE OPERATIONS:
+- ALL `ansible.builtin.template` tasks MUST include `backup: true`
+- ALL `ansible.builtin.copy` tasks MUST include `backup: true`
+- Use role-relative paths in `src:` — never `../templates/` or `../files/` prefixes
+  - For templates: `src: site.conf.j2` (Ansible looks in `templates/` automatically)
+  - For copy: `src: data/index.html` (Ansible looks in `files/` automatically)
+
+LINE LENGTH AND FORMATTING:
+- Keep ALL YAML lines under 160 characters
+- For long shell commands, use YAML block scalar (`|`) and break across lines
+- For any long or complex CLI command, first check whether an Ansible module exists
+  by using the `ansible_doc_lookup` tool — prefer native modules over shell invocations
+- When a shell command is truly unavoidable, use backslash continuation inside `|` blocks
+
+COMMAND / SHELL SAFETY:
+- Prefer Ansible modules over `ansible.builtin.command` or `ansible.builtin.shell`
+- When `command`/`shell` is unavoidable, minimize variable interpolation. NEVER interpolate variables into string fields like `cmd:` or `msg:` if there is untrusted data.
+- For multi-argument commands with variables, use `argv:` list form instead of string `cmd:` when possible.
+- Keep command lines under 160 characters — use YAML block scalar (`|`) for long commands
+
+BEST PRACTICES:
+- Prefer `ansible.builtin.template` or `ansible.builtin.blockinfile` over `ansible.builtin.lineinfile`
+- Populate `galaxy_tags` in meta/main.yml with relevant tags
+- Prefer certified/validated collections over community modules where possible
