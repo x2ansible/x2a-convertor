@@ -19,11 +19,14 @@ class FakeAgent:
         self._structured_result = structured_result
         self._explore_content = explore_content
 
-    def invoke_react(self, state, messages, metrics=None):
+    def invoke_react(self, state, messages, metrics=None, tools=None):
         return {"messages": [AIMessage(content=self._explore_content)]}
 
     def invoke_structured(self, schema, messages, metrics=None, max_retries=3):
         return self._structured_result
+
+    def get_goal_tools(self, state):
+        return None
 
     @staticmethod
     def get_last_ai_message(result):
