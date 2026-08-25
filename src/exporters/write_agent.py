@@ -85,6 +85,10 @@ class WriteAgent(ExportAgent[ExportState]):
     - Molecule category items were skipped (separate agent handles them)
     - Pre-generated files (validate_credentials.yml, aap-configuration/*) were not overwritten
     - Files with persistent ansible_write WARNINGs were marked complete after 3 fix attempts
+
+    The conversation context already shows every write/checklist update that happened,
+    so this should almost always be verifiable without any tool calls. Only spot-check
+    a file with file_search/list_directory if the context leaves genuine doubt about it.
     """
 
     def __init__(self, model=None, max_attempts=None):
