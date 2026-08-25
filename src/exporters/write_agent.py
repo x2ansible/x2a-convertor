@@ -61,6 +61,11 @@ class WriteAgent(ExportAgent[ExportState]):
         lambda: AnsibleDocLookupTool(),
     ]
 
+    GOAL_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
+        lambda: FileSearchTool(),
+        lambda: ListDirectoryTool(),
+    ]
+
     SYSTEM_PROMPT_NAME = "export_ansible_write_system"
     USER_PROMPT_NAME = "export_ansible_write_task"
 

@@ -1,11 +1,12 @@
 """Tests for BaseAgent functionality."""
 
-from typing import cast
+from typing import ClassVar, cast
 from unittest.mock import patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.messages.ai import UsageMetadata
+from langchain_core.tools import BaseTool
 
 from src.base_agent import BaseAgent
 from src.config import reset_settings
@@ -925,6 +926,92 @@ class TestBaseAgentInvokeReact:
         invoked_messages = invoke_call[0][0]["messages"]
 
         assert invoked_messages[0].content == "Specific content to preserve"
+
+
+class FooTool(BaseTool):
+    """Simple tool used to identify which tool set was built."""
+
+    name: str = "foo_tool"
+    description: str = "foo tool"
+
+    def _run(self, *args, **kwargs):
+        return "foo"
+
+
+class BarTool(BaseTool):
+    """A second, distinct tool used for GOAL_TOOLS assertions."""
+
+    name: str = "bar_tool"
+    description: str = "bar tool"
+
+    def _run(self, *args, **kwargs):
+        return "bar"
+
+
+class BaseToolsOnlyAgent(BaseAgent[BaseState]):
+    """Agent that only defines BASE_TOOLS, leaving GOAL_TOOLS at its default (empty)."""
+
+    BASE_TOOLS: ClassVar[list] = [lambda: FooTool()]
+
+    def execute(self, state: BaseState, metrics):
+        """Minimal execute implementation."""
+        return state
+
+
+class GoalToolsAgent(BaseAgent[BaseState]):
+    """Agent that defines a distinct, smaller GOAL_TOOLS set than BASE_TOOLS."""
+
+    BASE_TOOLS: ClassVar[list] = [lambda: FooTool()]
+    GOAL_TOOLS: ClassVar[list] = [lambda: BarTool()]
+
+    def execute(self, state: BaseState, metrics):
+        """Minimal execute implementation."""
+        return state
+
+
+class TestBaseAgentGoalTools:
+    """Tests for BaseAgent.get_goal_tools when GOAL_TOOLS is/isn't defined."""
+
+    def test_get_goal_tools_returns_none_when_undefined(self):
+        """When GOAL_TOOLS is not overridden (default empty list), get_goal_tools returns None."""
+        agent = BaseToolsOnlyAgent()
+        state = BaseState(user_message="test", path="/test")
+
+        assert agent.GOAL_TOOLS == []
+        assert agent.get_goal_tools(state) is None
+
+    def test_invoke_react_falls_back_to_base_tools_when_goal_tools_undefined(
+        self, monkeypatch
+    ):
+        """invoke_react should use BASE_TOOLS when no explicit tools/GOAL_TOOLS are provided."""
+        from unittest.mock import Mock
+
+        mock_create = Mock()
+        mock_agent_instance = Mock()
+        mock_agent_instance.invoke.return_value = {"messages": []}
+        mock_create.return_value = mock_agent_instance
+        monkeypatch.setattr("src.base_agent.create_agent", mock_create)
+
+        agent = BaseToolsOnlyAgent()
+        state = BaseState(user_message="test", path="/test")
+
+        agent.invoke_react(state, [{"role": "user", "content": "hi"}])
+
+        used_tools = mock_create.call_args.kwargs["tools"]
+        assert len(used_tools) == 1
+        assert isinstance(used_tools[0], FooTool)
+
+    def test_get_goal_tools_returns_goal_tools_when_defined(self):
+        """When GOAL_TOOLS is defined, get_goal_tools builds instances from it, not BASE_TOOLS."""
+        agent = GoalToolsAgent()
+        state = BaseState(user_message="test", path="/test")
+
+        goal_tools = agent.get_goal_tools(state)
+
+        assert goal_tools is not None
+        assert len(goal_tools) == 1
+        assert isinstance(goal_tools[0], BarTool)
+        assert not any(isinstance(tool, FooTool) for tool in goal_tools)
 
 
 class TestBaseAgentMiddleware:

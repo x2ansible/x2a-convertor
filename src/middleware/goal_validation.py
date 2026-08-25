@@ -90,11 +90,14 @@ class GoalValidationMiddleware(AgentMiddleware):
             context=context_text,
         )
 
+        tools = self.agent.get_goal_tools(state)
+
         try:
             self._in_validation = True
             explore_result = self.agent.invoke_react(
                 state=state,
                 messages=[{"role": "user", "content": explore_prompt}],
+                tools=tools,
             )
 
             last_ai = self.agent.get_last_ai_message(explore_result)

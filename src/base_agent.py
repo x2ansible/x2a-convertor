@@ -52,6 +52,7 @@ class BaseAgent[S: BaseState](ABC):
     """
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = []
+    GOAL_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = []
     _NAME: ClassVar[str | None] = None
     RULES_FILE: ClassVar[str | None] = None
     GOAL: ClassVar[str | None] = None
@@ -205,14 +206,30 @@ Retry your response now, ensuring it matches the schema structure exactly."""
 
     # --- Invocation Helpers ---
 
-    def _get_tools(self, state: S) -> list[BaseTool]:
-        """Build tools from BASE_TOOLS and state, binding agent name on X2ATool instances."""
-        tools = [factory() for factory in self.BASE_TOOLS]
+    def _build_tools(
+        self, factories: list[Callable[[], BaseTool]], state: S
+    ) -> list[BaseTool]:
+        """Build tools from the given factories and state, binding agent name on X2ATool instances."""
+        tools = [factory() for factory in factories]
         tools.extend(self.extra_tools_from_state(state))
         return [
             tool.with_agent(self.agent_name) if isinstance(tool, X2ATool) else tool
             for tool in tools
         ]
+
+    def _get_tools(self, state: S) -> list[BaseTool]:
+        """Build tools from BASE_TOOLS and state, binding agent name on X2ATool instances."""
+        return self._build_tools(self.BASE_TOOLS, state)
+
+    def get_goal_tools(self, state: S) -> list[BaseTool] | None:
+        """Build tools from GOAL_TOOLS for goal validation.
+
+        Returns None when GOAL_TOOLS is empty so callers fall back to
+        the full BASE_TOOLS set via invoke_react's default behaviour.
+        """
+        if not self.GOAL_TOOLS:
+            return None
+        return self._build_tools(self.GOAL_TOOLS, state)
 
     def _get_snapshot_writer(self) -> SnapshotWriter:
         if self._snapshot_writer is None:
@@ -258,12 +275,16 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         state: S,
         messages: list[dict[str, str]],
         metrics: AgentMetrics | None = None,
+        tools: list[BaseTool] | None = None,
     ) -> dict:
         """Build tools, create ReAct agent, invoke, and report tool calls.
 
+        If ``tools`` is not provided, tools are built from BASE_TOOLS and state.
+
         Returns the raw result dict from the agent.
         """
-        tools = self._get_tools(state)
+        if tools is None:
+            tools = self._get_tools(state)
         tagged_messages = self._tag_original_messages(messages)
 
         agent = create_agent(
