@@ -37,12 +37,20 @@ class InitializeSubAgent(BaseAgent[InitState]):
         lambda: WriteFileTool(),
     ]
 
+    # Validation only ever needs to double check the filesystem, never write
+    # to it, so it gets a small, read-only subset of BASE_TOOLS.
+    GOAL_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
+        lambda: FileSearchTool(),
+        lambda: ListDirectoryTool(),
+    ]
+
     GOAL = (
         f"Verify that the file '{MIGRATION_PLAN_FILE}' exists and contains valid migration plan content. "
         f"CRITICAL: Every module that has a manifests/init.pp (Puppet), recipes/default.rb (Chef), "
         f"or .psd1 manifest (PowerShell) must appear as a separate entry in the MODULE INVENTORY. "
-        f"Use file_search to confirm no modules were missed. "
-        f"All module paths must point to directories that actually exist in the repository."
+        f"All module paths must point to directories that actually exist in the repository. "
+        f"Trust the conversation context first; only fall back to file_search or list_directory "
+        f"if it does not already confirm this."
     )
 
     SYSTEM_PROMPT_NAME = "init_migration_instructions"

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
 
-EXPLORE_PROMPT_TEMPLATE = """You are a read-only verification agent. Use the available tools to check whether the following goal was achieved. Do NOT create, write, or modify any files.
+EXPLORE_PROMPT_TEMPLATE = """You are a read-only verification agent checking whether the following goal was achieved. Do NOT create, write, or modify any files.
 
 <goal>
 {goal}
@@ -21,7 +21,12 @@ CONVERSATION CONTEXT:
 {context}
 </messages>
 
-Use the tools to inspect the relevant files and report exactly what you found.
+INSTRUCTIONS:
+- The conversation context above already describes the work that was done. In most cases it contains everything you need to judge whether the goal was achieved.
+- Prefer answering directly from the conversation context WITHOUT calling any tool. Zero tool calls is the expected outcome.
+- Only call a tool if the context is genuinely inconclusive on a specific fact you cannot verify any other way. If so, make the single most targeted call that resolves it -- never perform broad or repeated exploration.
+- Do NOT re-check things the context already confirms, and do NOT re-read files just to double-check content that was already reported.
+- Report your findings directly, citing the conversation context whenever possible.
 """
 
 CLASSIFY_PROMPT_TEMPLATE = """Based on the following verification findings, determine whether the goal was achieved.
@@ -102,7 +107,6 @@ class GoalValidationMiddleware(AgentMiddleware):
 
             last_ai = self.agent.get_last_ai_message(explore_result)
             findings = last_ai.text if last_ai else "No findings available"
-
             classify_prompt = CLASSIFY_PROMPT_TEMPLATE.format(
                 goal=self.goal_description,
                 findings=findings,
