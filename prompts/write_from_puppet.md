@@ -65,7 +65,9 @@ Convert Puppet resources to Ansible modules:
 - `cron` → `ansible.builtin.cron`
 - `each` loops → `loop:` with `dict2items` for hashes
 - `if`/`unless`/`case` → `when:` conditions
-- Firewall: prefer `community.general.ufw` module over raw `ansible.builtin.command: ufw`
+- Firewall: use the matching `ansible.*` module when one exists (e.g. `firewall-cmd` → ansible.posix.firewalld); when none
+  exists, use ansible.builtin.command with a `changed_when` idempotency guard — never a non-`ansible.*` collection unless
+  it was explicitly discovered in AAP Private Hub (see PREFER ansible.* MODULES OVER command/shell in the system prompt)
 
 ### PUPPET FACTS → ANSIBLE FACTS:
 - `$facts['os']['family']` → `ansible_os_family`
