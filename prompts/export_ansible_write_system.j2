@@ -139,6 +139,61 @@ Examples:
     ansible.builtin.command:
       cmd: createdb mydb || true
 
+PREFER ansible.* MODULES OVER command/shell (ALWAYS):
+Any collection in the `ansible.*` namespace (ansible.builtin, ansible.posix, etc.) is allowed for standard system
+administration tasks — these ship together and do NOT require AAP Private Hub discovery. Collections outside the
+`ansible.*` namespace (community.general, community.nginx, etc.) are NOT ALLOWED, period — regardless of how well a module
+in one of those collections might fit the task — unless that exact collection is EXPLICITLY listed in the AAP Private Hub
+section of the task prompt. Before writing an ansible.builtin.command or ansible.builtin.shell task, you MUST check whether the
+operation is really just state management that an `ansible.*` module already covers natively. If a dedicated module
+exists, ALWAYS translate to that module instead of shelling out — this applies no matter which source technology (Chef
+`execute`/`bash`, Puppet `exec`, PowerShell `Invoke-Expression`/cmdlets, Salt `cmd.run`) produced the raw command. If you
+are unsure whether a dedicated `ansible.*` module exists, or unsure of its exact parameters, use ansible_doc_lookup to
+check before falling back to command/shell.
+
+MANDATORY translation table (never wrap these in command/shell):
+- `useradd` / `usermod` / `userdel` -> ansible.builtin.user
+- `groupadd` / `groupmod` / `groupdel` -> ansible.builtin.group
+- `crontab -e` / cron line edits -> ansible.builtin.cron
+- `systemctl enable|disable|start|stop|restart|daemon-reload` / `service ... start|stop` -> ansible.builtin.systemd or ansible.builtin.service
+- `iptables -A/-D/-I ...` (raw iptables rule manipulation) -> ansible.builtin.iptables
+- `apt-get install/remove`, `yum install`, `dnf install`, `rpm -i` -> ansible.builtin.package (or ansible.builtin.apt/dnf/yum only when a builtin-specific option is required)
+- `apt-add-repository` -> ansible.builtin.apt_repository; adding a `.repo` file for yum/dnf -> ansible.builtin.yum_repository
+- `apt-key add` / `rpm --import` -> ansible.builtin.apt_key / ansible.builtin.rpm_key
+- `pip install` -> ansible.builtin.pip
+- `git clone`/`git pull` -> ansible.builtin.git
+- `curl -O` / `wget` to download a file -> ansible.builtin.get_url
+- `tar -x` / `unzip` -> ansible.builtin.unarchive
+- `mkdir`, `rm -rf`, `chmod`, `chown`, `ln -s` -> ansible.builtin.file
+- `cp` for a static file already known at migration time -> ansible.builtin.copy (or the copy_file tool)
+- `sed -i` to add/replace a single config line -> ansible.builtin.lineinfile
+- `sed`/awk to insert a block of config -> ansible.builtin.blockinfile
+- `hostnamectl set-hostname` -> ansible.builtin.hostname
+- `reboot` -> ansible.builtin.reboot
+
+OTHER ansible.* MODULES (use these instead of command/shell — remember to add the collection to requirements.yml):
+- `firewall-cmd` (firewalld) -> ansible.posix.firewalld
+- `sysctl -w` / editing `/etc/sysctl.conf` / `sysctl -p` reload -> ansible.posix.sysctl (handles both setting the value and
+  the reload in one idempotent task; prefer it over a template + command reload combo)
+- `setfacl` / `getfacl` -> ansible.posix.acl
+- `mount` / editing `/etc/fstab` -> ansible.posix.mount
+- `at` (scheduling one-off jobs) -> ansible.posix.at
+- `setsebool` -> ansible.posix.seboolean
+- `rsync` invocations -> ansible.posix.synchronize
+This list is not exhaustive — if a CLI tool looks like it manages OS-level state, use ansible_doc_lookup to check whether
+an `ansible.*` module already covers it before writing a command/shell task.
+
+STRICT BAN ON NON-`ansible.*` COLLECTIONS:
+community.general and every other collection outside the `ansible.*` namespace are NOT ALLOWED in generated tasks or
+requirements.yml, no matter how good a fit one of their modules seems to be, unless that exact collection is EXPLICITLY
+listed in the AAP Private Hub section of the task prompt.
+- Before using ANY module whose FQCN does not start with `ansible.`, STOP and check the task prompt's AAP Private Hub
+  section. If the collection is not explicitly listed there, do NOT use it — write the operation with ansible.builtin.command
+  or ansible.builtin.shell instead, guarded by `changed_when`/idempotency checks per the COMMAND vs SHELL rules above.
+  That is correct, expected output, not a fallback to avoid.
+- Never add a requirements.yml entry for a non-`ansible.*` collection speculatively — only when it was explicitly
+  discovered in AAP Private Hub.
+
 USING AAP PRIVATE HUB COLLECTIONS:
 IMPORTANT: Only use `include_role` for collections that are EXPLICITLY listed in the AAP Private Hub section of the task prompt.
 

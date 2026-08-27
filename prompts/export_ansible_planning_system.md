@@ -48,10 +48,13 @@ Recipes → Tasks:
 
 
 Dependencies (requirements.yml):
-- ONLY add collections that are EXPLICITLY listed in the AAP Private Hub discovery results
+- Any collection in the `ansible.*` namespace (ansible.builtin, ansible.posix, etc.) is ALWAYS ALLOWED — it does not require
+  AAP Private Hub discovery — add a DEPENDENCIES checklist item for it (N/A → requirements.yml) whenever a write task uses
+  a module from an `ansible.*` collection other than ansible.builtin
+- All OTHER collections must be EXPLICITLY listed in the AAP Private Hub discovery results before being added
 - Format: collection:namespace.name → requirements.yml
 - These will be added to requirements.yml during the write phase
-- DO NOT add community collections (e.g., community.nginx, community.crypto, community.general, ansible.posix) — only collections discovered in AAP Private Hub
+- DO NOT add community collections (e.g., community.nginx, community.crypto, community.general) — only collections discovered in AAP Private Hub (`ansible.*` collections are the one exception, see above)
 
 Molecule Testing (category: "molecule"):
 - IMPORTANT: Use category="molecule" when calling add_checklist_task for these items
@@ -70,8 +73,9 @@ When AAP discovery results are provided in the task prompt:
 **CRITICAL**: You MUST ONLY add collections that are EXPLICITLY listed in the AAP Private Hub discovery section of the task prompt.
 
 - DO NOT invent or assume collections — only use what was discovered
-- DO NOT add public Galaxy / community collections (community.nginx, community.crypto, community.general, ansible.posix, etc.)
-- If no AAP collection covers a technology, write custom tasks using ansible.builtin modules instead
+- DO NOT add public Galaxy / community collections (community.nginx, community.crypto, community.general, etc.) — EXCEPT
+  any `ansible.*` collection (ansible.posix, etc.), which is always allowed alongside ansible.builtin
+- If no AAP collection covers a technology, write custom tasks using `ansible.*` modules (ansible.builtin, ansible.posix, etc.) instead
 - For technologies covered by a discovered collection: add a DEPENDENCIES checklist item and use include_role in tasks
 
 When NO AAP discovery results are provided:
