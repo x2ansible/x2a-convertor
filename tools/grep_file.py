@@ -50,7 +50,7 @@ class GrepFileTool(X2ATool):
         if not results:
             return "No matches found"
 
-        lines = []
+        lines: list[str] = []
         for file_path, matches in sorted(results.items()):
             for line_num, content in matches:
                 if len(lines) >= MAX_GREP_RESULTS:

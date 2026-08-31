@@ -246,8 +246,8 @@ When a class holds data that other components need to transform, format, or summ
 class StructuredAnalysis(BaseModel):
     items: list[AnalysisResult] = Field(default_factory=list)
 
-    def format_summary(self) -> str:
-        ...
+    def format_summary(self) -> str: ...
+
 
 # Caller delegates
 summary = state.structured_analysis.format_summary()
@@ -281,11 +281,14 @@ class AgentMetrics:
     def from_dict(cls, data: dict[str, Any]) -> "AgentMetrics":
         return cls(name=data.get("name", ""), input_tokens=data.get("input_tokens", 0))
 
+
 # Caller delegates
 metrics = AgentMetrics.from_dict(raw)
 
 # Bad: caller reaches in and assembles the object itself
-metrics = AgentMetrics(name=raw.get("name", ""), input_tokens=raw.get("input_tokens", 0))
+metrics = AgentMetrics(
+    name=raw.get("name", ""), input_tokens=raw.get("input_tokens", 0)
+)
 ```
 
 This also applies to defensive extraction, not just deserialization: if a function reads a value off some carrier object (a runtime, a context, a response payload) with `getattr`/fallback handling in order to hand it to (or construct) another type, that extraction belongs on the type it produces or the type it reads from — e.g. `AgentRuntimeContext.metrics_from(runtime)` rather than a private helper on every middleware that needs it.
@@ -302,6 +305,7 @@ Custom tools extend `X2ATool` (`tools/base_tool.py`), which provides structured 
 
 ```python
 from tools.base_tool import X2ATool
+
 
 class MyTool(X2ATool):
     name: str = "my_tool"
