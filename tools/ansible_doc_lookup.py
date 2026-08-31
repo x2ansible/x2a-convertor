@@ -108,7 +108,7 @@ class DocCLIBridge:
     def _format_doc(doc: dict) -> str:
         """Render a doc dict as compact plaintext."""
         fqcn = doc.get("plugin_name", doc.get("module", "unknown"))
-        short = _strip_markup(doc.get("short_description", ""))
+        short = _flatten_description(doc.get("short_description", ""))
         lines = [f"{fqcn} -- {short}", "", "Parameters:"]
 
         for name, opt in sorted(doc.get("options", {}).items()):
@@ -136,9 +136,8 @@ def _build_param_meta(opt: dict) -> list[str]:
 
 def _flatten_description(raw: str | list) -> str:
     """Join all description sentences and strip Ansible markup."""
-    if isinstance(raw, list):
-        raw = " ".join(raw)
-    return _strip_markup(raw)
+    text = " ".join(raw) if isinstance(raw, list) else raw
+    return _strip_markup(text)
 
 
 class AnsibleDocLookupInput(BaseModel):

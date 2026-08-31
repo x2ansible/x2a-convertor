@@ -20,6 +20,7 @@ from src.model import get_runnable_config
 from src.types import ChecklistStatus
 from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
+from tools.ansible_lint import AnsibleLintTool
 from tools.list_dir import ListDirectoryTool
 from tools.read_file import ReadFileTool
 from tools.write_file import WriteFileTool
@@ -52,6 +53,7 @@ class MoleculeAgent(ExportAgent[ExportState]):
         lambda: ReadFileTool(),
         lambda: WriteFileTool(),
         lambda: ListDirectoryTool(),
+        lambda: AnsibleLintTool(),
     ]
 
     SYSTEM_PROMPT_NAME = "export_ansible_molecule_system"
