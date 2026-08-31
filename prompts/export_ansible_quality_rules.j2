@@ -85,6 +85,39 @@ COMMAND / SHELL SAFETY:
 - For multi-argument commands with variables, use `argv:` list form instead of string `cmd:` when possible.
 - Keep command lines under 160 characters — use YAML block scalar (`|`) for long commands
 
+FILE OPERATION PATHS FROM VARIABLES (R114):
+Any file-changing task (ansible.builtin.copy, template, file, lineinfile, blockinfile, etc.)
+whose `dest`/`path`/`src` contains a Jinja variable will be flagged by APME rule R114 --
+a security check for path-traversal risk. This applies EVERYWHERE, not just role tasks --
+Molecule's converge.yml/verify.yml go through the exact same `ansible_role_check` scan as
+the rest of the role, since it checks the whole role directory including `molecule/`. This
+is extremely common when per-site/per-item loops build paths from loop variables (e.g. under
+`/tmp/molecule_test/`). Handle it AT WRITE TIME so it never reaches the validation phase:
+
+- If the variable is trusted -- it comes from role defaults/vars, a fixed list of test paths
+  you wrote yourself (e.g. molecule's own `/tmp/molecule_test/...` loop items), or is a loop
+  variable iterating over a role-defined dict/list (e.g. a `loop` using the `dict2items`
+  filter) -- add the suppression comment on the SAME line as you write the task, with a
+  reason that states WHY it's trusted:
+  ```yaml{% raw %}
+  - name: Create site document root directory
+    ansible.builtin.file:
+      path: "{{ item_site['value']['document_root'] }}"  # noqa: R114 - path from role-defined sites dict, not user input
+      state: directory
+    loop: "{{ myrole_sites | dict2items }}"
+    loop_control:
+      loop_var: item_site{% endraw %}
+  ```
+- Only skip the noqa comment if the path is a fixed literal with no Jinja variable at all.
+- If you are unsure whether a variable is trusted (e.g. it originates from `register:`
+  output, `extra_vars`, or another external/runtime source), do NOT suppress -- add an
+  `ansible.builtin.assert` task before it validating the path is absolute, contains no
+  `..`, and matches an allowed base directory. Call `ansible_rule_doc(rule_id="R114")`
+  for the exact assert pattern.
+
+Adding the justified noqa comment while writing avoids an entire extra validation
+round-trip to re-discover and re-fix the same violation later.
+
 BEST PRACTICES:
 - Prefer `ansible.builtin.template` or `ansible.builtin.blockinfile` over `ansible.builtin.lineinfile`
 - Populate `galaxy_tags` in meta/main.yml with relevant tags

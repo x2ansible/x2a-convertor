@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.exporters.state import ExportState
+from src.exporters.tools.apme import CheckReport
 
 
 @dataclass
@@ -53,17 +54,28 @@ class ValidationAgentState(BaseAgentState):
     Tracks validation results and error fixing progress.
 
     Attributes:
-        validation_results: Results from validation service (dict of validator results)
-        previous_validation_results: Previous validation results for stall detection
-        error_report: Formatted error report for LLM
+        validation_report: Latest APME CheckReport (rule violations). Use
+            ``validation_report.to_xml_prompt()`` to render it for an LLM
+            prompt rather than caching a separate string -- the CheckReport
+            is the single source of truth for both the violations and their
+            rendering.
+        previous_validation_report: Previous APME CheckReport, for stall
+            detection via ``ErrorFingerprint``.
         has_errors: Whether validation found errors
     """
 
-    validation_results: dict | None = None
-    previous_validation_results: dict | None = None
-    error_report: str = ""
-    previous_error_report: str = ""
+    validation_report: CheckReport | None = None
+    previous_validation_report: CheckReport | None = None
     has_errors: bool = False
+
+    def render_errors(self) -> str:
+        """Render the current validation_report as XML for prompts/logs.
+
+        Returns an empty-results XML stub if no check has run yet.
+        """
+        if self.validation_report is None:
+            return CheckReport().to_xml_prompt()
+        return self.validation_report.to_xml_prompt()
 
 
 @dataclass

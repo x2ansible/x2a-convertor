@@ -1,6 +1,6 @@
 """Validation agent for Chef to Ansible migration.
 
-Validates and fixes migration output issues.
+Validates and fixes migration output issues using APME's rule catalog.
 """
 
 from collections.abc import Callable
@@ -18,18 +18,17 @@ from src.exporters.agent_state import ValidationAgentState
 from src.exporters.export_agent import ExportAgent
 from src.exporters.services import CollectionManager, InstallResultSummary
 from src.exporters.state import ExportState
+from src.exporters.tools.apme import APME, ApmeRuleDoc, CheckReport
 from src.model import get_runnable_config
 from src.types import SUMMARY_SUCCESS_MESSAGE
 from src.types.telemetry import AgentMetrics
 from src.utils.config import get_config_int
 from src.utils.logging import get_logger
-from src.validation.service import ValidationService
-from src.validation.validators import AnsibleLintValidator, RoleStructureValidator
 from tools.ansible_lint import AnsibleLintTool
 from tools.ansible_role_check import AnsibleRoleCheckTool
+from tools.ansible_rule_doc import AnsibleRuleDocTool
 from tools.ansible_write import AnsibleWriteTool
 from tools.copy_file import CopyFileWithMkdirTool
-from tools.diff_file import DiffFileTool
 from tools.read_file import ReadFileTool
 from tools.validated_write import ValidatedWriteTool
 
@@ -37,56 +36,34 @@ logger = get_logger(__name__)
 
 
 class ErrorFingerprint:
-    """Extracts stable error signatures from validation results.
+    """Extracts stable error signatures from APME check reports.
 
-    Fingerprints capture error types and counts without location-specific
-    information (line numbers, file paths) that can change when code moves.
+    Fingerprints capture (rule_id, file) pairs without line-number
+    information, so cosmetic reformatting doesn't hide a real fix and
+    genuinely unchanged violations are detected as a stall.
     """
 
     @staticmethod
-    def extract_from_results(results: dict | None) -> frozenset[tuple[str, str]]:
-        """Extract error fingerprints from validation results.
+    def extract_from_report(report: CheckReport | None) -> frozenset[tuple[str, str]]:
+        """Extract violation fingerprints from an APME check report.
 
         Args:
-            results: Dictionary mapping validator name to ValidationResult
+            report: CheckReport from APME.check(), or None.
 
         Returns:
-            Frozenset of (validator_name, error_type) tuples representing
-            the types of errors present, ignoring locations and counts.
+            Frozenset of (rule_id, file) tuples for all reported violations.
         """
-        if not results:
+        if not report:
             return frozenset()
 
-        fingerprints = []
-        for validator_name, result in results.items():
-            if result.failed:
-                error_signature = ErrorFingerprint._extract_error_signature(
-                    result.message
-                )
-                fingerprints.append((validator_name, error_signature))
-
-        return frozenset(fingerprints)
-
-    @staticmethod
-    def _extract_error_signature(message: str) -> str:
-        """Extract stable error signature from validation message.
-
-        Extracts rule IDs and error types from messages like:
-        '[severity] filepath:lineno [rule_id] message (details)'
-
-        Returns a normalized signature that ignores line numbers and paths.
-        """
-        import re
-
-        rule_ids = re.findall(r"\[([a-z0-9_-]+)\]", message.lower())
-        return "|".join(sorted(set(rule_ids)))
+        return frozenset((v.rule_id, v.file) for v in report.violations)
 
 
 class ValidationAgent(ExportAgent[ExportState]):
     """Agent responsible for validating and fixing migration output.
 
     This agent uses an internal StateGraph to manage validation/fix loops:
-    - Validates output with ansible-lint and ansible-role-check
+    - Validates output with APME's rule catalog (ansible_role_check)
     - If errors found, uses react agent to fix them
     - Re-validates after fixes
     - Retries until validation passes OR max attempts reached
@@ -94,18 +71,18 @@ class ValidationAgent(ExportAgent[ExportState]):
     The agent returns only when validation passes or max attempts exhausted.
     """
 
-    _NAME = "Ansible Lint Validator"
+    _NAME = "Ansible Validator"
 
     BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
         lambda: ReadFileTool(),
-        lambda: DiffFileTool(),
         lambda: ListDirectoryTool(),
         lambda: FileSearchTool(),
         lambda: ValidatedWriteTool(),  # Auto-routes YAML to ansible_write
         lambda: AnsibleWriteTool(),
         lambda: CopyFileWithMkdirTool(),
-        lambda: AnsibleLintTool(),
         lambda: AnsibleRoleCheckTool(),
+        lambda: AnsibleRuleDocTool(),
+        lambda: AnsibleLintTool(),
     ]
 
     USER_PROMPT_NAME = "export_ansible_validation_task"
@@ -113,11 +90,7 @@ class ValidationAgent(ExportAgent[ExportState]):
     def __init__(self, model=None, max_attempts=None):
         super().__init__(model)
         self.max_attempts = max_attempts or get_config_int("MAX_VALIDATION_ATTEMPTS")
-        self.validators = [
-            AnsibleLintValidator(),
-            RoleStructureValidator(),
-        ]
-        self.validation_service = ValidationService(self.validators)
+        self._apme = APME()
         self._graph = self._build_internal_graph()
         self._current_metrics: AgentMetrics | None = None
 
@@ -214,44 +187,36 @@ class ValidationAgent(ExportAgent[ExportState]):
     # -------------------------------------------------------------------------
 
     def _validate_node(self, state: ValidationAgentState) -> ValidationAgentState:
-        """Node: Run validation service on the state.get_ansible_path()."""
+        """Node: Run APME check on the state.get_ansible_path()."""
         export_state = state.export_state
 
         slog = logger.bind(phase="validate", attempt=state.attempt)
-        slog.info("Running validation")
+        slog.info("Running APME check")
 
         ansible_path = export_state.get_ansible_path()
 
-        results = self.validation_service.validate_all(ansible_path)
+        report = self._apme.check(ansible_path)
 
         if self._current_metrics:
-            validators_passed = []
-            validators_failed = []
-            for name, result in results.items():
-                if result.success:
-                    validators_passed.append(name)
-                else:
-                    validators_failed.append(name)
-            self._current_metrics.record_metric("validators_passed", validators_passed)
-            self._current_metrics.record_metric("validators_failed", validators_failed)
+            self._current_metrics.record_metric("violations", len(report.violations))
+            self._current_metrics.record_metric("errors", report.error_count)
+            self._current_metrics.record_metric("warnings", report.warning_count)
 
-        state.previous_validation_results = state.validation_results
-        state.validation_results = results
-        state.has_errors = self.validation_service.has_errors(results)
+        state.previous_validation_report = state.validation_report
+        state.validation_report = report
+
+        # Mirrors `apme check` exit-code semantics: any violation is a failure,
+        # regardless of severity (0 = no violations, 1 = violations found).
+        state.has_errors = report.has_violations
 
         if state.has_errors:
-            state.previous_error_report = state.error_report
-            error_report = self.validation_service.format_error_report(results)
-            state.error_report = error_report
-            slog.warning(f"Validation errors found:\n{error_report}")
+            slog.warning(f"APME check found violations: {report.summary()}")
             return state
 
-        slog.info("All validations passed")
-        validation_report = (
-            f"{SUMMARY_SUCCESS_MESSAGE}\n\n"
-            + self.validation_service.get_success_message(results)
-        )
-        export_state = export_state.update(validation_report=validation_report)
+        slog.info("APME check passed")
+
+        success_report = f"{SUMMARY_SUCCESS_MESSAGE}\n\n{report.to_xml_prompt()}"
+        export_state = export_state.update(validation_report=success_report)
         state.export_state = export_state
         state.complete = True
 
@@ -273,13 +238,16 @@ class ValidationAgent(ExportAgent[ExportState]):
 
         ansible_path = export_state.get_ansible_path()
 
+        assert state.validation_report is not None, (
+            "validation_report must be set before fixing errors"
+        )
         validation_task = get_prompt(self.USER_PROMPT_NAME).format(
             module=export_state.module,
             chef_path=export_state.path,
             ansible_path=ansible_path,
-            error_report=state.error_report,
+            error_report=state.render_errors(),
+            rule_docs=ApmeRuleDoc.render_all(state.validation_report.get_errors_doc()),
         )
-
         result = self.invoke_react(
             export_state,
             [
@@ -312,13 +280,13 @@ class ValidationAgent(ExportAgent[ExportState]):
         reason = self._get_failure_reason(state)
         slog.error(reason)
 
+        errors = state.render_errors()
         export_state = state.export_state.mark_failed(
-            f"{reason}\nErrors remain:\n{state.error_report}"
+            f"{reason}\nErrors remain:\n{errors}"
         )
         export_state = export_state.update(
             validation_report=(
-                f"Validation incomplete after {state.attempt} attempts:\n"
-                f"{state.error_report}"
+                f"Validation incomplete after {state.attempt} attempts:\n{errors}"
             )
         )
         state.export_state = export_state
@@ -336,14 +304,14 @@ class ValidationAgent(ExportAgent[ExportState]):
         when the LLM makes cosmetic changes (moves code, reformats) without
         actually fixing validation errors.
         """
-        if not state.previous_validation_results:
+        if not state.previous_validation_report:
             return False
 
-        current_fingerprint = ErrorFingerprint.extract_from_results(
-            state.validation_results
+        current_fingerprint = ErrorFingerprint.extract_from_report(
+            state.validation_report
         )
-        previous_fingerprint = ErrorFingerprint.extract_from_results(
-            state.previous_validation_results
+        previous_fingerprint = ErrorFingerprint.extract_from_report(
+            state.previous_validation_report
         )
 
         return current_fingerprint == previous_fingerprint
@@ -384,7 +352,7 @@ class ValidationAgent(ExportAgent[ExportState]):
         if self._errors_are_stale(state):
             slog.warning(
                 f"Stall detected: same error types persist after fix attempt\n"
-                f"Latest errors:\n{state.error_report}"
+                f"Latest errors:\n{state.render_errors()}"
             )
             return "mark_failed"
 

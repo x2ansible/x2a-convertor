@@ -20,7 +20,6 @@ from src.publishers.publish import publish_aap, publish_project
 from src.report import report_artifacts
 from src.types.technology import Technology
 from src.utils.logging import get_logger, setup_logging
-from src.validate import validate_module
 
 logger = get_logger(__name__)
 
@@ -167,14 +166,6 @@ def migrate(
         high_level_migration_plan,
         source_dir=source_dir,
     )
-
-
-@cli.command()
-@click.argument("module_name")
-@handle_exceptions
-def validate(module_name) -> None:
-    """Validate migrated module against original configuration"""
-    validate_module(module_name)
 
 
 @cli.command("publish-project")

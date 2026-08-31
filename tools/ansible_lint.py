@@ -6,7 +6,7 @@ from pathlib import Path
 
 import ansiblelint
 from ansiblelint.__main__ import fix
-from ansiblelint.app import App
+from ansiblelint.app import get_app
 from ansiblelint.config import Options
 from ansiblelint.errors import MatchError
 from ansiblelint.rules import BaseRule, RulesCollection
@@ -95,7 +95,11 @@ class LintConfiguration:
             _skip_ansible_syntax_check=True,
             skip_list=["yaml[line-length]"],
         )
-        app = App(options=options)
+        # get_app() (rather than constructing App directly) runs
+        # runtime.prepare_environment()/enable_plugin_loader(), which installs
+        # the AnsibleCollectionFinder. Without it, ansible-lint fails with
+        # "an AnsibleCollectionFinder has not been installed in this process".
+        app = get_app(offline=True, cached=False)
         rules = RulesCollection(app=app, rulesdirs=[rules_dir], options=options)
         return cls(options=options, rules=rules)
 

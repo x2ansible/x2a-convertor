@@ -20,6 +20,7 @@ from src.config.settings import SummaryContextSize
 from src.exporters.agent_state import WriteAgentState
 from src.exporters.export_agent import ExportAgent
 from src.exporters.state import ExportState
+from src.exporters.tools.apme import APME
 from src.model import get_runnable_config
 from src.types import ChecklistStatus
 from src.types.telemetry import AgentMetrics
@@ -95,6 +96,7 @@ class WriteAgent(ExportAgent[ExportState]):
     def __init__(self, model=None, max_attempts=None):
         super().__init__(model)
         self.max_attempts = get_config_int("MAX_WRITE_ATTEMPTS")
+        self._apme = APME()
         self._graph = self._build_internal_graph()
         self._current_metrics: AgentMetrics | None = None
 
@@ -105,13 +107,15 @@ class WriteAgent(ExportAgent[ExportState]):
         workflow.add_node("write_files", self._write_files_node)
         workflow.add_node("check_files", self._check_files_node)
         workflow.add_node("lint_files", self._lint_files_node)
+        workflow.add_node("apme_format", self._apme_format_node)
         workflow.add_node("mark_failed", self._mark_failed_node)
 
         workflow.add_edge(START, "write_standard_files")
         workflow.add_edge("write_standard_files", "write_files")
         workflow.add_edge("write_files", "check_files")
         workflow.add_edge("check_files", "lint_files")
-        workflow.add_conditional_edges("lint_files", self._evaluate_write_node)
+        workflow.add_edge("lint_files", "apme_format")
+        workflow.add_conditional_edges("apme_format", self._evaluate_write_node)
         workflow.add_edge("mark_failed", "__end__")
 
         return workflow.compile()
@@ -217,7 +221,7 @@ class WriteAgent(ExportAgent[ExportState]):
                     {"name": "Ubuntu", "versions": ["bionic", "focal"]},
                     {"name": "EL", "versions": ["7", "8", "9", "10"]},
                 ],
-                "galaxy_tags": [],
+                "galaxy_tags": ["x2ansible"],
             }
         }
         content = yaml.dump(
@@ -265,7 +269,6 @@ class WriteAgent(ExportAgent[ExportState]):
             ],
             self._current_metrics,
         )
-
         export_state.checklist.save(export_state.get_checklist_path())
 
         slog.info(f"Checklist after writing:\n{export_state.checklist.to_markdown()}")
@@ -335,6 +338,29 @@ class WriteAgent(ExportAgent[ExportState]):
             slog.info(f"Ansible-lint result: {result}")
         except Exception as e:
             slog.error(f"Error running ansible-lint: {e}")
+
+        return state
+
+    def _apme_format_node(self, state: WriteAgentState) -> WriteAgentState:
+        """Node: Run APME format on generated Ansible files."""
+        export_state = state.export_state
+        slog = logger.bind(phase="apme_format", attempt=state.attempt)
+
+        if state.missing_files:
+            slog.info("Skipping APME format - files are missing")
+            return state
+
+        slog.info("Running APME format on generated files")
+        ansible_path = export_state.get_ansible_path()
+        try:
+            report = self._apme.format(ansible_path, apply=True)
+            slog.info(
+                "APME format completed",
+                files_checked=report.files_checked,
+                files_changed=report.files_changed,
+            )
+        except Exception as e:
+            slog.error(f"Error running APME format: {e}")
 
         return state
 

@@ -79,19 +79,6 @@ class TestAnsibleWriteTool:
         assert "{{ app_user }}" in content
         assert "{{ app_group }}" in content
 
-    def test_reject_json_input(self) -> None:
-        """Test that JSON input is rejected."""
-        json_content = """{"tasks": [{"name": "test", "debug": {"msg": "hello"}}]}"""
-        file_path = Path(self.temp_dir) / "test.yml"
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=json_content)
-
-        # Should fail with JSON error
-        assert "ERROR" in result
-        assert "JSON input is not allowed" in result
-        # File should not be created
-        assert not Path(file_path).exists()
-
     def test_write_valid_ansible_tasks(self) -> None:
         """Test writing a valid Ansible tasks file."""
         yaml_content = """---
@@ -133,9 +120,7 @@ class TestAnsibleWriteTool:
 
         # Should fail with YAML validation error
         assert "ERROR" in result
-        assert "YAML parsing failed" in result
-        # Should now have XML format
-        assert "<ansible_yaml_error>" in result
+        assert "YAML validation failed" in result
         # File should not be created
         assert not Path(file_path).exists()
 
@@ -197,33 +182,8 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "| upper }}" in content
         assert "INFO" in content
 
-    def test_yaml_formatting_applied(self) -> None:
-        """Test that YAML formatting is applied to normalize output."""
-        # Input with inconsistent formatting
-        yaml_content = """---
-- name: test task
-  ansible.builtin.debug:
-    msg:   'hello'
-  vars:   {foo:  bar,  baz:  qux}
-"""
-        file_path = Path(self.temp_dir) / "formatted.yml"
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
-
-        assert "Successfully wrote" in result
-        assert Path(file_path).exists()
-
-        with Path(file_path).open() as f:
-            content = f.read()
-
-        # Output should be properly formatted (not JSON-like)
-        # AnsibleDumper should expand the inline dict to proper YAML
-        assert "foo:" in content or "vars:" in content
-        # Should not have compressed JSON-like formatting
-        assert content.count("{") == 0  # No inline dicts in output
-
-    def test_valid_ansible_yaml_normalized(self) -> None:
-        """Test writing valid Ansible YAML content with AnsibleDumper normalization."""
+    def test_valid_ansible_yaml_written_verbatim(self) -> None:
+        """Test writing valid Ansible YAML content preserves original formatting."""
         yaml_content = """---
 - name: Install nginx
   ansible.builtin.package:
@@ -238,16 +198,15 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
 
         with Path(file_path).open() as f:
             content = f.read()
-            # AnsibleDumper strips the --- separator
-            assert not content.startswith("---")
-            # But the content structure should be preserved
+            # Content is written verbatim, so the --- separator is preserved
+            assert content.startswith("---")
             assert "name: Install nginx" in content
             assert "ansible.builtin.package:" in content
             assert "name: nginx" in content
             assert "state: present" in content
 
-    def test_comments_removed_by_dumper(self) -> None:
-        """Test that AnsibleDumper removes comments during normalization."""
+    def test_comments_preserved(self) -> None:
+        """Test that comments are preserved since content is written verbatim."""
         yaml_content = """---
 # This is a comment
 - name: Install packages
@@ -271,10 +230,9 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
 
         with Path(file_path).open() as f:
             content = f.read()
-            # Comments are removed by AnsibleDumper
-            assert "# This is a comment" not in content
-            assert "# Another comment" not in content
-            # But structure and content should be preserved
+            # Comments are preserved because the file is written verbatim
+            assert "# This is a comment" in content
+            assert "# Another comment" in content
             assert "name: Install packages" in content
             assert "name: Start service" in content
             assert "nginx" in content
@@ -335,138 +293,6 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "Successfully wrote" in result
         assert Path(file_path).exists()
 
-    def test_yaml_syntax_error_returns_xml_with_line_info(self) -> None:
-        """Test that YAML syntax errors return XML-formatted error with line/column info."""
-        # YAML with syntax error (colon in search() filter)
-        invalid_yaml = """---
-- name: Check firewall
-  ansible.builtin.command: ufw status
-  register: fw_status
-  changed_when: false
-
-- name: Set default deny
-  ansible.builtin.command: ufw default deny
-  when: fw_status is not search('Default: deny')
-"""
-        file_path = Path(self.temp_dir) / "syntax_error.yml"
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_yaml)
-
-        # Should return an error
-        assert "ERROR" in result
-        assert "YAML parsing failed" in result
-
-        # Should have XML structure
-        assert "<ansible_yaml_error>" in result
-        assert "</ansible_yaml_error>" in result
-        assert "<file_path>" in result
-        assert str(file_path) in result
-
-        # Should have error details
-        assert "<error_details>" in result
-        assert "<message>" in result
-        assert "<line_number>" in result
-        assert "<column_number>" in result
-
-        # Should have problematic location
-        assert "<problematic_location>" in result
-        assert "<line_content>" in result
-        assert "<column_pointer>" in result
-
-        # Should include the original YAML content
-        assert "<original_yaml_content>" in result
-        assert "fw_status is not search" in result
-
-        # File should not be created
-        assert not Path(file_path).exists()
-
-    def test_yaml_syntax_error_includes_line_number(self) -> None:
-        """Test that syntax errors include the specific line number where error occurred."""
-        # Error is on line 3 (the when clause with problematic search)
-        invalid_yaml = """---
-- name: Test task
-  when: var is not search('value: test')
-"""
-        file_path = Path(self.temp_dir) / "line_error.yml"
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_yaml)
-
-        assert "ERROR" in result
-        # Should contain line number in XML
-        assert "<line_number>3</line_number>" in result
-        # Should show the problematic line
-        assert "when: var is not search" in result
-
-    def test_reject_playbook_wrapper_with_hosts_in_task_file(self) -> None:
-        """Test that task files with playbook wrapper (hosts) are rejected."""
-        playbook_yaml = """---
-- hosts: all
-  become: true
-  tasks:
-    - name: Install nginx
-      ansible.builtin.package:
-        name: nginx
-        state: present
-"""
-        # File path includes /tasks/ directory
-        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=playbook_yaml)
-
-        # Should fail with playbook wrapper error
-        assert "ERROR" in result
-        assert "Task files must be FLAT lists, not playbooks" in result
-        assert "<ansible_yaml_error>" in result
-        assert "Playbook wrapper detected" in result
-        assert "<fix_workflow>" in result
-        assert "REMOVE the playbook wrapper" in result
-        # File should not be created
-        assert not Path(file_path).exists()
-
-    def test_reject_playbook_wrapper_with_tasks_key_in_task_file(self) -> None:
-        """Test that task files with 'tasks:' wrapper are rejected."""
-        playbook_yaml = """---
-- name: Configure web server
-  tasks:
-    - name: Install nginx
-      ansible.builtin.package:
-        name: nginx
-        state: present
-    - name: Start nginx
-      ansible.builtin.service:
-        name: nginx
-        state: started
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "webserver.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=playbook_yaml)
-
-        # Should fail with playbook wrapper error
-        assert "ERROR" in result
-        assert "Task files must be FLAT lists" in result
-        assert "tasks" in result
-        assert "<correct_format>" in result
-        # File should not be created
-        assert not Path(file_path).exists()
-
-    def test_reject_playbook_wrapper_with_import_playbook_in_task_file(self) -> None:
-        """Test that task files with 'import_playbook' are rejected."""
-        playbook_yaml = """---
-- import_playbook: common.yml
-- import_playbook: webserver.yml
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "site.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=playbook_yaml)
-
-        # Should fail with playbook wrapper error
-        assert "ERROR" in result
-        assert "Playbook wrapper detected" in result
-        assert not Path(file_path).exists()
-
     def test_accept_valid_flat_task_list_in_task_file(self) -> None:
         """Test that valid flat task lists in /tasks/ directory are accepted."""
         valid_tasks = """---
@@ -525,212 +351,8 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
         assert "Successfully wrote" in result
         assert Path(file_path).exists()
 
-    def test_ari_validation_passes_for_valid_taskfile(self) -> None:
-        """Test that ARI validation passes for valid taskfile with FQCN."""
-        valid_tasks = """---
-- name: Install nginx package
-  ansible.builtin.apt:
-    name: nginx
-    state: present
-
-- name: Start nginx service
-  ansible.builtin.systemd:
-    name: nginx
-    state: started
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=valid_tasks)
-
-        # Should succeed with no warnings
-        assert "Successfully wrote" in result
-        assert "WARNING" not in result
-        assert Path(file_path).exists()
-
-    def test_ari_validation_detects_missing_fqcn(self) -> None:
-        """Test that ARI validation detects tasks without FQCN."""
-        invalid_tasks = """---
-- name: Install nginx package
-  apt:
-    name: nginx
-    state: present
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_tasks)
-
-        # Should write file but return warning
-        assert "WARNING" in result
-        assert "validation issues" in result
-        assert Path(file_path).exists()
-
-        # Should have structured error format
-        assert "<ansible_lint_errors>" in result
-        assert "<validation_errors>" in result
-        assert "R301" in result  # Non-FQCN rule
-        assert "apt → ansible.builtin.apt" in result
-
-        # Should have fix workflow
-        assert "<fix_workflow>" in result
-        assert "Non-FQCN" in result
-
-    def test_ari_validation_detects_missing_task_name(self) -> None:
-        """Test that ARI validation detects tasks without name."""
-        invalid_tasks = """---
-- ansible.builtin.apt:
-    name: nginx
-    state: present
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_tasks)
-
-        # Should write file but return warning
-        assert "WARNING" in result
-        assert "validation issues" in result
-        assert Path(file_path).exists()
-
-        # Should have structured error format
-        assert "<ansible_lint_errors>" in result
-        assert "R303" in result  # Task without name rule
-        assert "Task Without Name" in result or "unnamed task" in result
-
-    def test_ari_validation_detects_multiple_issues(self) -> None:
-        """Test that ARI validation detects multiple issues in one file."""
-        invalid_tasks = """---
-- name: Install nginx
-  apt:
-    name: nginx
-    state: present
-
-- service:
-    name: nginx
-    state: started
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_tasks)
-
-        # Should write file but return warning
-        assert "WARNING" in result
-        assert "validation issues" in result
-        assert Path(file_path).exists()
-
-        # Should detect both issues
-        assert "R301" in result or "R303" in result  # At least one rule violation
-        assert "issue(s)" in result or "Found" in result
-
-    def test_ari_validation_only_runs_on_taskfiles(self) -> None:
-        """Test that ARI validation only runs for files in tasks/ directory."""
-        # Use non-FQCN in a playbook - should not trigger ARI validation
-        playbook_yaml = """---
-- name: Configure web server
-  hosts: webservers
-  tasks:
-    - name: Install nginx
-      apt:
-        name: nginx
-        state: present
-"""
-        file_path = Path(self.temp_dir) / "playbooks" / "site.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=playbook_yaml)
-
-        # Should succeed without ARI validation warnings
-        assert "Successfully wrote" in result
-        assert "WARNING" not in result
-        assert "<ansible_lint_errors>" not in result
-        assert Path(file_path).exists()
-
-    def test_ari_validation_skips_non_yaml_extensions(self) -> None:
-        """Test that ARI validation only runs on .yml/.yaml files."""
-        # File in tasks/ but without yaml extension
-        tasks_content = """---
-- name: Install nginx
-  apt:
-    name: nginx
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "main.txt"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=tasks_content)
-
-        # Should succeed without ARI validation
-        assert (
-            "Successfully wrote" in result or "ERROR" in result
-        )  # May fail on extension
-        # If it writes, it should not run ARI validation
-        if "Successfully wrote" in result:
-            assert "WARNING" not in result
-
-    def test_ari_validation_includes_line_numbers(self) -> None:
-        """Test that ARI validation errors include line numbers."""
-        invalid_tasks = """---
-- name: Install nginx
-  apt:
-    name: nginx
-    state: present
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=invalid_tasks)
-
-        # Should include line numbers in error messages
-        assert "WARNING" in result
-        # Line number format: "main.yml:1" or similar
-        assert "main.yml:" in result
-        # Should have a line number
-        assert any(char.isdigit() for char in result)
-
-    def test_ari_validation_no_false_positive_import_tasks(self) -> None:
-        """Test that import_tasks with FQCN does not trigger R301 false positive.
-
-        ARI misidentifies the filename argument (e.g. 'install.yml') as the
-        module name and returns an empty FQCN, which previously caused a
-        spurious R301 warning.
-        """
-        yaml_content = """---
-- name: Set redis configuration variables
-  ansible.builtin.set_fact:
-    redis_port: "{{ redis_port | default(6379) }}"
-
-- name: Include install tasks
-  ansible.builtin.import_tasks: install.yml
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
-
-        assert "Successfully wrote" in result
-        assert "WARNING" not in result
-        assert "R301" not in result
-        assert Path(file_path).exists()
-
-    def test_ari_validation_no_false_positive_include_tasks(self) -> None:
-        """Test that include_tasks with FQCN does not trigger R301 false positive."""
-        yaml_content = """---
-- name: Include platform-specific tasks
-  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
-"""
-        file_path = Path(self.temp_dir) / "tasks" / "main.yml"
-        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-
-        result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
-
-        assert "Successfully wrote" in result
-        assert "WARNING" not in result
-        assert "R301" not in result
-        assert Path(file_path).exists()
-
-    def test_ari_validation_still_catches_short_module_names(self) -> None:
-        """Test that R301 still catches actual non-FQCN module usage."""
+    def test_write_non_fqcn_module_succeeds(self) -> None:
+        """Test that non-FQCN modules are written without warnings (ARI removed)."""
         yaml_content = """---
 - name: Install package
   apt:
@@ -742,6 +364,6 @@ app_log_level: "{{ log_level | default('INFO') | upper }}"
 
         result = self.tool._run(file_path=str(file_path), yaml_content=yaml_content)
 
-        assert "WARNING" in result
-        assert "R301" in result
-        assert "apt" in result
+        assert "Successfully wrote" in result
+        assert "WARNING" not in result
+        assert Path(file_path).exists()

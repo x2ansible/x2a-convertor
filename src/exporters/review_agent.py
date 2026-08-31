@@ -79,5 +79,4 @@ class ReviewAgent(ExportAgent[ExportState]):
         review_report = message.text if message else ""
 
         self._log.info(f"Review complete. Report length: {len(review_report)} chars")
-
         return state.update(review_report=review_report)
