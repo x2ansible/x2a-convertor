@@ -331,6 +331,16 @@ Agents use a middleware stack configured in `BaseAgent.middleware()`:
 | `X2ASummarizationMiddleware` | Compacts conversation when token count exceeds threshold |
 | `AgentDumpMiddleware` | Dumps messages to JSON Lines for debugging (when `JSON_LINES` is set) |
 
+### Telemetry Through Middleware
+
+Middleware instances are cached on the agent (see `BaseAgent.middleware()`) and outlive any single `execute()` call, so they cannot receive `metrics` as a normal Python argument the way agent code does. `GoalValidationMiddleware` runs its own `invoke_react()` (explore phase) and `invoke_structured()` (classify phase) calls, including retries, and these must still be counted in the agent's token telemetry.
+
+LangGraph provides a purpose-built channel for exactly this: per-invocation **runtime context**. `BaseAgent.invoke_react()` builds the graph with `create_agent(..., context_schema=AgentRuntimeContext)` and calls `agent.invoke(..., context=AgentRuntimeContext(metrics=metrics))`. LangGraph surfaces that object back to every middleware hook as `runtime.context` -- e.g. `GoalValidationMiddleware.after_agent(self, state, runtime)` reads `runtime.context.metrics` and threads it into its own `invoke_react()`/`invoke_structured()` calls. See `AgentRuntimeContext` in `src/types/telemetry.py`.
+
+This is preferred over stashing call-scoped data on `self` (e.g. `self._current_metrics`): the context is scoped to the single `agent.invoke()` call instead of mutable shared instance state, so it stays correct even if an agent instance is ever invoked concurrently or re-entrantly.
+
+**Rule:** any call to `invoke_react()`, `invoke_structured()`, or `invoke_llm()` must be given a `metrics` value (the `metrics` parameter passed into `execute()`, or -- from middleware/helpers that don't receive it directly -- `metrics` read off `runtime.context`). Omitting `metrics` silently drops that call's token usage and tool calls from telemetry -- it will not raise or fail tests unless a telemetry test specifically covers it. There is no automated lint for this yet; review call sites manually when adding or modifying `invoke_react`/`invoke_structured`/`invoke_llm` calls.
+
 ## Python Standards
 
 - Python 3.13+ required

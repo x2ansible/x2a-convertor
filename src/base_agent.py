@@ -36,7 +36,7 @@ from src.model import (
     report_tool_calls,
 )
 from src.types.base_state import BaseState
-from src.types.telemetry import AgentMetrics, telemetry_context
+from src.types.telemetry import AgentMetrics, AgentRuntimeContext, telemetry_context
 from src.utils.logging import get_logger
 from tools.base_tool import X2ATool
 
@@ -288,12 +288,21 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         tagged_messages = self._tag_original_messages(messages)
 
         agent = create_agent(
-            model=self.model, middleware=self.middleware(), tools=tools
+            model=self.model,
+            middleware=self.middleware(),
+            tools=tools,
+            context_schema=AgentRuntimeContext,
         )
 
+        # `context` is LangGraph's per-invocation runtime context, surfaced to
+        # middleware hooks as `runtime.context` (see AgentRuntimeContext).
+        # This is how middleware such as GoalValidationMiddleware learns
+        # which AgentMetrics belongs to this invocation, since the
+        # middleware instance itself is cached across invocations.
         result = agent.invoke(
             {"messages": tagged_messages},
             get_runnable_config(),
+            context=AgentRuntimeContext(metrics=metrics),
         )
 
         tool_calls = report_tool_calls(result)

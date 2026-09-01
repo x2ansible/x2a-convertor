@@ -15,7 +15,11 @@ EXPLORE_FINDINGS = "Verified: migration-plan.md exists and contains expected con
 
 
 class FakeAgent:
-    def __init__(self, structured_result=None, explore_content=EXPLORE_FINDINGS):
+    def __init__(
+        self,
+        structured_result=None,
+        explore_content=EXPLORE_FINDINGS,
+    ):
         self._structured_result = structured_result
         self._explore_content = explore_content
 
@@ -192,6 +196,96 @@ class TestRunValidation:
         mw.agent.invoke_react = MagicMock(side_effect=RuntimeError("fail"))
         mw._run_validation({"messages": []})
         assert mw._in_validation is False
+
+    def test_metrics_argument_threaded_into_invoke_react_and_invoke_structured(self):
+        """The explore/classify calls must forward the metrics passed into
+        _run_validation() so their token usage and retries are counted in
+        telemetry instead of being silently dropped.
+        """
+        sentinel_metrics = object()
+        agent = MagicMock()
+        agent.invoke_react.return_value = {"messages": [AIMessage(content="findings")]}
+        agent.get_last_ai_message.return_value = AIMessage(content="findings")
+        agent.invoke_structured.return_value = GoalValidationResult(
+            achieved=True, feedback="ok"
+        )
+        mw = GoalValidationMiddleware("goal", agent=agent)
+
+        mw._run_validation({"messages": []}, metrics=sentinel_metrics)
+
+        assert agent.invoke_react.call_args[1]["metrics"] is sentinel_metrics
+        assert agent.invoke_structured.call_args[1]["metrics"] is sentinel_metrics
+
+    def test_metrics_defaults_to_none_when_not_provided(self):
+        agent = MagicMock()
+        agent.invoke_react.return_value = {"messages": [AIMessage(content="findings")]}
+        agent.get_last_ai_message.return_value = AIMessage(content="findings")
+        agent.invoke_structured.return_value = GoalValidationResult(
+            achieved=True, feedback="ok"
+        )
+        mw = GoalValidationMiddleware("goal", agent=agent)
+
+        mw._run_validation({"messages": []})
+
+        assert agent.invoke_react.call_args[1]["metrics"] is None
+        assert agent.invoke_structured.call_args[1]["metrics"] is None
+
+
+class TestExtractMetricsFromRuntime:
+    """Tests for reading AgentMetrics out of LangGraph's runtime.context.
+
+    BaseAgent.invoke_react() passes an AgentRuntimeContext(metrics=...) into
+    `agent.invoke(..., context=...)`, and LangGraph surfaces it back to
+    middleware hooks as `runtime.context`. This is how GoalValidationMiddleware
+    (a cached instance reused across invocations) learns which AgentMetrics
+    belongs to the invocation currently running.
+    """
+
+    def test_extracts_metrics_from_runtime_context(self, make_middleware):
+        from src.types.telemetry import AgentMetrics, AgentRuntimeContext
+
+        mw = make_middleware()
+        sentinel_metrics = AgentMetrics(name="test")
+        runtime = MagicMock()
+        runtime.context = AgentRuntimeContext(metrics=sentinel_metrics)
+
+        assert mw._extract_metrics_from_runtime(runtime) is sentinel_metrics
+
+    def test_returns_none_when_context_missing(self, make_middleware):
+        mw = make_middleware()
+        runtime = MagicMock()
+        runtime.context = None
+
+        assert mw._extract_metrics_from_runtime(runtime) is None
+
+    def test_returns_none_when_runtime_has_no_context_attribute(self, make_middleware):
+        mw = make_middleware()
+
+        assert mw._extract_metrics_from_runtime(object()) is None
+
+    def test_after_agent_forwards_runtime_metrics_to_run_validation(
+        self, make_middleware
+    ):
+        from src.types.telemetry import AgentMetrics, AgentRuntimeContext
+
+        mw = make_middleware(
+            structured_result=GoalValidationResult(achieved=True, feedback="ok")
+        )
+        sentinel_metrics = AgentMetrics(name="test")
+        runtime = MagicMock()
+        runtime.context = AgentRuntimeContext(metrics=sentinel_metrics)
+        seen = {}
+        original_run_validation = mw._run_validation
+
+        def spy(state, metrics=None):
+            seen["metrics"] = metrics
+            return original_run_validation(state, metrics)
+
+        mw._run_validation = spy
+
+        mw.after_agent({"messages": []}, runtime)
+
+        assert seen["metrics"] is sentinel_metrics
 
 
 class TestAfterAgent:
