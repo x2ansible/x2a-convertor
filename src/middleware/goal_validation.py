@@ -83,7 +83,7 @@ class GoalValidationMiddleware(AgentMiddleware):
             return messages
         return messages[: self.CONTEXT_HEAD] + messages[-self.CONTEXT_TAIL :]
 
-    def _run_validation(self, state: dict) -> tuple[bool, str]:
+    def _run_validation(self, state: dict, metrics: Any = None) -> tuple[bool, str]:
         self._log.info("Running goal validation", retry_count=self.retry_count)
 
         messages = state.get("messages", [])
@@ -102,6 +102,7 @@ class GoalValidationMiddleware(AgentMiddleware):
             explore_result = self.agent.invoke_react(
                 state=state,
                 messages=[{"role": "user", "content": explore_prompt}],
+                metrics=metrics,
                 tools=tools,
             )
 
@@ -114,6 +115,7 @@ class GoalValidationMiddleware(AgentMiddleware):
             result = self.agent.invoke_structured(
                 schema=GoalValidationResult,
                 messages=[{"role": "user", "content": classify_prompt}],
+                metrics=metrics,
             )
 
             if not result:
@@ -133,6 +135,20 @@ class GoalValidationMiddleware(AgentMiddleware):
         finally:
             self._in_validation = False
 
+    @staticmethod
+    def _extract_metrics_from_runtime(runtime: Any) -> Any:
+        """Read the AgentMetrics for this invocation from runtime.context.
+
+        `runtime` is LangGraph's per-invocation Runtime object; `context` is
+        the AgentRuntimeContext passed by BaseAgent.invoke_react() into
+        `agent.invoke(..., context=...)`. This is how the explore/classify
+        LLM calls below get threaded into the same AgentMetrics as the rest
+        of the agent's execution, even though this middleware instance is
+        cached and reused across many invocations.
+        """
+        context = getattr(runtime, "context", None)
+        return getattr(context, "metrics", None)
+
     @hook_config(can_jump_to=["model"])
     def after_agent(self, state, runtime):
         if self._in_validation:
@@ -147,7 +163,8 @@ class GoalValidationMiddleware(AgentMiddleware):
             messages_count=len(state.get("messages", [])),
         )
 
-        goal_achieved, feedback = self._run_validation(state)
+        metrics = self._extract_metrics_from_runtime(runtime)
+        goal_achieved, feedback = self._run_validation(state, metrics)
 
         if goal_achieved:
             self._log.info("Goal achieved", feedback=feedback)

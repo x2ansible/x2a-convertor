@@ -927,6 +927,54 @@ class TestBaseAgentInvokeReact:
 
         assert invoked_messages[0].content == "Specific content to preserve"
 
+    def test_invoke_react_passes_metrics_via_runtime_context(
+        self, agent, mock_agent_create
+    ):
+        """invoke_react must pass `metrics` through LangGraph's `context`
+        argument (surfaced to middleware as `runtime.context`), since that is
+        the only channel middleware -- cached across invocations -- has to
+        learn which AgentMetrics belongs to the invocation currently running.
+        """
+        from unittest.mock import Mock
+
+        from src.types.telemetry import AgentMetrics, AgentRuntimeContext
+
+        mock_agent_instance = Mock()
+        mock_agent_instance.invoke.return_value = {"messages": []}
+        mock_agent_create.return_value = mock_agent_instance
+
+        metrics = AgentMetrics(name="ConcreteAgent")
+        state = BaseState(user_message="test", path="/test")
+        agent.invoke_react(state, [{"role": "user", "content": "hi"}], metrics=metrics)
+
+        # context_schema wired into create_agent so LangGraph accepts context=
+        assert mock_agent_create.call_args.kwargs["context_schema"] is (
+            AgentRuntimeContext
+        )
+
+        invoke_call = mock_agent_instance.invoke.call_args
+        passed_context = invoke_call.kwargs["context"]
+        assert isinstance(passed_context, AgentRuntimeContext)
+        assert passed_context.metrics is metrics
+
+    def test_invoke_react_passes_none_metrics_via_runtime_context(
+        self, agent, mock_agent_create
+    ):
+        from unittest.mock import Mock
+
+        from src.types.telemetry import AgentRuntimeContext
+
+        mock_agent_instance = Mock()
+        mock_agent_instance.invoke.return_value = {"messages": []}
+        mock_agent_create.return_value = mock_agent_instance
+
+        state = BaseState(user_message="test", path="/test")
+        agent.invoke_react(state, [{"role": "user", "content": "hi"}])
+
+        passed_context = mock_agent_instance.invoke.call_args.kwargs["context"]
+        assert isinstance(passed_context, AgentRuntimeContext)
+        assert passed_context.metrics is None
+
 
 class FooTool(BaseTool):
     """Simple tool used to identify which tool set was built."""

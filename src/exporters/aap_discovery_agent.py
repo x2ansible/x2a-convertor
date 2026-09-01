@@ -114,7 +114,9 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
 
         try:
             discovery_content = self._run_discovery_agent(state, metrics)
-            collections = self._extract_and_verify_collections(discovery_content)
+            collections = self._extract_and_verify_collections(
+                discovery_content, metrics
+            )
 
             self._log_discovery_results(collections)
 
@@ -163,10 +165,10 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
     # -------------------------------------------------------------------------
 
     def _extract_and_verify_collections(
-        self, content: str
+        self, content: str, metrics: AgentMetrics | None = None
     ) -> list[DiscoveredCollection]:
         """Extract collection references and verify them in Private Hub."""
-        refs = self._extract_collection_refs(content)
+        refs = self._extract_collection_refs(content, metrics)
         if not refs:
             return []
 
@@ -176,7 +178,9 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
 
         return self._verify_collections(refs)
 
-    def _extract_collection_refs(self, content: str) -> list[ExtractedCollectionRef]:
+    def _extract_collection_refs(
+        self, content: str, metrics: AgentMetrics | None = None
+    ) -> list[ExtractedCollectionRef]:
         """Extract collection references from LLM output using structured output."""
         extraction_prompt = get_prompt(self.EXTRACTION_PROMPT_NAME).format(
             discovery_content=content
@@ -185,7 +189,7 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
         try:
             messages = [{"role": "user", "content": extraction_prompt}]
             extraction_result = self.invoke_structured(
-                CollectionExtractionOutput, messages
+                CollectionExtractionOutput, messages, metrics=metrics
             )
             if isinstance(extraction_result, CollectionExtractionOutput):
                 return extraction_result.collections

@@ -359,6 +359,25 @@ class Telemetry:
         return path
 
 
+@dataclass
+class AgentRuntimeContext:
+    """LangGraph runtime context for a single ``create_agent()`` invocation.
+
+    Passed via ``agent.invoke(..., context=AgentRuntimeContext(metrics=metrics))``
+    in ``BaseAgent.invoke_react()`` and read back by middleware as
+    ``runtime.context`` (e.g. in a hook like ``after_agent(self, state, runtime)``).
+
+    This is how call-scoped data such as the current ``AgentMetrics`` reaches
+    middleware: middleware instances are cached on the agent and outlive any
+    single invocation, so they have no other way to know which metrics object
+    belongs to the invocation currently running. Without this, middleware
+    that issues its own LLM calls (e.g. ``GoalValidationMiddleware``) would
+    silently drop those calls from telemetry.
+    """
+
+    metrics: AgentMetrics | None = None
+
+
 @contextmanager
 def telemetry_context(telemetry: "Telemetry | None", agent_name: str):
     """Context manager for timing agent execution.
