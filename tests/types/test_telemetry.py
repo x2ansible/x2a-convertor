@@ -4,6 +4,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -11,6 +12,7 @@ from src.model import ToolCallCounter
 from src.types.telemetry import (
     TELEMETRY_FILENAME,
     AgentMetrics,
+    AgentRuntimeContext,
     Telemetry,
     telemetry_context,
 )
@@ -853,3 +855,31 @@ def sample_telemetry():
     agent1.stop()
     telemetry.stop()
     return telemetry
+
+
+class TestAgentRuntimeContextMetricsFrom:
+    """Tests for reading AgentMetrics out of LangGraph's runtime.context.
+
+    BaseAgent.invoke_react() passes an AgentRuntimeContext(metrics=...) into
+    `agent.invoke(..., context=...)`, and LangGraph surfaces it back to
+    middleware hooks as `runtime.context`. This is how call-scoped middleware
+    (e.g. GoalValidationMiddleware, a cached instance reused across
+    invocations) learns which AgentMetrics belongs to the invocation
+    currently running.
+    """
+
+    def test_extracts_metrics_from_runtime_context(self):
+        sentinel_metrics = AgentMetrics(name="test")
+        runtime = MagicMock()
+        runtime.context = AgentRuntimeContext(metrics=sentinel_metrics)
+
+        assert AgentRuntimeContext.metrics_from(runtime) is sentinel_metrics
+
+    def test_returns_none_when_context_missing(self):
+        runtime = MagicMock()
+        runtime.context = None
+
+        assert AgentRuntimeContext.metrics_from(runtime) is None
+
+    def test_returns_none_when_runtime_has_no_context_attribute(self):
+        assert AgentRuntimeContext.metrics_from(object()) is None

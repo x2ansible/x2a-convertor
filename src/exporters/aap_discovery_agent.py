@@ -136,7 +136,7 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
     # -------------------------------------------------------------------------
 
     def _run_discovery_agent(
-        self, state: ExportState, metrics: AgentMetrics | None = None
+        self, state: ExportState, metrics: AgentMetrics | None
     ) -> str:
         """Run the discovery agent to find relevant collections."""
         system_prompt = get_prompt(self.SYSTEM_PROMPT_NAME).format()
@@ -165,7 +165,7 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
     # -------------------------------------------------------------------------
 
     def _extract_and_verify_collections(
-        self, content: str, metrics: AgentMetrics | None = None
+        self, content: str, metrics: AgentMetrics | None
     ) -> list[DiscoveredCollection]:
         """Extract collection references and verify them in Private Hub."""
         refs = self._extract_collection_refs(content, metrics)
@@ -179,7 +179,7 @@ class AAPDiscoveryAgent(ExportAgent[ExportState]):
         return self._verify_collections(refs)
 
     def _extract_collection_refs(
-        self, content: str, metrics: AgentMetrics | None = None
+        self, content: str, metrics: AgentMetrics | None
     ) -> list[ExtractedCollectionRef]:
         """Extract collection references from LLM output using structured output."""
         extraction_prompt = get_prompt(self.EXTRACTION_PROMPT_NAME).format(
