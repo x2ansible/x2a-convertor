@@ -72,7 +72,7 @@ class AgentMetrics:
         """Merge tool call counts from a ToolCallCounter.
 
         Args:
-            counter: ToolCallCounter from report_tool_calls()
+            counter: ToolCallCounter from ToolCallCounterCallback.counter
 
         Returns:
             Self for method chaining

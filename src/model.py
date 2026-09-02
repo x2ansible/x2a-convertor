@@ -82,21 +82,15 @@ class ToolCallCounter(Counter):
         return "Tool calls:\n\t -" + "\n\t- ".join(report_lines)
 
 
-def report_tool_calls(state: dict[str, Any]) -> ToolCallCounter:
-    messages = state.get("messages", [])
-    tool_call_counts = ToolCallCounter()
+class ToolCallCounterCallback(BaseCallbackHandler):
+    """Counts tool calls at invocation time, immune to message summarization."""
 
-    for msg in messages:
-        if hasattr(msg, "tool_calls") and msg.tool_calls:
-            for tool_call in msg.tool_calls:
-                tool_name = (
-                    tool_call.get("name")
-                    if isinstance(tool_call, dict)
-                    else tool_call.name
-                )
-                tool_call_counts[tool_name] += 1
+    def __init__(self):
+        super().__init__()
+        self.counter = ToolCallCounter()
 
-    return tool_call_counts
+    def on_tool_start(self, serialized, input_str, **kwargs):
+        self.counter[serialized.get("name", "unknown")] += 1
 
 
 def get_last_ai_message(state: dict[str, Any]):

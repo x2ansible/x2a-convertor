@@ -2,7 +2,11 @@
 
 from unittest.mock import patch
 
-from src.model import DEFAULT_CONTEXT_WINDOW, get_context_window
+from src.model import (
+    DEFAULT_CONTEXT_WINDOW,
+    ToolCallCounterCallback,
+    get_context_window,
+)
 
 
 class TestGetContextWindow:
@@ -30,3 +34,20 @@ class TestGetContextWindow:
         with patch("src.model.litellm.get_model_info") as mock_info:
             mock_info.return_value = {"max_input_tokens": None}
             assert get_context_window() == DEFAULT_CONTEXT_WINDOW
+
+
+class TestToolCallCounterCallback:
+    def test_on_tool_start_increments_counter(self):
+        callback = ToolCallCounterCallback()
+        callback.on_tool_start({"name": "my_tool"}, "input")
+        callback.on_tool_start({"name": "my_tool"}, "input")
+        callback.on_tool_start({"name": "other_tool"}, "input")
+
+        assert callback.counter["my_tool"] == 2
+        assert callback.counter["other_tool"] == 1
+
+    def test_on_tool_start_falls_back_to_unknown(self):
+        callback = ToolCallCounterCallback()
+        callback.on_tool_start({}, "input")
+
+        assert callback.counter["unknown"] == 1

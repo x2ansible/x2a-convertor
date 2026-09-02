@@ -30,10 +30,10 @@ from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.middleware.x2a_summarize import X2ASummarizationMiddleware
 from src.model import (
+    ToolCallCounterCallback,
     get_context_window,
     get_model,
     get_runnable_config,
-    report_tool_calls,
 )
 from src.types.base_state import BaseState
 from src.types.telemetry import AgentMetrics, AgentRuntimeContext, telemetry_context
@@ -299,13 +299,20 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         # This is how middleware such as GoalValidationMiddleware learns
         # which AgentMetrics belongs to this invocation, since the
         # middleware instance itself is cached across invocations.
+        counter_callback = ToolCallCounterCallback()
+        config = get_runnable_config()
+        existing = config.get("callbacks")
+        config["callbacks"] = [
+            *(existing if isinstance(existing, list) else []),
+            counter_callback,
+        ]
+
         result = agent.invoke(
             {"messages": tagged_messages},
-            get_runnable_config(),
+            config,
             context=AgentRuntimeContext(metrics=metrics),
         )
-
-        tool_calls = report_tool_calls(result)
+        tool_calls = counter_callback.counter
         self._log.info(f"Tool calls: {tool_calls.to_string()}")
 
         if metrics:
