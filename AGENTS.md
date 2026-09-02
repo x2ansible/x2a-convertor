@@ -266,6 +266,36 @@ Guidelines:
 - **States and dataclasses** follow the same rule — if a state holds structured data, add a method rather than letting every consumer reimplement the traversal
 - **Test the logic where it lives** — edge cases for formatting and computation belong in the model's test file, not the caller's
 
+### Construct Instances Through Classmethods, Not Caller-Side Assembly
+
+When code builds a new instance of a class from some other shape of data (a dict, a different object, a raw value, another instance's fields), that construction belongs on the target class as a classmethod — not assembled field-by-field at the call site. This is the same "logic lives on the owning class" principle applied to construction instead of formatting.
+
+```python
+# Good: the class knows how to build itself from other shapes of data
+@dataclass
+class AgentMetrics:
+    name: str
+    input_tokens: int = 0
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AgentMetrics":
+        return cls(name=data.get("name", ""), input_tokens=data.get("input_tokens", 0))
+
+# Caller delegates
+metrics = AgentMetrics.from_dict(raw)
+
+# Bad: caller reaches in and assembles the object itself
+metrics = AgentMetrics(name=raw.get("name", ""), input_tokens=raw.get("input_tokens", 0))
+```
+
+This also applies to defensive extraction, not just deserialization: if a function reads a value off some carrier object (a runtime, a context, a response payload) with `getattr`/fallback handling in order to hand it to (or construct) another type, that extraction belongs on the type it produces or the type it reads from — e.g. `AgentRuntimeContext.metrics_from(runtime)` rather than a private helper on every middleware that needs it.
+
+Guidelines:
+- Name constructors by what they build from: `from_dict`, `from_json`, `from_settings`, `from_path`, `from_results`
+- Use plain classmethods for semantic constructors even without alternate input shapes, e.g. `AAPDiscoveryResult.success(...)` / `AAPDiscoveryResult.failed(...)` instead of callers setting flags/fields directly
+- If the same field-by-field construction (or the same defensive `getattr` chain) appears at more than one call site, that is the signal to move it onto the class as a classmethod
+- **Test the constructor where it lives** — edge cases for parsing/defaulting belong in the class's own test file
+
 ## Tools
 
 Custom tools extend `X2ATool` (`tools/base_tool.py`), which provides structured logging bound to the agent that invokes the tool:

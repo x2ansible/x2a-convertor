@@ -10,6 +10,7 @@ from src.middleware.goal_validation import (
     GoalValidationMiddleware,
     GoalValidationResult,
 )
+from src.types.telemetry import AgentMetrics
 
 EXPLORE_FINDINGS = "Verified: migration-plan.md exists and contains expected content."
 
@@ -202,7 +203,7 @@ class TestRunValidation:
         _run_validation() so their token usage and retries are counted in
         telemetry instead of being silently dropped.
         """
-        sentinel_metrics = object()
+        sentinel_metrics = AgentMetrics(name="sentinel")
         agent = MagicMock()
         agent.invoke_react.return_value = {"messages": [AIMessage(content="findings")]}
         agent.get_last_ai_message.return_value = AIMessage(content="findings")
@@ -231,37 +232,13 @@ class TestRunValidation:
         assert agent.invoke_structured.call_args[1]["metrics"] is None
 
 
-class TestExtractMetricsFromRuntime:
-    """Tests for reading AgentMetrics out of LangGraph's runtime.context.
+class TestAfterAgentMetricsForwarding:
+    """Tests that after_agent threads runtime metrics into _run_validation.
 
-    BaseAgent.invoke_react() passes an AgentRuntimeContext(metrics=...) into
-    `agent.invoke(..., context=...)`, and LangGraph surfaces it back to
-    middleware hooks as `runtime.context`. This is how GoalValidationMiddleware
-    (a cached instance reused across invocations) learns which AgentMetrics
-    belongs to the invocation currently running.
+    The actual extraction logic lives on AgentRuntimeContext.metrics_from()
+    (see tests/types/test_telemetry.py); these tests only cover that
+    after_agent wires it up correctly.
     """
-
-    def test_extracts_metrics_from_runtime_context(self, make_middleware):
-        from src.types.telemetry import AgentMetrics, AgentRuntimeContext
-
-        mw = make_middleware()
-        sentinel_metrics = AgentMetrics(name="test")
-        runtime = MagicMock()
-        runtime.context = AgentRuntimeContext(metrics=sentinel_metrics)
-
-        assert mw._extract_metrics_from_runtime(runtime) is sentinel_metrics
-
-    def test_returns_none_when_context_missing(self, make_middleware):
-        mw = make_middleware()
-        runtime = MagicMock()
-        runtime.context = None
-
-        assert mw._extract_metrics_from_runtime(runtime) is None
-
-    def test_returns_none_when_runtime_has_no_context_attribute(self, make_middleware):
-        mw = make_middleware()
-
-        assert mw._extract_metrics_from_runtime(object()) is None
 
     def test_after_agent_forwards_runtime_metrics_to_run_validation(
         self, make_middleware

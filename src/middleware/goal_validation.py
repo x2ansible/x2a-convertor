@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.messages.utils import get_buffer_string
 from pydantic import BaseModel, Field
 
+from src.types.telemetry import AgentMetrics, AgentRuntimeContext
 from src.utils.logging import get_logger
 
 EXPLORE_PROMPT_TEMPLATE = """You are a read-only verification agent checking whether the following goal was achieved. Do NOT create, write, or modify any files.
@@ -83,7 +84,9 @@ class GoalValidationMiddleware(AgentMiddleware):
             return messages
         return messages[: self.CONTEXT_HEAD] + messages[-self.CONTEXT_TAIL :]
 
-    def _run_validation(self, state: dict, metrics: Any = None) -> tuple[bool, str]:
+    def _run_validation(
+        self, state: dict, metrics: AgentMetrics | None = None
+    ) -> tuple[bool, str]:
         self._log.info("Running goal validation", retry_count=self.retry_count)
 
         messages = state.get("messages", [])
@@ -105,7 +108,6 @@ class GoalValidationMiddleware(AgentMiddleware):
                 metrics=metrics,
                 tools=tools,
             )
-
             last_ai = self.agent.get_last_ai_message(explore_result)
             findings = last_ai.text if last_ai else "No findings available"
             classify_prompt = CLASSIFY_PROMPT_TEMPLATE.format(
@@ -117,7 +119,6 @@ class GoalValidationMiddleware(AgentMiddleware):
                 messages=[{"role": "user", "content": classify_prompt}],
                 metrics=metrics,
             )
-
             if not result:
                 self._log.warning("No response from validation")
                 return False, "Validation did not respond"
@@ -135,20 +136,6 @@ class GoalValidationMiddleware(AgentMiddleware):
         finally:
             self._in_validation = False
 
-    @staticmethod
-    def _extract_metrics_from_runtime(runtime: Any) -> Any:
-        """Read the AgentMetrics for this invocation from runtime.context.
-
-        `runtime` is LangGraph's per-invocation Runtime object; `context` is
-        the AgentRuntimeContext passed by BaseAgent.invoke_react() into
-        `agent.invoke(..., context=...)`. This is how the explore/classify
-        LLM calls below get threaded into the same AgentMetrics as the rest
-        of the agent's execution, even though this middleware instance is
-        cached and reused across many invocations.
-        """
-        context = getattr(runtime, "context", None)
-        return getattr(context, "metrics", None)
-
     @hook_config(can_jump_to=["model"])
     def after_agent(self, state, runtime):
         if self._in_validation:
@@ -163,7 +150,7 @@ class GoalValidationMiddleware(AgentMiddleware):
             messages_count=len(state.get("messages", [])),
         )
 
-        metrics = self._extract_metrics_from_runtime(runtime)
+        metrics = AgentRuntimeContext.metrics_from(runtime)
         goal_achieved, feedback = self._run_validation(state, metrics)
 
         if goal_achieved:

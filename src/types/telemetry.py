@@ -377,6 +377,24 @@ class AgentRuntimeContext:
 
     metrics: AgentMetrics | None = None
 
+    @classmethod
+    def metrics_from(cls, runtime: Any) -> "AgentMetrics | None":
+        """Read the AgentMetrics for this invocation from a LangGraph runtime.
+
+        ``runtime`` is LangGraph's per-invocation Runtime object; ``runtime.context``
+        is the AgentRuntimeContext passed by ``BaseAgent.invoke_react()`` into
+        ``agent.invoke(..., context=...)``. This is how call-scoped middleware
+        (e.g. ``GoalValidationMiddleware``, which is cached and reused across many
+        invocations and issues its own explore/classify LLM calls) recovers the
+        AgentMetrics belonging to the invocation currently running, so those calls
+        get threaded into the same telemetry as the rest of the agent's execution.
+
+        Defensive against ``runtime`` or ``runtime.context`` not carrying an
+        AgentRuntimeContext (e.g. hooks invoked outside of invoke_react()).
+        """
+        context = getattr(runtime, "context", None)
+        return getattr(context, "metrics", None)
+
 
 @contextmanager
 def telemetry_context(telemetry: "Telemetry | None", agent_name: str):
