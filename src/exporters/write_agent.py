@@ -17,6 +17,7 @@ from langchain_core.tools import BaseTool
 from langgraph.graph import START, StateGraph
 
 from prompts.get_prompt import get_prompt
+from src.config.settings import SummaryContextSize
 from src.exporters.agent_state import WriteAgentState
 from src.exporters.export_agent import ExportAgent
 from src.exporters.state import ExportState
@@ -69,12 +70,12 @@ class WriteAgent(ExportAgent[ExportState]):
     SYSTEM_PROMPT_NAME = "export_ansible_write_system"
     USER_PROMPT_NAME = "export_ansible_write_task"
 
-    # Increase summarization limits to prevent losing checklist context
+    # Increase summary context ratio to prevent losing checklist context
     # WriteAgent needs higher limits because:
     # 1. Large checklists with many items must stay in context
     # 2. File writing operations generate verbose tool results
     # 3. For smaller models (GPT-OSS-120b), summarization can cause premature completion
-    MAX_TOKENS_BEFORE_SUMMARY = 30000  # Increased from default 20000
+    SUMMARY_CONTEXT_RATIO = SummaryContextSize.MEDIUM
     MESSAGES_TO_KEEP = 8  # Increased from default 20
 
     GOAL = """All non-molecule checklist items that were PENDING or MISSING have been written to disk and marked COMPLETE.

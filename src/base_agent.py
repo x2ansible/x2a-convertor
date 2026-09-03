@@ -20,6 +20,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
 from src.config import get_settings
+from src.config.settings import SummaryContextSize
 from src.const import X2A_ORIGINAL_MESSAGE
 from src.middleware.agent_dump import (
     AgentDumpCallbackHandler,
@@ -57,7 +58,7 @@ class BaseAgent[S: BaseState](ABC):
     _NAME: ClassVar[str | None] = None
     RULES_FILE: ClassVar[str | None] = None
     GOAL: ClassVar[str | None] = None
-    MAX_TOKENS_BEFORE_SUMMARY: ClassVar[int] = 20000
+    SUMMARY_CONTEXT_RATIO: ClassVar[SummaryContextSize | None] = None
     MESSAGES_TO_KEEP: ClassVar[int] = 6
 
     STRUCTURED_OUTPUT_INSTRUCTION = """CRITICAL INSTRUCTION - STRUCTURED OUTPUT REQUIRED:
@@ -172,31 +173,24 @@ Retry your response now, ensuring it matches the schema structure exactly."""
     def _effective_summary_threshold(self) -> int:
         """Compute the effective max_tokens for summarization.
 
-        Applies the summary_context_size multiplier to the agent's
-        MAX_TOKENS_BEFORE_SUMMARY and caps it at the model's context window.
+        Uses SUMMARY_CONTEXT_RATIO if set on the agent class, otherwise falls back
+        to the global SUMMARY_CONTEXT_SIZE setting. Both are fractions of the model's
+        context window.
         """
-        settings = get_settings()
-        multiplier = settings.llm.summary_context_size.multiplier
-        scaled = int(self.MAX_TOKENS_BEFORE_SUMMARY * multiplier)
-
+        context_size = (
+            self.SUMMARY_CONTEXT_RATIO or get_settings().llm.summary_context_size
+        )
+        ratio = context_size.ratio
         context_window = get_context_window()
-        if scaled > context_window:
-            self._log.warning(
-                "Summary threshold exceeds context window, capping",
-                requested=scaled,
-                context_window=context_window,
-                agent=self.agent_name,
-            )
-            return context_window
-
-        if multiplier != 1.0:
+        effective = int(context_window * ratio)
+        if ratio != SummaryContextSize.COMPACT.ratio:
             self._log.info(
-                "Summary threshold scaled",
-                base=self.MAX_TOKENS_BEFORE_SUMMARY,
-                multiplier=multiplier,
-                effective=scaled,
+                "Summary threshold computed",
+                context_window=context_window,
+                ratio=ratio,
+                effective=effective,
             )
-        return scaled
+        return effective
 
     def __call__(self, state: S) -> S:
         """Entry point. Wraps execute() with automatic telemetry + logging."""

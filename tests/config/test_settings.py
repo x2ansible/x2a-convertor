@@ -60,11 +60,11 @@ class TestLLMSettings:
 class TestSummaryContextSize:
     """Tests for SummaryContextSize enum."""
 
-    def test_multiplier_values(self):
-        assert SummaryContextSize.COMPACT.multiplier == 1.0
-        assert SummaryContextSize.MEDIUM.multiplier == 1.5
-        assert SummaryContextSize.LARGE.multiplier == 2.0
-        assert SummaryContextSize.FULL.multiplier == 3.0
+    def test_ratio_values(self):
+        assert SummaryContextSize.COMPACT.ratio == 0.25
+        assert SummaryContextSize.MEDIUM.ratio == 0.40
+        assert SummaryContextSize.LARGE.ratio == 0.55
+        assert SummaryContextSize.FULL.ratio == 0.75
 
     def test_string_values(self):
         assert SummaryContextSize.COMPACT.value == "compact"
