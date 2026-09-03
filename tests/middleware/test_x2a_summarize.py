@@ -15,6 +15,7 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from src.const import X2A_ORIGINAL_MESSAGE
 from src.middleware.x2a_summarize import X2ASummarizationMiddleware
+from src.types.telemetry import AgentMetrics, AgentRuntimeContext
 
 
 class MockRuntime:
@@ -630,6 +631,68 @@ class TestSummaryCreation:
         result = middleware._create_summary(messages)
 
         assert result is None
+
+    def test_create_summary_records_token_usage_on_metrics(self, middleware, model):
+        """Test that summarization LLM usage is threaded into AgentMetrics."""
+        model.invoke.return_value = Mock(
+            text="Summary text",
+            usage_metadata={"input_tokens": 42, "output_tokens": 7},
+        )
+        metrics = AgentMetrics(name="TestAgent")
+        messages = [AIMessage(content="First")]
+
+        result = middleware._create_summary(messages, metrics)
+
+        assert result == "Summary text"
+        assert metrics.input_tokens == 42
+        assert metrics.output_tokens == 7
+
+    def test_create_summary_without_metrics_is_noop(self, middleware, model):
+        """Test that summarization works fine without metrics (no-op tracking)."""
+        messages = [AIMessage(content="First")]
+
+        result = middleware._create_summary(messages, None)
+
+        assert result == "Summary text"
+
+
+class TestBeforeModelMetricsThreading:
+    """Tests that before_model/abefore_model thread AgentMetrics from runtime context."""
+
+    @pytest.fixture
+    def model(self):
+        mock = Mock()
+        mock.invoke.return_value = Mock(
+            text="Summary text",
+            usage_metadata={"input_tokens": 10, "output_tokens": 5},
+        )
+        return mock
+
+    def test_before_model_records_tokens_via_runtime_context(self, model):
+        """Test that before_model reads metrics off runtime.context and records tokens."""
+        middleware = X2ASummarizationMiddleware(
+            model, max_tokens=10, messages_to_keep=1
+        )
+        metrics = AgentMetrics(name="TestAgent")
+        runtime = Mock(context=AgentRuntimeContext(metrics=metrics))
+
+        original = HumanMessage(
+            content="Original",
+            additional_kwargs={X2A_ORIGINAL_MESSAGE: True},
+            id="msg1",
+        )
+        messages = [
+            original,
+            AIMessage(content="Long response " * 100, id="msg2"),
+            ToolMessage(content="Tool result " * 100, tool_call_id="123", id="msg3"),
+        ]
+        state = {"messages": messages}
+
+        result = middleware.before_model(state, runtime)
+
+        assert result is not None
+        assert metrics.input_tokens == 10
+        assert metrics.output_tokens == 5
 
 
 class TestEndToEndScenarios:

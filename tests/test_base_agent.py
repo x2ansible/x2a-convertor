@@ -12,6 +12,7 @@ from src.base_agent import BaseAgent
 from src.config import reset_settings
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
+from src.middleware.telemetry import TelemetryMiddleware
 from src.middleware.x2a_summarize import X2ASummarizationMiddleware
 from src.types.base_state import BaseState
 
@@ -64,162 +65,6 @@ class TestBaseAgentName:
     def test_agent_name_uses_custom_name_when_defined(self):
         agent = NamedAgent()
         assert agent.agent_name == "My Custom Agent"
-
-
-class TestBaseAgentTokenExtraction:
-    """Tests for BaseAgent._extract_token_usage method."""
-
-    @pytest.fixture
-    def agent(self):
-        """Create a test agent instance."""
-        return ConcreteAgent()
-
-    def test_extract_token_usage_empty_messages(self, agent):
-        """Test extraction with no messages."""
-        result = {"messages": []}
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 0
-        assert output_tokens == 0
-
-    def test_extract_token_usage_no_ai_messages(self, agent):
-        """Test extraction with no AI messages."""
-        result = {
-            "messages": [
-                HumanMessage(content="Hello"),
-                HumanMessage(content="World"),
-            ]
-        }
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 0
-        assert output_tokens == 0
-
-    def test_extract_token_usage_single_ai_message(self, agent):
-        """Test extraction from single AI message."""
-        ai_msg = AIMessage(content="Response")
-        ai_msg.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
-        )
-
-        result = {"messages": [ai_msg]}
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 100
-        assert output_tokens == 50
-
-    def test_extract_token_usage_multiple_ai_messages(self, agent):
-        """Test extraction accumulates across multiple AI messages."""
-        ai_msg1 = AIMessage(content="First")
-        ai_msg1.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
-        )
-
-        ai_msg2 = AIMessage(content="Second")
-        ai_msg2.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 200, "output_tokens": 75}
-        )
-
-        result = {"messages": [ai_msg1, ai_msg2]}
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 300
-        assert output_tokens == 125
-
-    def test_extract_token_usage_mixed_messages(self, agent):
-        """Test extraction with mixed message types."""
-        human_msg = HumanMessage(content="Question")
-        ai_msg1 = AIMessage(content="Answer 1")
-        ai_msg1.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
-        )
-
-        ai_msg2 = AIMessage(content="Answer 2")
-        ai_msg2.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 150, "output_tokens": 60}
-        )
-
-        result = {"messages": [human_msg, ai_msg1, human_msg, ai_msg2]}
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 250
-        assert output_tokens == 110
-
-    def test_extract_token_usage_missing_metadata(self, agent):
-        """Test extraction handles AI messages without usage_metadata."""
-        ai_msg_with_metadata = AIMessage(content="First")
-        ai_msg_with_metadata.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
-        )
-
-        ai_msg_without_metadata = AIMessage(content="Second")
-        # No usage_metadata attribute
-
-        result = {"messages": [ai_msg_with_metadata, ai_msg_without_metadata]}
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 100
-        assert output_tokens == 50
-
-    def test_extract_token_usage_none_metadata(self, agent):
-        """Test extraction handles None usage_metadata."""
-        ai_msg1 = AIMessage(content="First")
-        ai_msg1.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
-        )
-
-        ai_msg2 = AIMessage(content="Second")
-        ai_msg2.usage_metadata = None
-
-        result = {"messages": [ai_msg1, ai_msg2]}
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 100
-        assert output_tokens == 50
-
-    def test_extract_token_usage_partial_metadata(self, agent):
-        """Test extraction handles missing keys in usage_metadata."""
-        ai_msg1 = AIMessage(content="First")
-        ai_msg1.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 100, "output_tokens": 50}
-        )
-
-        ai_msg2 = AIMessage(content="Second")
-        ai_msg2.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 75}
-        )  # Missing output_tokens
-
-        ai_msg3 = AIMessage(content="Third")
-        ai_msg3.usage_metadata = cast(
-            UsageMetadata, {"output_tokens": 25}
-        )  # Missing input_tokens
-
-        result = {"messages": [ai_msg1, ai_msg2, ai_msg3]}
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 175  # 100 + 75 + 0
-        assert output_tokens == 75  # 50 + 0 + 25
-
-    def test_extract_token_usage_zero_tokens(self, agent):
-        """Test extraction with zero token values."""
-        ai_msg = AIMessage(content="Response")
-        ai_msg.usage_metadata = cast(
-            UsageMetadata, {"input_tokens": 0, "output_tokens": 0}
-        )
-
-        result = {"messages": [ai_msg]}
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 0
-        assert output_tokens == 0
-
-    def test_extract_token_usage_missing_messages_key(self, agent):
-        """Test extraction when result has no messages key."""
-        result = {}
-        input_tokens, output_tokens = agent._extract_token_usage(result)
-
-        assert input_tokens == 0
-        assert output_tokens == 0
 
 
 class TestBaseAgentInvokeLLM:
@@ -1069,24 +914,34 @@ class TestBaseAgentMiddleware:
         agent = ConcreteAgent()
         stack = agent.middleware()
 
-        assert len(stack) == 1
+        assert len(stack) == 2
         assert isinstance(stack[0], X2ASummarizationMiddleware)
+        assert isinstance(stack[1], TelemetryMiddleware)
 
     def test_middleware_with_rules_file(self):
         agent = RuledAgent()
         stack = agent.middleware()
 
-        assert len(stack) == 2
+        assert len(stack) == 3
         assert isinstance(stack[0], RulesMiddleware)
         assert isinstance(stack[1], X2ASummarizationMiddleware)
+        assert isinstance(stack[2], TelemetryMiddleware)
 
     def test_middleware_with_goal(self):
         agent = GoalAgent()
         stack = agent.middleware()
 
-        assert len(stack) == 2
+        assert len(stack) == 3
         assert isinstance(stack[0], GoalValidationMiddleware)
         assert isinstance(stack[1], X2ASummarizationMiddleware)
+        assert isinstance(stack[2], TelemetryMiddleware)
+
+    def test_middleware_telemetry_is_last(self):
+        """TelemetryMiddleware must stay innermost (last), see middleware() docstring."""
+        agent = GoalAgent()
+        stack = agent.middleware()
+
+        assert isinstance(stack[-1], TelemetryMiddleware)
 
     def test_middleware_with_goal_passes_agent_reference(self):
         agent = GoalAgent()
