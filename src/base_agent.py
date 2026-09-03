@@ -28,6 +28,7 @@ from src.middleware.agent_dump import (
 )
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
+from src.middleware.telemetry import TelemetryMiddleware
 from src.middleware.x2a_summarize import X2ASummarizationMiddleware
 from src.model import (
     get_context_window,
@@ -158,6 +159,12 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         if settings.logging.json_lines:
             stack.append(AgentDumpMiddleware(self._get_snapshot_writer()))
 
+        # TelemetryMiddleware must stay last: it wraps the actual model call
+        # (wrap_model_call composes outermost-first), so placing it last keeps
+        # it innermost -- it always measures the real call and never
+        # intercepts/short-circuits control flow owned by other middleware.
+        stack.append(TelemetryMiddleware())
+
         # Cache for reuse
         self._middleware_cache = stack
         return stack
@@ -250,26 +257,6 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             config["callbacks"] = [handler]
         return config
 
-    def _extract_token_usage(self, result: dict) -> tuple[int, int]:
-        """Extract total input and output tokens from AIMessage objects.
-
-        Returns:
-        Tuple of (input_tokens, output_tokens)
-        """
-        input_tokens = 0
-        output_tokens = 0
-
-        for msg in result.get("messages", []):
-            if not isinstance(msg, AIMessage):
-                continue
-            if not hasattr(msg, "usage_metadata") or not msg.usage_metadata:
-                continue
-
-            input_tokens += msg.usage_metadata.get("input_tokens", 0)
-            output_tokens += msg.usage_metadata.get("output_tokens", 0)
-
-        return input_tokens, output_tokens
-
     def invoke_react(
         self,
         state: S,
@@ -308,10 +295,12 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         tool_calls = report_tool_calls(result)
         self._log.info(f"Tool calls: {tool_calls.to_string()}")
 
+        # Token usage is recorded by TelemetryMiddleware (via wrap_model_call)
+        # as each model call happens, using the same AgentRuntimeContext passed
+        # above. Recording it again here from the final message list would
+        # double-count every token.
         if metrics:
             metrics.record_tool_calls(tool_calls)
-            input_tokens, output_tokens = self._extract_token_usage(result)
-            metrics.record_tokens(input_tokens, output_tokens)
 
         return result
 

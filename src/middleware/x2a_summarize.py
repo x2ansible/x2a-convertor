@@ -21,6 +21,7 @@ from langgraph.runtime import Runtime
 
 from prompts.get_prompt import get_prompt
 from src.const import X2A_ORIGINAL_MESSAGE
+from src.types.telemetry import AgentMetrics, AgentRuntimeContext
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -59,7 +60,8 @@ class X2ASummarizationMiddleware(AgentMiddleware):
             return None
 
         original, to_summarize, kept = result
-        summary_text = self._create_summary(to_summarize)
+        metrics = AgentRuntimeContext.metrics_from(runtime)
+        summary_text = self._create_summary(to_summarize, metrics)
 
         if summary_text is None:
             return None
@@ -76,7 +78,8 @@ class X2ASummarizationMiddleware(AgentMiddleware):
             return None
 
         original, to_summarize, kept = result
-        summary_text = await self._acreate_summary(to_summarize)
+        metrics = AgentRuntimeContext.metrics_from(runtime)
+        summary_text = await self._acreate_summary(to_summarize, metrics)
 
         if summary_text is None:
             return None
@@ -163,7 +166,9 @@ class X2ASummarizationMiddleware(AgentMiddleware):
         cutoff = self._adjust_cutoff_for_tool_pairs(messages, cutoff)
         return messages[cutoff:]
 
-    def _create_summary(self, messages: list[AnyMessage]) -> str | None:
+    def _create_summary(
+        self, messages: list[AnyMessage], metrics: AgentMetrics | None = None
+    ) -> str | None:
         if not messages:
             return "No previous actions to summarize."
 
@@ -171,6 +176,7 @@ class X2ASummarizationMiddleware(AgentMiddleware):
 
         try:
             response = self._model.invoke(prompt_text)
+            self._record_tokens(response, metrics)
             return response.text.strip()
         except Exception as e:
             logger.error(
@@ -178,7 +184,9 @@ class X2ASummarizationMiddleware(AgentMiddleware):
             )
             return None
 
-    async def _acreate_summary(self, messages: list[AnyMessage]) -> str | None:
+    async def _acreate_summary(
+        self, messages: list[AnyMessage], metrics: AgentMetrics | None = None
+    ) -> str | None:
         if not messages:
             return "No previous actions to summarize."
 
@@ -186,12 +194,30 @@ class X2ASummarizationMiddleware(AgentMiddleware):
 
         try:
             response = await self._model.ainvoke(prompt_text)
+            self._record_tokens(response, metrics)
             return response.text.strip()
         except Exception as e:
             logger.error(
                 "Summarization failed, keeping original messages", error=str(e)
             )
             return None
+
+    @staticmethod
+    def _record_tokens(response: Any, metrics: AgentMetrics | None) -> None:
+        """Thread summarization LLM token usage into the invocation's AgentMetrics.
+
+        Without this, tokens spent compacting the conversation are silently
+        dropped from telemetry, since this middleware issues its own model
+        call outside of invoke_react/invoke_llm.
+        """
+        if metrics is None:
+            return
+        usage = getattr(response, "usage_metadata", None)
+        if not usage:
+            return
+        metrics.record_tokens(
+            usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+        )
 
     def _build_summary_prompt(self, messages: list[AnyMessage]) -> str:
         formatted = get_buffer_string(messages)
