@@ -14,6 +14,7 @@ from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
+from src.config.settings import SummaryContextSize
 from src.inputs.input_agent import InputAgent
 from src.inputs.puppet.state import PuppetState
 from src.types.telemetry import AgentMetrics
@@ -50,7 +51,7 @@ class HieraAnalysisAgent(InputAgent[PuppetState]):
         ListDirectoryTool,
     ]
 
-    MAX_TOKENS_BEFORE_SUMMARY = 50000
+    SUMMARY_CONTEXT_RATIO = SummaryContextSize.MEDIUM
 
     def execute(self, state: PuppetState, metrics: AgentMetrics | None) -> PuppetState:
         return state

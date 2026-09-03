@@ -15,30 +15,26 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class SummaryContextSize(StrEnum):
     """Controls how aggressively conversation history is summarized.
 
-    Each level applies a multiplier to the agent's MAX_TOKENS_BEFORE_SUMMARY
-    threshold. Higher values preserve more conversation context before
-    triggering summarization, at the cost of using more of the model's
-    context window.
-
-    The effective threshold is capped at the model's context window size.
+    Each level is a fraction of the model's actual context window.
+    Higher values preserve more context before triggering summarization.
     """
 
-    COMPACT = "compact"  # 1x   -- current default behavior
-    MEDIUM = "medium"  # 1.5x
-    LARGE = "large"  # 2x
-    FULL = "full"  # 3x
+    COMPACT = "compact"  # 25% of context window, current default behavior
+    MEDIUM = "medium"  # 40% of context window
+    LARGE = "large"  # 55% of context window
+    FULL = "full"  # 75% of context window
 
     @property
-    def multiplier(self) -> float:
-        """Return the token multiplier for this context size."""
-        return _MULTIPLIERS[self]
+    def ratio(self) -> float:
+        """Return the context window fraction for this level."""
+        return _RATIOS[self]
 
 
-_MULTIPLIERS: dict[SummaryContextSize, float] = {
-    SummaryContextSize.COMPACT: 1.0,
-    SummaryContextSize.MEDIUM: 1.5,
-    SummaryContextSize.LARGE: 2.0,
-    SummaryContextSize.FULL: 3.0,
+_RATIOS: dict[SummaryContextSize, float] = {
+    SummaryContextSize.COMPACT: 0.25,
+    SummaryContextSize.MEDIUM: 0.40,
+    SummaryContextSize.LARGE: 0.55,
+    SummaryContextSize.FULL: 0.75,
 }
 
 
@@ -103,7 +99,8 @@ class LLMSettings(BaseSettings):
         default=SummaryContextSize.COMPACT,
         validation_alias="SUMMARY_CONTEXT_SIZE",
         description="Controls conversation summarization aggressiveness. "
-        "Higher values keep more context before summarizing (compact=1x, medium=1.5x, large=2x, full=3x).",
+        "Sets the fraction of the model context window at which summarization triggers "
+        "(compact=25%, medium=40%, large=55%, full=75%).",
     )
 
     @field_validator("summary_context_size", mode="before")

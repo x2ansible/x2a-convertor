@@ -10,6 +10,7 @@ from langchain_core.tools import BaseTool
 
 from src.base_agent import BaseAgent
 from src.config import reset_settings
+from src.config.settings import SummaryContextSize
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.middleware.telemetry import TelemetryMiddleware
@@ -975,10 +976,8 @@ class TestBaseAgentMiddleware:
         assert agent.GOAL == "Verify output file exists"
 
 
-class HighThresholdAgent(BaseAgent[BaseState]):
-    """Agent with a high MAX_TOKENS_BEFORE_SUMMARY for testing scaling."""
-
-    MAX_TOKENS_BEFORE_SUMMARY = 50_000
+class AgentWithRatioOverride(BaseAgent[BaseState]):
+    SUMMARY_CONTEXT_RATIO = SummaryContextSize.FULL
 
     def execute(self, state, metrics):
         return state
@@ -993,58 +992,44 @@ class TestEffectiveSummaryThreshold:
     def teardown_method(self):
         reset_settings()
 
-    @patch("src.base_agent.get_context_window", return_value=200_000)
-    def test_compact_returns_base_value(self, _mock_cw, monkeypatch):
+    @patch("src.base_agent.get_context_window", return_value=128_000)
+    def test_compact_is_25_percent(self, _mock_cw, monkeypatch):
         monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "compact")
         reset_settings()
-        agent = ConcreteAgent()
-        assert agent._effective_summary_threshold() == 20_000
+        assert ConcreteAgent()._effective_summary_threshold() == 32_000
 
-    @patch("src.base_agent.get_context_window", return_value=200_000)
-    def test_medium_scales_by_1_5(self, _mock_cw, monkeypatch):
+    @patch("src.base_agent.get_context_window", return_value=128_000)
+    def test_medium_is_40_percent(self, _mock_cw, monkeypatch):
         monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "medium")
         reset_settings()
-        agent = ConcreteAgent()
-        assert agent._effective_summary_threshold() == 30_000
+        assert ConcreteAgent()._effective_summary_threshold() == 51_200
 
-    @patch("src.base_agent.get_context_window", return_value=200_000)
-    def test_large_scales_by_2(self, _mock_cw, monkeypatch):
+    @patch("src.base_agent.get_context_window", return_value=128_000)
+    def test_large_is_55_percent(self, _mock_cw, monkeypatch):
         monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "large")
         reset_settings()
-        agent = ConcreteAgent()
-        assert agent._effective_summary_threshold() == 40_000
+        assert ConcreteAgent()._effective_summary_threshold() == 70_400
 
-    @patch("src.base_agent.get_context_window", return_value=200_000)
-    def test_full_scales_by_3(self, _mock_cw, monkeypatch):
+    @patch("src.base_agent.get_context_window", return_value=128_000)
+    def test_full_is_75_percent(self, _mock_cw, monkeypatch):
         monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "full")
         reset_settings()
-        agent = ConcreteAgent()
-        assert agent._effective_summary_threshold() == 60_000
+        assert ConcreteAgent()._effective_summary_threshold() == 96_000
 
-    @patch("src.base_agent.get_context_window", return_value=200_000)
-    def test_applies_to_agent_specific_threshold(self, _mock_cw, monkeypatch):
-        monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "large")
+    @patch("src.base_agent.get_context_window", return_value=32_000)
+    def test_scales_with_smaller_context_window(self, _mock_cw, monkeypatch):
+        monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "compact")
         reset_settings()
-        agent = HighThresholdAgent()
-        assert agent._effective_summary_threshold() == 100_000
+        assert ConcreteAgent()._effective_summary_threshold() == 8_000
 
-    @patch("src.base_agent.get_context_window", return_value=25_000)
-    def test_caps_at_context_window(self, _mock_cw, monkeypatch):
-        monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "full")
+    @patch("src.base_agent.get_context_window", return_value=128_000)
+    def test_per_agent_ratio_overrides_global_setting(self, _mock_cw, monkeypatch):
+        monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "compact")
         reset_settings()
-        agent = ConcreteAgent()  # 20_000 * 3 = 60_000 > 25_000
-        assert agent._effective_summary_threshold() == 25_000
+        assert AgentWithRatioOverride()._effective_summary_threshold() == 96_000
 
-    @patch("src.base_agent.get_context_window", return_value=40_000)
-    def test_caps_high_threshold_agent_at_context_window(self, _mock_cw, monkeypatch):
-        monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "full")
-        reset_settings()
-        agent = HighThresholdAgent()  # 50_000 * 3 = 150_000 > 40_000
-        assert agent._effective_summary_threshold() == 40_000
-
-    @patch("src.base_agent.get_context_window", return_value=200_000)
+    @patch("src.base_agent.get_context_window", return_value=128_000)
     def test_messages_to_keep_unchanged(self, _mock_cw, monkeypatch):
         monkeypatch.setenv("SUMMARY_CONTEXT_SIZE", "full")
         reset_settings()
-        agent = ConcreteAgent()
-        assert agent.MESSAGES_TO_KEEP == 6
+        assert ConcreteAgent().MESSAGES_TO_KEEP == 6
