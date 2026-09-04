@@ -6,20 +6,19 @@ The plan must summarize in detail all modules, dependencies, security issues, an
 
 ## Instructions
 
-- Begin by exploring the repository using the available file management tools:
-  - `list_directory`: List files and directories.
+- The repository tree is pre-provided in the user message. It may be truncated for large repos — if you see a truncation notice at the end, use `list_directory` to explore the remaining paths.
+- Available tools:
+  - `list_directory`: List directory contents (use only when the tree is insufficient).
   - `file_search`: Search for files by pattern.
   - `read_file`: Read file contents.
   - `write_file`: Write the completed migration plan.
-- Your first action must be to run `list_directory` on the root directory: `list_directory(dir_path=.)` to understand the repository structure.
 - Do not generate any output until you have fully explored the repository.
 
 ## Required Analysis Steps
 
 Follow these steps in order:
 
-1. **Root Directory Scan**: Use `list_directory(dir_path=.)` to see all top-level files and folders.
-2. **Module Discovery with file_search**: Immediately after the root scan, run ALL of the following `file_search` calls to detect every technology present. Repositories often mix technologies (e.g., Puppet modules with PowerShell scripts inside). You MUST run every search, not just the first technology you recognize:
+1. **Module Discovery with file_search**: The full file listing is already provided - use it to identify technologies present. Then run ALL of the following `file_search` calls to confirm every technology. Repositories often mix technologies (e.g., Puppet modules with PowerShell scripts inside). You MUST run every search, not just the first technology you recognize:
    - `file_search(pattern="**/manifests/init.pp")` — discovers Puppet modules
    - `file_search(pattern="**/recipes/default.rb")` — discovers Chef cookbooks
    - `file_search(pattern="**/*.psd1")` — discovers PowerShell module manifests
