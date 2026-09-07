@@ -280,7 +280,6 @@ class WriteAgent(ExportAgent[ExportState]):
             slog.warning("Write agent did not produce output")
 
         state.export_state = export_state
-        state.last_result = result
         state.attempt += 1
 
         return state
