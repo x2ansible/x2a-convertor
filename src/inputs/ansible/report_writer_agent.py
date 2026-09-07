@@ -9,13 +9,13 @@ from typing import ClassVar
 
 from langchain_community.tools.file_management.file_search import FileSearchTool
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
-from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
 from src.inputs.ansible.state import AnsibleAnalysisState
 from src.inputs.input_agent import InputAgent
 from src.types.telemetry import AgentMetrics
+from tools.read_file import ReadFileTool
 
 
 class ReportWriterAgent(InputAgent[AnsibleAnalysisState]):
