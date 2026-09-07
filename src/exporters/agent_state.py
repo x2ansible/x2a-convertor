@@ -5,7 +5,6 @@ their work/validation loops independently from the parent workflow.
 """
 
 from dataclasses import dataclass
-from typing import Any
 
 from src.exporters.state import ExportState
 from src.exporters.tools.apme import CheckReport
@@ -24,14 +23,12 @@ class BaseAgentState:
         attempt: Current attempt number (0-indexed)
         max_attempts: Maximum number of attempts before giving up
         complete: Whether the agent has completed its work successfully
-        last_result: Last result from agent execution (optional)
     """
 
     export_state: ExportState
     attempt: int = 0
     max_attempts: int = 3
     complete: bool = False
-    last_result: Any = None
 
 
 @dataclass
@@ -89,16 +86,3 @@ class MoleculeAgentState(BaseAgentState):
     """
 
     missing_files: list[str] | None = None
-
-
-@dataclass
-class PlanningAgentState(BaseAgentState):
-    """Internal state for PlanningAgent workflow.
-
-    Tracks checklist creation and validation.
-
-    Attributes:
-        checklist_valid: Whether the generated checklist is valid
-    """
-
-    checklist_valid: bool = False

@@ -263,7 +263,6 @@ class ValidationAgent(ExportAgent[ExportState]):
             export_state = export_state.update(validation_report=message.text)
 
         state.export_state = export_state
-        state.last_result = result
         state.attempt += 1
 
         slog.info("Fix iteration completed")
