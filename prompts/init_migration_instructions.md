@@ -19,7 +19,7 @@ The plan must summarize, at a high level, all modules, dependencies, security is
 
 Follow these steps in order:
 
-1. **Module Discovery**: The full file listing is already provided - use it to identify technologies present from file extensions and directory structure. If the technology is ambiguous or the tree was truncated, use `file_search` to confirm:
+1. **Module Discovery**: The full file listing is already provided - use it to identify technologies present from file extensions and directory structure. If the technology is ambiguous or the tree was truncated, use `file_search` to confirm. **For each module you identify, you must read its primary entrypoint file before writing its MODULE INVENTORY entry**
    - `file_search(pattern="**/manifests/init.pp")` — discovers Puppet modules
    - `file_search(pattern="**/recipes/default.rb")` — discovers Chef cookbooks
    - `file_search(pattern="**/*.psd1")` — discovers PowerShell module manifests
@@ -124,6 +124,7 @@ Do not invent paths. Incorrect paths will cause downstream migration failures.
 - **web**: Web server module at cookbooks/web (UNCLEAR - what web server? what configuration?)
 - **app**: Application deployment (INSUFFICIENT - what app? what runtime? what dependencies?)
 - **site**: All modules at site/ (WRONG - this groups multiple modules into one entry. Each directory under the modulepath that has its own manifests/ directory must be listed as a separate module)
+- **sql-server**: Likely similar to the base server config, probably installs SQL features (WRONG — "likely" and "probably" mean you are guessing from the filename. Read the file first, then describe what you actually found.)
 
 ### Infrastructure Files
 
