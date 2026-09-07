@@ -2,7 +2,7 @@ Analyze this directory for migration to Ansible.
 
 User requirements: {user_requirements}
 
-Use `list_directory` and `file_search` to explore the repository structure. Do not assume any structure, discover it by navigating the directory tree, current list directory is:
+The repository tree is provided below. This should be a high-level (10,000-foot view) analysis: only use `read_file` on paths that are relevant to identifying modules, technology, and dependencies, not every file. If the tree ends with a truncation notice, use `list_directory` to explore the remaining paths.
 
 ```
 {files}
