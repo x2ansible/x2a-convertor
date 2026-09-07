@@ -19,10 +19,12 @@ The plan must summarize, at a high level, all modules, dependencies, security is
 
 Follow these steps in order:
 
-1. **Module Discovery with file_search**: The full file listing is already provided - use it to identify technologies present. Then run ALL of the following `file_search` calls to confirm every technology. Repositories often mix technologies (e.g., Puppet modules with PowerShell scripts inside). You MUST run every search, not just the first technology you recognize:
+1. **Module Discovery**: The full file listing is already provided - use it to identify technologies present from file extensions and directory structure. If the technology is ambiguous or the tree was truncated, use `file_search` to confirm:
    - `file_search(pattern="**/manifests/init.pp")` — discovers Puppet modules
    - `file_search(pattern="**/recipes/default.rb")` — discovers Chef cookbooks
    - `file_search(pattern="**/*.psd1")` — discovers PowerShell module manifests
+
+   Repositories sometimes mix technologies (e.g., Puppet modules with PowerShell scripts inside) - check the tree carefully before assuming a single technology.
 
    **Puppet module structure**: A Puppet module is a directory that contains a `manifests/` subdirectory with `.pp` files. The main entry point is always `manifests/init.pp`:
    ```
@@ -38,15 +40,15 @@ Follow these steps in order:
    ```
    - Each path returned by `file_search` represents an individual module — you MUST list each one separately in the MODULE INVENTORY
    - When modules are nested under category directories (e.g., `<parent>/<category>/<module_name>/manifests/init.pp`), each `<module_name>` is a separate module — do NOT group them by `<category>` or `<parent>`
-3. **Dependency Review**: Use `read_file` on the dependency manifest for each module only (skip modules that have none):
+2. **Dependency Review**: Use `read_file` on the dependency manifest for each module only (skip modules that have none):
    - **Chef**: `Berksfile`, `Policyfile.rb`, `metadata.rb`
    - **PowerShell**: `requirements.psd1`, module manifests (`.psd1`), `Import-Module` statements in scripts
    - **Puppet**: `Puppetfile`, `metadata.json` inside each module, `environment.conf`
-4. **Metadata Review**: Read the metadata file for each module (not every file) to gather module information:
+3. **Metadata Review**: Read the metadata file for each module (not every file) to gather module information:
    - **Chef**: `metadata.rb`, `metadata.json`
    - **PowerShell**: `.psd1` module manifests, script headers, `#Requires` statements
    - **Puppet**: `metadata.json` inside each module directory, `environment.conf` at the control repo root, `hiera.yaml`
-5. **Content Review**: Read only the entrypoint/primary source file(s) per module to understand its purpose — enough for a high-level summary, not a line-by-line audit. Do not read every recipe, template, or manifest file in a module:
+4. **Content Review**: Read only the entrypoint/primary source file(s) per module to understand its purpose — enough for a high-level summary, not a line-by-line audit. Do not read every recipe, template, or manifest file in a module:
    - **Chef**: the default recipe (`recipes/default.rb`), plus any recipe whose name suggests it is central to the module's purpose
    - **PowerShell**: the main `.ps1`/`.psm1` entrypoint or DSC `Configuration` block
    - **Puppet**: `manifests/init.pp`, plus a template or Hiera file only if needed to clarify an ambiguous purpose
@@ -71,9 +73,8 @@ This repository contains [technology type] that need individual migration planni
 [List each module with description and location. Do NOT list external dependencies here]
 
 **CRITICAL PATH VERIFICATION:**
-Before listing any module, you MUST verify the path exists using the `list_directory` or `file_search` tools.
-Only include modules whose paths you have confirmed actually exist in the repository.
-Incorrect paths will cause downstream migration failures.
+Only include modules whose paths you saw in the provided repository tree or confirmed via `file_search`.
+Do not invent paths. Incorrect paths will cause downstream migration failures.
 
 **GOOD EXAMPLES:**
 - **postgresql**:
