@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import LLMResult
 from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables.config import var_child_runnable_config
 from langchain_litellm import ChatLiteLLMRouter
 
 from src.config import get_settings
@@ -110,6 +111,12 @@ def get_last_ai_message(state: dict[str, Any]):
 
 
 def get_runnable_config() -> RunnableConfig:
+
+    # Checking if the RunnableConfig is already set.
+    ambient = var_child_runnable_config.get()
+    if ambient and ambient.get("callbacks"):
+        return ambient
+
     """Get RunnableConfig dict with recursion limit from settings"""
     settings = get_settings()
     return {
