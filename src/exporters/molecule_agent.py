@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import ClassVar, Literal
 
 from langchain_community.tools.file_management.list_dir import ListDirectoryTool
-from langchain_community.tools.file_management.read import ReadFileTool
 from langchain_community.tools.file_management.write import WriteFileTool
 from langchain_core.tools import BaseTool
 from langgraph.graph import START, StateGraph
@@ -23,6 +22,7 @@ from src.model import get_runnable_config
 from src.types import ChecklistStatus
 from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
+from tools.read_file import ReadFileTool
 
 logger = get_logger(__name__)
 
