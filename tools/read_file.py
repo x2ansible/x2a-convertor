@@ -39,8 +39,7 @@ class ReadFileInput(BaseModel):
 class ReadFileTool(X2ATool):
     name: str = "read_file"
     description: str = (
-        "Read a range of lines from a file on disk. Returns content prefixed "
-        "with line numbers so you can reference exact locations. "
+        "Read a range of lines from a file on disk. "
         f"Each call returns at most {MAX_LINES_PER_READ} lines -- use "
         "start_line/end_line to page through larger files instead of trying "
         "to read everything at once."
@@ -85,4 +84,13 @@ class ReadFileTool(X2ATool):
         capped_end = min(requested_end, start_line + MAX_LINES_PER_READ - 1, total)
 
         selected = lines[start_line - 1 : capped_end]
-        return "\n".join(selected)
+        content = "\n".join(selected)
+
+        if capped_end < total:
+            content += (
+                f"\n[... showing lines {start_line}-{capped_end} of {total} "
+                f"total; call again with start_line={capped_end + 1} to "
+                "continue ...]"
+            )
+
+        return content

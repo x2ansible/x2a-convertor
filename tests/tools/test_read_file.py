@@ -59,9 +59,23 @@ class TestReadFileTool:
         )
         result = tool._run(str(file_path))
         body_lines = result.splitlines()
-        assert len(body_lines) == MAX_LINES_PER_READ
+        assert len(body_lines) == MAX_LINES_PER_READ + 1
         assert body_lines[0] == "line1"
-        assert body_lines[-1] == f"line{MAX_LINES_PER_READ}"
+        assert body_lines[MAX_LINES_PER_READ - 1] == f"line{MAX_LINES_PER_READ}"
+        assert f"start_line={MAX_LINES_PER_READ + 1}" in body_lines[-1]
+
+    def test_appends_continuation_notice_when_truncated(self, tool, tmp_path):
+        file_path = tmp_path / "file.txt"
+        file_path.write_text("\n".join(f"line{i}" for i in range(1, 11)))
+        result = tool._run(str(file_path), start_line=3, end_line=5)
+        assert "showing lines 3-5 of 10 total" in result
+        assert "start_line=6" in result
+
+    def test_no_continuation_notice_when_reaching_end_of_file(self, tool, tmp_path):
+        file_path = tmp_path / "small.txt"
+        file_path.write_text("line1\nline2\nline3\n")
+        result = tool._run(str(file_path))
+        assert "showing lines" not in result
 
     def test_end_line_beyond_file_is_clamped(self, tool, tmp_path):
         file_path = tmp_path / "small.txt"
