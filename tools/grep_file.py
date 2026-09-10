@@ -2,6 +2,7 @@
 
 import re
 from pathlib import Path
+from typing import ClassVar
 
 from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
@@ -31,6 +32,7 @@ class GrepFileTool(X2ATool):
         "or any hardcoded values. Supports optional filename glob filter."
     )
     args_schema: ArgsSchema | None = GrepFileInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["pattern", "path"]
 
     # pyrefly: ignore
     def _run(self, pattern: str, path: str = ".", include: str | None = None) -> str:

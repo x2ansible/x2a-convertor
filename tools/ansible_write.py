@@ -651,6 +651,7 @@ class AnsibleWriteTool(X2ATool):
     )
 
     args_schema: ArgsSchema | None = AnsibleWriteInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["file_path"]
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)

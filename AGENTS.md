@@ -326,6 +326,17 @@ class WriteAgent(ExportAgent[ExportState]):
 
 For state-dependent tools (like checklist operations), override `extra_tools_from_state()`.
 
+Every tool must declare `DEBUG_LOG_ARGS`, the list of arg names that `ToolCallLoggingMiddleware` (always active via `BaseAgent.middleware()`) is allowed to log on each tool call. Use `[]` when no arg is safe/useful to log (e.g. large content bodies):
+
+```python
+class MyTool(X2ATool):
+    name: str = "my_tool"
+    args_schema: type[BaseModel] = MyToolInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["file_path"]
+```
+
+If a tool omits `DEBUG_LOG_ARGS`, the middleware falls back to logging only the first arg to avoid leaking large payloads.
+
 ## Configuration
 
 Settings use Pydantic `BaseSettings` with environment variable binding (`src/config/settings.py`):

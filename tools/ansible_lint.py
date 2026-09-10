@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import ClassVar
 
 import ansiblelint
 from ansiblelint.__main__ import fix
@@ -233,6 +234,7 @@ class AnsibleLintTool(X2ATool):
         "Setting autofix=false is recommended when fixing may introduce new issues."
     )
     args_schema: ArgsSchema | None = AnsibleLintInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["ansible_path"]
 
     def _has_syntax_errors(self, result: LintResult) -> bool:
         """Check if lint result contains syntax errors."""

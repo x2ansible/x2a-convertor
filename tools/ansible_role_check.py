@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import ClassVar
 
 # Ansible Python API imports
 from ansible import context
@@ -103,6 +104,7 @@ class AnsibleRoleCheckTool(X2ATool):
     )
 
     args_schema: ArgsSchema | None = AnsibleRoleCheckInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["ansible_role_path"]
 
     # pyrefly: ignore
     def _run(self, ansible_role_path: str) -> str:

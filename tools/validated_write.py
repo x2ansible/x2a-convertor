@@ -1,6 +1,7 @@
 """Validated write tool that automatically routes YAML files to ansible_write."""
 
 from pathlib import Path
+from typing import ClassVar
 
 from langchain_community.tools.file_management.write import WriteFileTool
 from langchain_core.tools.base import ArgsSchema
@@ -40,6 +41,7 @@ class ValidatedWriteTool(X2ATool):
         "Use for .j2 templates and non-YAML files."
     )
     args_schema: ArgsSchema | None = ValidatedWriteInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["file_path"]
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)

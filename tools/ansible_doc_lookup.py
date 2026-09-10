@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import threading
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from ansible import context
 from ansible.cli import CLI
@@ -171,6 +171,7 @@ class AnsibleDocLookupTool(X2ATool):
     )
 
     args_schema: ArgsSchema | None = AnsibleDocLookupInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["module_name", "list_filter"]
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
