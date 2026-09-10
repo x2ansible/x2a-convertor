@@ -9,6 +9,7 @@ the number of lines returned per call.
 """
 
 from pathlib import Path
+from typing import ClassVar
 
 from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
@@ -45,6 +46,7 @@ class ReadFileTool(X2ATool):
         "to read everything at once."
     )
     args_schema: ArgsSchema | None = ReadFileInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["file_path", "start_line", "end_line"]
 
     # pyrefly: ignore
     def _run(

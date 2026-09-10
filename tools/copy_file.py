@@ -1,5 +1,6 @@
 import shutil
 from pathlib import Path
+from typing import ClassVar
 
 from langchain_community.tools.file_management.copy import CopyFileTool
 from langchain_community.tools.file_management.utils import (
@@ -13,6 +14,7 @@ class CopyFileWithMkdirTool(CopyFileTool):
     """Extended CopyFileTool that creates parent directories if needed."""
 
     description: str = "Create a copy of a file in a specified location, creating parent directories if needed"
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["source_path", "destination_path"]
 
     def _run(
         self,

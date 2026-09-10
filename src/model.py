@@ -42,36 +42,6 @@ class FinishReasonCallbackHandler(BaseCallbackHandler):
                     )
 
 
-class DebugToolEventHandler(BaseCallbackHandler):
-    """Callback handler to log tool execution events"""
-
-    def __init__(self):
-        super().__init__()
-        self._tool_names = {}  # Maps run_id to tool_name
-        self._logger = get_logger(__name__)
-
-    def get_tool_name(self, run_id):
-        """Get and remove tool name from cache"""
-        return self._tool_names.pop(run_id, "unknown") if run_id else "unknown"
-
-    def on_tool_start(self, serialized, input_str, **kwargs):
-        tool_name = serialized.get("name", "unknown")
-        run_id = kwargs.get("run_id")
-        if run_id:
-            self._tool_names[run_id] = tool_name
-        self._logger.debug("Tool Started", tool_name=tool_name, input=input_str)
-
-    def on_tool_end(self, output, **kwargs):
-        tool_name = self.get_tool_name(kwargs.get("run_id"))
-        output_str = str(output)[:30]
-        self._logger.info("Tool Ended", tool_name=tool_name, output=output_str)
-
-    def on_tool_error(self, error, **kwargs):
-        tool_name = self.get_tool_name(kwargs.get("run_id"))
-        error_str = str(error)[:30]
-        self._logger.error("Tool Error", tool_name=tool_name, error=error_str)
-
-
 class ToolCallCounter(Counter):
     def to_string(self) -> str:
         """Returns compact string representation"""
@@ -121,7 +91,7 @@ def get_runnable_config() -> RunnableConfig:
     settings = get_settings()
     return {
         "recursion_limit": settings.processing.recursion_limit,
-        "callbacks": [DebugToolEventHandler(), FinishReasonCallbackHandler()],
+        "callbacks": [FinishReasonCallbackHandler()],
     }
 
 

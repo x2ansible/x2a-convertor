@@ -14,6 +14,7 @@ from src.config.settings import SummaryContextSize
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.middleware.telemetry import TelemetryMiddleware
+from src.middleware.tool_call_logging import ToolCallLoggingMiddleware
 from src.middleware.x2a_summarize import X2ASummarizationMiddleware
 from src.types.base_state import BaseState
 
@@ -915,27 +916,30 @@ class TestBaseAgentMiddleware:
         agent = ConcreteAgent()
         stack = agent.middleware()
 
-        assert len(stack) == 2
-        assert isinstance(stack[0], X2ASummarizationMiddleware)
-        assert isinstance(stack[1], TelemetryMiddleware)
+        assert len(stack) == 3
+        assert isinstance(stack[0], ToolCallLoggingMiddleware)
+        assert isinstance(stack[1], X2ASummarizationMiddleware)
+        assert isinstance(stack[2], TelemetryMiddleware)
 
     def test_middleware_with_rules_file(self):
         agent = RuledAgent()
         stack = agent.middleware()
 
-        assert len(stack) == 3
-        assert isinstance(stack[0], RulesMiddleware)
-        assert isinstance(stack[1], X2ASummarizationMiddleware)
-        assert isinstance(stack[2], TelemetryMiddleware)
+        assert len(stack) == 4
+        assert isinstance(stack[0], ToolCallLoggingMiddleware)
+        assert isinstance(stack[1], RulesMiddleware)
+        assert isinstance(stack[2], X2ASummarizationMiddleware)
+        assert isinstance(stack[3], TelemetryMiddleware)
 
     def test_middleware_with_goal(self):
         agent = GoalAgent()
         stack = agent.middleware()
 
-        assert len(stack) == 3
-        assert isinstance(stack[0], GoalValidationMiddleware)
-        assert isinstance(stack[1], X2ASummarizationMiddleware)
-        assert isinstance(stack[2], TelemetryMiddleware)
+        assert len(stack) == 4
+        assert isinstance(stack[0], ToolCallLoggingMiddleware)
+        assert isinstance(stack[1], GoalValidationMiddleware)
+        assert isinstance(stack[2], X2ASummarizationMiddleware)
+        assert isinstance(stack[3], TelemetryMiddleware)
 
     def test_middleware_telemetry_is_last(self):
         """TelemetryMiddleware must stay innermost (last), see middleware() docstring."""
@@ -947,7 +951,7 @@ class TestBaseAgentMiddleware:
     def test_middleware_with_goal_passes_agent_reference(self):
         agent = GoalAgent()
         stack = agent.middleware()
-        goal_mw = stack[0]
+        goal_mw = stack[1]
 
         assert goal_mw.agent is agent
         assert goal_mw.goal_description == "Verify output file exists"

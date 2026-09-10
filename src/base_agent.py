@@ -30,6 +30,7 @@ from src.middleware.agent_dump import (
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.middleware.telemetry import TelemetryMiddleware
+from src.middleware.tool_call_logging import ToolCallLoggingMiddleware
 from src.middleware.x2a_summarize import X2ASummarizationMiddleware
 from src.model import (
     get_context_window,
@@ -128,12 +129,14 @@ Retry your response now, ensuring it matches the schema structure exactly."""
     def middleware(self) -> list:
         """Return middleware list for conversation compaction.
 
-        When GOAL is set, GoalValidationMiddleware is added first
+        ToolCallLoggingMiddleware is always first to log every tool call.
+        When GOAL is set, GoalValidationMiddleware is added next
         to validate goal achievement and retry if necessary.
         When RULES_FILE is set, RulesMiddleware is included
         to inject rules as a message at agent startup.
         When JSON_LINES is configured, AgentDumpMiddleware is included
         to dump messages for debugging.
+        TelemetryMiddleware stays last (see comment below).
 
         Middleware instances are cached to preserve state across invocations
         (e.g., retry_count in GoalValidationMiddleware).
@@ -143,7 +146,7 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             return self._middleware_cache
 
         # Build middleware stack once
-        stack: list[AgentMiddleware] = []
+        stack: list[AgentMiddleware] = [ToolCallLoggingMiddleware()]
         if self.GOAL:
             stack.append(GoalValidationMiddleware(self.GOAL, agent=self))
         if self.RULES_FILE:

@@ -1,5 +1,6 @@
 import difflib
 from pathlib import Path
+from typing import ClassVar
 
 from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
@@ -23,6 +24,7 @@ class DiffFileTool(X2ATool):
         "missing or incorrect content."
     )
     args_schema: ArgsSchema | None = DiffFileInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["source_path", "destination_path"]
 
     # pyrefly: ignore
     def _run(

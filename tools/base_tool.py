@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from langchain_core.tools import BaseTool
 from pydantic import PrivateAttr
 
@@ -18,7 +20,17 @@ class X2ATool(BaseTool):
 
         slog = self.log.bind(file_path=path)
         slog.info("wrote file")
+
+    Subclasses must declare DEBUG_LOG_ARGS, the list of arg names that
+    ToolCallLoggingMiddleware is allowed to log for tool calls, e.g.:
+
+        DEBUG_LOG_ARGS: ClassVar[list[str]] = ["file_path"]
+
+    Defaults to an empty list so tools that forget to declare it fail
+    closed -- only name/duration are logged, never arg values.
     """
+
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = []
 
     _agent_name: str = PrivateAttr(default="")
 

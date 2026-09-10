@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import yaml
 from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
@@ -27,6 +29,7 @@ class YamlValidateTool(X2ATool):
         "Returns the linted YAML if valid, or an error message if invalid."
     )
     args_schema: ArgsSchema | None = YamlValidateInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = []
 
     # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:
@@ -60,6 +63,7 @@ class YamlLintTool(X2ATool):
         "Returns either 'Success, the provided yaml content is valid.' if no issues found, or specific error messages if problems detected."
     )
     args_schema: ArgsSchema | None = YamlLintInput
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = []
 
     # pyrefly: ignore
     def _run(self, yaml_content: str) -> str:
