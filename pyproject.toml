@@ -21,11 +21,12 @@ dependencies = [
     "tree-sitter-ruby>=0.23.0",
     "tree-sitter-json>=0.23.0",
     "ansible-lint>=25.9.2",
-    "ansible-risk-insight>=0.2.10",
     "pydantic-settings>=2.0.0",
     "markdownify>=0.14.1",
     "kubernetes>=35.0.0",
     "langchain-litellm>=0.6.6",
+    # "apme-engine @ git+https://github.com/ansible/apme.git@20745580a9e823a07e396f8d5eb01754654d470c",
+    "apme-engine @ git+https://github.com/ansible/apme.git@f16bd990f869c1376f1f05d73319631937795a48",
 ]
 
 [tool.pyrefly]

@@ -15,7 +15,6 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
 from urllib.parse import urljoin
 
 import requests
@@ -86,18 +85,14 @@ class InstallResult:
     collection: CollectionSpec
     success: bool
     source: str = ""  # "private_hub", "public_galaxy", or error message
-    version_installed: str | None = None
 
     @classmethod
-    def private_hub_success(
-        cls, collection: CollectionSpec, version: str
-    ) -> InstallResult:
+    def private_hub_success(cls, collection: CollectionSpec) -> InstallResult:
         """Create successful Private Hub install result."""
         return cls(
             collection=collection,
             success=True,
             source="private_hub",
-            version_installed=version,
         )
 
     @classmethod
@@ -211,21 +206,6 @@ class GalaxyURLBuilder:
         """Build URL for specific version details."""
         path = f"/content/{self.repository}/v3/collections/{namespace}/{name}/versions/{version}/"
         return urljoin(self.base_url.rstrip("/") + "/", path.lstrip("/"))
-
-
-# =============================================================================
-# Installation Strategy Protocol
-# =============================================================================
-
-
-class InstallStrategy(Protocol):
-    """Protocol for collection installation strategies."""
-
-    def install(
-        self, collection: CollectionSpec, tmpdir: Path | None = None
-    ) -> InstallResult | None:
-        """Attempt to install collection. Returns result on success, None to try next."""
-        ...
 
 
 # =============================================================================
@@ -344,18 +324,6 @@ class CollectionManager:
         slog.info(f"Using Private Hub: {self.galaxy_url}")
         return self._install_collections_with_strategies(collections)
 
-    def install_collection(self, collection: CollectionSpec) -> InstallResult:
-        """Install a single collection using strategy pattern.
-
-        Args:
-            collection: Collection specification
-
-        Returns:
-            Installation result
-        """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            return self._install_single_collection(collection, Path(tmpdir))
-
     # -------------------------------------------------------------------------
     # Strategy-based Installation
     # -------------------------------------------------------------------------
@@ -404,9 +372,7 @@ class CollectionManager:
                 download_info.url, tmpdir, collection, download_info.version
             )
             if self._install_tarball(tarball):
-                return InstallResult.private_hub_success(
-                    collection, download_info.version
-                )
+                return InstallResult.private_hub_success(collection)
             slog.warning(f"Tarball install failed for {collection.fqcn}")
             return None
 

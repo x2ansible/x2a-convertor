@@ -22,6 +22,7 @@ from src.model import get_runnable_config
 from src.types import ChecklistStatus
 from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
+from tools.ansible_lint import AnsibleLintTool
 from tools.read_file import ReadFileTool
 
 logger = get_logger(__name__)
@@ -52,6 +53,7 @@ class MoleculeAgent(ExportAgent[ExportState]):
         lambda: ReadFileTool(),
         lambda: WriteFileTool(),
         lambda: ListDirectoryTool(),
+        lambda: AnsibleLintTool(),
     ]
 
     SYSTEM_PROMPT_NAME = "export_ansible_molecule_system"
@@ -230,7 +232,6 @@ verifier:
             slog.warning("Molecule agent did not produce output")
 
         state.export_state = export_state
-        state.last_result = result
         state.attempt += 1
         return state
 
