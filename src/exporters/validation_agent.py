@@ -7,8 +7,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import ClassVar, Literal
 
-from langchain_community.tools.file_management.file_search import FileSearchTool
-from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
 
@@ -30,6 +28,8 @@ from tools.ansible_role_check import AnsibleRoleCheckTool
 from tools.ansible_write import AnsibleWriteTool
 from tools.copy_file import CopyFileWithMkdirTool
 from tools.diff_file import DiffFileTool
+from tools.file_search import FileSearchTool
+from tools.list_dir import ListDirectoryTool
 from tools.read_file import ReadFileTool
 from tools.validated_write import ValidatedWriteTool
 

@@ -3,12 +3,12 @@
 from pathlib import Path
 from typing import ClassVar
 
-from langchain_community.tools.file_management.write import WriteFileTool
 from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from tools.ansible_write import AnsibleWriteTool
 from tools.base_tool import X2ATool
+from tools.write_file import WriteFileTool
 
 
 class ValidatedWriteInput(BaseModel):

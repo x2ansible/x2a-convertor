@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 import yaml
 from ansible.parsing.dataloader import DataLoader
 from ansible.parsing.yaml.dumper import AnsibleDumper
-from langchain_community.tools.file_management.file_search import FileSearchTool
-from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_core.tools import BaseTool
 from langgraph.graph import START, StateGraph
 
@@ -29,6 +27,8 @@ from tools.ansible_doc_lookup import AnsibleDocLookupTool
 from tools.ansible_lint import AnsibleLintTool
 from tools.ansible_write import AnsibleWriteTool
 from tools.copy_file import CopyFileWithMkdirTool
+from tools.file_search import FileSearchTool
+from tools.list_dir import ListDirectoryTool
 from tools.read_file import ReadFileTool
 from tools.validated_write import ValidatedWriteTool
 
