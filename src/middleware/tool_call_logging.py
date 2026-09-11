@@ -65,7 +65,7 @@ class ToolCallLoggingMiddleware(AgentMiddleware):
             "Tool call finished",
             tool=tool_name,
             duration_s=round(duration, 3),
-            args=self._select_args(request),
+            tool_args=self._select_args(request),
         )
 
     def _log_failure(
@@ -76,7 +76,7 @@ class ToolCallLoggingMiddleware(AgentMiddleware):
             "Tool call failed",
             tool=tool_name,
             duration_s=round(duration, 3),
-            args=self._select_args(request),
+            tool_args=self._select_args(request),
         )
 
     @staticmethod
