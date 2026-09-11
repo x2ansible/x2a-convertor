@@ -1,4 +1,4 @@
-from langchain_community.tools.file_management.file_search import FileSearchTool
+from tools.file_search import FileSearchTool
 
 
 def list_files(path: str) -> list[str]:

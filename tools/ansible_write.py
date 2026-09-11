@@ -32,11 +32,11 @@ if "pkg_resources" not in sys.modules:
 from ansible_risk_insight import ARIScanner, Config
 from ansible_risk_insight.scanner import LoadType
 from jinja2 import Environment, FileSystemLoader
-from langchain_community.tools.file_management.write import WriteFileTool
 from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 
 from tools.base_tool import X2ATool
+from tools.write_file import WriteFileTool
 
 # Setup Jinja2 environment
 TEMPLATES_DIR = Path(__file__).parent / "templates"

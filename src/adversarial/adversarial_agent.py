@@ -8,8 +8,6 @@ producing structured findings without modifying any files.
 from collections.abc import Callable
 from typing import ClassVar, Literal
 
-from langchain_community.tools.file_management.file_search import FileSearchTool
-from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
@@ -19,7 +17,9 @@ from src.base_agent import BaseAgent
 from src.types.base_state import BaseState
 from src.types.telemetry import AgentMetrics
 from tools.diff_file import DiffFileTool
+from tools.file_search import FileSearchTool
 from tools.grep_file import GrepFileTool
+from tools.list_dir import ListDirectoryTool
 from tools.read_file import ReadFileTool
 
 Phase = Literal["analyze", "migrate"]

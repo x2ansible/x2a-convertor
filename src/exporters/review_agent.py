@@ -8,8 +8,6 @@ and task ordering problems.
 from collections.abc import Callable
 from typing import ClassVar
 
-from langchain_community.tools.file_management.file_search import FileSearchTool
-from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
@@ -17,6 +15,8 @@ from src.exporters.export_agent import ExportAgent
 from src.exporters.state import ExportState
 from src.types.telemetry import AgentMetrics
 from tools.ansible_write import AnsibleWriteTool
+from tools.file_search import FileSearchTool
+from tools.list_dir import ListDirectoryTool
 from tools.read_file import ReadFileTool
 from tools.validated_write import ValidatedWriteTool
 

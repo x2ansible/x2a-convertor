@@ -1,44 +1,42 @@
+"""File copy tool.
+
+Adapted from the now-deprecated
+`langchain_community.tools.file_management.copy.CopyFileTool`, extended to
+create parent directories if needed.
+"""
+
 import shutil
 from pathlib import Path
 from typing import ClassVar
 
-from langchain_community.tools.file_management.copy import CopyFileTool
-from langchain_community.tools.file_management.utils import (
-    INVALID_PATH_TEMPLATE,
-    FileValidationError,
-)
-from langchain_core.callbacks import CallbackManagerForToolRun
+from langchain_core.tools.base import ArgsSchema
+from pydantic import BaseModel, Field
+
+from tools.base_tool import X2ATool
 
 
-class CopyFileWithMkdirTool(CopyFileTool):
-    """Extended CopyFileTool that creates parent directories if needed."""
+class FileCopyInput(BaseModel):
+    """Input for CopyFileWithMkdirTool."""
 
+    source_path: str = Field(description="Path of the file to copy")
+    destination_path: str = Field(description="Path to save the copied file")
+
+
+class CopyFileWithMkdirTool(X2ATool):
+    """Tool that copies a file, creating parent directories if needed."""
+
+    name: str = "copy_file"
     description: str = "Create a copy of a file in a specified location, creating parent directories if needed"
+    args_schema: ArgsSchema | None = FileCopyInput
     DEBUG_LOG_ARGS: ClassVar[list[str]] = ["source_path", "destination_path"]
 
-    def _run(
-        self,
-        source_path: str,
-        destination_path: str,
-        run_manager: CallbackManagerForToolRun | None = None,
-    ) -> str:
+    # pyrefly: ignore
+    def _run(self, source_path: str, destination_path: str) -> str:
         try:
-            source_path_ = self.get_relative_path(source_path)
-        except FileValidationError:
-            return INVALID_PATH_TEMPLATE.format(
-                arg_name="source_path", value=source_path
-            )
-        try:
-            destination_path_ = self.get_relative_path(destination_path)
-        except FileValidationError:
-            return INVALID_PATH_TEMPLATE.format(
-                arg_name="destination_path", value=destination_path
-            )
-        try:
-            dest_path = Path(destination_path_)
+            dest_path = Path(destination_path)
             dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-            shutil.copy2(source_path_, destination_path_, follow_symlinks=False)
+            shutil.copy2(source_path, destination_path, follow_symlinks=False)
             return f"File copied successfully from {source_path} to {destination_path}."
         except Exception as e:
             return "Error: " + str(e)

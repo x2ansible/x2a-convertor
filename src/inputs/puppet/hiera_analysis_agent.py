@@ -9,7 +9,6 @@ import re
 from collections.abc import Callable
 from typing import ClassVar
 
-from langchain_community.tools.file_management.list_dir import ListDirectoryTool
 from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
@@ -20,6 +19,7 @@ from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
 from src.utils.path import Path
 from tools.grep_file import GrepFileTool
+from tools.list_dir import ListDirectoryTool
 from tools.read_file import ReadFileTool
 
 from .models import (
