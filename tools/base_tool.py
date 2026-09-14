@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from collections.abc import Callable
+from typing import Any, ClassVar
 
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, tool
 from pydantic import PrivateAttr
 
 from src.utils.logging import get_logger
@@ -51,3 +52,41 @@ class X2ATool(BaseTool):
         if self._agent_name:
             bindings["agent"] = self._agent_name
         return get_logger(self.__class__.__module__).bind(**bindings)
+
+
+def logged_tool(
+    name: str, *, debug_log_args: list[str] | None = None
+) -> Callable[[Callable[..., Any]], BaseTool]:
+    """Like ``langchain_core.tools.tool``, but also declares a DEBUG_LOG_ARGS
+    allowlist for ``ToolCallLoggingMiddleware``.
+
+    Plain ``@tool``-decorated functions produce a pydantic ``StructuredTool``
+    that -- unlike ``X2ATool`` subclasses -- can't carry a class-level
+    ``DEBUG_LOG_ARGS`` attribute (pydantic rejects the unknown field). They
+    can, however, carry it in the ``metadata`` dict that ``BaseTool`` already
+    declares, which is what ``ToolCallLoggingMiddleware`` falls back to.
+
+    Usage::
+
+        @logged_tool("add_checklist_task", debug_log_args=["source_path"])
+        def add_task_tool(source_path: str, content: str) -> str:
+            ...
+
+    is equivalent to::
+
+        @tool("add_checklist_task")
+        def add_task_tool(source_path: str, content: str) -> str:
+            ...
+
+        add_task_tool.metadata = {"DEBUG_LOG_ARGS": ["source_path"]}
+
+    Omitting ``debug_log_args`` fails closed -- nothing is logged besides
+    name/duration, same as a tool that declares no allowlist at all.
+    """
+
+    def decorator(func: Callable[..., Any]) -> BaseTool:
+        wrapped = tool(name)(func)
+        wrapped.metadata = {"DEBUG_LOG_ARGS": debug_log_args or []}
+        return wrapped
+
+    return decorator

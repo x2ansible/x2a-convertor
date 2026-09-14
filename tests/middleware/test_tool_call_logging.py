@@ -108,6 +108,33 @@ class TestToolCallLoggingMiddleware:
 
         assert selected == {}
 
+    def test_select_args_restricted_via_metadata_debug_log_args(self):
+        """Plain @tool-decorated helpers declare the allowlist via metadata."""
+
+        class MetadataToolStub:
+            name = "metadata_tool"
+            metadata: ClassVar[dict] = {"DEBUG_LOG_ARGS": ["source_path"]}
+
+        tool_call = cast(
+            ToolCall,
+            {
+                "name": "metadata_tool",
+                "args": {"source_path": "a.rb", "target_path": "a.yml"},
+                "id": "call-1",
+                "type": "tool_call",
+            },
+        )
+        request = ToolCallRequest(
+            tool_call=tool_call,
+            tool=cast(X2ATool, MetadataToolStub()),
+            state=None,
+            runtime=cast(ToolRuntime, None),
+        )
+
+        selected = ToolCallLoggingMiddleware._select_args(request)
+
+        assert selected == {"source_path": "a.rb"}
+
     def test_select_args_empty_when_no_args(self):
         request = _make_request(ToolWithoutDebugArgs(), {})
 
