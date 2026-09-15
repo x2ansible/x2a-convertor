@@ -1,11 +1,11 @@
-"""Middleware that records LLM token usage into per-invocation AgentMetrics.
+"""Middleware that records LLM token usage and tool call counts into per-invocation AgentMetrics.
 
-Mirrors deepagents' CostTrackingMiddleware: it wraps every model call made
-within the agent's graph via wrap_model_call/awrap_model_call and records
-usage against the AgentMetrics carried in the per-invocation
-AgentRuntimeContext, so tokens are captured at the source regardless of
-which node triggered the call -- without every call site having to
-remember to record them manually.
+Mirrors deepagents' CostTrackingMiddleware: it wraps every model call via
+wrap_model_call/awrap_model_call and every tool call via wrap_tool_call/
+awrap_tool_call, recording usage against the AgentMetrics carried in the
+per-invocation AgentRuntimeContext. Both are captured at the source as they
+happen, not from the final message list -- so counts remain accurate even
+when X2ASummarizationMiddleware removes messages mid-conversation.
 
 This middleware is intentionally a pure observer:
 - It calls the handler exactly once and never retries, short-circuits, or
@@ -24,13 +24,16 @@ an earlier middleware short-circuiting.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 from langchain.agents.middleware.types import (
     AgentMiddleware,
     ModelRequest,
     ModelResponse,
+    ToolCallRequest,
 )
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
+from langgraph.types import Command
 
 from src.types.telemetry import AgentRuntimeContext
 from src.utils.logging import get_logger
@@ -39,7 +42,7 @@ logger = get_logger(__name__)
 
 
 class TelemetryMiddleware(AgentMiddleware):
-    """Records token usage for every model call in this invocation into AgentMetrics."""
+    """Records token usage per model call and tool call counts into AgentMetrics."""
 
     name = "Telemetry"
 
@@ -61,6 +64,24 @@ class TelemetryMiddleware(AgentMiddleware):
         self._record(request, response)
         return response
 
+    def wrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], ToolMessage | Command[Any]],
+    ) -> ToolMessage | Command[Any]:
+        result = handler(request)
+        self._record_tool_call(request)
+        return result
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Any]]],
+    ) -> ToolMessage | Command[Any]:
+        result = await handler(request)
+        self._record_tool_call(request)
+        return result
+
     @staticmethod
     def _record(request: ModelRequest, response: ModelResponse) -> None:
         try:
@@ -78,3 +99,14 @@ class TelemetryMiddleware(AgentMiddleware):
                 )
         except Exception as e:
             logger.error("Failed to record telemetry for model call", error=str(e))
+
+    @staticmethod
+    def _record_tool_call(request: ToolCallRequest) -> None:
+        try:
+            metrics = AgentRuntimeContext.metrics_from(request.runtime)
+            if metrics is None:
+                return
+            tool_name = request.tool_call.get("name", "unknown")
+            metrics.record_tool_call(tool_name)
+        except Exception as e:
+            logger.error("Failed to record tool call in telemetry", error=str(e))

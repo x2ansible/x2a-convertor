@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.model import ToolCallCounter
 from src.types.telemetry import (
     TELEMETRY_FILENAME,
     AgentMetrics,
@@ -93,40 +92,19 @@ class TestAgentMetrics:
         metrics.record_metric("count", 2)
         assert metrics.metrics["count"] == 2
 
-    def test_record_tool_calls_empty(self):
-        """Test recording empty tool calls."""
+    def test_record_tool_call_increments(self):
         metrics = AgentMetrics(name="TestAgent")
-        result = metrics.record_tool_calls(ToolCallCounter())
+        result = metrics.record_tool_call("read_file")
 
-        assert metrics.tool_calls == {}
-        assert result is metrics  # Method chaining
+        assert metrics.tool_calls == {"read_file": 1}
+        assert result is metrics
 
-    def test_record_tool_calls_single(self):
-        """Test recording single tool call."""
+    def test_record_tool_call_accumulates(self):
         metrics = AgentMetrics(name="TestAgent")
-        metrics.record_tool_calls(ToolCallCounter({"read_file": 5}))
+        metrics.record_tool_call("read_file")
+        metrics.record_tool_call("read_file")
 
-        assert metrics.tool_calls == {"read_file": 5}
-
-    def test_record_tool_calls_accumulates(self):
-        """Test that multiple record_tool_calls accumulates counts."""
-        metrics = AgentMetrics(name="TestAgent")
-        metrics.record_tool_calls(ToolCallCounter({"read_file": 5}))
-        metrics.record_tool_calls(ToolCallCounter({"read_file": 3}))
-
-        assert metrics.tool_calls["read_file"] == 8
-
-    def test_record_tool_calls_multiple_tools(self):
-        """Test recording multiple different tools."""
-        metrics = AgentMetrics(name="TestAgent")
-        metrics.record_tool_calls(ToolCallCounter({"read_file": 5, "write_file": 2}))
-        metrics.record_tool_calls(ToolCallCounter({"ansible_lint": 10}))
-
-        assert metrics.tool_calls == {
-            "read_file": 5,
-            "write_file": 2,
-            "ansible_lint": 10,
-        }
+        assert metrics.tool_calls["read_file"] == 2
 
     def test_record_tokens_basic(self):
         """Test recording token usage."""
@@ -161,7 +139,7 @@ class TestAgentMetrics:
         time.sleep(0.01)
         metrics.stop()
         metrics.record_metric("files_created", 5)
-        metrics.record_tool_calls(ToolCallCounter({"read_file": 10}))
+        metrics.tool_calls = {"read_file": 10}
         metrics.record_tokens(1000, 500)
 
         result = metrics.to_dict()
@@ -223,7 +201,7 @@ class TestAgentMetrics:
         time.sleep(0.01)
         metrics.stop()
         metrics.record_metric("files_created", 5)
-        metrics.record_tool_calls(ToolCallCounter({"read_file": 10}))
+        metrics.tool_calls = {"read_file": 10}
         metrics.record_tokens(1500, 750)
 
         result = metrics.to_api_dict()
@@ -268,7 +246,7 @@ class TestAgentMetrics:
         metrics = AgentMetrics(name="TestAgent")
         metrics.record_metric("key1", "value1")
         metrics.record_metric("key2", 42)
-        metrics.record_tool_calls(ToolCallCounter({"tool1": 5, "tool2": 10}))
+        metrics.tool_calls = {"tool1": 5, "tool2": 10}
 
         result = metrics.to_dict()
 
@@ -361,7 +339,7 @@ class TestTelemetry:
         """Test total tool calls with single agent."""
         telemetry = Telemetry(phase="test")
         agent = telemetry.get_or_create_agent("TestAgent")
-        agent.record_tool_calls(ToolCallCounter({"read_file": 5, "write_file": 2}))
+        agent.tool_calls = {"read_file": 5, "write_file": 2}
 
         total = telemetry.get_total_tool_calls()
 
@@ -371,10 +349,10 @@ class TestTelemetry:
         """Test total tool calls aggregates across agents."""
         telemetry = Telemetry(phase="test")
         agent1 = telemetry.get_or_create_agent("Agent1")
-        agent1.record_tool_calls(ToolCallCounter({"read_file": 5, "write_file": 2}))
+        agent1.tool_calls = {"read_file": 5, "write_file": 2}
 
         agent2 = telemetry.get_or_create_agent("Agent2")
-        agent2.record_tool_calls(ToolCallCounter({"ansible_lint": 10}))
+        agent2.tool_calls = {"ansible_lint": 10}
 
         total = telemetry.get_total_tool_calls()
 
@@ -384,10 +362,10 @@ class TestTelemetry:
         """Test total tool calls sums same tool across agents."""
         telemetry = Telemetry(phase="test")
         agent1 = telemetry.get_or_create_agent("Agent1")
-        agent1.record_tool_calls(ToolCallCounter({"read_file": 5}))
+        agent1.tool_calls = {"read_file": 5}
 
         agent2 = telemetry.get_or_create_agent("Agent2")
-        agent2.record_tool_calls(ToolCallCounter({"read_file": 3}))
+        agent2.tool_calls = {"read_file": 3}
 
         total = telemetry.get_total_tool_calls()
 
@@ -399,7 +377,7 @@ class TestTelemetry:
         telemetry.with_summary("Init completed")
         agent = telemetry.get_or_create_agent("PlanningAgent")
         agent.start()
-        agent.record_tool_calls(ToolCallCounter({"read_file": 5}))
+        agent.tool_calls = {"read_file": 5}
         agent.stop()
         telemetry.stop()
 
@@ -432,7 +410,7 @@ class TestTelemetry:
         agent.start()
         agent.stop()
         agent.record_metric("files", 3)
-        agent.record_tool_calls(ToolCallCounter({"read_file": 2}))
+        agent.tool_calls = {"read_file": 2}
 
         result = telemetry.to_api_dict()
         agent_result = result["agents"]["Agent1"]
@@ -452,7 +430,7 @@ class TestTelemetry:
         telemetry = Telemetry(phase="test")
         agent = telemetry.get_or_create_agent("TestAgent")
         agent.start()
-        agent.record_tool_calls(ToolCallCounter({"read_file": 5}))
+        agent.tool_calls = {"read_file": 5}
         agent.stop()
         telemetry.stop()
 
@@ -494,7 +472,7 @@ class TestTelemetry:
         time.sleep(0.01)
         agent.stop()
         agent.record_metric("files_created", 5)
-        agent.record_tool_calls(ToolCallCounter({"read_file": 10, "write_file": 5}))
+        agent.tool_calls = {"read_file": 10, "write_file": 5}
         agent.record_tokens(2500, 1200)
         telemetry.stop()
 
@@ -611,12 +589,14 @@ class TestTelemetryContext:
 
         with telemetry_context(telemetry, "Agent") as metrics:
             assert metrics is not None
-            metrics.record_tool_calls(ToolCallCounter({"tool1": 5}))
+            for _ in range(5):
+                metrics.record_tool_call("tool1")
 
         # Second context with same agent should reuse and accumulate
         with telemetry_context(telemetry, "Agent") as metrics:
             assert metrics is not None
-            metrics.record_tool_calls(ToolCallCounter({"tool1": 3}))
+            for _ in range(3):
+                metrics.record_tool_call("tool1")
 
         agent = telemetry.agents["Agent"]
         # Tool calls should accumulate
@@ -679,7 +659,7 @@ class TestTelemetryPersistence:
         agent = original.get_or_create_agent("TestAgent")
         agent.start()
         agent.record_metric("files_created", 5)
-        agent.record_tool_calls(ToolCallCounter({"read_file": 10}))
+        agent.tool_calls = {"read_file": 10}
         agent.stop()
         original.stop()
 
@@ -791,7 +771,7 @@ class TestTelemetryPersistence:
         agent = telemetry.get_or_create_agent("TestAgent")
         agent.start()
         agent.record_metric("files_created", 5)
-        agent.record_tool_calls(ToolCallCounter({"read_file": 10}))
+        agent.tool_calls = {"read_file": 10}
         agent.stop()
         telemetry.stop()
 
@@ -851,7 +831,7 @@ def sample_telemetry():
     agent1 = telemetry.get_or_create_agent("TestAgent1")
     agent1.start()
     agent1.record_metric("test_value", 42)
-    agent1.record_tool_calls(ToolCallCounter({"read_file": 5, "write_file": 2}))
+    agent1.tool_calls = {"read_file": 5, "write_file": 2}
     agent1.stop()
     telemetry.stop()
     return telemetry

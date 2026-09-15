@@ -2,7 +2,7 @@
 
 Pure observer: it calls the handler exactly once and never retries,
 short-circuits, or rewrites the request/response. Both the synchronous
-`wrap_tool_call` and asynchronous `wrap_tool_call_async` hooks are
+`wrap_tool_call` and asynchronous `awrap_tool_call` hooks are
 implemented so tool calls are logged regardless of whether the agent is
 invoked via `invoke()`/`stream()` or `ainvoke()`/`astream()`.
 """
@@ -42,7 +42,7 @@ class ToolCallLoggingMiddleware(AgentMiddleware):
         self._log_success(tool_name, start, request)
         return result
 
-    async def wrap_tool_call_async(
+    async def awrap_tool_call(
         self,
         request: ToolCallRequest,
         handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Any]]],
