@@ -10,6 +10,8 @@ from pydantic import PrivateAttr
 
 from src.utils.logging import get_logger
 
+DEBUG_LOG_ARGS_KEY = "DEBUG_LOG_ARGS"
+
 
 class X2ATool(BaseTool):
     """Base class for all x2a-convertor tools.
@@ -78,7 +80,7 @@ def logged_tool(
         def add_task_tool(source_path: str, content: str) -> str:
             ...
 
-        add_task_tool.metadata = {"DEBUG_LOG_ARGS": ["source_path"]}
+        add_task_tool.metadata = {DEBUG_LOG_ARGS_KEY: ["source_path"]}
 
     Omitting ``debug_log_args`` fails closed -- nothing is logged besides
     name/duration, same as a tool that declares no allowlist at all.
@@ -86,7 +88,12 @@ def logged_tool(
 
     def decorator(func: Callable[..., Any]) -> BaseTool:
         wrapped = tool(name)(func)
-        wrapped.metadata = {"DEBUG_LOG_ARGS": debug_log_args or []}
+        if wrapped.metadata and not isinstance(wrapped.metadata, dict):
+            return wrapped
+        wrapped.metadata = {
+            **(wrapped.metadata or {}),
+            DEBUG_LOG_ARGS_KEY: debug_log_args or [],
+        }
         return wrapped
 
     return decorator

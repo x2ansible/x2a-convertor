@@ -18,6 +18,7 @@ from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 
 from src.utils.logging import get_logger
+from tools.base_tool import DEBUG_LOG_ARGS_KEY
 
 logger = get_logger(__name__)
 
@@ -92,8 +93,8 @@ class ToolCallLoggingMiddleware(AgentMiddleware):
         fail closed: nothing is logged besides name/duration.
         """
         tool_args = request.tool_call.get("args", {})
-        allowed = getattr(request.tool, "DEBUG_LOG_ARGS", None)
+        allowed = getattr(request.tool, DEBUG_LOG_ARGS_KEY, None)
         if allowed is None:
             metadata = getattr(request.tool, "metadata", None) or {}
-            allowed = metadata.get("DEBUG_LOG_ARGS", [])
+            allowed = metadata.get(DEBUG_LOG_ARGS_KEY, [])
         return {key: value for key, value in tool_args.items() if key in allowed}
