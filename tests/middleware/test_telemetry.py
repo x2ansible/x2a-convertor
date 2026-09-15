@@ -1,10 +1,13 @@
 """Tests for TelemetryMiddleware."""
 
 import asyncio
+from typing import cast
 from unittest.mock import Mock
 
 import pytest
+from langchain.agents.middleware.types import ToolCallRequest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages.tool import ToolCall
 
 from src.middleware.telemetry import TelemetryMiddleware
 from src.types.telemetry import AgentMetrics, AgentRuntimeContext
@@ -28,6 +31,68 @@ def _response(*messages):
 def _request(metrics: AgentMetrics | None):
     runtime = Mock(context=AgentRuntimeContext(metrics=metrics))
     return Mock(runtime=runtime)
+
+
+def _tool_request(tool_name: str, metrics: AgentMetrics | None) -> ToolCallRequest:
+    tool_call = cast(
+        ToolCall, {"name": tool_name, "args": {}, "id": "call-1", "type": "tool_call"}
+    )
+    runtime = Mock(context=AgentRuntimeContext(metrics=metrics))
+    return ToolCallRequest(
+        tool_call=tool_call, tool=Mock(), state=None, runtime=runtime
+    )
+
+
+class TestWrapToolCall:
+    def test_records_tool_call_on_metrics(self):
+        metrics = AgentMetrics(name="TestAgent")
+        request = _tool_request("read_file", metrics)
+
+        TelemetryMiddleware().wrap_tool_call(
+            request, lambda _: ToolMessage(content="ok", tool_call_id="call-1")
+        )
+
+        assert metrics.tool_calls == {"read_file": 1}
+
+    def test_accumulates_multiple_calls(self):
+        metrics = AgentMetrics(name="TestAgent")
+        request = _tool_request("read_file", metrics)
+
+        def handler(_):
+            return ToolMessage(content="ok", tool_call_id="call-1")
+
+        TelemetryMiddleware().wrap_tool_call(request, handler)
+        TelemetryMiddleware().wrap_tool_call(request, handler)
+
+        assert metrics.tool_calls == {"read_file": 2}
+
+    def test_noop_without_metrics(self):
+        request = _tool_request("read_file", None)
+
+        # Should not raise
+        TelemetryMiddleware().wrap_tool_call(
+            request, lambda _: ToolMessage(content="ok", tool_call_id="call-1")
+        )
+
+    def test_awrap_tool_call_records_tool_call(self):
+        metrics = AgentMetrics(name="TestAgent")
+        request = _tool_request("write_file", metrics)
+
+        async def _handler(_):
+            return ToolMessage(content="ok", tool_call_id="call-1")
+
+        asyncio.run(TelemetryMiddleware().awrap_tool_call(request, _handler))
+
+        assert metrics.tool_calls == {"write_file": 1}
+
+    def test_calls_handler_exactly_once(self):
+        metrics = AgentMetrics(name="TestAgent")
+        request = _tool_request("read_file", metrics)
+        handler = Mock(return_value=ToolMessage(content="ok", tool_call_id="call-1"))
+
+        TelemetryMiddleware().wrap_tool_call(request, handler)
+
+        assert handler.call_count == 1
 
 
 class TestWrapModelCall:

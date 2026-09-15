@@ -176,7 +176,7 @@ class TestToolCallLoggingMiddleware:
         assert mock_logger.info.call_args.args[0] == "Tool call finished"
         assert mock_logger.info.call_args.kwargs["tool"] == "with_debug_args"
 
-    def test_wrap_tool_call_async_returns_handler_result(self):
+    def test_awrap_tool_call_returns_handler_result(self):
         middleware = ToolCallLoggingMiddleware()
         request = _make_request(
             ToolWithDebugArgs(), {"file_path": "a.yml", "content": "big"}
@@ -186,11 +186,11 @@ class TestToolCallLoggingMiddleware:
         async def _handler(_req):
             return expected
 
-        result = asyncio.run(middleware.wrap_tool_call_async(request, _handler))
+        result = asyncio.run(middleware.awrap_tool_call(request, _handler))
 
         assert result is expected
 
-    def test_wrap_tool_call_async_logs_failure_and_reraises(self, mocker):
+    def test_awrap_tool_call_logs_failure_and_reraises(self, mocker):
         mock_logger = mocker.patch("src.middleware.tool_call_logging.logger")
         middleware = ToolCallLoggingMiddleware()
         request = _make_request(ToolWithDebugArgs(), {"file_path": "a.yml"})
@@ -199,7 +199,7 @@ class TestToolCallLoggingMiddleware:
             raise ValueError("boom")
 
         with pytest.raises(ValueError, match="boom"):
-            asyncio.run(middleware.wrap_tool_call_async(request, _raise))
+            asyncio.run(middleware.awrap_tool_call(request, _raise))
 
         mock_logger.exception.assert_called_once()
         assert mock_logger.exception.call_args.args[0] == "Tool call failed"

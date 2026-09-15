@@ -367,16 +367,22 @@ Agents use a middleware stack configured in `BaseAgent.middleware()`:
 
 | Middleware | Purpose |
 |---|---|
+| `ToolCallLoggingMiddleware` | Logs tool name, duration, and args for every tool call |
 | `GoalValidationMiddleware` | Validates agent achieved its `GOAL`; retries if not |
 | `RulesMiddleware` | Injects rules from `RULES_FILE` as a message at startup |
 | `X2ASummarizationMiddleware` | Compacts conversation when token count exceeds threshold |
 | `AgentDumpMiddleware` | Dumps messages to JSON Lines for debugging (when `JSON_LINES` is set) |
+| `TelemetryMiddleware` | Records token usage (via `wrap_model_call`) and tool call counts (via `wrap_tool_call`) into `AgentMetrics`; must stay last in the stack |
 
 ### Telemetry Through Middleware
 
-Middleware instances are cached on the agent (see `BaseAgent.middleware()`) and outlive any single `execute()` call, so they cannot receive `metrics` as a normal Python argument the way agent code does. `GoalValidationMiddleware` runs its own `invoke_react()` (explore phase) and `invoke_structured()` (classify phase) calls, including retries, and these must still be counted in the agent's token telemetry.
+Middleware instances are cached on the agent (see `BaseAgent.middleware()`) and outlive any single `execute()` call, so they cannot receive `metrics` as a normal Python argument the way agent code does.
 
-LangGraph provides a purpose-built channel for exactly this: per-invocation **runtime context**. `BaseAgent.invoke_react()` builds the graph with `create_agent(..., context_schema=AgentRuntimeContext)` and calls `agent.invoke(..., context=AgentRuntimeContext(metrics=metrics))`. LangGraph surfaces that object back to every middleware hook as `runtime.context` -- e.g. `GoalValidationMiddleware.after_agent(self, state, runtime)` reads `runtime.context.metrics` and threads it into its own `invoke_react()`/`invoke_structured()` calls. See `AgentRuntimeContext` in `src/types/telemetry.py`.
+`TelemetryMiddleware` (always last in the stack) records both token usage and tool call counts incrementally as each model call and tool call happens, via `wrap_model_call` and `wrap_tool_call`. This means telemetry survives `X2ASummarizationMiddleware` removing messages mid-conversation -- counts are never derived from the final message list.
+
+`GoalValidationMiddleware` runs its own `invoke_react()` (explore phase) and `invoke_structured()` (classify phase) calls, including retries, and these must also be counted in the agent's token telemetry.
+
+LangGraph provides a purpose-built channel for all of this: per-invocation **runtime context**. `BaseAgent.invoke_react()` builds the graph with `create_agent(..., context_schema=AgentRuntimeContext)` and calls `agent.invoke(..., context=AgentRuntimeContext(metrics=metrics))`. LangGraph surfaces that object back to every middleware hook as `runtime.context` -- e.g. `TelemetryMiddleware.wrap_tool_call` and `GoalValidationMiddleware.after_agent` both read `runtime.context.metrics`. See `AgentRuntimeContext` in `src/types/telemetry.py`.
 
 This is preferred over stashing call-scoped data on `self` (e.g. `self._current_metrics`): the context is scoped to the single `agent.invoke()` call instead of mutable shared instance state, so it stays correct even if an agent instance is ever invoked concurrently or re-entrantly.
 

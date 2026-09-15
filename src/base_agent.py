@@ -36,7 +36,6 @@ from src.model import (
     get_context_window,
     get_model,
     get_runnable_config,
-    report_tool_calls,
 )
 from src.types.base_state import BaseState
 from src.types.telemetry import AgentMetrics, AgentRuntimeContext, telemetry_context
@@ -140,6 +139,9 @@ Retry your response now, ensuring it matches the schema structure exactly."""
 
         Middleware instances are cached to preserve state across invocations
         (e.g., retry_count in GoalValidationMiddleware).
+
+        Token usage and tool call counts are recorded by TelemetryMiddleware
+        via wrap_model_call and wrap_tool_call respectively.
         """
         # Return cached middleware if available
         if self._middleware_cache is not None:
@@ -289,15 +291,11 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             context=AgentRuntimeContext(metrics=metrics),
         )
 
-        tool_calls = report_tool_calls(result)
-        self._log.info(f"Tool calls: {tool_calls.to_string()}")
-
-        # Token usage is recorded by TelemetryMiddleware (via wrap_model_call)
-        # as each model call happens, using the same AgentRuntimeContext passed
-        # above. Recording it again here from the final message list would
-        # double-count every token.
-        if metrics:
-            metrics.record_tool_calls(tool_calls)
+        if metrics and metrics.tool_calls:
+            calls_summary = ", ".join(
+                f"{t}: {c}" for t, c in metrics.tool_calls.items()
+            )
+            self._log.info(f"Tool calls: {calls_summary}")
 
         return result
 

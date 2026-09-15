@@ -11,10 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from src.model import ToolCallCounter
+from typing import Any
 
 # Default telemetry file name
 TELEMETRY_FILENAME = ".x2a-telemetry.json"
@@ -68,17 +65,9 @@ class AgentMetrics:
             self.duration_seconds = delta.total_seconds()
         return self
 
-    def record_tool_calls(self, counter: "ToolCallCounter") -> "AgentMetrics":
-        """Merge tool call counts from a ToolCallCounter.
-
-        Args:
-            counter: ToolCallCounter from report_tool_calls()
-
-        Returns:
-            Self for method chaining
-        """
-        for tool_name, count in counter.items():
-            self.tool_calls[tool_name] = self.tool_calls.get(tool_name, 0) + count
+    def record_tool_call(self, tool_name: str) -> "AgentMetrics":
+        """Record a single tool call by name."""
+        self.tool_calls[tool_name] = self.tool_calls.get(tool_name, 0) + 1
         return self
 
     def record_metric(self, key: str, value: Any) -> "AgentMetrics":

@@ -1,4 +1,3 @@
-from collections import Counter
 from typing import Any
 
 import httpx
@@ -40,34 +39,6 @@ class FinishReasonCallbackHandler(BaseCallbackHandler):
                         output_tokens=usage.get("output_tokens", "unknown"),
                         suggestion="Reduce the input size or increase MAX_TOKENS.",
                     )
-
-
-class ToolCallCounter(Counter):
-    def to_string(self) -> str:
-        """Returns compact string representation"""
-        return ", ".join(f"{tool}: {count} calls" for tool, count in self.items())
-
-    def to_pretty_string(self) -> str:
-        """Returns formatted string representation"""
-        report_lines = [f"{tool}: {count} calls" for tool, count in self.items()]
-        return "Tool calls:\n\t -" + "\n\t- ".join(report_lines)
-
-
-def report_tool_calls(state: dict[str, Any]) -> ToolCallCounter:
-    messages = state.get("messages", [])
-    tool_call_counts = ToolCallCounter()
-
-    for msg in messages:
-        if hasattr(msg, "tool_calls") and msg.tool_calls:
-            for tool_call in msg.tool_calls:
-                tool_name = (
-                    tool_call.get("name")
-                    if isinstance(tool_call, dict)
-                    else tool_call.name
-                )
-                tool_call_counts[tool_name] += 1
-
-    return tool_call_counts
 
 
 def get_last_ai_message(state: dict[str, Any]):
