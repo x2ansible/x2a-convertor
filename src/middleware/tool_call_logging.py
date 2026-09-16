@@ -18,6 +18,7 @@ from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 
 from src.utils.logging import get_logger
+from tools.base_tool import DEBUG_LOG_ARGS_KEY
 
 logger = get_logger(__name__)
 
@@ -84,10 +85,16 @@ class ToolCallLoggingMiddleware(AgentMiddleware):
         """Pick the args worth logging for a tool call.
 
         DEBUG_LOG_ARGS is a ClassVar[list[str]] on X2ATool subclasses naming
-        which args are safe/useful to log. Tools that don't declare it
-        (including plain @tool-decorated helpers that don't inherit
-        X2ATool) fail closed: nothing is logged besides name/duration.
+        which args are safe/useful to log. Plain @tool-decorated functions
+        (e.g. langchain_core.tools.tool, which produces a pydantic
+        StructuredTool that rejects unknown fields) can't carry a class
+        attribute like that, so they instead declare the same allowlist
+        under `tool.metadata["DEBUG_LOG_ARGS"]`. Tools that declare neither
+        fail closed: nothing is logged besides name/duration.
         """
         tool_args = request.tool_call.get("args", {})
-        allowed = getattr(request.tool, "DEBUG_LOG_ARGS", [])
+        allowed = getattr(request.tool, DEBUG_LOG_ARGS_KEY, None)
+        if allowed is None:
+            metadata = getattr(request.tool, "metadata", None) or {}
+            allowed = metadata.get(DEBUG_LOG_ARGS_KEY, [])
         return {key: value for key, value in tool_args.items() if key in allowed}

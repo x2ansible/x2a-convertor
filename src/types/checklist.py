@@ -9,6 +9,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from src.utils.logging import get_logger
+from tools.base_tool import logged_tool
 
 logger = get_logger(__name__)
 
@@ -468,7 +469,10 @@ class Checklist:
             List of LangChain tool instances bound to this checklist
         """
 
-        @tool("add_checklist_task")
+        @logged_tool(
+            "add_checklist_task",
+            debug_log_args=["category", "source_path", "target_path", "status"],
+        )
         def add_task_tool(
             category: str,
             source_path: str,
@@ -507,7 +511,10 @@ class Checklist:
             except Exception as e:
                 return f"Error adding task: {e!s}"
 
-        @tool("update_checklist_task")
+        @logged_tool(
+            "update_checklist_task",
+            debug_log_args=["source_path", "target_path", "status"],
+        )
         def update_task_tool(
             source_path: str, target_path: str, status: str, notes: str = ""
         ) -> str:
