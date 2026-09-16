@@ -5,27 +5,25 @@ The static molecule files (molecule.yml, create.yml, destroy.yml) are already cr
 scaffolding step. You ONLY need to generate the dynamic test files.
 
 You have these tools available:
-- read_file: Read the role's generated tasks and other files to understand what the role creates
+- read_file: Read the role's generated tasks and other files to identify the role's name and behavior
 - write_file: Write molecule YAML files (playbooks — do NOT use ansible_write)
 - list_directory: List directory contents to explore the role structure
-- update_checklist_task: Update the status of checklist tasks
+- update_checklist_task: Update the status of checklist tasks (use source_path="N/A" for molecule files, see CHECKLIST TOOL USAGE below)
 - list_checklist_tasks: List all existing tasks in the checklist
 
-CRITICAL CONSTRAINTS — molecule tests run inside a minimal Ansible execution environment (EE)
-container on OpenShift:
+CRITICAL CONSTRAINTS — molecule tests run inside a purpose-built Ansible execution environment (EE)
+on OpenShift, provisioned specifically to run this role for real (its collections, packages, and
+privileges are already set up):
 - NO Docker, Podman, or container-based driver — tests use the DELEGATED driver (`name: default`)
-- NO `become: true` — there is no sudo in the container
-- NO `include_role` in converge — the role installs packages and manages services that fail in a container
 - NO prepare.yml — do not generate this file
-- ALL file paths must use `/tmp/molecule_test/` as prefix — the container user cannot write to /etc, /opt, etc.
+- converge.yml MUST NOT fake filesystem state or reimplement the role's logic — it runs the role
+  for real via `ansible.builtin.include_role`, exactly as it will run in production
+- verify.yml MUST assert against the role's real, production paths and state — do NOT invent a
+  `/tmp/molecule_test/` sandbox; the EE is the real target for this role
 
 {% include 'export_ansible_quality_rules.j2' %}
 
 MOLECULE-SPECIFIC RULES:
-
-FILE OPERATIONS:
-- Do NOT use Jinja2 filter expressions (e.g. `{% raw %}{{ var | hash('md5') }}{% endraw %}`) inside
-  `ansible.builtin.copy` `content:` blocks — use plain static placeholder text instead
 
 REGISTERED VARIABLES IN ASSERTIONS:
 - When using `register:` with a loop, loop over `registered_var['results']`
@@ -43,12 +41,13 @@ COMPLEXITY:
 
 ## How to generate converge.yml
 
-Read the role's tasks (tasks/main.yml and any included files) to understand what files,
-directories, configs, and symlinks the role creates. Then recreate that filesystem state
-under `/tmp/molecule_test/`.
+converge.yml has exactly one job: include the role's `tasks/main.yml` via `ansible.builtin.include_role`
+and let it run for real. Because the EE is provisioned specifically for this role, there is no need
+to fake directories, config files, or any other filesystem state — the role executes exactly as it
+would in production, so converge.yml stays minimal.
 
-For example, if the role creates `/etc/nginx/nginx.conf`, the converge should create
-`/tmp/molecule_test/etc/nginx/nginx.conf` with representative content.
+Do NOT reimplement, mock, or partially copy the role's tasks into converge.yml. Do NOT restrict paths
+to `/tmp/molecule_test/` — the role should manage its real, intended paths.
 
 Format:{% raw %}
 ```yaml
@@ -57,27 +56,9 @@ Format:{% raw %}
   hosts: all
   gather_facts: true
   tasks:
-    - name: Create expected directories
-      ansible.builtin.file:
-        path: "{{ item_dir }}"
-        state: directory
-        mode: "0755"
-      loop:
-        - /tmp/molecule_test/etc/myapp/conf.d
-        - /tmp/molecule_test/var/lib/myapp
-      loop_control:
-        loop_var: item_dir
-
-    - name: Create expected config files
-      ansible.builtin.copy:
-        content: "# config content matching what role would produce"
-        dest: "{{ item_config }}"
-        mode: "0644"
-        backup: true
-      loop:
-        - /tmp/molecule_test/etc/myapp/myapp.conf
-      loop_control:
-        loop_var: item_config
+    - name: Include myapp
+      ansible.builtin.include_role:
+        name: myapp
 ```{% endraw %}
 
 ## How to generate verify.yml
@@ -86,17 +67,19 @@ The **module migration plan** (provided in the task prompt inside `<migration_pl
 source of truth. Read the `## Pre-flight checks` section from the migration plan — each bash
 check should become an Ansible verification task.
 
-Translation guide — bash pre-flight commands → Ansible modules:
+Translation guide — bash/powershell pre-flight commands → Ansible modules. Because the role ran for real against
+its actual target paths and services in converge.yml, verify.yml checks those same real paths and
+services directly (no `/tmp/molecule_test/` substitution needed):
 
-| Bash check | Ansible equivalent | Container-safe? |
-|------------|--------------------|-----------------|
-| File existence (`ls`, `test -f`) | `ansible.builtin.stat` + `ansible.builtin.assert` | Yes — use `/tmp/molecule_test/` paths |
-| File content (`cat`, `grep`) | `ansible.builtin.slurp` + `ansible.builtin.assert` | Yes — use `/tmp/molecule_test/` paths |
-| Directory existence (`test -d`) | `ansible.builtin.stat` + assert `.isdir` | Yes — use `/tmp/molecule_test/` paths |
-| `systemctl status X` | `ansible.builtin.service_facts` + assert | No — add `tags: molecule-notest` |
-| Port checks (`ss`, `netstat`) | `ansible.builtin.wait_for` | No — add `tags: molecule-notest` |
-| HTTP checks (`curl`) | `ansible.builtin.uri` | No — add `tags: molecule-notest` |
-| DB queries (`psql`, `mysql`) | collection-specific module | No — add `tags: molecule-notest` |
+| Bash check | Ansible equivalent |
+|------------|--------------------|
+| File existence (`ls`, `test -f`) | `ansible.builtin.stat` + `ansible.builtin.assert` |
+| File content (`cat`, `grep`) | `ansible.builtin.slurp` + `ansible.builtin.assert` |
+| Directory existence (`test -d`) | `ansible.builtin.stat` + assert `.isdir` |
+| `systemctl status X` | `ansible.builtin.service_facts` + assert |
+| Port checks (`ss`, `netstat`) | `ansible.builtin.wait_for` |
+| HTTP checks (`curl`) | `ansible.builtin.uri` |
+| DB queries (`psql`, `mysql`) | collection-specific module |
 
 Use the stat → assert → slurp → assert pattern for file verification:{% raw %}
 
@@ -110,8 +93,8 @@ Use the stat → assert → slurp → assert pattern for file verification:{% ra
       ansible.builtin.stat:
         path: "{{ item_config }}"
       loop:
-        - /tmp/molecule_test/etc/myapp/myapp.conf
-        - /tmp/molecule_test/etc/myapp/site.conf
+        - /etc/myapp/myapp.conf
+        - /etc/myapp/site.conf
       loop_control:
         loop_var: item_config
       register: config_stat_results
@@ -126,30 +109,31 @@ Use the stat → assert → slurp → assert pattern for file verification:{% ra
       loop_control:
         loop_var: item_result
 
-    # For service/port checks that can't run in container:
     - name: Check service is running
       ansible.builtin.service_facts:
-      tags: molecule-notest
 
     - name: Assert service is active
       ansible.builtin.assert:
         that:
           - "'myapp.service' in ansible_facts.services"
         fail_msg: "Service myapp not found"
-      tags: molecule-notest
 ```{% endraw %}
 
 ## Instructions
 
 1. Read the **module migration plan** (in `<migration_plan>` tags) — this is your source of truth for what the role does and what tests to generate
-2. Read the role's tasks to understand what filesystem state it creates
+2. Read the role's tasks to identify the role's name so converge.yml can include it
 3. Read the **pre-flight checks** section from the migration plan to understand what to verify
-4. Generate converge.yml that recreates the expected filesystem state under /tmp/molecule_test/
-5. Generate verify.yml that translates pre-flight checks into Ansible assertions
-6. Use write_file (NOT ansible_write) for all molecule YAML files — they are playbooks, not task files
-7. Mark each completed file in the checklist using update_checklist_task
+4. Generate converge.yml that includes the role via `ansible.builtin.include_role` — nothing else
+5. Generate verify.yml that translates pre-flight checks into Ansible assertions against the role's real paths and state
+6. Use write_file for all molecule YAML files
+7. Mark each completed file in the checklist using update_checklist_task:
+   Example:
+      update_checklist_task(source_path="N/A", target_path="<ansible_path>/molecule/default/converge.yml", status="complete")
+      update_checklist_task(source_path="N/A", target_path="<ansible_path>/molecule/default/verify.yml", status="complete")
 
 BEFORE WRITING ANY YAML, verify EVERY task against this checklist:
+- [ ] converge.yml contains a single `ansible.builtin.include_role` task for the role under test — no faked filesystem state, no reimplemented task logic
 - [ ] Every `loop:` has `loop_control:` with `loop_var: item_{name}` (no bare `item`)
 - [ ] Every loop variable uses bracket notation: `item_myapp['key']` not `item_myapp.key`
 - [ ] Every `ansible.builtin.copy` has `backup: true`
@@ -157,3 +141,4 @@ BEFORE WRITING ANY YAML, verify EVERY task against this checklist:
 - [ ] No untrusted registered variables interpolated into string fields like `fail_msg` or `success_msg` (avoid M005)
 - [ ] No variable interpolation in `command`/`shell` `cmd:` string fields (use `argv:` instead)
 - [ ] verify.yml split into multiple plays if >15 tasks
+- [ ] update_checklist_task called with `source_path="N/A"` (not the target path) for converge.yml and verify.yml

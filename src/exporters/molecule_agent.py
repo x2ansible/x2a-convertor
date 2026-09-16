@@ -115,16 +115,16 @@ verifier:
 """
         (molecule_dir / "molecule.yml").write_text(molecule_config)
 
-        # Generate converge.yml — container-safe, no include_role, no become
-        # All paths use /tmp/molecule_test/ prefix. WriteAgent generates the real one.
+        # Generate converge.yml placeholder — MoleculeAgent replaces this with a real
+        # `ansible.builtin.include_role` task that runs the role for real in the EE.
         converge_playbook = f"""---
 - name: Converge
   hosts: all
   gather_facts: true
   tasks:
-    - name: Placeholder — WriteAgent generates container-safe converge
+    - name: Placeholder — MoleculeAgent generates include_role converge
       ansible.builtin.debug:
-        msg: "Role {role_name} converge placeholder — use /tmp/molecule_test/ paths"
+        msg: "Role {role_name} converge placeholder — will include_role: {role_name}"
 """
         (molecule_dir / "converge.yml").write_text(converge_playbook)
 

@@ -20,8 +20,8 @@ Generate molecule test files for role "{{ module }}" at {{ ansible_path }}.
 The static files (molecule.yml, create.yml, destroy.yml) are already created under
 {{ ansible_path }}/molecule/default/. You need to create:
 
-1. {{ ansible_path }}/molecule/default/converge.yml — recreate expected filesystem state under /tmp/molecule_test/
-2. {{ ansible_path }}/molecule/default/verify.yml — verify the role's expected outcomes
+1. {{ ansible_path }}/molecule/default/converge.yml — include the role "{{ module }}" via `ansible.builtin.include_role` and run it for real
+2. {{ ansible_path }}/molecule/default/verify.yml — verify the role's expected outcomes against its real, production paths and state
 
 ## Checklist
 

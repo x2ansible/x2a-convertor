@@ -61,8 +61,8 @@ Molecule Testing (category: "molecule"):
 - Molecule scenario files for testing the role on AAP (delegated driver, local connection)
 - These are generated based on the migration plan's pre-flight checks
 - Format: N/A → molecule/default/molecule.yml  (scenario configuration — delegated driver, NOT docker/podman)
-- Format: N/A → molecule/default/converge.yml  (creates expected filesystem state under /tmp/molecule_test/ — NOT include_role)
-- Format: N/A → molecule/default/verify.yml    (verification tasks checking /tmp/molecule_test/ paths)
+- Format: N/A → molecule/default/converge.yml  (runs the role for real via a single `ansible.builtin.include_role` task)
+- Format: N/A → molecule/default/verify.yml    (verification tasks checking the role's real, production paths)
 - Format: N/A → molecule/default/create.yml    (no-op instance create)
 - Format: N/A → molecule/default/destroy.yml   (no-op instance destroy)
 
