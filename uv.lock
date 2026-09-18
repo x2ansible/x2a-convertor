@@ -214,7 +214,7 @@ wheels = [
 [[package]]
 name = "apme-engine"
 version = "0.1.0"
-source = { git = "https://github.com/ansible/apme.git?rev=f16bd990f869c1376f1f05d73319631937795a48#f16bd990f869c1376f1f05d73319631937795a48" }
+source = { git = "https://github.com/ansible/apme.git?rev=v2026.9.3#e251f91d51344b222f41056cde24786d162d8089" }
 dependencies = [
     { name = "ansible-core" },
     { name = "fastapi" },
@@ -3731,7 +3731,7 @@ dev = [
 requires-dist = [
     { name = "ansible", specifier = ">=12.1.0" },
     { name = "ansible-lint", specifier = ">=25.9.2" },
-    { name = "apme-engine", git = "https://github.com/ansible/apme.git?rev=f16bd990f869c1376f1f05d73319631937795a48" },
+    { name = "apme-engine", git = "https://github.com/ansible/apme.git?rev=v2026.9.3" },
     { name = "boto3", specifier = ">=1.43.10" },
     { name = "click", specifier = ">=8.3.0" },
     { name = "google-cloud-aiplatform", specifier = ">=1.0.0" },
