@@ -49,6 +49,9 @@ would in production, so converge.yml stays minimal.
 Do NOT reimplement, mock, or partially copy the role's tasks into converge.yml. Do NOT restrict paths
 to `/tmp/molecule_test/` — the role should manage its real, intended paths.
 
+The `include_role` line MUST carry `# noqa: L038` — the role-under-test resolves at runtime but reports
+as unresolved when APME scans the role in isolation.
+
 Format:{% raw %}
 ```yaml
 ---
@@ -57,7 +60,7 @@ Format:{% raw %}
   gather_facts: true
   tasks:
     - name: Include myapp
-      ansible.builtin.include_role:
+      ansible.builtin.include_role: # noqa: L038 - role-under-test resolves at runtime; unresolved only when scanned in isolation
         name: myapp
 ```{% endraw %}
 
