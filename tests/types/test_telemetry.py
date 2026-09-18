@@ -60,6 +60,7 @@ class TestAgentMetrics:
         metrics = AgentMetrics(name="TestAgent").start()
         assert metrics.started_at is not None
 
+        time.sleep(0.01)  # Small delay to ensure non-zero duration
         metrics.stop()
         assert metrics.ended_at is not None
         assert metrics.duration_seconds > 0
@@ -377,6 +378,7 @@ class TestTelemetry:
         telemetry.with_summary("Init completed")
         agent = telemetry.get_or_create_agent("PlanningAgent")
         agent.start()
+        time.sleep(0.01)  # Small delay to ensure non-zero duration
         agent.tool_calls = {"read_file": 5}
         agent.stop()
         telemetry.stop()
@@ -432,6 +434,7 @@ class TestTelemetry:
         agent.start()
         agent.tool_calls = {"read_file": 5}
         agent.stop()
+        time.sleep(0.01)  # Small delay to ensure non-zero phase duration
         telemetry.stop()
 
         result = telemetry.to_dict()
@@ -546,6 +549,7 @@ class TestTelemetryContext:
         telemetry = Telemetry(phase="test")
 
         with pytest.raises(ValueError), telemetry_context(telemetry, "TestAgent"):
+            time.sleep(0.01)  # Small delay to ensure non-zero duration
             raise ValueError("Test exception")
 
         agent = telemetry.agents["TestAgent"]
