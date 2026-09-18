@@ -2,21 +2,26 @@
 
 import asyncio
 import json
+from unittest.mock import Mock
 
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
     HumanMessage,
+    RemoveMessage,
     SystemMessage,
     ToolMessage,
 )
 from langchain_core.outputs import ChatGeneration, LLMResult
+from langgraph.graph.message import REMOVE_ALL_MESSAGES, add_messages
 
+from src.const import X2A_ORIGINAL_MESSAGE
 from src.middleware.agent_dump import (
     AgentDumpCallbackHandler,
     AgentDumpMiddleware,
     SnapshotWriter,
 )
+from src.middleware.x2a_summarize import X2ASummarizationMiddleware
 
 AGENT_NAME = "TestAgent"
 AGENT_ID = "test-agent-123"
@@ -207,6 +212,284 @@ class TestAgentDumpMiddleware:
         entries = _read_snapshots(tmp_path, writer)
         assert entries[0]["messageId"] == f"msg_{AGENT_ID}_1"
         assert entries[1]["messageId"] == f"msg_{AGENT_ID}_2"
+
+
+class TestAgentDumpMiddlewareIncremental:
+    """Tests for the before_model accumulation / after_agent write-once split.
+
+    before_model accumulates messages in memory on every turn (so
+    AgentDumpMiddleware survives X2ASummarizationMiddleware evicting messages
+    from live graph state via RemoveMessage(REMOVE_ALL_MESSAGES)), but never
+    writes to disk. Only after_agent (once, at the end of the run) writes the
+    full accumulated history.
+    """
+
+    def test_before_model_does_not_write_to_disk(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        writer = SnapshotWriter(AGENT_NAME, AGENT_ID)
+        middleware = AgentDumpMiddleware(writer)
+
+        state = {"messages": [HumanMessage(content="hi", id="m1")]}
+        result = middleware.before_model(state, runtime=None)
+
+        assert result is None
+        entries = _read_snapshots(tmp_path, writer)
+        assert len(entries) == 0
+
+    def test_multiple_before_model_calls_do_not_write_to_disk(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        writer = SnapshotWriter(AGENT_NAME, AGENT_ID)
+        middleware = AgentDumpMiddleware(writer)
+
+        middleware.before_model(
+            {"messages": [HumanMessage(content="first", id="m1")]}, runtime=None
+        )
+        middleware.before_model(
+            {
+                "messages": [
+                    HumanMessage(content="first", id="m1"),
+                    AIMessage(content="second", id="m2"),
+                ]
+            },
+            runtime=None,
+        )
+
+        entries = _read_snapshots(tmp_path, writer)
+        assert len(entries) == 0
+
+    def test_after_agent_writes_once_with_full_accumulated_history(
+        self, tmp_path, monkeypatch
+    ):
+        """Simulates X2ASummarizationMiddleware's RemoveMessage(REMOVE_ALL_MESSAGES):
+        messages captured via before_model on earlier turns must still be
+        present in the single write that after_agent performs, even though
+        the final state passed to after_agent is truncated.
+        """
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        writer = SnapshotWriter(AGENT_NAME, AGENT_ID)
+        middleware = AgentDumpMiddleware(writer)
+
+        middleware.before_model(
+            {
+                "messages": [
+                    HumanMessage(content="original", id="m1"),
+                    AIMessage(content="call tool", id="m2"),
+                    ToolMessage(content="tool result", tool_call_id="tc1", id="m3"),
+                ]
+            },
+            runtime=None,
+        )
+
+        # Final state: summarization evicted m1-m3, replacing them with a
+        # summary message. Only the summary is visible in the final state.
+        result = middleware.after_agent(
+            {
+                "messages": [
+                    RemoveMessage(id=REMOVE_ALL_MESSAGES),
+                    HumanMessage(content="summary of previous actions", id="m4"),
+                ]
+            },
+            runtime=None,
+        )
+
+        assert result is None
+        entries = _read_snapshots(tmp_path, writer)
+        assert len(entries) == 1
+        # The single write still contains everything ever accumulated.
+        assert len(entries[0]["snapshot"]) == 4
+
+    def test_after_agent_ignores_remove_message_entries(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        writer = SnapshotWriter(AGENT_NAME, AGENT_ID)
+        middleware = AgentDumpMiddleware(writer)
+
+        state = {
+            "messages": [
+                RemoveMessage(id=REMOVE_ALL_MESSAGES),
+                HumanMessage(content="kept", id="m1"),
+            ]
+        }
+        middleware.after_agent(state, runtime=None)
+
+        entries = _read_snapshots(tmp_path, writer)
+        assert len(entries[0]["snapshot"]) == 1
+
+    def test_abefore_model_does_not_write_to_disk(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        writer = SnapshotWriter(AGENT_NAME, AGENT_ID)
+        middleware = AgentDumpMiddleware(writer)
+
+        state = {"messages": [HumanMessage(content="async", id="m1")]}
+        result = asyncio.run(middleware.abefore_model(state, runtime=None))
+
+        assert result is None
+        entries = _read_snapshots(tmp_path, writer)
+        assert len(entries) == 0
+
+    def test_before_agent_resets_cumulative_state(self, tmp_path, monkeypatch):
+        """AgentMiddleware instances are cached on BaseAgent across multiple
+        invoke_react() calls, so before_agent must clear history from any
+        previous run to avoid pooling unrelated messages together.
+        """
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        writer = SnapshotWriter(AGENT_NAME, AGENT_ID)
+        middleware = AgentDumpMiddleware(writer)
+
+        middleware.before_model(
+            {"messages": [HumanMessage(content="run one", id="m1")]}, runtime=None
+        )
+        middleware.after_agent(
+            {"messages": [HumanMessage(content="run one", id="m1")]}, runtime=None
+        )
+
+        middleware.before_agent({"messages": []}, runtime=None)
+
+        middleware.before_model(
+            {"messages": [HumanMessage(content="run two", id="m2")]}, runtime=None
+        )
+        middleware.after_agent(
+            {"messages": [HumanMessage(content="run two", id="m2")]}, runtime=None
+        )
+
+        entries = _read_snapshots(tmp_path, writer)
+        assert len(entries) == 2
+        # Second run's snapshot only contains its own message, not run one's.
+        assert len(entries[1]["snapshot"]) == 1
+        assert entries[1]["snapshot"][0]["content"][0]["text"] == "run two"
+
+    def test_abefore_agent_resets_cumulative_state(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        writer = SnapshotWriter(AGENT_NAME, AGENT_ID)
+        middleware = AgentDumpMiddleware(writer)
+
+        middleware.before_model(
+            {"messages": [HumanMessage(content="run one", id="m1")]}, runtime=None
+        )
+
+        result = asyncio.run(middleware.abefore_agent({"messages": []}, runtime=None))
+
+        assert result is None
+        middleware.before_model(
+            {"messages": [HumanMessage(content="run two", id="m2")]}, runtime=None
+        )
+        middleware.after_agent(
+            {"messages": [HumanMessage(content="run two", id="m2")]}, runtime=None
+        )
+
+        entries = _read_snapshots(tmp_path, writer)
+        assert len(entries) == 1
+        assert len(entries[0]["snapshot"]) == 1
+
+    def test_after_agent_dedupes_messages_already_seen_via_before_model(
+        self, tmp_path, monkeypatch
+    ):
+        """Messages accumulated via before_model must not be double-counted
+        when after_agent's final accumulate+write runs.
+        """
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        writer = SnapshotWriter(AGENT_NAME, AGENT_ID)
+        middleware = AgentDumpMiddleware(writer)
+
+        middleware.before_model(
+            {"messages": [HumanMessage(content="hi", id="m1")]}, runtime=None
+        )
+        middleware.after_agent(
+            {
+                "messages": [
+                    HumanMessage(content="hi", id="m1"),
+                    AIMessage(content="final answer", id="m2"),
+                ]
+            },
+            runtime=None,
+        )
+
+        entries = _read_snapshots(tmp_path, writer)
+        assert len(entries) == 1
+        assert len(entries[0]["snapshot"]) == 2
+
+
+class TestAgentDumpBeforeSummarization:
+    """Composed tests that actually run AgentDumpMiddleware.before_model
+    followed by X2ASummarizationMiddleware.before_model on the same state,
+    in the same order BaseAgent.middleware() registers them.
+
+    Unlike TestAgentDumpMiddlewareIncremental (which calls the dump hooks in
+    isolation and hand-crafts a pre-evicted final state), this locks the
+    actual registration-order contract: dump must see each turn's messages
+    strictly before summarization's before_model can evict them via
+    RemoveMessage(REMOVE_ALL_MESSAGES). If that order were ever reversed, the
+    dump would accumulate an already-summarized state and lose history.
+    """
+
+    def _apply_update(self, state, update):
+        messages = add_messages(state["messages"], update["messages"])
+        return {"messages": messages}
+
+    def test_dump_before_model_precedes_summarization_eviction(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        writer = SnapshotWriter(AGENT_NAME, AGENT_ID)
+        dump_middleware = AgentDumpMiddleware(writer)
+
+        model = Mock()
+        model.invoke.return_value = Mock(text="Summary of previous actions")
+        summarization_middleware = X2ASummarizationMiddleware(
+            model, max_tokens=10, messages_to_keep=1
+        )
+
+        original = HumanMessage(
+            content="Migrate this Chef code",
+            additional_kwargs={X2A_ORIGINAL_MESSAGE: True},
+            id="m1",
+        )
+        ai_msg = AIMessage(content="call tool " * 50, id="m2")
+        tool_msg = ToolMessage(content="tool result " * 50, tool_call_id="tc1", id="m3")
+        state = {"messages": [original, ai_msg, tool_msg]}
+
+        dump_middleware.before_agent(state, runtime=None)
+
+        # Registration order: dump runs before summarization on the same turn.
+        dump_result = dump_middleware.before_model(state, runtime=None)
+        assert dump_result is None
+
+        summarize_result = summarization_middleware.before_model(state, runtime=Mock())
+        assert summarize_result is not None
+
+        # Apply summarization's update the way LangGraph's reducer would,
+        # simulating the eviction that the live graph state undergoes.
+        evicted_state = self._apply_update(state, summarize_result)
+        non_remove = [
+            msg
+            for msg in evicted_state["messages"]
+            if not isinstance(msg, RemoveMessage)
+        ]
+        assert ai_msg not in non_remove
+        assert tool_msg not in non_remove
+
+        dump_middleware.after_agent(evicted_state, runtime=None)
+
+        entries = _read_snapshots(tmp_path, writer)
+        assert len(entries) == 1
+        snapshot = entries[0]["snapshot"]
+
+        # The dump's before_model already captured m1-m3 before eviction, so
+        # the final write still contains them despite the live state above
+        # no longer doing so, plus whatever summarization kept/added.
+        assert snapshot[0]["content"][0]["text"] == "Migrate this Chef code"
+        assert snapshot[1]["role"] == "assistant"
+        assert snapshot[1]["content"][0]["text"] == "call tool " * 50
+        assert snapshot[2]["role"] == "user"
+        assert snapshot[2]["content"][0]["type"] == "tool_result"
+        assert snapshot[2]["content"][0]["content"] == "tool result " * 50
+        summary_texts = [
+            entry["content"][0]["text"]
+            for entry in snapshot[3:]
+            if entry["role"] == "user"
+        ]
+        assert any("Summary of previous actions" in text for text in summary_texts)
 
 
 class TestAgentDumpCallbackHandler:

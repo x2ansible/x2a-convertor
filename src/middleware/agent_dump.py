@@ -8,7 +8,13 @@ from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.callbacks.base import BaseCallbackHandler
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    RemoveMessage,
+    ToolMessage,
+)
 
 from src.config import get_settings
 from src.utils.logging import get_logger
@@ -120,26 +126,95 @@ class SnapshotWriter:
 
 
 class AgentDumpMiddleware(AgentMiddleware):
-    """Dumps agent conversation messages to JSONL after agent execution.
+    """Accumulates agent conversation messages and writes them to JSONL once,
+    when the agent run finishes.
 
     Used with invoke_react where the full middleware pipeline is available.
+
+    Messages are still accumulated on every before_model call (not just at
+    the end), because X2ASummarizationMiddleware can evict messages from live
+    graph state (RemoveMessage(REMOVE_ALL_MESSAGES)) partway through a run.
+    Capturing them incrementally in memory as they appear is what lets the
+    final write reflect the full conversation even though the live state no
+    longer does. Only the on-disk write is deferred to after_agent; nothing
+    is written to disk before then.
+
+    This should always be registered before the summarization middleware, so
+    its before_model hook sees each turn's messages before summarization can
+    evict them.
     """
 
     def __init__(self, writer: SnapshotWriter) -> None:
         self._writer = writer
+        self._seen_ids: set[str] = set()
+        self._cumulative_messages: list[BaseMessage] = []
 
     @property
     def file_name(self) -> str:
         return self._writer.file_name
 
-    def after_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
+    def _reset(self) -> None:
+        """Clear accumulated history at the start of a new agent run.
+
+        AgentMiddleware instances are cached on BaseAgent across multiple
+        invoke_react() calls (see BaseAgent.middleware()), so an agent that
+        calls invoke_react() more than once (e.g. WriteAgent's internal retry
+        loop) reuses this same instance. Without an explicit reset at the
+        start of each graph run (before_agent fires once per invoke_react()
+        call), _cumulative_messages would silently pool messages across
+        unrelated calls.
+        """
+        self._seen_ids = set()
+        self._cumulative_messages = []
+
+    def _accumulate(self, state: Any) -> None:
+        """Merge state's messages into the in-memory cumulative history.
+
+        Deduplicates by message id so messages already captured on an
+        earlier turn (before eviction) are not counted twice. Does not write
+        to disk -- see _dump().
+        """
         messages = state.get("messages", [])
-        self._writer.write_snapshot(messages)
+
+        for msg in messages:
+            if isinstance(msg, RemoveMessage):
+                continue
+
+            msg_id = msg.id or str(id(msg))
+
+            if msg_id in self._seen_ids:
+                continue
+            self._seen_ids.add(msg_id)
+            self._cumulative_messages.append(msg)
+
+    def _dump(self) -> None:
+        """Write the full cumulative history to disk as a single snapshot."""
+        self._writer.write_snapshot(self._cumulative_messages)
+
+    def before_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
+        self._reset()
+        return None
+
+    async def abefore_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
+        self._reset()
+        return None
+
+    def before_model(self, state: Any, runtime: Any) -> dict[str, Any] | None:
+        self._accumulate(state)
+        return None
+
+    async def abefore_model(self, state: Any, runtime: Any) -> dict[str, Any] | None:
+        self._accumulate(state)
+        return None
+
+    def after_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
+        self._accumulate(state)
+        self._dump()
         return None
 
     async def aafter_agent(self, state: Any, runtime: Any) -> dict[str, Any] | None:
-        messages = state.get("messages", [])
-        self._writer.write_snapshot(messages)
+        self._accumulate(state)
+        self._dump()
         return None
 
 
