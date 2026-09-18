@@ -134,7 +134,9 @@ Retry your response now, ensuring it matches the schema structure exactly."""
         When RULES_FILE is set, RulesMiddleware is included
         to inject rules as a message at agent startup.
         When JSON_LINES is configured, AgentDumpMiddleware is included
-        to dump messages for debugging.
+        to dump messages for debugging. It is placed before
+        X2ASummarizationMiddleware so it always sees each turn's messages
+        before summarization can evict them.
         TelemetryMiddleware stays last (see comment below).
 
         Middleware instances are cached to preserve state across invocations
@@ -153,6 +155,16 @@ Retry your response now, ensuring it matches the schema structure exactly."""
             stack.append(GoalValidationMiddleware(self.GOAL, agent=self))
         if self.RULES_FILE:
             stack.append(RulesMiddleware(self.RULES_FILE))
+        # AgentDumpMiddleware must be registered before X2ASummarizationMiddleware:
+        # before_model hooks run in registration order, so this guarantees the
+        # dump sees each turn's messages before summarization can evict them,
+        # rather than relying on the incremental cache having already captured
+        # them on an earlier, not-yet-compacted turn (see AgentDumpMiddleware
+        # docstring).
+        settings = get_settings()
+        if settings.logging.json_lines:
+            stack.append(AgentDumpMiddleware(self._get_snapshot_writer()))
+
         effective_max_tokens = self._effective_summary_threshold()
         stack.append(
             X2ASummarizationMiddleware(
@@ -161,9 +173,6 @@ Retry your response now, ensuring it matches the schema structure exactly."""
                 messages_to_keep=self.MESSAGES_TO_KEEP,
             ),
         )
-        settings = get_settings()
-        if settings.logging.json_lines:
-            stack.append(AgentDumpMiddleware(self._get_snapshot_writer()))
 
         # TelemetryMiddleware must stay last: it wraps the actual model call
         # (wrap_model_call composes outermost-first), so placing it last keeps

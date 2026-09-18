@@ -370,8 +370,8 @@ Agents use a middleware stack configured in `BaseAgent.middleware()`:
 | `ToolCallLoggingMiddleware` | Logs tool name, duration, and args for every tool call |
 | `GoalValidationMiddleware` | Validates agent achieved its `GOAL`; retries if not |
 | `RulesMiddleware` | Injects rules from `RULES_FILE` as a message at startup |
+| `AgentDumpMiddleware` | Dumps messages to JSON Lines for debugging (when `JSON_LINES` is set); registered before `X2ASummarizationMiddleware` so it always sees each turn's messages before summarization can evict them |
 | `X2ASummarizationMiddleware` | Compacts conversation when token count exceeds threshold |
-| `AgentDumpMiddleware` | Dumps messages to JSON Lines for debugging (when `JSON_LINES` is set) |
 | `TelemetryMiddleware` | Records token usage (via `wrap_model_call`) and tool call counts (via `wrap_tool_call`) into `AgentMetrics`; must stay last in the stack |
 
 ### Telemetry Through Middleware

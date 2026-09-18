@@ -11,6 +11,7 @@ from langchain_core.tools import BaseTool
 from src.base_agent import BaseAgent
 from src.config import reset_settings
 from src.config.settings import SummaryContextSize
+from src.middleware.agent_dump import AgentDumpMiddleware
 from src.middleware.goal_validation import GoalValidationMiddleware
 from src.middleware.rules import RulesMiddleware
 from src.middleware.telemetry import TelemetryMiddleware
@@ -962,6 +963,39 @@ class TestBaseAgentMiddleware:
         second = agent.middleware()
 
         assert first is second
+
+    def test_middleware_with_json_lines_adds_agent_dump_before_summarization(
+        self, tmp_path, monkeypatch
+    ):
+        """AgentDumpMiddleware must run its before_model hook before
+        X2ASummarizationMiddleware's, so it always sees each turn's messages
+        before summarization can evict them (see AgentDumpMiddleware
+        docstring and BaseAgent.middleware() comment).
+        """
+        monkeypatch.setenv("JSON_LINES", str(tmp_path))
+        reset_settings()
+        try:
+            agent = ConcreteAgent()
+            stack = agent.middleware()
+
+            dump_index = next(
+                i for i, mw in enumerate(stack) if isinstance(mw, AgentDumpMiddleware)
+            )
+            summarize_index = next(
+                i
+                for i, mw in enumerate(stack)
+                if isinstance(mw, X2ASummarizationMiddleware)
+            )
+
+            assert dump_index < summarize_index
+        finally:
+            reset_settings()
+
+    def test_middleware_without_json_lines_has_no_agent_dump(self):
+        agent = ConcreteAgent()
+        stack = agent.middleware()
+
+        assert not any(isinstance(mw, AgentDumpMiddleware) for mw in stack)
 
     def test_rules_file_classvar_defaults_to_none(self):
         agent = ConcreteAgent()
