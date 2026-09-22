@@ -194,8 +194,13 @@ class ValidationAgent(ExportAgent[ExportState]):
         slog.info("Running APME check")
 
         ansible_path = export_state.get_ansible_path()
-
-        report = self._apme.check(ansible_path)
+        try:
+            report = self._apme.check(ansible_path)
+        except Exception as error:
+            reason = f"APME validation failed: {error}"
+            slog.exception(reason)
+            state.export_state = export_state.mark_failed(reason)
+            return state
 
         if self._current_metrics:
             self._current_metrics.record_metric("violations", len(report.violations))
