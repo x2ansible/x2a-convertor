@@ -15,7 +15,7 @@ grouped by file. The rule ID is the `rule` attribute (e.g. `R114`, `L039`, `M006
 
 ```xml
 <apme_check_results total="N" errors="N" warnings="N">
-  <file path="tasks/db.yml">
+  <file path="{{ ansible_path }}/tasks/db.yml">
     <violation line="46" rule="R114" severity="medium">message text</violation>
   </file>
 </apme_check_results>

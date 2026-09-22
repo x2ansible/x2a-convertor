@@ -41,6 +41,12 @@ logger = get_logger(__name__)
 # variables per the write-agent's own conventions; this rule fires too many
 # false positives against migrated content that intentionally keeps upstream
 # variable names for compatibility.
+# L060 (command-instead-of-shell): migrated content may require shell features
+# that cannot be represented by the command module.
+# L040 (deprecated-module usage): migration preserves source behavior first;
+# replacing modules is a separate compatibility-sensitive decision.
+# L042 (risky-file-change): generated roles may intentionally manage mutable
+# files whose contents or paths are supplied by the migrated configuration.
 EXCLUDED_RULE_IDS: list[str] = [
     "L079",
     "L060",
@@ -208,6 +214,7 @@ class CheckReport:
     rules_evaluated: int = 0
     nodes_scanned: int = 0
     elapsed_ms: float = 0.0
+    base_dir: Path | None = field(default=None, repr=False)
 
     @classmethod
     def from_violation_dicts(
@@ -218,6 +225,7 @@ class CheckReport:
         rules_evaluated: int = 0,
         nodes_scanned: int = 0,
         elapsed_ms: float = 0.0,
+        base_dir: Path | None = None,
     ) -> "CheckReport":
         """Build a CheckReport from raw validator violation dicts.
 
@@ -264,6 +272,7 @@ class CheckReport:
             rules_evaluated=rules_evaluated,
             nodes_scanned=nodes_scanned,
             elapsed_ms=elapsed_ms,
+            base_dir=base_dir,
         )
 
     @staticmethod
@@ -324,8 +333,13 @@ class CheckReport:
             f"{self.error_count} error(s), {self.warning_count} warning(s)."
         )
 
-    def to_xml_prompt(self) -> str:
+    def to_xml_prompt(self, *, base_dir: Path | None = None) -> str:
         """Return violations as XML grouped by file path, for LLM prompts.
+
+        Args:
+            base_dir: Optional directory relative to which absolute violation
+                paths should be rendered. When omitted, paths are rendered
+                relative to the current working directory for compatibility.
 
         XML gives unambiguous, machine-parseable boundaries between the
         report's own structure (file paths, per-violation rule/line/severity)
@@ -349,7 +363,11 @@ class CheckReport:
         # Group violations by file
         by_file: dict[str, list[CheckViolation]] = {}
         for v in self.violations:
-            file_path = self._relative_path(v.file)
+            file_path = self._relative_path(
+                v.file,
+                v.scope,
+                base_dir=base_dir or self.base_dir,
+            )
             if file_path not in by_file:
                 by_file[file_path] = []
             by_file[file_path].append(v)
@@ -379,14 +397,30 @@ class CheckReport:
         return "\n".join(lines)
 
     @staticmethod
-    def _relative_path(file_path: str) -> str:
-        """Convert absolute path to relative path from cwd."""
+    def _relative_path(
+        file_path: str,
+        scope: str = "",
+        *,
+        base_dir: Path | None = None,
+    ) -> str:
+        """Convert a violation path to a useful path from a base directory.
+
+        Role-scoped rules often have no individual file anchor. Point those
+        violations at the conventional role metadata file so a fix agent has
+        an actionable location instead of ``<unknown>``.
+        """
         if not file_path:
+            if scope == "role":
+                return "meta/main.yml"
             return "<unknown>"
+        path = Path(file_path)
+        if base_dir is not None and not path.is_absolute():
+            path = base_dir / path
+
         try:
-            return str(Path(file_path).relative_to(Path.cwd()))
+            return str(path.relative_to(Path.cwd()))
         except ValueError:
-            return file_path
+            return str(path)
 
     @staticmethod
     def _format_line(line: int | list[int] | None) -> str:
@@ -514,8 +548,8 @@ class APME:
             path: File or directory to check.
             rule_ids: If provided, only run these specific rules.
             exclude_rule_ids: Rule IDs to skip, in addition to this project's
-                static `EXCLUDED_RULE_IDS`. Defaults to `EXCLUDED_RULE_IDS`
-                when not provided.
+                static `EXCLUDED_RULE_IDS`. The project exclusions always
+                apply; this parameter only adds further exclusions.
             include_test_contents: Include test directories (e.g. `molecule/`)
                 in the scan. Defaults to True -- molecule playbooks go through
                 the same rules as the rest of the role (see R114 on
@@ -553,7 +587,7 @@ class APME:
         )
 
         # Get the content graph from scandata
-        scandata = context.scandata
+        scandata = getattr(context, "scandata", None)
         if scandata is None or not hasattr(scandata, "content_graph"):
             slog.warning("No content graph available from scan")
             return CheckReport()
@@ -581,6 +615,7 @@ class APME:
             rules_evaluated=graph_report.rules_evaluated,
             nodes_scanned=graph_report.nodes_scanned,
             elapsed_ms=graph_report.elapsed_ms,
+            base_dir=path if path.is_dir() else path.parent,
         )
 
         slog.info(report.summary())
