@@ -9,6 +9,7 @@ from typing import ClassVar, Literal
 
 from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, StateGraph
+from pydantic import BaseModel
 
 from prompts.get_prompt import get_prompt
 from src.config import get_settings
@@ -33,6 +34,21 @@ from tools.read_file import ReadFileTool
 from tools.validated_write import ValidatedWriteTool
 
 logger = get_logger(__name__)
+
+
+class SkipValidationDecision(BaseModel):
+    """Whether a previous agent's report justifies skipping validation."""
+
+    skip: bool
+
+
+SKIP_VALIDATION_PROMPT = """Decide whether validation may be skipped based on this previous validation report.
+Return skip=true only when it explicitly establishes that remaining issues are
+acceptable or non-actionable.
+
+<validation_report>
+{report}
+</validation_report>"""
 
 
 class ErrorFingerprint:
@@ -92,7 +108,6 @@ class ValidationAgent(ExportAgent[ExportState]):
         self.max_attempts = max_attempts or get_config_int("MAX_VALIDATION_ATTEMPTS")
         self._apme = APME()
         self._graph = self._build_internal_graph()
-        self._current_metrics: AgentMetrics | None = None
 
     def _build_internal_graph(self):
         """Build the internal StateGraph for validation workflow."""
@@ -126,7 +141,7 @@ class ValidationAgent(ExportAgent[ExportState]):
             return state
         slog.info(f"Installing collections from '{requirements_file.resolve()}'")
         results = self._install_requirements(requirements_file)
-        self._log_install_results(results, slog)
+        self._log_install_results(results, slog, state.metrics)
 
         return state
 
@@ -159,17 +174,15 @@ class ValidationAgent(ExportAgent[ExportState]):
         manager = CollectionManager.from_settings(aap_settings)
         return manager.install_from_requirements(requirements_file)
 
-    def _log_install_results(self, results: list, slog) -> None:
+    def _log_install_results(
+        self, results: list, slog, metrics: AgentMetrics | None
+    ) -> None:
         """Log summary of installation results."""
         summary = InstallResultSummary.from_results(results)
 
-        if self._current_metrics:
-            self._current_metrics.record_metric(
-                "collections_installed", summary.success_count
-            )
-            self._current_metrics.record_metric(
-                "collections_failed", summary.fail_count
-            )
+        if metrics:
+            metrics.record_metric("collections_installed", summary.success_count)
+            metrics.record_metric("collections_failed", summary.fail_count)
 
         if summary.all_succeeded:
             slog.info(f"All {summary.success_count} collections installed successfully")
@@ -198,14 +211,19 @@ class ValidationAgent(ExportAgent[ExportState]):
             report = self._apme.check(ansible_path)
         except Exception as error:
             reason = f"APME validation failed: {error}"
+            if self._previous_report_allows_skip(
+                export_state.validation_report, state.metrics
+            ):
+                slog.warning("APME failed; accepting the previous validation report")
+                return self._complete(state, export_state.validation_report)
             slog.exception(reason)
             state.export_state = export_state.mark_failed(reason)
             return state
 
-        if self._current_metrics:
-            self._current_metrics.record_metric("violations", len(report.violations))
-            self._current_metrics.record_metric("errors", report.error_count)
-            self._current_metrics.record_metric("warnings", report.warning_count)
+        if state.metrics:
+            state.metrics.record_metric("violations", len(report.violations))
+            state.metrics.record_metric("errors", report.error_count)
+            state.metrics.record_metric("warnings", report.warning_count)
 
         state.previous_validation_report = state.validation_report
         state.validation_report = report
@@ -214,18 +232,52 @@ class ValidationAgent(ExportAgent[ExportState]):
         # regardless of severity (0 = no violations, 1 = violations found).
         state.has_errors = report.has_violations
 
-        if state.has_errors:
-            slog.warning(f"APME check found violations: {report.summary()}")
-            return state
+        if not state.has_errors:
+            slog.info("APME check passed")
+            return self._complete(state, report.to_xml_prompt())
 
-        slog.info("APME check passed")
+        if self._previous_report_allows_skip(
+            export_state.validation_report, state.metrics
+        ):
+            slog.info("Accepting the previous validation report")
+            return self._complete(state, export_state.validation_report)
 
-        success_report = f"{SUMMARY_SUCCESS_MESSAGE}\n\n{report.to_xml_prompt()}"
-        export_state = export_state.update(validation_report=success_report)
-        state.export_state = export_state
-        state.complete = True
-
+        slog.warning(f"APME check found violations: {report.summary()}")
         return state
+
+    def _complete(
+        self, state: ValidationAgentState, report: str | None
+    ) -> ValidationAgentState:
+        """Mark validation complete and preserve the accepted report."""
+        accepted_report = report or "No validation report was produced."
+        state.export_state = state.export_state.update(
+            validation_report=f"{SUMMARY_SUCCESS_MESSAGE}\n\n{accepted_report}"
+        )
+        state.complete = True
+        state.has_errors = False
+        return state
+
+    def _previous_report_allows_skip(
+        self, report: str, metrics: AgentMetrics | None
+    ) -> bool:
+        """Use structured output to classify a non-empty previous report."""
+        if not report.strip():
+            return False
+        try:
+            decision = self.invoke_structured(
+                SkipValidationDecision,
+                [
+                    {
+                        "role": "user",
+                        "content": SKIP_VALIDATION_PROMPT.format(report=report),
+                    }
+                ],
+                metrics,
+            )
+        except Exception:
+            logger.exception("Unable to classify the previous validation report")
+            return False
+        return bool(decision and decision.skip)
 
     # -------------------------------------------------------------------------
     # Fix Errors Node
@@ -258,7 +310,7 @@ class ValidationAgent(ExportAgent[ExportState]):
             [
                 {"role": "user", "content": validation_task},
             ],
-            self._current_metrics,
+            state.metrics,
         )
 
         export_state.checklist.save(export_state.get_checklist_path())
@@ -377,15 +429,13 @@ class ValidationAgent(ExportAgent[ExportState]):
 
         state = state.update(current_phase=MigrationPhase.VALIDATING)
 
-        # Store metrics reference for internal nodes to use
-        self._current_metrics = metrics
-
         internal_state = ValidationAgentState(
             export_state=state,
             attempt=0,
             max_attempts=self.max_attempts,
             complete=False,
             has_errors=False,
+            metrics=metrics,
         )
 
         final_state_dict = self._graph.invoke(internal_state, get_runnable_config())
@@ -395,8 +445,6 @@ class ValidationAgent(ExportAgent[ExportState]):
             metrics.record_metric("attempts", final_state.attempt)
             metrics.record_metric("complete", final_state.complete)
             metrics.record_metric("has_errors", final_state.has_errors)
-
-        self._current_metrics = None
 
         export_state = final_state.export_state
         export_state = export_state.update(
