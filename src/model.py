@@ -61,6 +61,7 @@ def get_runnable_config() -> RunnableConfig:
     """Get RunnableConfig dict with recursion limit from settings"""
     settings = get_settings()
     return {
+        "max_concurrency": 1,
         "recursion_limit": settings.processing.recursion_limit,
         "callbacks": [FinishReasonCallbackHandler()],
     }
