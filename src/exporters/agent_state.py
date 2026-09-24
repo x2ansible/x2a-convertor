@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from src.exporters.state import ExportState
 from src.exporters.tools.apme import CheckReport
+from src.types.telemetry import AgentMetrics
 
 
 @dataclass
@@ -64,6 +65,7 @@ class ValidationAgentState(BaseAgentState):
     validation_report: CheckReport | None = None
     previous_validation_report: CheckReport | None = None
     has_errors: bool = False
+    metrics: AgentMetrics | None = None
 
     def render_errors(self) -> str:
         """Render the current validation_report as XML for prompts/logs.
