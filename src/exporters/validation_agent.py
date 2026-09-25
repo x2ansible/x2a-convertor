@@ -42,15 +42,6 @@ class SkipValidationDecision(BaseModel):
     skip: bool
 
 
-SKIP_VALIDATION_PROMPT = """Decide whether validation may be skipped based on this previous validation report.
-Return skip=true only when it explicitly establishes that remaining issues are
-acceptable or non-actionable.
-
-<validation_report>
-{report}
-</validation_report>"""
-
-
 class ErrorFingerprint:
     """Extracts stable error signatures from APME check reports.
 
@@ -211,11 +202,6 @@ class ValidationAgent(ExportAgent[ExportState]):
             report = self._apme.check(ansible_path)
         except Exception as error:
             reason = f"APME validation failed: {error}"
-            if self._previous_report_allows_skip(
-                export_state.validation_report, state.metrics
-            ):
-                slog.warning("APME failed; accepting the previous validation report")
-                return self._complete(state, export_state.validation_report)
             slog.exception(reason)
             state.export_state = export_state.mark_failed(reason)
             return state
@@ -237,10 +223,15 @@ class ValidationAgent(ExportAgent[ExportState]):
             return self._complete(state, report.to_xml_prompt())
 
         if self._previous_report_allows_skip(
-            export_state.validation_report, state.metrics
+            export_state.validation_report, state.attempt, state.metrics
         ):
             slog.info("Accepting the previous validation report")
-            return self._complete(state, export_state.validation_report)
+            accepted_report = (
+                f"{export_state.validation_report}\n\n"
+                "Remaining violations (accepted):\n"
+                f"{report.to_xml_prompt()}"
+            )
+            return self._complete(state, accepted_report)
 
         slog.warning(f"APME check found violations: {report.summary()}")
         return state
@@ -258,10 +249,10 @@ class ValidationAgent(ExportAgent[ExportState]):
         return state
 
     def _previous_report_allows_skip(
-        self, report: str, metrics: AgentMetrics | None
+        self, report: str, attempt: int, metrics: AgentMetrics | None
     ) -> bool:
-        """Use structured output to classify a non-empty previous report."""
-        if not report.strip():
+        """Classify a post-fix report to decide whether violations are acceptable."""
+        if attempt == 0 or not report.strip():
             return False
         try:
             decision = self.invoke_structured(
@@ -269,7 +260,9 @@ class ValidationAgent(ExportAgent[ExportState]):
                 [
                     {
                         "role": "user",
-                        "content": SKIP_VALIDATION_PROMPT.format(report=report),
+                        "content": get_prompt(
+                            "export_ansible_validation_skip_decision"
+                        ).format(report=report),
                     }
                 ],
                 metrics,

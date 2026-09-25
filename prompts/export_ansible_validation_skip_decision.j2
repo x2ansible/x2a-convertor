@@ -1,0 +1,8 @@
+Decide whether validation may be skipped based on this report from the validation fix agent.
+Return skip=true only when it explicitly establishes that remaining issues are
+acceptable or non-actionable. Do not infer that an issue is acceptable merely
+because it is difficult to fix.
+
+<validation_report>
+{{ report }}
+</validation_report>

@@ -70,7 +70,7 @@ def test_validation_still_fails_when_previous_report_rejects_exception(export_st
 
     assert result.has_errors is True
     assert result.complete is False
-    agent.invoke_structured.assert_called_once()
+    agent.invoke_structured.assert_not_called()
 
 
 def test_validation_accepts_explicit_exception_from_previous_report(export_state):
@@ -84,6 +84,7 @@ def test_validation_accepts_explicit_exception_from_previous_report(export_state
                 "do not modify the fixture."
             )
         ),
+        attempt=1,
         metrics=metrics,
     )
 
@@ -95,30 +96,56 @@ def test_validation_accepts_explicit_exception_from_previous_report(export_state
     assert agent.invoke_structured.call_args.args[2] is metrics
 
 
-def test_apme_failure_can_use_an_accepted_previous_report(export_state):
+def test_apme_failure_marks_validation_failed(export_state):
     agent = validation_agent(RuntimeError("APME unavailable"))
     agent.invoke_structured = MagicMock(return_value=SkipValidationDecision(skip=True))
     state = ValidationAgentState(
         export_state=export_state.update(
             validation_report="The remaining R401 violation is intentional."
-        )
+        ),
+        attempt=1,
     )
 
     result = agent._validate_node(state)
 
-    assert result.complete is True
-    assert result.export_state.failed is False
-    assert "The remaining R401 violation is intentional" in (
-        result.export_state.validation_report
-    )
+    assert result.complete is False
+    assert result.export_state.failed is True
+    agent.invoke_structured.assert_not_called()
 
 
 def test_empty_previous_report_is_not_sent_to_the_model(export_state):
     agent = validation_agent(violation_report())
     agent.invoke_structured = MagicMock()
-    state = ValidationAgentState(export_state=export_state)
+    state = ValidationAgentState(export_state=export_state, attempt=1)
 
     result = agent._validate_node(state)
 
     assert result.has_errors is True
     agent.invoke_structured.assert_not_called()
+
+
+def test_zero_violation_success_does_not_call_structured_model(export_state):
+    agent = validation_agent(CheckReport())
+    agent.invoke_structured = MagicMock()
+    state = ValidationAgentState(export_state=export_state, attempt=1)
+
+    result = agent._validate_node(state)
+
+    assert result.complete is True
+    assert result.has_errors is False
+    agent.invoke_structured.assert_not_called()
+
+
+def test_none_skip_decision_does_not_accept_violations(export_state):
+    agent = validation_agent(violation_report())
+    agent.invoke_structured = MagicMock(return_value=None)
+    state = ValidationAgentState(
+        export_state=export_state.update(validation_report="The issue is intentional."),
+        attempt=1,
+    )
+
+    result = agent._validate_node(state)
+
+    assert result.complete is False
+    assert result.has_errors is True
+    agent.invoke_structured.assert_called_once()
