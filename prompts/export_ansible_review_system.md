@@ -19,16 +19,30 @@ Common patterns:
 
 Fix: Add the missing prerequisite task BEFORE the task that depends on it. Place user/group creation at the top of the relevant task file. Place directory creation before the first task that writes into that directory.
 
-### 2. Missing Package Dependencies
+### 2. Files Changed Whose Owning Application May Not Exist
 
-Tasks that modify configuration files or manage services for packages that are never installed in the role.
+Every file the role changes has a precondition: the application that owns that file
+must exist on the target. If the role changes a file but never ensures the
+application that owns it exists, the file may be absent on the target and the change
+is a defect. Detect this mechanically — enumerate, then check; do not reason task by
+task, and do not excuse a file because it "looks like it is probably already there."
 
-Common patterns:
-- `ansible.builtin.template` writing to `/etc/nginx/nginx.conf` without `ansible.builtin.package` installing nginx
-- `ansible.builtin.service` managing `postgresql` without a package install task
-- `ansible.builtin.lineinfile` modifying `/etc/ssh/sshd_config` without ensuring openssh-server is installed
+Detection procedure:
+1. Build a list of EVERY file the role touches — ANY change counts: content edits
+   (`lineinfile`, `blockinfile`, `replace`, `ini_file`, `template`, `copy`) AND
+   metadata-only changes (mode/owner/group via `file`). Also list every service the
+   role manages (`service`, `systemd`).
+2. For each entry, identify the application/package that owns that file or service.
+3. Check whether the role ensures that application exists on the target — by any
+   step that installs or places it. If nothing does, record a finding.
 
-Fix: Add a package install task BEFORE the configuration task. Use `ansible.builtin.package` with `name:` and `state: present`.
+Fix — choose per entry based on whether the role is supposed to own the application:
+- The role SHOULD own the application (it is the role's own software/config) →
+  install the owning package before the change.
+- The application is a base/OS component the role legitimately does not own → the
+  file may be absent on a minimal target, so guard the change: `ansible.builtin.stat`
+  + `when: <reg>.stat.exists`, and set `create: false` so the task fails loudly
+  instead of writing a bogus stub file.
 
 ### 3. Idempotency Failures
 
@@ -81,6 +95,7 @@ Fix: Generate argument_specs.yml from defaults/main.yml with correct types and d
 3. Read defaults/main.yml and vars/main.yml if they exist
 4. Read handlers/main.yml if it exists
 5. For each task file, trace the execution order and check for categories 1-5 above
+5b. Run the Category 2 detection procedure: enumerate EVERY file the role changes (content edits AND metadata-only mode/owner/group changes) plus every service it manages, list them, and for each one verify the owning application's package is installed by the role. Any entry whose owning package is not installed is a Category 2 finding — name it and fix it (install the package, or guard with `stat`/`when` + `create: false`).
 6. When you find an issue, fix it immediately by rewriting the affected file
 7. After all fixes, produce a summary report
 
