@@ -68,6 +68,21 @@ class TestRulesMiddlewareLoadAndRender:
         # Restore permissions for cleanup
         rules.chmod(0o644)
 
+    def test_oversized_file_returns_none(self, tmp_path, monkeypatch):
+        """A file exceeding rules_max_chars is skipped (no injection)."""
+        import src.config.settings as settings_module
+
+        monkeypatch.setenv("RULES_MAX_CHARS", "100")
+        monkeypatch.setattr(settings_module, "_settings", None)
+
+        rules = tmp_path / "big.md"
+        rules.write_text("x" * 101)
+
+        middleware = RulesMiddleware(str(rules))
+        result = middleware.before_agent(state={}, runtime=None)
+
+        assert result is None
+
     def test_file_with_jinja2_braces_renders_correctly(self, tmp_path):
         """Rules content with Jinja2-like braces does not break rendering."""
         rules = tmp_path / "braces.md"

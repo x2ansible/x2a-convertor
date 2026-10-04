@@ -9,6 +9,7 @@ from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import HumanMessage
 
 from prompts.get_prompt import get_prompt
+from src.config import get_settings
 from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,8 +19,9 @@ class RulesMiddleware(AgentMiddleware):
     """Injects rules from a file into the agent's conversation.
 
     Reads the file once during before_agent and injects the rendered
-    content as a message. If the file does not exist, the middleware
-    is a no-op.
+    content as a message. The middleware is a no-op when the file is
+    missing, unreadable, empty, or exceeds the configured
+    rules_max_chars limit.
     """
 
     def __init__(self, file_path: str) -> None:
@@ -49,6 +51,16 @@ class RulesMiddleware(AgentMiddleware):
             logger.debug(
                 "Rules file is empty, skipping injection",
                 file_path=self._file_path,
+            )
+            return None
+
+        max_chars = get_settings().processing.rules_max_chars
+        if len(text) > max_chars:
+            logger.warning(
+                "Rules file exceeds character limit, skipping injection",
+                file_path=self._file_path,
+                content_length=len(text),
+                max_chars=max_chars,
             )
             return None
 
