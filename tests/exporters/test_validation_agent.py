@@ -149,3 +149,33 @@ def test_none_skip_decision_does_not_accept_violations(export_state):
     assert result.complete is False
     assert result.has_errors is True
     agent.invoke_structured.assert_called_once()
+
+
+class TestRequirementsDiscovery:
+    @pytest.mark.parametrize(
+        "relative_path", ["requirements.yml", "collections/requirements.yml"]
+    )
+    def test_finds_project_requirements(
+        self, export_state, tmp_path, monkeypatch, relative_path
+    ):
+        monkeypatch.chdir(tmp_path)
+        requirements = export_state.project_path / relative_path
+        requirements.parent.mkdir(parents=True)
+        requirements.write_text("collections: []\n")
+        agent = validation_agent(CheckReport())
+
+        assert agent._find_requirements_file(export_state, MagicMock()) == requirements
+
+    def test_role_requirements_take_precedence(
+        self, export_state, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        for path in export_state.layout.requirements_search_paths:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("collections: []\n")
+        agent = validation_agent(CheckReport())
+
+        assert (
+            agent._find_requirements_file(export_state, MagicMock())
+            == export_state.role_path / "requirements.yml"
+        )

@@ -1,30 +1,23 @@
-# Context
+# Molecule verification from migration-plan pre-flight checks
 
 **Module:** {{ module }}
-**Ansible Output:** {{ ansible_path }}
+**Scenario:** `{{ scenario_name }}`
+**Verify target:** `{{ verify_path }}`
 
-## Migration Plans
+## Migration plan (context)
 
-A high-level migration plan describing all modules in the repository is available at: {{ high_level_migration_plan.path }}
-(Read this file if you need context about how this module relates to other modules in the migration)
-
-**Module Plan:**
 <migration_plan>
 {{ migration_plan }}
 </migration_plan>
 
+## Verification scope
+
+Create checks only for explicit expectations in the plan's `## Pre-flight checks` section. The rest of the plan is context for understanding those checks, not a source of additional tests. Do not derive checks from other sections.
+
+## Static validation feedback
+
+{{ validation_errors }}
+
 ## Task
 
-Generate molecule test files for role "{{ module }}" at {{ ansible_path }}.
-
-The static files (molecule.yml, create.yml, destroy.yml) are already created under
-{{ ansible_path }}/molecule/default/. You need to create:
-
-1. {{ ansible_path }}/molecule/default/converge.yml — include the role "{{ module }}" via `ansible.builtin.include_role` and run it for real
-2. {{ ansible_path }}/molecule/default/verify.yml — verify the role's expected outcomes against its real, production paths and state
-
-## Checklist
-
-<checklist>
-{{ checklist }}
-</checklist>
+Write or repair only `{{ verify_path }}`. Translate the explicit pre-flight checks into Ansible verification. If a check has no stated expected result or cannot be safely translated, list it as unsupported in a short YAML comment instead of inventing an expectation. The converter does not execute this playbook.

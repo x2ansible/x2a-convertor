@@ -47,6 +47,7 @@ class PlanningAgent(ExportAgent[ExportState]):
         system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
             module=state.module,
+            layout=state.layout,
             high_level_migration_plan=state.high_level_migration_plan,
             module_migration_plan=state.module_migration_plan.to_document(),
             path=state.path,
@@ -65,7 +66,7 @@ class PlanningAgent(ExportAgent[ExportState]):
         assert state.checklist is not None, (
             "Checklist must be created by planning agent"
         )
-        state.checklist.save(state.get_checklist_path())
+        state.checklist.save(state.checklist_path)
         self._log.info(f"Checklist after planning:\n{state.checklist.to_markdown()}")
 
         return state

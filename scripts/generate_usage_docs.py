@@ -97,17 +97,6 @@ def generate_usage_doc(content: dict):
     lines.append(shared["descriptions"]["migrate"])
     lines.append("")
 
-    # Publish Project section
-    lines.append("## Publish Project")
-    lines.append("")
-    lines.append("```bash")
-    lines.append(config["commands"]["publish_project"])
-    lines.append("```")
-    lines.append("")
-    lines.append(shared["descriptions"]["publish_project"])
-    lines.append(shared["publish_project_output_paths"].rstrip())
-    lines.append("")
-
     # Publish AAP section
     lines.append("## Publish to AAP (Optional)")
     lines.append("")
@@ -204,17 +193,6 @@ def generate_docker_usage_doc(content: dict):
     lines.append("```")
     lines.append("")
     lines.append(shared["descriptions"]["migrate"])
-    lines.append("")
-
-    # Publish Project section
-    lines.append("## Publish Project")
-    lines.append("")
-    lines.append("```bash")
-    lines.append(wrap_cmd(config["commands"]["publish_project"]))
-    lines.append("```")
-    lines.append("")
-    lines.append(shared["descriptions"]["publish_project"])
-    lines.append(shared["publish_project_output_paths"].rstrip())
     lines.append("")
 
     # Publish AAP section

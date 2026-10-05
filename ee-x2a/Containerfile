@@ -1,7 +1,0 @@
-FROM quay.io/ansible/creator-ee:latest
-
-USER root
-
-RUN pip3 install --no-cache-dir molecule kubernetes
-
-USER 1000

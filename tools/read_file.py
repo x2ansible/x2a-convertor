@@ -35,6 +35,10 @@ class ReadFileInput(BaseModel):
             "multiple calls with different start_line/end_line ranges."
         ),
     )
+    show_line_numbers: bool = Field(
+        default=False,
+        description="Prefix each returned file line with its 1-indexed line number.",
+    )
 
 
 class ReadFileTool(X2ATool):
@@ -43,10 +47,16 @@ class ReadFileTool(X2ATool):
         "Read a range of lines from a file on disk. "
         f"Each call returns at most {MAX_LINES_PER_READ} lines -- use "
         "start_line/end_line to page through larger files instead of trying "
-        "to read everything at once."
+        "to read everything at once. Set show_line_numbers=true to prefix "
+        "each returned line with its 1-indexed line number."
     )
     args_schema: ArgsSchema | None = ReadFileInput
-    DEBUG_LOG_ARGS: ClassVar[list[str]] = ["file_path", "start_line", "end_line"]
+    DEBUG_LOG_ARGS: ClassVar[list[str]] = [
+        "file_path",
+        "start_line",
+        "end_line",
+        "show_line_numbers",
+    ]
 
     # pyrefly: ignore
     def _run(
@@ -54,6 +64,7 @@ class ReadFileTool(X2ATool):
         file_path: str,
         start_line: int = 1,
         end_line: int | None = None,
+        show_line_numbers: bool = False,
     ) -> str:
         path = Path(file_path)
         if not path.exists():
@@ -66,7 +77,9 @@ class ReadFileTool(X2ATool):
         except Exception as e:
             return f"Error: {e}"
 
-        return self._render_range(lines, start_line, end_line, file_path)
+        return self._render_range(
+            lines, start_line, end_line, file_path, show_line_numbers
+        )
 
     def _render_range(
         self,
@@ -74,6 +87,7 @@ class ReadFileTool(X2ATool):
         start_line: int,
         end_line: int | None,
         file_path: str,
+        show_line_numbers: bool = False,
     ) -> str:
         total = len(lines)
         if start_line > total:
@@ -86,6 +100,11 @@ class ReadFileTool(X2ATool):
         capped_end = min(requested_end, start_line + MAX_LINES_PER_READ - 1, total)
 
         selected = lines[start_line - 1 : capped_end]
+        if show_line_numbers:
+            selected = [
+                f"{line_number}: {line}"
+                for line_number, line in enumerate(selected, start=start_line)
+            ]
         content = "\n".join(selected)
 
         if capped_end < total:

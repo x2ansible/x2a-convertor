@@ -12,7 +12,6 @@ model_config
 # called directly in code.
 init
 migrate
-publish_project_cmd
 publish_aap_cmd
 adversarial_run
 

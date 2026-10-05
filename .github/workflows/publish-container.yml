@@ -11,16 +11,6 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - image: x2a-convertor
-            context: .
-            dockerfile: Dockerfile
-          - image: ee-x2a
-            context: ./ee-x2a
-            dockerfile: ./ee-x2a/Containerfile
-
     steps:
     - uses: actions/checkout@v4
 
@@ -38,7 +28,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: quay.io/${{ secrets.QUAY_NAMESPACE }}/${{ matrix.image }}
+        images: quay.io/${{ secrets.QUAY_NAMESPACE }}/x2a-convertor
         tags: |
           type=ref,event=tag
           type=raw,value=latest,enable={{is_default_branch}}
@@ -48,8 +38,8 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: ${{ matrix.context }}
-        file: ${{ matrix.dockerfile }}
+        context: .
+        file: Dockerfile
         platforms: linux/amd64,linux/arm64
         push: true
         tags: ${{ steps.meta.outputs.tags }}

@@ -75,16 +75,3 @@ class ValidationAgentState(BaseAgentState):
         if self.validation_report is None:
             return CheckReport().to_xml_prompt()
         return self.validation_report.to_xml_prompt()
-
-
-@dataclass
-class MoleculeAgentState(BaseAgentState):
-    """Internal state for MoleculeAgent workflow.
-
-    Tracks molecule test file creation progress.
-
-    Attributes:
-        missing_files: List of molecule file paths that haven't been created yet
-    """
-
-    missing_files: list[str] | None = None

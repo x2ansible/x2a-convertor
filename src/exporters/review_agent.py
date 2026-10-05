@@ -55,7 +55,7 @@ class ReviewAgent(ExportAgent[ExportState]):
         self._log.info("Reviewing generated role for semantic correctness")
         state = state.update(current_phase="reviewing")
 
-        ansible_path = state.get_ansible_path()
+        ansible_path = str(state.role_path)
 
         system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
