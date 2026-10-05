@@ -138,7 +138,7 @@ class ValidationAgent(ExportAgent[ExportState]):
 
     def _find_requirements_file(self, export_state: ExportState, slog) -> Path | None:
         """Find requirements.yml in standard locations."""
-        search_paths = self._get_requirements_search_paths(export_state)
+        search_paths = export_state.layout.requirements_search_paths
 
         for path in search_paths:
             slog.debug(
@@ -148,16 +148,6 @@ class ValidationAgent(ExportAgent[ExportState]):
                 return path
 
         return None
-
-    def _get_requirements_search_paths(self, export_state: ExportState) -> list[Path]:
-        """Get ordered list of paths to search for requirements.yml."""
-        ansible_path = Path(export_state.get_ansible_path())
-        ansible_root = ansible_path.parent.parent
-
-        return [
-            ansible_path / "requirements.yml",
-            ansible_root / "requirements.yml",
-        ]
 
     def _install_requirements(self, requirements_file: Path) -> list:
         """Install collections from requirements file."""
@@ -191,13 +181,13 @@ class ValidationAgent(ExportAgent[ExportState]):
     # -------------------------------------------------------------------------
 
     def _validate_node(self, state: ValidationAgentState) -> ValidationAgentState:
-        """Node: Run APME check on the state.get_ansible_path()."""
+        """Node: Run APME check on the role's Ansible path."""
         export_state = state.export_state
 
         slog = logger.bind(phase="validate", attempt=state.attempt)
         slog.info("Running APME check")
 
-        ansible_path = export_state.get_ansible_path()
+        ansible_path = str(export_state.role_path)
         try:
             report = self._apme.check(ansible_path)
         except Exception as error:
@@ -286,7 +276,7 @@ class ValidationAgent(ExportAgent[ExportState]):
         slog = logger.bind(phase="fix_errors", attempt=state.attempt)
         slog.info("Fixing validation errors")
 
-        ansible_path = export_state.get_ansible_path()
+        ansible_path = str(export_state.role_path)
 
         assert state.validation_report is not None, (
             "validation_report must be set before fixing errors"
@@ -306,7 +296,7 @@ class ValidationAgent(ExportAgent[ExportState]):
             state.metrics,
         )
 
-        export_state.checklist.save(export_state.get_checklist_path())
+        export_state.checklist.save(export_state.checklist_path)
 
         message = self.get_last_ai_message(result)
         if message:

@@ -3,6 +3,14 @@
 from enum import StrEnum
 
 
+class MoleculeStatus(StrEnum):
+    """Generation and validation status of Molecule artifacts."""
+
+    NOT_GENERATED = "not_generated"
+    NOT_EXECUTED = "statically_validated_not_executed"
+    GENERATION_FAILED = "generation_failed_unverified"
+
+
 class MigrationCategory(StrEnum):
     """Categories of migration items"""
 

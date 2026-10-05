@@ -1,12 +1,13 @@
-"""State management for infrastructure-to-Ansible migration workflow.
-
-This module defines the state object that tracks the migration process
-through its various phases. Technology-agnostic.
-"""
+"""State shared by the infrastructure-to-Ansible migration agents."""
 
 from dataclasses import dataclass, field, replace
+from functools import cached_property
 from pathlib import Path
+from typing import Self
 
+from src.exporters.migration_report import MigrationReport
+from src.exporters.services.ansible_project_layout import AnsibleProjectLayout
+from src.exporters.types import MoleculeStatus
 from src.types import (
     AAPDiscoveryResult,
     AnsibleModule,
@@ -16,57 +17,13 @@ from src.types import (
     DocumentFile,
     MigrationStateInterface,
 )
-from src.types.checklist import ChecklistStats
 from src.types.technology import Technology
-
-# Constants
-ANSIBLE_PATH_TEMPLATE = "ansible/roles/{module}"
-CHECKLIST_FILENAME = ".checklist.json"
 
 
 @dataclass
 class ExportState(BaseState, MigrationStateInterface):
-    """State object for tracking infrastructure-to-Ansible migration workflow.
+    """Migration progress and context; use update() to transition between phases."""
 
-    Inherits from BaseState for common fields (user_message, path, telemetry,
-    failed, failure_reason).
-
-    This is the aggregate root for the migration domain in DDD terms.
-    All domain state flows through this object, making agents stateless
-    and ensuring proper separation of concerns.
-
-    This state is passed through the LangGraph workflow and tracks:
-    - Source module information
-    - Migration plans and documentation
-    - Workflow phase and attempt counters
-    - Validation reports and outputs
-    - Migration checklist (domain state)
-    - Failure state and reason
-
-    Migration-specific attributes:
-        module: AnsibleModule value object representing the module being migrated
-        module_migration_plan: Detailed migration plan document
-        high_level_migration_plan: High-level migration strategy document
-        directory_listing: List of files in the source directory
-        current_phase: Current phase of the migration workflow
-        write_attempt_counter: Number of write attempts made
-        validation_attempt_counter: Number of validation attempts made
-        validation_report: Latest validation report
-        last_output: Last output from the workflow
-        checklist: Migration checklist tracking file transformations
-        aap_discovery: Result of AAP collection discovery for deduplication
-        credential_config: Extracted credential configuration for AAP
-        review_report: Semantic review findings and fixes from ReviewAgent
-    """
-
-    # Fields inherited from BaseState:
-    # - user_message: str
-    # - path: str
-    # - telemetry: Telemetry | None (kw_only)
-    # - failed: bool (kw_only)
-    # - failure_reason: str (kw_only)
-
-    # Migration-specific fields (all keyword-only since they follow kw_only fields from BaseState)
     module: AnsibleModule = field(kw_only=True)
     module_migration_plan: DocumentFile = field(kw_only=True)
     high_level_migration_plan: DocumentFile = field(kw_only=True)
@@ -81,128 +38,42 @@ class ExportState(BaseState, MigrationStateInterface):
     credential_config: CredentialConfig | None = field(default=None, kw_only=True)
     source_technology: Technology = field(default=Technology.CHEF, kw_only=True)
     review_report: str = field(default="", kw_only=True)
+    molecule_status: MoleculeStatus = field(
+        default=MoleculeStatus.NOT_GENERATED, kw_only=True
+    )
+    molecule_report: str = field(default="", kw_only=True)
 
-    def get_ansible_path(self) -> str:
-        """Get the Ansible output path for this module.
+    @cached_property
+    def layout(self) -> AnsibleProjectLayout:
+        return AnsibleProjectLayout.from_module(self.module)
 
-        Returns:
-            Path string in format ansible/roles/{module}
-        """
-        return ANSIBLE_PATH_TEMPLATE.format(module=str(self.module))
+    @property
+    def role_path(self) -> Path:
+        return self.layout.role_path
 
-    def get_checklist_path(self) -> Path:
-        """Get the path to the checklist JSON file.
+    @property
+    def project_path(self) -> Path:
+        return self.layout.project_path
 
-        Returns:
-            Path object pointing to the checklist file
-        """
-        return Path(self.get_ansible_path()) / CHECKLIST_FILENAME
+    @property
+    def checklist_path(self) -> Path:
+        return self.layout.checklist_path
 
-    def update(self, **kwargs) -> "ExportState":
-        """Create a new ExportState instance with updated fields.
+    @property
+    def molecule_verify_path(self) -> Path:
+        return self.layout.molecule_verify_path
 
-        Args:
-            **kwargs: Fields to update (must be valid ExportState attributes)
+    def molecule_checklist_targets(self) -> dict[str, str]:
+        return self.layout.molecule_checklist_targets()
 
-        Returns:
-            New ExportState instance with updated fields
-
-        Example:
-            new_state = state.update(checklist=new_checklist, current_phase="writing")
-        """
+    def update(self, **kwargs) -> Self:
         return replace(self, **kwargs)
 
-    def mark_failed(self, reason: str) -> "ExportState":
-        """Mark this migration as failed with a reason.
-
-        Args:
-            reason: Human-readable failure reason
-
-        Returns:
-            New ExportState with failed=True and failure_reason set
-        """
+    def mark_failed(self, reason: str) -> Self:
         return self.update(failed=True, failure_reason=reason)
 
-    def did_fail(self) -> bool:
-        """Check if the migration failed.
-
-        Returns:
-            True if migration failed, False otherwise
-        """
-        return self.failed
-
-    def get_failure_reason(self) -> str:
-        """Get the reason for migration failure.
-
-        Returns:
-            Human-readable failure reason string, empty if not failed
-        """
-        return self.failure_reason
-
     def get_output(self) -> str:
-        """Get the final migration output/summary.
-
-        Returns:
-            Migration output string (success or failure summary)
-        """
         return self.last_output
 
     def report_status(self) -> str:
-        """Build the full human-readable migration report."""
-        assert self.checklist is not None, (
-            "Checklist must be initialized before reporting"
-        )
-        checklist = self.checklist
-        stats = checklist.get_stats()
-        lines = (
-            self._failure_report(stats, checklist)
-            if self.failed
-            else self._success_report(stats, checklist)
-        )
-
-        if self.telemetry:
-            lines.extend(
-                ["", "## Telemetry", "", "```", self.telemetry.to_summary(), "```"]
-            )
-
-        return "\n".join(lines)
-
-    def _failure_report(self, stats: ChecklistStats, checklist: Checklist) -> list[str]:
-        """Build summary lines for a failed migration."""
-        lines = [
-            f"# MIGRATION FAILED for {self.module}",
-            "",
-            f"**Failure Reason:** {self.failure_reason}",
-            "",
-            "## Migration Summary",
-            "",
-            stats.to_markdown(),
-            f"- **Write attempts:** {self.write_attempt_counter}",
-            f"- **Validation attempts:** {self.validation_attempt_counter}",
-            "",
-            "## Partial Validation Report",
-            "",
-            self.validation_report or "_Not run_",
-        ]
-        if self.review_report:
-            lines.extend(["", self.review_report])
-        lines.extend(["", checklist.to_markdown()])
-        return lines
-
-    def _success_report(self, stats: ChecklistStats, checklist: Checklist) -> list[str]:
-        """Build summary lines for a successful migration."""
-        lines = [
-            f"# Migration Summary for {self.module}",
-            "",
-            stats.to_markdown(),
-            f"- **Write attempts:** {self.write_attempt_counter}",
-            f"- **Validation attempts:** {self.validation_attempt_counter}",
-            "",
-            "## Final Validation Report",
-            "",
-            self.validation_report,
-        ]
-        if self.review_report:
-            lines.extend(["", str(self.review_report)])
-        lines.extend(["", checklist.to_markdown()])
-        return lines
+        return MigrationReport.from_state(self).render()

@@ -98,7 +98,7 @@ class CredentialAgent(ExportAgent[ExportState]):
         self, state: ExportState, config: CredentialConfig
     ) -> ExportState:
         """Write all credential configuration files and update checklist."""
-        ansible_path = state.get_ansible_path()
+        ansible_path = str(state.role_path)
 
         self._write_credential_file(
             state,
@@ -161,4 +161,4 @@ class CredentialAgent(ExportAgent[ExportState]):
             )
             self._log.info(f"Added task to checklist: {target_path_str}")
 
-        state.checklist.save(state.get_checklist_path())
+        state.checklist.save(state.checklist_path)

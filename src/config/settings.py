@@ -168,14 +168,6 @@ class AAPSettings(BaseSettings):
         default="published",
         description="Galaxy repository to search (published, staging, community)",
     )
-    ee_image: str = Field(
-        default="quay.io/x2ansible/ee-x2a:latest",
-        description="Execution Environment container image for AAP (molecule tests and role runs)",
-    )
-    inventory_name: str = Field(
-        default="Molecule Local",
-        description="AAP inventory name for molecule tests (created if missing)",
-    )
 
     @field_validator("api_prefix")
     @classmethod

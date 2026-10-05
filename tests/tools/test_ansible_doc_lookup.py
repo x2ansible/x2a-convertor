@@ -344,6 +344,42 @@ class TestAnsibleDocLookupTool:
         assert "ansible.builtin.copy -- Copy files" in result
 
 
+class TestDocCLIBridgeListing:
+    """Tests for resilient module-listing descriptions."""
+
+    def setup_method(self) -> None:
+        with patch.object(DocCLIBridge, "__init__", lambda self: None):
+            self.bridge = DocCLIBridge()
+        self.bridge._cli = Mock()
+        self.get_docs = Mock()
+        self.bridge._cli._get_plugins_docs = self.get_docs
+
+    def test_string_short_description_is_returned_directly(self) -> None:
+        with patch(
+            "tools.ansible_doc_lookup.read_docstub",
+            return_value={"short_description": "  A module  "},
+        ):
+            result = self.bridge._description_from_path("test.module", "/module.py")
+
+        assert result == "A module"
+        self.get_docs.assert_not_called()
+
+    def test_structured_short_description_uses_normalized_doccli_value(self) -> None:
+        self.get_docs.return_value = {
+            "test.module": {"doc": {"short_description": "Normalized description"}}
+        }
+        with patch(
+            "tools.ansible_doc_lookup.read_docstub",
+            return_value={"short_description": {"description": ["placeholder"]}},
+        ):
+            result = self.bridge._description_from_path("test.module", "/module.py")
+
+        assert result == "Normalized description"
+        self.get_docs.assert_called_once_with(
+            "module", ["test.module"], fail_ok=True, fail_on_errors=False
+        )
+
+
 # ---------------------------------------------------------------------------
 # Integration tests (real DocCLI bridge -- requires ansible installed)
 # ---------------------------------------------------------------------------

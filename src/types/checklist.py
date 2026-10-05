@@ -271,6 +271,13 @@ class Checklist:
             result = [i for i in result if i.category not in exclude]
         return tuple(result)
 
+    def incomplete_targets(self, *, exclude: set[str] | None = None) -> list[str]:
+        return [
+            item.target_path
+            for item in self.items_by_category(exclude=exclude)
+            if item.status != ChecklistStatus.COMPLETE or not item.target_exists()
+        ]
+
     def __len__(self) -> int:
         """Return number of items in checklist"""
         return len(self._items)

@@ -1,11 +1,9 @@
 import re
-from pathlib import Path
 from typing import Literal
 
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from src.const import EXPORT_OUTPUT_FILENAME_TEMPLATE
 from src.exporters.module_selection_agent import ModuleSelectionAgent
 from src.exporters.state import ExportState
 from src.model import get_model, get_runnable_config
@@ -93,10 +91,8 @@ class MigrationAgent:
 
     def _write_migration_output(self, state: ExportState) -> ExportState:
         """Write the migration last message(s) to the output file"""
-        filename = EXPORT_OUTPUT_FILENAME_TEMPLATE.format(module=str(state.module))
-        logger.info(f"Writing migration output to {filename}")
-
-        file = Path(filename)
+        file = state.layout.migration_report_path
+        logger.info(f"Writing migration output to {file}")
         file.parent.mkdir(exist_ok=True, parents=True)
         file.write_text(state.last_output)
 

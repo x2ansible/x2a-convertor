@@ -36,6 +36,16 @@ class TestReadFileTool:
         assert lines[0] == "alpha"
         assert lines[1] == "beta"
 
+    def test_shows_line_numbers_when_requested(self, tool, tmp_path):
+        file_path = tmp_path / "file.txt"
+        file_path.write_text("alpha\nbeta\ngamma\n")
+
+        result = tool._run(
+            str(file_path), start_line=2, end_line=3, show_line_numbers=True
+        )
+
+        assert result.splitlines() == ["2: beta", "3: gamma"]
+
     def test_start_line_and_end_line_scope_the_read(self, tool, tmp_path):
         file_path = tmp_path / "file.txt"
         file_path.write_text("\n".join(f"line{i}" for i in range(1, 11)))

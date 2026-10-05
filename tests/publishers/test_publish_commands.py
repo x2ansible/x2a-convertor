@@ -1,153 +1,92 @@
-"""Tests for publish_project and publish_aap functions."""
+"""Tests for the publish-aap function and CLI contract."""
 
-import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from click.testing import CliRunner
 
-from src.publishers.publish import publish_aap, publish_project
+from src.publishers.publish import publish_aap
 from src.publishers.tools import AAPSyncResult
 
 
-class TestPublishProject:
-    """Tests for the publish_project function."""
-
-    def test_first_module_creates_skeleton(self, project_with_module):
-        project_dir, module_name = project_with_module
-        old_cwd = Path.cwd()
-        os.chdir(Path(project_dir).parent)
-        try:
-            pid = Path(project_dir).name
-            result = publish_project(project_id=pid, module_name=module_name)
-
-            project = Path(result)
-            assert (project / "ansible.cfg").exists()
-            assert (project / "collections" / "requirements.yml").exists()
-            assert (project / "inventory" / "hosts.yml").exists()
-            assert (project / "roles" / module_name / "tasks" / "main.yml").exists()
-            assert (project / f"run_{module_name}.yml").exists()
-            assert (project / "README.md").exists()
-            readme_content = (project / "README.md").read_text()
-            assert module_name in readme_content
-        finally:
-            os.chdir(old_cwd)
-
-    def test_second_module_appends_to_existing(self, second_module_in_project):
-        project_dir, mod_a, mod_b = second_module_in_project
-        old_cwd = Path.cwd()
-        os.chdir(Path(project_dir).parent)
-        try:
-            pid = Path(project_dir).name
-
-            # First module creates skeleton
-            publish_project(project_id=pid, module_name=mod_a)
-            ansible_project = Path(pid) / "ansible-project"
-            cfg_mtime = (ansible_project / "ansible.cfg").stat().st_mtime
-
-            # Second module appends
-            publish_project(project_id=pid, module_name=mod_b)
-
-            # ansible.cfg should NOT be overwritten
-            assert (ansible_project / "ansible.cfg").stat().st_mtime == cfg_mtime
-
-            # Both roles and playbooks should exist
-            assert (ansible_project / "roles" / mod_a).exists()
-            assert (ansible_project / "roles" / mod_b).exists()
-            assert (ansible_project / f"run_{mod_a}.yml").exists()
-            assert (ansible_project / f"run_{mod_b}.yml").exists()
-
-            # README should exist and mention both roles
-            readme = ansible_project / "README.md"
-            assert readme.exists()
-            readme_content = readme.read_text()
-            assert mod_a in readme_content
-            assert mod_b in readme_content
-        finally:
-            os.chdir(old_cwd)
-
-    def test_missing_source_role_raises(self, tmp_path):
-        old_cwd = Path.cwd()
-        os.chdir(tmp_path)
-        try:
-            # No role directory exists at the expected path
-            (tmp_path / "proj" / "modules" / "missing_mod" / "ansible" / "roles").mkdir(
-                parents=True
-            )
-            with pytest.raises(
-                FileNotFoundError, match="Source role directory not found"
-            ):
-                publish_project(project_id="proj", module_name="missing_mod")
-        finally:
-            os.chdir(old_cwd)
-
-    def test_with_collections_file(self, project_with_module, tmp_path):
-        project_dir, module_name = project_with_module
-        old_cwd = Path.cwd()
-        os.chdir(Path(project_dir).parent)
-        try:
-            pid = Path(project_dir).name
-
-            collections_file = tmp_path / "collections.yml"
-            collections_file.write_text(
-                '- name: community.general\n  version: ">=5.0.0"\n'
-            )
-
-            result = publish_project(
-                project_id=pid,
-                module_name=module_name,
-                collections_file=str(collections_file),
-            )
-
-            project = Path(result)
-            assert (project / "collections" / "requirements.yml").exists()
-        finally:
-            os.chdir(old_cwd)
-
-
 class TestPublishAAP:
-    """Tests for the publish_aap function."""
-
-    def test_aap_not_configured_raises(self):
+    @patch("src.publishers.publish.sync_to_aap")
+    def test_aap_not_configured_raises(self, mock_sync):
+        mock_sync.return_value = AAPSyncResult.disabled()
         with pytest.raises(RuntimeError, match="not configured"):
-            publish_aap(
-                target_repo="https://github.com/org/repo.git",
-                target_branch="main",
-                project_id="proj-1",
-            )
+            publish_aap("https://github.com/org/repo.git", "main", "proj-1")
 
     @patch("src.publishers.publish.sync_to_aap")
     def test_aap_error_raises(self, mock_sync):
         mock_sync.return_value = AAPSyncResult.from_error("Connection refused")
-
         with pytest.raises(RuntimeError, match="Connection refused"):
-            publish_aap(
-                target_repo="https://github.com/org/repo.git",
-                target_branch="main",
-                project_id="proj-1",
-            )
+            publish_aap("https://github.com/org/repo.git", "main", "proj-1")
 
     @patch("src.publishers.publish.sync_to_aap")
     def test_aap_success(self, mock_sync):
-        mock_sync.return_value = AAPSyncResult(
-            enabled=True,
-            project_name="test-project",
-            project_id=42,
-            project_update_id=100,
-            project_update_status="pending",
+        mock_sync.return_value = AAPSyncResult.from_update(
+            "test-project", 42, {"id": 100, "status": "pending"}
         )
-
-        result = publish_aap(
-            target_repo="https://github.com/org/repo.git",
-            target_branch="main",
-            project_id="proj-1",
-        )
-
+        result = publish_aap("https://github.com/org/repo.git", "main", "proj-1")
         assert result.project_name == "test-project"
         assert result.project_id == 42
         mock_sync.assert_called_once_with(
             repository_url="https://github.com/org/repo.git",
             branch="main",
             project_id="proj-1",
-            molecule_role_names=None,
         )
+
+
+class TestPublishCLI:
+    ARGS = (
+        "publish-aap",
+        "--target-repo",
+        "https://github.com/org/repo.git",
+        "--target-branch",
+        "main",
+        "--project-id",
+        "proj-1",
+    )
+
+    @pytest.fixture
+    def command(self):
+        # Importing the CLI loads LiteLLM, which otherwise loads the local .env.
+        with patch("dotenv.load_dotenv"):
+            from app import cli
+        return cli
+
+    def test_removed_command_is_not_registered(self, command):
+        assert "publish-project" not in command.commands
+        result = CliRunner().invoke(command, ["publish-project", "proj-1", "role"])
+        assert result.exit_code == 2
+        assert "No such command" in result.output
+
+    def test_molecule_option_is_rejected(self, command):
+        result = CliRunner().invoke(command, [*self.ARGS, "--molecule-roles", "nginx"])
+        assert result.exit_code == 2
+        assert "No such option" in result.output
+        assert "--molecule-roles" in result.output
+
+    @patch("app.publish_aap")
+    def test_publish_requests_sync_without_local_project(
+        self, publish, tmp_path, monkeypatch, command
+    ):
+        monkeypatch.chdir(tmp_path)
+        publish.return_value = AAPSyncResult.from_update(
+            "proj-1", 42, {"id": 100, "status": "pending"}
+        )
+        result = CliRunner().invoke(command, self.ARGS)
+        assert result.exit_code == 0, result.output
+        assert "AAP project sync requested: proj-1 (ID: 42)" in result.output
+        assert not list(tmp_path.iterdir())
+        publish.assert_called_once_with(
+            target_repo="https://github.com/org/repo.git",
+            target_branch="main",
+            project_id="proj-1",
+        )
+
+    @patch("app.publish_aap", side_effect=RuntimeError("AAP sync failed: denied"))
+    def test_publish_failure_exits_nonzero(self, publish, command):
+        result = CliRunner().invoke(command, self.ARGS)
+        assert result.exit_code == 1
+        assert "AAP sync failed: denied" in result.output

@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import re
 import threading
+from pathlib import Path
 from typing import Any, ClassVar, cast
 
 from ansible import context
 from ansible.cli import CLI
 from ansible.cli.doc import DocCLI
+from ansible.module_utils.common.text.converters import to_native
+from ansible.parsing.plugin_docs import read_docstub
 from ansible.utils.context_objects import CLIArgs
 from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
@@ -80,14 +83,12 @@ class DocCLIBridge:
         return self._list_with_args([])
 
     def _list_with_args(self, args: list[str]) -> dict[str, str]:
-        """Temporarily override CLIARGS to call ``_list_plugins``.
+        """List module descriptions without Ansible's unsafe description assumption.
 
-        GlobalCLIArgs is a singleton that cannot be re-created, so we
-        swap ``context.CLIARGS`` directly with a plain CLIArgs instance.
-
-        Thread-safe: Uses a class-level lock to serialize global state mutations.
+        Ansible's ``dir`` listing assumes every short description is a string.
+        Some installed plugins provide a structured value instead, so read the
+        plugin files and normalize only those exceptional entries via DocCLI.
         """
-
         with self._context_lock:
             original = context.CLIARGS
             context.CLIARGS = CLIArgs(
@@ -99,10 +100,53 @@ class DocCLIBridge:
                 }
             )
             try:
-                # "dir" branch always returns dict[str, str]
-                return cast(dict[str, str], self._cli._list_plugins("module", "dir"))
+                plugin_paths = cast(
+                    dict[str, str | bytes | None],
+                    self._cli._list_plugins("module", "files"),
+                )
+                return {
+                    name: self._description_from_path(name, path)
+                    for name, path in plugin_paths.items()
+                }
             finally:
                 context.CLIARGS = original
+
+    def _description_from_path(self, plugin: str, path: str | bytes | None) -> str:
+        """Read a module's short description, handling non-string doc values."""
+        if not path:
+            return "UNDOCUMENTED"
+
+        try:
+            doc = read_docstub(Path(to_native(path)))
+        except Exception as exc:
+            logger.warning("ansible doc listing failed for %s: %s", plugin, exc)
+            return "UNDOCUMENTED"
+
+        if not isinstance(doc, dict):
+            return "UNDOCUMENTED"
+
+        description = doc.get("short_description")
+        if isinstance(description, str):
+            return description.strip()
+
+        return self._description_from_parsed_docs(plugin)
+
+    def _description_from_parsed_docs(self, plugin: str) -> str:
+        """Use DocCLI's normalized docs when a plugin has a structured value."""
+        try:
+            result = self._cli._get_plugins_docs(
+                "module", [plugin], fail_ok=True, fail_on_errors=False
+            ).get(plugin, {})
+        except Exception as exc:
+            logger.warning("ansible doc lookup failed for %s: %s", plugin, exc)
+            return "UNDOCUMENTED"
+
+        doc = result.get("doc", {})
+        description = doc.get("short_description")
+        if isinstance(description, str | list):
+            return _flatten_description(description).strip()
+
+        return "UNDOCUMENTED"
 
     @staticmethod
     def _format_doc(doc: dict) -> str:

@@ -16,7 +16,7 @@ from src.exporters.migrate import migrate_module
 from src.health import check_aap, check_galaxy, check_model
 from src.init import init_project
 from src.inputs.analyze import analyze_project
-from src.publishers.publish import publish_aap, publish_project
+from src.publishers.publish import publish_aap
 from src.report import report_artifacts
 from src.types.technology import Technology
 from src.utils.logging import get_logger, setup_logging
@@ -168,56 +168,6 @@ def migrate(
     )
 
 
-@cli.command("publish-project")
-@click.argument("project_id")
-@click.argument("module_name")
-@click.option(
-    "--collections-file",
-    type=click.Path(exists=True, file_okay=True, dir_okay=False),
-    help=(
-        "Path to YAML/JSON file containing collections list. "
-        'Format: [{"name": "collection.name", "version": "1.0.0"}]'
-    ),
-)
-@click.option(
-    "--inventory-file",
-    type=click.Path(exists=True, file_okay=True, dir_okay=False),
-    help=(
-        "Path to YAML/JSON file containing inventory structure. "
-        'Format: {"all": {"children": {...}}}'
-    ),
-)
-@handle_exceptions
-def publish_project_cmd(
-    project_id,
-    module_name,
-    collections_file,
-    inventory_file,
-) -> None:
-    """Create or append to an Ansible project for a migrated module.
-
-    PROJECT_ID is the migration project ID.
-    MODULE_NAME is the module/role to add.
-
-    On the first module, creates the full skeleton (ansible.cfg, collections,
-    inventory). On subsequent modules, appends the role and playbook.
-
-    A README.md is generated on every invocation, listing all roles in the
-    project with their descriptions, default variables, playbook commands, and
-    required collections.
-
-    Role names are sanitized to comply with Ansible standards: hyphens are
-    replaced with underscores (e.g., fastapi-tutorial becomes fastapi_tutorial).
-    """
-    project_dir = publish_project(
-        project_id=project_id,
-        module_name=module_name,
-        collections_file=collections_file,
-        inventory_file=inventory_file,
-    )
-    click.echo(f"\nProject created at: {project_dir}")
-
-
 @cli.command("publish-aap")
 @click.option(
     "--target-repo",
@@ -232,20 +182,15 @@ def publish_project_cmd(
 @click.option(
     "--project-id",
     required=True,
-    help="Migration project ID, used for AAP project naming and subdirectory reference.",
-)
-@click.option(
-    "--molecule-roles",
-    multiple=True,
-    required=False,
-    help="Role names that have molecule tests (repeatable). Used to create run-ready job templates on AAP.",
+    help="Migration project ID, used for AAP project naming.",
 )
 @handle_exceptions
-def publish_aap_cmd(target_repo, target_branch, project_id, molecule_roles) -> None:
+def publish_aap_cmd(target_repo, target_branch, project_id) -> None:
     """Sync a git repository to Ansible Automation Platform.
 
     Creates or updates an AAP Project pointing to the given repository URL
-    and branch, then triggers a project sync.
+    and branch, then triggers a project sync without waiting for completion.
+    Push the generated Ansible project to the repository before running this command.
 
     Requires AAP environment variables to be configured
     (AAP_CONTROLLER_URL, AAP_ORG_NAME, and authentication credentials).
@@ -254,9 +199,10 @@ def publish_aap_cmd(target_repo, target_branch, project_id, molecule_roles) -> N
         target_repo=target_repo,
         target_branch=target_branch,
         project_id=project_id,
-        molecule_role_names=list(molecule_roles) if molecule_roles else None,
     )
-    click.echo(f"\nAAP project synced: {result.project_name} (ID: {result.project_id})")
+    click.echo(
+        f"\nAAP project sync requested: {result.project_name} (ID: {result.project_id})"
+    )
 
 
 @cli.command()

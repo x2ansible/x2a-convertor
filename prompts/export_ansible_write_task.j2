@@ -55,7 +55,10 @@ Use these variables directly in your tasks instead of any third-party secret loo
 5. For every secret variable listed above, set `no_log: "{{ '{{' }} <role>_secure_logging {{ '}}' }}"` on any task that references it -- including a template task whose `.j2` file embeds the secret -- and define `<role>_secure_logging: true` in `defaults/main.yml`. See the SECRET HANDLING / no_log rules in the system prompt.
 {% endif %}
 
-## Current Checklist
+## Initial Checklist
+
+This is the starting snapshot, not a live view. Later successful checklist updates
+and `list_checklist_tasks` results supersede these statuses.
 
 <checklist>
 {{ checklist }}
@@ -70,17 +73,20 @@ CRITICAL INSTRUCTIONS:
 - Work autonomously without asking for user input
 - Do NOT stop after listing items - immediately begin processing them
 
-## Step 1: Get All Pending Tasks
+## Step 1: Select One Pending Item
 
-Call list_checklist_tasks to identify all pending/missing items.
+Select one pending/missing, non-molecule item from the checklist above.
+Use the supplied paths directly; do not list directories just to rediscover them.
+Read related sources when necessary to understand the selected conversion.
 
-## Step 2: Process ALL Pending Items Immediately
+## Step 2: Finish That Item Before Selecting Another
 
-Process every item that is NOT marked "complete". For EACH pending item, execute these steps in sequence:
+Repeat the following sequence for each unfinished item. Do not batch all source
+reads, then all file writes, then all checklist updates.
 
 1. **Verify status**: If checklist shows "complete", skip to next item
-2. **Check existence**: If target file exists, skip to next item
-3. **Read source**: Call read_file with source path (skip if source is "N/A")
+2. **Check existence and ownership**: If the item is already marked complete, leave it untouched. If it is pending or missing and its target exists, read it: creator-generated scaffold/default content is NOT migrated content and must be replaced with the planned conversion. Never assume existence means completion.
+3. **Read source**: Call read_file with source path (skip if source is "N/A"); for pending/missing generated files that already exist, inspect the target and replace scaffold placeholders rather than skipping.
 4. **Convert content**: Apply conversion rules from system prompt
    - For tasks using non-builtin modules: Call ansible_doc_lookup FIRST
    - Validate all parameter names match documentation
@@ -93,7 +99,8 @@ Process every item that is NOT marked "complete". For EACH pending item, execute
    b. Handle errors:
       - **ERROR** (file not written): Fix YAML and retry
       - **WARNING** (file written with issues): Try fixing up to 3 times, then mark complete and move on
-   c. Call `update_checklist_task` with exact source_path and target_path from the checklist, status "complete", before moving to the next file
+   c. Immediately call `update_checklist_task` with exact source_path and target_path from the checklist, status "complete", before reading or writing the next item.
+   d. Check the tool result. Only a successful update means the checklist changed; if it reports "Task not found", retrieve the checklist and retry with the exact paths.
 
 **IMPORTANT**: Do NOT ask which item to process. Process ALL pending items automatically.
 
@@ -105,18 +112,18 @@ After all files are written, run ansible_lint on output directory to catch synta
 
 **BEFORE finishing, you MUST:**
 1. Call `list_checklist_tasks` to get the current state of ALL tasks
-2. For each task that has a target file that exists on disk:
-   - Verify it is marked "complete" in the checklist
-   - If NOT marked complete but file exists, call `update_checklist_task` to mark it complete
-3. Ensure NO files that exist on disk are left with "pending" or "missing" status
-
-This is CRITICAL - the checklist must accurately reflect what was written to disk.
+2. Ignore molecule items and items already marked "complete".
+3. For each remaining pending/missing item:
+   - If a successful write/copy result confirms its conversion, update its checklist status; do not rewrite it.
+   - If the history is unclear, read the target and verify it against its source and conversion requirements. Replace scaffold or incomplete content before marking it complete.
+   - Never infer completion from file existence or a directory listing alone.
+4. Finish only when all non-molecule items are complete, or report specific unresolved errors without claiming success.
 
 ## Step 5: Report Summary
 
 After processing all items and verifying the checklist, provide final report:
 - **COMPLETED**: List all successfully migrated files
-- **SKIPPED**: List files skipped (already exists/complete)
+- **SKIPPED**: List files skipped (already complete or molecule category)
 - **ISSUES**: List any errors encountered
 
 Work through the ENTIRE checklist systematically until all pending/missing items are complete.
