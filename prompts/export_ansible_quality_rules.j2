@@ -85,6 +85,41 @@ COMMAND / SHELL SAFETY:
 - For multi-argument commands with variables, use `argv:` list form instead of string `cmd:` when possible.
 - Keep command lines under 160 characters — use YAML block scalar (`|`) for long commands
 
+SECRET HANDLING / no_log:
+Any task that handles a secret credential variable MUST hide its output with no_log, or the
+secret leaks into job output (stdout, AAP job logs, `--diff` output). A task "handles a secret"
+when either:
+- it references a secret variable directly in its args (e.g. `cmd:`, `body:`, `line:`, `content:`), OR
+- it renders an `ansible.builtin.template` whose `.j2` file references a secret variable.
+  This indirect case is the common one and is easy to miss -- the task args look harmless
+  (just `src`/`dest`/`mode`) while the rendered file contains the secret.
+
+The specific secret variable names for this role are listed in the task prompt, under its
+"AAP Credential Variables" section. Apply these rules to those variables:
+- Set `no_log: "{{ role_name_secure_logging }}"` on every task that handles a secret (where
+  `role_name` is the role name, e.g. `myrole_secure_logging`).
+- Define the toggle in `defaults/main.yml`: `role_name_secure_logging: true`. Defaulting to
+  true hides secrets by default; an operator can override it to false to debug a failing task.
+- NEVER hardcode `no_log: true` (impossible to debug -- output just shows `censored`) or
+  `no_log: false` (always leaks).
+- Do NOT add `no_log` to tasks that only touch non-secret variables (hostnames, ports, paths,
+  usernames) -- it needlessly hides useful diagnostic output.
+
+CORRECT -- template task rendering a file that embeds a secret:{% raw %}
+```yaml
+- name: Render application configuration
+  ansible.builtin.template:
+    src: app.conf.j2             # template references {{ myrole_db_password }}
+    dest: "{{ myrole_config_file }}"
+    mode: "0644"
+    backup: true
+  no_log: "{{ myrole_secure_logging }}"
+```
+```yaml
+# defaults/main.yml
+myrole_secure_logging: true
+```{% endraw %}
+
 FILE OPERATION PATHS FROM VARIABLES (R114):
 Any file-changing task (ansible.builtin.copy, template, file, lineinfile, blockinfile, etc.)
 whose `dest`/`path`/`src` contains a Jinja variable will be flagged by APME rule R114 --

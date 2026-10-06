@@ -101,6 +101,20 @@ class CredentialConfig:
         """Check if any credentials were extracted."""
         return len(self.credentials) > 0
 
+    @property
+    def secret_variable_names(self) -> tuple[str, ...]:
+        """Variable names for fields marked secret (passwords, keys, tokens).
+
+        Tasks that reference these -- directly or via a rendered template --
+        must set no_log so the values never reach job output.
+        """
+        return tuple(
+            field.id
+            for cred in self.credentials
+            for field in cred.fields
+            if field.secret
+        )
+
     @classmethod
     def from_extracted(
         cls,
