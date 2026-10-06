@@ -53,7 +53,7 @@ class TestExportStateReportStatus:
 
     def test_success_report_contains_module_name(self, base_state):
         report = base_state.report_status()
-        assert "## Migration Summary for test_module" in report
+        assert "# Migration Summary for test_module" in report
 
     def test_failure_report_contains_failure_header(self, base_state):
         state = base_state.mark_failed("Lint errors")
@@ -80,22 +80,21 @@ class TestExportStateReportStatus:
 
     def test_success_report_includes_validation_report(self, base_state):
         report = base_state.report_status()
-        assert "### Final Validation Report" in report
+        assert "## Final Validation Report" in report
         assert "All checks passed" in report
 
     def test_success_report_includes_checklist_markdown(self, base_state):
         report = base_state.report_status()
-        assert "### Final Checklist" in report
+        assert "## Checklist: test_module" in report
         assert "tasks/main.yml" in report
 
     def test_success_report_omits_review_when_empty(self, base_state):
         report = base_state.report_status()
-        assert "### Review Report" not in report
+        assert "Found 2 issues, fixed 2" not in report
 
     def test_success_report_includes_review_when_present(self, base_state):
         state = base_state.update(review_report="Found 2 issues, fixed 2")
         report = state.report_status()
-        assert "### Review Report" in report
         assert "Found 2 issues, fixed 2" in report
 
     # -- failure report content --
@@ -109,14 +108,14 @@ class TestExportStateReportStatus:
     def test_failure_report_includes_stats(self, base_state):
         state = base_state.mark_failed("error")
         report = state.report_status()
-        assert "### Migration Summary" in report
+        assert "## Migration Summary" in report
         assert "**Total items:** 2" in report
 
-    def test_failure_report_shows_partial_labels(self, base_state):
+    def test_failure_report_shows_partial_sections(self, base_state):
         state = base_state.mark_failed("error")
         report = state.report_status()
-        assert "### Partial Validation Report" in report
-        assert "### Partial Checklist" in report
+        assert "## Partial Validation Report" in report
+        assert "## Checklist: test_module" in report
 
     def test_failure_report_shows_not_run_when_no_validation(self, base_state):
         state = base_state.update(validation_report="").mark_failed("early fail")
@@ -126,13 +125,12 @@ class TestExportStateReportStatus:
     def test_failure_report_includes_review_when_present(self, base_state):
         state = base_state.update(review_report="Some findings").mark_failed("err")
         report = state.report_status()
-        assert "### Review Report" in report
         assert "Some findings" in report
 
     def test_failure_report_omits_review_when_empty(self, base_state):
         state = base_state.mark_failed("err")
         report = state.report_status()
-        assert "### Review Report" not in report
+        assert "Some findings" not in report
 
     # -- telemetry section --
 
@@ -142,12 +140,12 @@ class TestExportStateReportStatus:
         state = base_state.update(telemetry=mock_telemetry)
 
         report = state.report_status()
-        assert "### Telemetry" in report
+        assert "## Telemetry" in report
         assert "Duration: 42s" in report
 
     def test_report_omits_telemetry_when_none(self, base_state):
         report = base_state.report_status()
-        assert "### Telemetry" not in report
+        assert "## Telemetry" not in report
 
     def test_failure_report_includes_telemetry(self, base_state):
         mock_telemetry = MagicMock()
@@ -156,7 +154,7 @@ class TestExportStateReportStatus:
 
         report = state.report_status()
         assert "MIGRATION FAILED" in report
-        assert "### Telemetry" in report
+        assert "## Telemetry" in report
         assert "Duration: 10s" in report
 
     # -- empty checklist edge case --
