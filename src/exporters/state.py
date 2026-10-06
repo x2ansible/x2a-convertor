@@ -162,7 +162,7 @@ class ExportState(BaseState, MigrationStateInterface):
 
         if self.telemetry:
             lines.extend(
-                ["", "### Telemetry", "", "```", self.telemetry.to_summary(), "```"]
+                ["", "## Telemetry", "", "```", self.telemetry.to_summary(), "```"]
             )
 
         return "\n".join(lines)
@@ -170,39 +170,39 @@ class ExportState(BaseState, MigrationStateInterface):
     def _failure_report(self, stats: ChecklistStats, checklist: Checklist) -> list[str]:
         """Build summary lines for a failed migration."""
         lines = [
-            f"## MIGRATION FAILED for {self.module}",
+            f"# MIGRATION FAILED for {self.module}",
             "",
             f"**Failure Reason:** {self.failure_reason}",
             "",
-            "### Migration Summary",
+            "## Migration Summary",
             "",
             stats.to_markdown(),
             f"- **Write attempts:** {self.write_attempt_counter}",
             f"- **Validation attempts:** {self.validation_attempt_counter}",
             "",
-            "### Partial Validation Report",
+            "## Partial Validation Report",
             "",
             self.validation_report or "_Not run_",
         ]
         if self.review_report:
-            lines.extend(["", "### Review Report", "", self.review_report])
-        lines.extend(["", "### Partial Checklist", "", checklist.to_markdown()])
+            lines.extend(["", self.review_report])
+        lines.extend(["", checklist.to_markdown()])
         return lines
 
     def _success_report(self, stats: ChecklistStats, checklist: Checklist) -> list[str]:
         """Build summary lines for a successful migration."""
         lines = [
-            f"## Migration Summary for {self.module}",
+            f"# Migration Summary for {self.module}",
             "",
             stats.to_markdown(),
             f"- **Write attempts:** {self.write_attempt_counter}",
             f"- **Validation attempts:** {self.validation_attempt_counter}",
             "",
-            "### Final Validation Report",
+            "## Final Validation Report",
             "",
             self.validation_report,
         ]
         if self.review_report:
-            lines.extend(["", "### Review Report", "", str(self.review_report)])
-        lines.extend(["", "### Final Checklist", "", checklist.to_markdown()])
+            lines.extend(["", str(self.review_report)])
+        lines.extend(["", checklist.to_markdown()])
         return lines
