@@ -44,7 +44,7 @@ def generate_usage_doc(content: dict):
     lines.append("---")
     lines.append("layout: default")
     lines.append(f"title: {config['title']}")
-    lines.append("parent: Getting Started")
+    lines.append("parent: X2A Convertor Reference")
     lines.append(f"nav_order: {config['nav_order']}")
     lines.append("---")
     lines.append("")
