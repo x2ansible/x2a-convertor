@@ -44,17 +44,8 @@ Write this content to `{{ ansible_path }}/requirements.yml` using ansible_write.
 The following credential variables are injected by AAP credential types at runtime.
 Use these variables directly in your tasks instead of any third-party secret lookups.
 
-**Available variables:**
-{% for var in credential_config.variable_names %}
-- `{{ '{{' }} {{ var }} {{ '}}' }}`
-{% endfor %}
-
-{% if credential_config.secret_variable_names %}
-**Secret variables (any task that handles these MUST set no_log):**
-{% for var in credential_config.secret_variable_names %}
-- `{{ '{{' }} {{ var }} {{ '}}' }}`
-{% endfor %}
-{% endif %}
+**Available variables** (`secret="true"` means the value is sensitive -- any task that handles it MUST set no_log, see rule 5):
+{{ credential_config.variables_as_xml() }}
 
 **CRITICAL RULES:**
 1. Replace ALL third-party secret lookups (CyberArk Conjur, HashiCorp Vault, Chef Vault, encrypted data bags) with the AAP credential variables listed above

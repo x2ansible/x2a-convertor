@@ -39,3 +39,28 @@ class TestSecretVariableNames:
 
     def test_empty_config_has_no_secrets(self):
         assert CredentialConfig.empty().secret_variable_names == ()
+
+
+class TestVariablesAsXml:
+    """variables_as_xml must list every variable with a correct secret flag."""
+
+    def test_renders_secret_flag_and_jinja_reference(self):
+        cred = _credential_with_fields(
+            CredentialField(id="db_user", label="Database Username", secret=False),
+            CredentialField(id="db_password", label="Database Password", secret=True),
+        )
+        config = CredentialConfig.from_extracted([cred], module_name="myrole")
+
+        xml = config.variables_as_xml()
+
+        assert '<variable name="db_user" secret="false">{{ db_user }}</variable>' in xml
+        assert (
+            '<variable name="db_password" secret="true">{{ db_password }}</variable>'
+            in xml
+        )
+        assert xml.startswith("<credential_variables>")
+        assert xml.endswith("</credential_variables>")
+
+    def test_empty_config_renders_empty_block(self):
+        xml = CredentialConfig.empty().variables_as_xml()
+        assert xml == "<credential_variables>\n\n</credential_variables>"

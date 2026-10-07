@@ -115,6 +115,23 @@ class CredentialConfig:
             if field.secret
         )
 
+    def variables_as_xml(self) -> str:
+        """Render the credential variables as an XML block for prompt embedding.
+
+        Each variable carries its Jinja reference form and a `secret` flag so
+        the write agent knows which values require no_log.
+        """
+        secret = set(self.secret_variable_names)
+        rows = [
+            f'  <variable name="{name}" '
+            f'secret="{"true" if name in secret else "false"}">'
+            f"{{{{ {name} }}}}</variable>"
+            for name in self.variable_names
+        ]
+        return (
+            "<credential_variables>\n" + "\n".join(rows) + "\n</credential_variables>"
+        )
+
     @classmethod
     def from_extracted(
         cls,
