@@ -101,6 +101,37 @@ class CredentialConfig:
         """Check if any credentials were extracted."""
         return len(self.credentials) > 0
 
+    @property
+    def secret_variable_names(self) -> tuple[str, ...]:
+        """Variable names for fields marked secret (passwords, keys, tokens).
+
+        Tasks that reference these -- directly or via a rendered template --
+        must set no_log so the values never reach job output.
+        """
+        return tuple(
+            field.id
+            for cred in self.credentials
+            for field in cred.fields
+            if field.secret
+        )
+
+    def variables_as_xml(self) -> str:
+        """Render the credential variables as an XML block for prompt embedding.
+
+        Each variable carries its Jinja reference form and a `secret` flag so
+        the write agent knows which values require no_log.
+        """
+        secret = set(self.secret_variable_names)
+        rows = [
+            f'  <variable name="{name}" '
+            f'secret="{"true" if name in secret else "false"}">'
+            f"{{{{ {name} }}}}</variable>"
+            for name in self.variable_names
+        ]
+        return (
+            "<credential_variables>\n" + "\n".join(rows) + "\n</credential_variables>"
+        )
+
     @classmethod
     def from_extracted(
         cls,

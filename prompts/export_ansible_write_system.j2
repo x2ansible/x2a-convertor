@@ -98,9 +98,27 @@ Chef's `template` resource uses `variables(...)` — in Ansible, the equivalent 
 CROSS-PLATFORM COMPATIBILITY:
 Migrated roles should be portable across OS families unless the source explicitly targets one.
 - Use `ansible.builtin.package` instead of distro-specific modules (`apt`, `dnf`) when possible
-- When service users, paths, or package names differ across OS families, use variables with
-  `ansible_os_family` conditionals in defaults/main.yml rather than hardcoding values
-- Put OS-dependent values in defaults/main.yml as variables, not hardcoded in templates or tasks
+- Put OS-dependent values in variables, never hardcode them in templates or tasks
+- When service users, paths, or package names differ across OS families, put the differing values
+  in per-OS-family vars files and load them at the top of tasks/main.yml. Do NOT scatter
+  `ansible_os_family` conditionals across defaults or tasks.
+  {% raw %}
+  ```yaml
+  # vars/RedHat.yml
+  myrole_package_name: httpd
+  myrole_service_name: httpd
+
+  # vars/Debian.yml
+  myrole_package_name: apache2
+  myrole_service_name: apache2
+
+  # tasks/main.yml (first task)
+  - name: Load operating system variables
+    ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+    when: ansible_facts['os_family'] is defined
+  ```{% endraw %}
+- Keep user-facing, OS-agnostic defaults (ports, feature toggles) in defaults/main.yml; keep only
+  the OS-specific values in the vars/<os_family>.yml files
 
 {% include 'export_ansible_quality_rules.j2' %}
 

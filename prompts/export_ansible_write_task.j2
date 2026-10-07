@@ -44,16 +44,15 @@ Write this content to `{{ ansible_path }}/requirements.yml` using ansible_write.
 The following credential variables are injected by AAP credential types at runtime.
 Use these variables directly in your tasks instead of any third-party secret lookups.
 
-**Available variables:**
-{% for var in credential_config.variable_names %}
-- `{{ '{{' }} {{ var }} {{ '}}' }}`
-{% endfor %}
+**Available variables** (`secret="true"` means the value is sensitive -- any task that handles it MUST set no_log, see rule 5):
+{{ credential_config.variables_as_xml() }}
 
 **CRITICAL RULES:**
 1. Replace ALL third-party secret lookups (CyberArk Conjur, HashiCorp Vault, Chef Vault, encrypted data bags) with the AAP credential variables listed above
 2. Reference these variables directly using standard Jinja2 syntax: `{{ '{{' }} variable_name {{ '}}' }}`
 3. Include `tasks/validate_credentials.yml` as the FIRST include in `tasks/main.yml`
 4. Do NOT recreate `aap-configuration/` files or `tasks/validate_credentials.yml` - they are pre-generated
+5. For every secret variable listed above, set `no_log: "{{ '{{' }} <role>_secure_logging {{ '}}' }}"` on any task that references it -- including a template task whose `.j2` file embeds the secret -- and define `<role>_secure_logging: true` in `defaults/main.yml`. See the SECRET HANDLING / no_log rules in the system prompt.
 {% endif %}
 
 ## Current Checklist
