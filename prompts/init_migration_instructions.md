@@ -20,26 +20,16 @@ The plan must summarize, at a high level, all modules, dependencies, security is
 Follow these steps in order:
 
 1. **Module Discovery**: The full file listing is already provided - use it to identify technologies present from file extensions and directory structure. If the technology is ambiguous or the tree was truncated, use `file_search` to confirm. **For each module you identify, you must read its primary entrypoint file before writing its MODULE INVENTORY entry**
-   - `file_search(pattern="**/manifests/init.pp")` — discovers Puppet modules
    - `file_search(pattern="**/recipes/default.rb")` — discovers Chef cookbooks
    - `file_search(pattern="**/*.psd1")` — discovers PowerShell module manifests
+   - **Puppet**: Follow these steps in order to enumerate modules correctly:
+     1. **Find the modulepath**: Read `environment.conf` at the repo root for its `modulepath` directive. If not present, look for `modules/` or `profiles/` directories at the repo root and treat them as the modulepath.
+     2. **Strip system paths**: Ignore `$basemodulepath` and any absolute paths outside the repo.
+     3. **List direct children**: For each remaining modulepath entry, run `list_directory` on it. Every immediate subdirectory found is a module — add it to the MODULE INVENTORY with its full path.
+     4. **Classes are not modules**: Any name containing `::` is a class inside a module, not a module itself.
+     5. **Confirm with file_search**: Run `file_search(pattern="*init.pp")` as a cross-check to verify you have not missed any module directories.
 
    Repositories sometimes mix technologies (e.g., Puppet modules with PowerShell scripts inside) - check the tree carefully before assuming a single technology.
-
-   **Puppet module structure**: A Puppet module is a directory that contains a `manifests/` subdirectory with `.pp` files. The main entry point is always `manifests/init.pp`:
-   ```
-   <module_name>/
-     manifests/
-       init.pp        # main class (class <module_name>)
-       config.pp      # optional subclasses
-       install.pp
-     templates/       # .erb/.epp templates
-     files/           # static files
-     data/            # Hiera module data
-     metadata.json    # module metadata and dependencies
-   ```
-   - Each path returned by `file_search` represents an individual module — you MUST list each one separately in the MODULE INVENTORY
-   - When modules are nested under category directories (e.g., `<parent>/<category>/<module_name>/manifests/init.pp`), each `<module_name>` is a separate module — do NOT group them by `<category>` or `<parent>`
 2. **Dependency Review**: Use `read_file` on the dependency manifest for each module only (skip modules that have none):
    - **Chef**: `Berksfile`, `Policyfile.rb`, `metadata.rb`
    - **PowerShell**: `requirements.psd1`, module manifests (`.psd1`), `Import-Module` statements in scripts
@@ -123,7 +113,8 @@ Do not invent paths. Incorrect paths will cause downstream migration failures.
 - **postgres**: Database cookbook (TOO VAGUE - no details about features, version, or purpose)
 - **web**: Web server module at cookbooks/web (UNCLEAR - what web server? what configuration?)
 - **app**: Application deployment (INSUFFICIENT - what app? what runtime? what dependencies?)
-- **site**: All modules at site/ (WRONG - this groups multiple modules into one entry. Each directory under the modulepath that has its own manifests/ directory must be listed as a separate module)
+- **site**: All modules at site/ (WRONG — `site/` is a modulepath/is likely a modulepath, not a module. Each direct child directory of `site/` is its own module.)
+- **webserver::vhost**: Virtual host class (WRONG — any name containing `::` is a class inside a module, not a module itself. `webserver::vhost` belongs to the `webserver` module. List the module directory, never its internal classes.)
 - **sql-server**: Likely similar to the base server config, probably installs SQL features (WRONG — "likely" and "probably" mean you are guessing from the filename. Read the file first, then describe what you actually found.)
 
 ### Infrastructure Files
