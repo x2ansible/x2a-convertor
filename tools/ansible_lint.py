@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import ansiblelint
+from ansiblelint import config as ansible_config
 from ansiblelint.__main__ import fix
 from ansiblelint.app import get_app
 from ansiblelint.config import Options
@@ -25,6 +26,15 @@ ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE = (
 )
 CRITICAL_RULE_IDS = ["load-failure", "syntax-check", "parser-error", "internal-error"]
 SYNTAX_ERROR_RULES = CRITICAL_RULE_IDS[:3]  # Subset for legacy _run() method
+# yaml[line-length] is intentionally skipped: generated Ansible frequently
+# contains long lines (embedded templates, URLs, long module arguments) that are
+# not worth wrapping and would otherwise flood the report with low-value noise.
+DEFAULT_SKIP_RULES = ["yaml[line-length]"]
+# "all" enables every transformable rule during autofix. ansible-lint only
+# applies a transform when its rule id/tag is in write_list, so this is what
+# actually turns autofixing on. Non-transformable rules are unaffected and still
+# reported for manual handling.
+AUTOFIX_WRITE_LIST = ["all"]
 ERROR_PATH_NOT_EXISTS = "ERROR: Path '{path}' does not exist."
 ERROR_PATH_NOT_DIRECTORY = "ERROR: Path '{path}' must be a directory, not a file."
 ERROR_ANSIBLE_LINT_NOT_INSTALLED = (
@@ -71,7 +81,7 @@ class AnsibleLintInput(BaseModel):
     """Input schema for Ansible linting tool."""
 
     ansible_path: str = Field(
-        description="Path to a single Ansible file or a directory to lint"
+        description="Path to a directory containing Ansible files to lint"
     )
     autofix: bool = Field(
         default=True,
@@ -94,7 +104,7 @@ class LintConfiguration:
             offline=True,
             lintables=["."],
             _skip_ansible_syntax_check=True,
-            skip_list=["yaml[line-length]"],
+            skip_list=DEFAULT_SKIP_RULES,
         )
         # get_app() (rather than constructing App directly) runs
         # runtime.prepare_environment()/enable_plugin_loader(), which installs
@@ -118,30 +128,49 @@ class IssueFormatter:
 
     @staticmethod
     def format_rule_help(rule: BaseRule) -> str:
-        """Format help information for a rule."""
-        # Try to load custom concise help from tools/lint/{rule_id}.md
-        # Convert hyphens to underscores for filename
+        """Format help for a rule: why it matters plus how to suppress it."""
+        return (
+            f"{IssueFormatter._rule_help_body(rule)}\n"
+            f"{IssueFormatter._suppression_hint(rule.id)}"
+        )
+
+    @staticmethod
+    def _rule_help_body(rule: BaseRule) -> str:
+        """Explain why a rule matters and how to fix it.
+
+        Prefers the concise curated help in tools/lint/{rule_id}.md, falling
+        back to ansible-lint's own shortdesc/description/help.
+        """
+        # Convert hyphens to underscores for the filename
         rule_filename = rule.id.replace("-", "_")
         custom_help_path = Path(__file__).parent / "lint" / f"{rule_filename}.md"
 
         if custom_help_path.exists():
             try:
-                custom_help = custom_help_path.read_text()
                 # Custom help already includes title, just return it
-                return custom_help.strip()
-            except Exception:
+                return custom_help_path.read_text().strip()
+            except OSError:
                 pass
 
         # Fallback to default ansible-lint help
         parts = [f"[{rule.id}] {rule.shortdesc}"]
 
-        if hasattr(rule, "description") and rule.description:
+        if getattr(rule, "description", None):
             parts.append(f"  Description: {rule.description}")
 
-        if hasattr(rule, "help") and rule.help:
+        if getattr(rule, "help", None):
             parts.append(f"\n{rule.help}")
 
         return "\n".join(parts)
+
+    @staticmethod
+    def _suppression_hint(rule_id: str) -> str:
+        """Describe how to suppress a rule when the finding is intentional."""
+        return (
+            f"  To suppress (only when the finding is a false positive or "
+            f"deliberate): add `# noqa: {rule_id} - <reason>` on the offending "
+            f"line, or add '{rule_id}' to the ansible-lint skip_list."
+        )
 
     @classmethod
     def collect_unique_rules(cls, matches: list) -> list:
@@ -157,19 +186,35 @@ class IssueFormatter:
 
     @classmethod
     def format_issues(
-        cls, matches: list[MatchError], prefix: str = "", base_path: str = ""
+        cls,
+        matches: list[MatchError],
+        prefix: str = "",
+        base_path: str = "",
+        fixed_count: int = 0,
     ) -> str:
-        """Format ansible-lint matches into a human-readable string with rule hints."""
+        """Format ansible-lint matches into a human-readable string with rule hints.
+
+        When ``fixed_count`` is positive, the report leads with how many issues
+        were auto-fixed so the reader can tell what was resolved automatically
+        versus what still needs manual attention.
+        """
         issues = [cls.format_issue(match, base_path) for match in matches]
 
-        header = prefix if prefix else f"Found {len(matches)} ansible-lint issue(s):"
-        result = f"{header}\n" + "\n".join(issues)
+        lines: list[str] = []
+        if fixed_count > 0:
+            lines.append(f"Automatically fixed {fixed_count} issue(s).")
+            default_header = f"Found {len(matches)} ansible-lint issue(s) that require manual changes:"
+        else:
+            default_header = f"Found {len(matches)} ansible-lint issue(s):"
+        lines.append(prefix if prefix else default_header)
+        lines.extend(issues)
+        result = "\n".join(lines)
 
         # Add rule hints section at the end
         unique_rules = cls.collect_unique_rules(matches)
         if unique_rules:
             result += "\n\n" + "=" * 30
-            result += "\nRule Hints (How to Fix):\n"
+            result += "\nRule Hints (How to Fix or Suppress):\n"
             result += "=" * 30 + "\n"
             rule_helps = [cls.format_rule_help(rule) for rule in unique_rules]
             result += "\n\n".join(rule_helps)
@@ -254,9 +299,34 @@ class AnsibleLintTool(X2ATool):
         """Execute ansible-lint with given configuration."""
         return get_matches(config.rules, config.options)
 
+    def _lint_fresh(self) -> tuple[LintConfiguration, LintResult]:
+        """Create a fresh configuration and run ansible-lint.
+
+        Each pass needs its own LintConfiguration: ansible-lint mutates the
+        Options/RulesCollection state while applying fixes, so reusing them
+        across passes yields stale results. Centralizing the create-then-run
+        pair here keeps every call site consistent.
+        """
+        config = LintConfiguration.create()
+        return config, self._run_lint(config)
+
     def _apply_fixes(self, config: LintConfiguration, result: LintResult) -> None:
-        """Apply ansible-lint fixes to issues."""
-        fix(runtime_options=config.options, result=result, rules=config.rules)
+        """Apply ansible-lint fixes to issues.
+
+        ansible-lint's fix() decides which transforms to apply from the global
+        ``ansiblelint.config.options.write_list`` singleton -- not from the
+        Options we pass as runtime_options. So enabling autofix means mutating
+        that global. We set it to AUTOFIX_WRITE_LIST around the fix() call and
+        restore the previous value afterwards to avoid leaking global state
+        across invocations. (Lint calls are already serialized in the exporter,
+        see FLPATH-4915, so this mutation is safe against concurrent runs.)
+        """
+        previous_write_list = ansible_config.options.write_list
+        ansible_config.options.write_list = AUTOFIX_WRITE_LIST
+        try:
+            fix(runtime_options=config.options, result=result, rules=config.rules)
+        finally:
+            ansible_config.options.write_list = previous_write_list
 
     def _handle_syntax_errors(self, result: LintResult, base_path: str) -> str:
         """Handle lint results containing syntax errors."""
@@ -282,25 +352,38 @@ class AnsibleLintTool(X2ATool):
 
     def _perform_lint_and_fix_cycle(self, ansible_path: str, base_path: str) -> str:
         """Execute the full lint-fix-verify cycle."""
-        config = LintConfiguration.create()
-        result = self._run_lint(config)
+        config, result = self._lint_fresh()
 
         if not result.matches:
             self.log.info(f"No issues found for '{ansible_path}'")
             return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 
-        self.log.debug(f"Found {len(result.matches)} matches, attempting fixes")
+        before_count = len(result.matches)
+        self.log.debug(f"Found {before_count} matches, attempting fixes")
         self._apply_fixes(config, result)
 
-        config = LintConfiguration.create()
-        result = self._run_lint(config)
+        _, result = self._lint_fresh()
+        fixed_count = max(before_count - len(result.matches), 0)
 
         if not result.matches:
-            self.log.info(f"No issues found after fixes for '{ansible_path}'")
+            self.log.info(
+                f"All {fixed_count} issue(s) fixed for '{ansible_path}'"
+                if fixed_count
+                else f"No issues found after fixes for '{ansible_path}'"
+            )
+            if fixed_count:
+                return (
+                    f"Automatically fixed {fixed_count} issue(s). "
+                    f"{ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE}"
+                )
             return ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE
 
-        self.log.info(f"After fixes, still found {len(result.matches)} matches")
-        return IssueFormatter.format_issues(result.matches, base_path=base_path)
+        self.log.info(
+            f"After fixes, {len(result.matches)} match(es) remain ({fixed_count} fixed)"
+        )
+        return IssueFormatter.format_issues(
+            result.matches, base_path=base_path, fixed_count=fixed_count
+        )
 
     # pyrefly: ignore
     def _run(self, ansible_path: str, autofix: bool = True) -> str:
@@ -330,15 +413,18 @@ class AnsibleLintTool(X2ATool):
             self.log.error("ansible-lint is not installed")
             return ERROR_ANSIBLE_LINT_NOT_INSTALLED
         except Exception as e:
+            # Broad by design: this is an LLM tool whose contract is to always
+            # return a string. ansible-lint internals raise a wide, unstable set
+            # of exception types, so any failure is reported to the agent rather
+            # than propagated. The exception type is included to aid debugging.
             self.log.error(f"Error running ansible-lint: {e!s}")
-            return f"ERROR: running ansible-lint:\n```{e!s}```"
+            return f"ERROR: running ansible-lint ({type(e).__name__}):\n```{e!s}```"
 
     def _execute_linting_workflow(
         self, ansible_path: str, base_path: str, autofix: bool
     ) -> str:
         """Execute the linting workflow with appropriate strategy based on autofix setting."""
-        config = LintConfiguration.create()
-        result = self._run_lint(config)
+        _, result = self._lint_fresh()
 
         if not result.matches:
             self.log.info(f"No issues found for '{ansible_path}'")
@@ -384,6 +470,9 @@ class AnsibleLintTool(X2ATool):
                 critical_matches=[error_match], warning_matches=[]
             )
         except Exception as e:
+            # Broad by design: callers rely on a LintClassification rather than
+            # a raised exception, so any ansible-lint failure is surfaced as a
+            # critical internal-error match (see the module _run docstring).
             error_msg = ERROR_RUNNING_ANSIBLE_LINT.format(error=str(e))
             self.log.error(f"Error running ansible-lint: {e!s}")
             error_rule = _InternalErrorRule(error_msg)
@@ -394,8 +483,7 @@ class AnsibleLintTool(X2ATool):
 
     def _classify_linting_workflow(self, ansible_path: str) -> LintClassification:
         """Run lint with autofix, then classify remaining matches."""
-        config = LintConfiguration.create()
-        result = self._run_lint(config)
+        config, result = self._lint_fresh()
 
         if not result.matches:
             self.log.info(f"No issues found for '{ansible_path}'")
@@ -412,8 +500,7 @@ class AnsibleLintTool(X2ATool):
         self.log.debug(f"Found {len(result.matches)} matches, attempting fixes")
         self._apply_fixes(config, result)
 
-        config = LintConfiguration.create()
-        result = self._run_lint(config)
+        _, result = self._lint_fresh()
 
         if not result.matches:
             self.log.info(f"All issues fixed for '{ansible_path}'")

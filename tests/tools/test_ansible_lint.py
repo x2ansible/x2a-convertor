@@ -7,16 +7,27 @@ from tools.ansible_lint import (
     ANSIBLE_LINT_TOOL_SUCCESS_MESSAGE,
     CRITICAL_RULE_IDS,
     AnsibleLintTool,
+    IssueFormatter,
     LintClassification,
     MatchClassifier,
 )
 
 
+def _make_rule(rule_id, shortdesc="short desc", description=None, help_text=None):
+    """Create a mock BaseRule with only the attributes the formatter reads."""
+    rule = Mock()
+    rule.id = rule_id
+    rule.shortdesc = shortdesc
+    rule.severity = "MEDIUM"
+    rule.description = description
+    rule.help = help_text
+    return rule
+
+
 def _make_match(rule_id, message="test issue", severity="MEDIUM"):
     """Create a mock MatchError with the given rule_id."""
     match = Mock()
-    match.rule = Mock()
-    match.rule.id = rule_id
+    match.rule = _make_rule(rule_id)
     match.rule.severity = severity
     match.message = message
     match.details = ""
@@ -311,6 +322,31 @@ class TestAnsibleLintTool:
         # Should also contain line number information
         assert "tasks/security.yml:" in result
 
+    def test_autofix_fixes_transformable_rule_and_reports_it(self) -> None:
+        """End-to-end: a transformable rule (fqcn) is auto-fixed in place and reported.
+
+        Not mocked -- runs the real linter. Bare `command:` violates fqcn, which
+        is one of ansible-lint's transformable rules, so autofix must rewrite the
+        file in place and the report must state an issue was fixed.
+        """
+        subdir = Path(self.temp_dir) / "fixable_role"
+        tasks_dir = subdir / "tasks"
+        tasks_dir.mkdir(parents=True)
+        (tasks_dir / "main.yml").write_text(
+            "---\n"
+            "- name: Run something\n"
+            "  command:\n"
+            "    cmd: echo hello\n"
+            "  changed_when: false\n"
+        )
+
+        result = self.tool._run(str(subdir), autofix=True)
+
+        # The report states an issue was auto-fixed...
+        assert "Automatically fixed" in result
+        # ...and the file was actually rewritten in place to the FQCN form.
+        assert "ansible.builtin.command:" in (tasks_dir / "main.yml").read_text()
+
     def test_non_fixable_lint_issues_persist(self) -> None:
         """Test that non-fixable lint issues persist after autofix attempt.
 
@@ -435,3 +471,71 @@ class TestLintAndClassify:
         assert isinstance(result, LintClassification)
         assert result.has_critical_errors
         assert result.critical_matches[0].rule.id == "internal-error"
+
+
+class TestIssueFormatter:
+    """Tests for IssueFormatter output, including fix/suppress diagnostics."""
+
+    def test_format_issue_includes_file_line_rule_and_severity(self) -> None:
+        """A single issue reports severity, file:line, rule id, and message."""
+        match = _make_match("no-changed-when", message="should set changed_when")
+
+        line = IssueFormatter.format_issue(match, base_path="roles/web")
+
+        assert "[MEDIUM]" in line
+        assert "roles/web/tasks/main.yml:1" in line
+        assert "[no-changed-when]" in line
+        assert "should set changed_when" in line
+
+    def test_format_issues_default_header_without_fixes(self) -> None:
+        """With no auto-fixes, the report uses the plain 'Found N' header."""
+        result = IssueFormatter.format_issues([_make_match("no-changed-when")])
+
+        assert "Found 1 ansible-lint issue(s):" in result
+        assert "Automatically fixed" not in result
+
+    def test_format_issues_reports_auto_fixed_count(self) -> None:
+        """When fixes were applied, the report states how many and that the rest are manual."""
+        result = IssueFormatter.format_issues(
+            [_make_match("no-changed-when")], fixed_count=3
+        )
+
+        assert "Automatically fixed 3 issue(s)." in result
+        assert "require manual changes" in result
+        # The remaining-issue header must still identify these as ansible-lint issues
+        assert "ansible-lint issue(s)" in result
+
+    def test_rule_hints_section_present(self) -> None:
+        """The report ends with a rule-hints section covering fix and suppress."""
+        result = IssueFormatter.format_issues([_make_match("no-changed-when")])
+
+        assert "Rule Hints (How to Fix or Suppress):" in result
+
+    def test_format_rule_help_includes_suppression_hint(self) -> None:
+        """Every rule hint explains how to suppress the rule."""
+        rule = _make_rule("no-changed-when")
+
+        help_text = IssueFormatter.format_rule_help(rule)
+
+        assert "# noqa: no-changed-when" in help_text
+        assert "skip_list" in help_text
+
+    def test_format_rule_help_fallback_without_custom_file(self) -> None:
+        """Rules without a curated help file fall back to shortdesc + suppression."""
+        rule = _make_rule("totally-unknown-rule", shortdesc="Some description")
+
+        help_text = IssueFormatter.format_rule_help(rule)
+
+        assert "[totally-unknown-rule] Some description" in help_text
+        assert "# noqa: totally-unknown-rule" in help_text
+
+    def test_format_rule_help_prefers_curated_file(self) -> None:
+        """A rule with a tools/lint/*.md file uses that curated content."""
+        # no_changed_when.md exists in tools/lint/
+        rule = _make_rule("no-changed-when", shortdesc="unused fallback")
+
+        help_text = IssueFormatter.format_rule_help(rule)
+
+        # Curated content is used instead of the generic fallback shortdesc line
+        assert "unused fallback" not in help_text
+        assert "# noqa: no-changed-when" in help_text
