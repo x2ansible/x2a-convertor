@@ -65,8 +65,8 @@ class LLMSettings(BaseSettings):
         validation_alias="MAX_TOKENS",
         description="Maximum tokens for LLM responses",
     )
-    temperature: float = Field(
-        default=0.1,
+    temperature: float | None = Field(
+        default=None,
         validation_alias="TEMPERATURE",
         description="Model temperature (creativity)",
     )
