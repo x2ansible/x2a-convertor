@@ -22,7 +22,7 @@ class TestLLMSettings:
         settings = LLMSettings()
         assert settings.model == "openai/gpt-oss-120b-maas"
         assert settings.max_tokens == 8192
-        assert settings.temperature == 0.1
+        assert settings.temperature is None
         assert settings.reasoning_effort is None
         assert settings.rate_limit_requests is None
 

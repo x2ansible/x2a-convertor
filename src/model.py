@@ -80,8 +80,9 @@ def _build_router(llm_settings: LLMSettings) -> litellm.Router:
         "model": llm_settings.model,
         "timeout": timeout,
         "max_tokens": llm_settings.max_tokens,
-        "temperature": llm_settings.temperature,
     }
+    if llm_settings.temperature is not None:
+        litellm_params["temperature"] = llm_settings.temperature
 
     if llm_settings.reasoning_effort is not None:
         litellm_params["reasoning_effort"] = llm_settings.reasoning_effort
@@ -130,12 +131,13 @@ def get_model() -> BaseChatModel:
         "provider": provider,
         "model": model_name,
         "max_tokens": llm_settings.max_tokens,
-        "temperature": llm_settings.temperature,
         "max_retries": llm_settings.max_retries,
         "connect_timeout": llm_settings.connect_timeout,
         "read_timeout": llm_settings.read_timeout,
         "rate_limit_requests_per_second": llm_settings.rate_limit_requests,
     }
+    if llm_settings.temperature is not None:
+        log_kwargs["temperature"] = llm_settings.temperature
     if llm_settings.reasoning_effort is not None:
         log_kwargs["reasoning_effort"] = llm_settings.reasoning_effort
     logger.info("LLM initialized", **log_kwargs)
