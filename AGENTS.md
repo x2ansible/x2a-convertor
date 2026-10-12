@@ -359,7 +359,7 @@ Key environment variables:
 |---|---|---|
 | `LLM_MODEL` | LLM model identifier | `openai/gpt-oss-120b-maas` |
 | `MAX_TOKENS` | Max tokens per response | `8192` |
-| `TEMPERATURE` | Model temperature | `0.1` |
+| `TEMPERATURE` | Model temperature | None |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `JSON_LINES` | Path for agent message dumps | None |
 | `MAX_WRITE_ATTEMPTS` | Max file writing retries | `10` |
