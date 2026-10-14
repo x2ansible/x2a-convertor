@@ -96,7 +96,10 @@ def test_generation_marks_files_static_only_not_executed(tmp_path, monkeypatch):
     )
     assert "Write only ``." not in system_prompt
     assert "no Molecule driver plugin is used" in system_prompt
+    assert f"parent directory of `{state.molecule_verify_path}`" in system_prompt
+    assert "Do not run either tool on the Ansible project root" in system_prompt
     assert "scenario's Ansible inventory" in system_prompt
+    assert str(state.molecule_verify_path) in system_prompt
     assert str(state.molecule_verify_path) in task_prompt
     assert str(state.project_path.resolve()) in task_prompt
     assert "Final role task files" not in task_prompt
