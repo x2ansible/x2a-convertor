@@ -49,7 +49,7 @@ def initialize_state(state: ExportState) -> ExportState:
 def write_valid_verification(agent):
     captured_messages: list[list[dict[str, str]]] = []
 
-    def invoke_react(state, messages, metrics):
+    def invoke_react(state, messages, metrics, tools=None):
         captured_messages.append(messages)
         verify = state.molecule_verify_path
         verify.write_text(
@@ -73,8 +73,16 @@ def test_generation_marks_files_static_only_not_executed(tmp_path, monkeypatch):
 
     result = agent.execute(state, metrics)
 
-    assert result.molecule_status == MoleculeStatus.NOT_EXECUTED
+    assert result.molecule_status == MoleculeStatus.NOT_EXECUTED, result.molecule_report
     assert "not run by the converter" in result.molecule_report
+    assert result.failed is False
+    assert len(captured_messages) == 1
+    assert "ansible_lint" in MoleculeAgent.GOAL
+    assert "ansible_role_check" in MoleculeAgent.GOAL
+    assert {factory().name for factory in MoleculeAgent.GOAL_TOOLS} == {
+        "ansible_lint",
+        "ansible_role_check",
+    }
     system_prompt = captured_messages[0][0]["content"]
     task_prompt = captured_messages[0][1]["content"]
     assert "Summary context is available" in task_prompt
@@ -90,6 +98,7 @@ def test_generation_marks_files_static_only_not_executed(tmp_path, monkeypatch):
     assert "no Molecule driver plugin is used" in system_prompt
     assert "scenario's Ansible inventory" in system_prompt
     assert str(state.molecule_verify_path) in task_prompt
+    assert str(state.project_path.resolve()) in task_prompt
     assert "Final role task files" not in task_prompt
     assert result.checklist is not None
     assert all(
@@ -114,6 +123,8 @@ def test_generation_failure_is_reported_and_verify_remains_incomplete(
     verify_item = result.checklist.find_task("N/A", verify_path)
     assert verify_item is not None
     assert result.molecule_status == MoleculeStatus.GENERATION_FAILED
+    assert result.failed is True
+    assert result.current_phase == MigrationPhase.FAILED
     assert verify_item.status.value == "error"
     assert "verify.yml" in result.molecule_report
     assert agent.invoke_react.call_count == agent.MAX_GENERATION_ATTEMPTS
@@ -126,7 +137,7 @@ def test_empty_supported_expectation_set_can_be_statically_validated(
     agent = create_agent()
     state = initialize_state(create_state(tmp_path))
 
-    def write_empty_verification(state, messages, metrics):
+    def write_empty_verification(state, messages, metrics, tools=None):
         state.molecule_verify_path.write_text(
             "---\n- name: No supported pre-flight checks\n  hosts: all\n  tasks: []\n"
         )
@@ -174,6 +185,8 @@ class TestExistingScaffold:
         result = agent.execute(state, None)
 
         assert result.molecule_status == MoleculeStatus.GENERATION_FAILED
+        assert result.failed is True
+        assert result.current_phase == MigrationPhase.FAILED
         assert "driver plugin" in result.molecule_report
         assert config.read_text() == legacy
         agent.invoke_react.assert_not_called()
@@ -209,3 +222,5 @@ def test_workflow_generates_molecule_after_review():
     assert orchestrator._check_failure_after_agent(state) == "molecule_testing"
     state = state.update(current_phase=MigrationPhase.MOLECULE_TESTING)
     assert orchestrator._check_failure_after_agent(state) == "validate_migration"
+    failed_molecule_state = state.mark_failed("Molecule generation failed")
+    assert orchestrator._check_failure_after_agent(failed_molecule_state) == "finalize"
