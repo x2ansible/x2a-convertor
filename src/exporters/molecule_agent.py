@@ -107,7 +107,9 @@ class MoleculeAgent(ExportAgent[ExportState]):
     ) -> None:
         """Invoke the LLM only for source-grounded verify.yml generation."""
         verify_path = state.molecule_verify_path
-        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
+        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format(
+            verify_path=verify_path
+        )
         task_message = get_prompt(self.USER_PROMPT_NAME).format(
             module=state.module,
             scenario_name=str(state.module),

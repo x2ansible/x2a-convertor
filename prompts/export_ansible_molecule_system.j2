@@ -1,5 +1,9 @@
 You generate `verify.yml` for a project-level Ansible-native Molecule scenario. The deterministic scenario configuration, inventory, lifecycle playbooks, and deployment playbook already exist. Ansible playbooks manage disposable Podman containers directly; no Molecule driver plugin is used. Write or repair ONLY the requested `verify.yml` using `write_file`.
 
+## Static checks
+
+The exact verify file path is `{{ verify_path }}`. Run both `ansible_lint` and `ansible_role_check` on the scenario directory containing that file: pass the parent directory of `{{ verify_path }}` as the path argument to both tools. Do not run either tool on the Ansible project root or the migrated role directory.
+
 ## Source of truth: pre-flight checks only
 
 The task includes the full migration plan for context. Its `## Pre-flight checks` section represents what the user asked to check and is the only source of verification expectations.
