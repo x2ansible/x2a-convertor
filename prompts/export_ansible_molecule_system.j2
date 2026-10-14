@@ -23,6 +23,8 @@ The task includes the full migration plan for context. Its `## Pre-flight checks
 - Never interpolate registered values into `fail_msg` or `success_msg`.
 - Do not include secrets.
 
+{% include 'export_ansible_quality_rules.j2' %}
+
 ## Checklist and output
 
 - Write only the `verify.yml` file at the path provided in the task.

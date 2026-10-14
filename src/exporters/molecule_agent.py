@@ -13,6 +13,8 @@ from src.exporters.types import MoleculeStatus
 from src.types import ChecklistStatus
 from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
+from tools.ansible_lint import AnsibleLintTool
+from tools.ansible_role_check import AnsibleRoleCheckTool
 from tools.write_file import WriteFileTool
 
 logger = get_logger(__name__)
@@ -22,10 +24,28 @@ class MoleculeAgent(ExportAgent[ExportState]):
     """Create deterministic Ansible-native scenarios and LLM-based verification."""
 
     _NAME = "Molecule Test Generator"
-    BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [lambda: WriteFileTool()]
+    BASE_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
+        lambda: WriteFileTool(),
+        lambda: AnsibleLintTool(),
+        lambda: AnsibleRoleCheckTool(),
+    ]
+    GOAL_TOOLS: ClassVar[list[Callable[[], BaseTool]]] = [
+        lambda: AnsibleLintTool(),
+        lambda: AnsibleRoleCheckTool(),
+    ]
     SYSTEM_PROMPT_NAME = "export_ansible_molecule_system"
     USER_PROMPT_NAME = "export_ansible_molecule_task"
     MAX_GENERATION_ATTEMPTS = 2
+    GOAL: ClassVar[str] = (
+        "Run both `ansible_lint` and `ansible_role_check` against the generated "
+        "Ansible project directory specified in the task. Do not stop until both "
+        "tool calls have been made and their results are reported. The converter "
+        "does not execute Molecule."
+    )
+
+    def extra_tools_from_state(self, state: ExportState) -> list[BaseTool]:
+        """Keep checklist mutations owned by this deterministic agent."""
+        return []
 
     def execute(self, state: ExportState, metrics: AgentMetrics | None) -> ExportState:
         """Scaffold scenario files, generate verification, and report static status."""
@@ -92,6 +112,7 @@ class MoleculeAgent(ExportAgent[ExportState]):
             module=state.module,
             scenario_name=str(state.module),
             verify_path=verify_path,
+            project_path=state.project_path.resolve(),
             migration_plan=state.module_migration_plan.to_document(),
             validation_errors="\n".join(errors),
         )
@@ -131,9 +152,12 @@ class MoleculeAgent(ExportAgent[ExportState]):
         state.checklist.save(state.checklist_path)
 
     def _generation_failed(self, state: ExportState, reason: str) -> ExportState:
-        """Keep migration nonfatal but make unverified tests visible to users."""
+        """Mark failed scenario generation as a failed migration outcome."""
         self._log.warning("Molecule generation is unverified", reason=reason)
-        return state.update(
+        return state.mark_failed(
+            f"Molecule generation/validation failed: {reason}"
+        ).update(
+            current_phase="failed",
             molecule_status=MoleculeStatus.GENERATION_FAILED,
             molecule_report=f"Static generation/validation failed: {reason}",
         )
