@@ -191,6 +191,18 @@ If the module defines custom types/providers/facts/functions in `lib/`, document
 
 List ALL fact references. For each, note what system information it provides.
 
+## Custom Types Used
+
+List ALL custom type declarations. For each, note where it is declared and with which parameters.
+
+## Custom Providers Used
+
+List ALL custom providers. For each, note the type it implements and where that type is used.
+
+## Custom Functions Used
+
+List ALL custom function calls. For each, note where it is called and what it returns.
+
 ## Template Conversion Notes
 
 For each template: variables used, Ruby logic blocks, conditional rendering, iterations, complex expressions. Omit if straightforward.

@@ -118,6 +118,21 @@ Variables defined at multiple Hiera levels:
 [List all Puppet fact references and what system information each provides]
 [If none, state: "No Puppet facts referenced in this module."]
 
+## Custom Types Used
+
+[List all custom type declarations, where each is declared, and its parameters]
+[If none, state: "No custom types referenced in this module."]
+
+## Custom Providers Used
+
+[List all custom providers, the type each implements, and where that type is used]
+[If none, state: "No custom providers referenced in this module."]
+
+## Custom Functions Used
+
+[List all custom function calls, where each is called, and what it returns]
+[If none, state: "No custom functions referenced in this module."]
+
 ## Template Conversion Notes
 
 [If applicable — for each template with non-trivial logic, document: variables used, Ruby logic blocks, conditional rendering, iterations, complex expressions]
@@ -173,6 +188,7 @@ Respond with ONLY the cleaned, final migration plan. No explanations, no preambl
 - Variables section with complete variable definitions (NO tables), migration notes per hierarchy level, and variable migration summary
 - Variables include merge strategy notes where applicable
 - Puppet Facts Used section
+- Custom Types Used, Custom Providers Used, and Custom Functions Used sections
 - Template Conversion Notes for templates with non-trivial logic (if applicable)
 - PuppetDB section (if applicable) includes migration notes for each dependency pattern
 - Source provider information retained

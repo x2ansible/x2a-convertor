@@ -271,6 +271,14 @@ class ManifestExecutionAnalysis(BaseModel):
         default_factory=list,
         description="Facter fact variables referenced in the manifest (e.g., '$::osfamily', '$facts[os][family]')",
     )
+    type_references: list[str] = Field(
+        default_factory=list,
+        description="Custom type resource declarations in the manifest (e.g., \"myDeploy1 { 'myapp': version => '2.1.0', install_dir => '/opt/myapp' }\")",
+    )
+    function_references: list[str] = Field(
+        default_factory=list,
+        description="Custom function calls in the manifest (e.g., \"$result = myFunction1('http://example.com')\")",
+    )
 
 
 # ============================================================================

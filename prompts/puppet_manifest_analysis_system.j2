@@ -37,6 +37,12 @@ Fact references — extract ALL of these:
 - Legacy: $::osfamily, $::operatingsystem, $::kernel
 - Conditional usage: case $facts['os']['name'] { ... }
 
+Custom type references — extract ALL of these:
+- Resource declarations using custom types (e.g. myDeploy1 { 'myapp': version => '2.1.0', ... }) — include type name, title, and all parameters
+
+Custom function references — extract ALL of these:
+- Calls to custom functions (e.g. $result = myFunction1('http://...')) — include function name, arguments, and the variable receiving the result
+
 Case statements:
 - Model as ONE conditional with condition_type="case" and case_branches (NOT execution_order)
 - Each CaseBranch: pattern (literal, regex, or "default") + items (nested resources)
@@ -83,4 +89,4 @@ ANALYSIS APPROACH:
 CRITICAL: Scan the ENTIRE class body to the end. Many manifests have resources AFTER conditionals and variable assignments. These must ALL be in execution_order.
 
 EXAMPLE:
-{"class_name": "profile::webserver", "class_parameters": {"port": "Integer, default: 8080"}, "execution_order": [{"type": "class_include", "class_name": "profile::base", "relationship": "include"}, {"type": "conditional", "condition_type": "if", "condition": "$enable_ssl", "execution_order": [{"type": "resource", "resource_type": "package", "title": "ssl-cert", "attributes": {"ensure": "installed"}}]}, {"type": "resource", "resource_type": "package", "title": "nginx", "attributes": {"ensure": "installed"}}, {"type": "resource", "resource_type": "service", "title": "nginx", "attributes": {"ensure": "running", "enable": true}}], "fact_references": ["$facts['os']['family']"]}
+{"class_name": "profile::webserver", "class_parameters": {"port": "Integer, default: 8080"}, "execution_order": [{"type": "class_include", "class_name": "profile::base", "relationship": "include"}, {"type": "conditional", "condition_type": "if", "condition": "$enable_ssl", "execution_order": [{"type": "resource", "resource_type": "package", "title": "ssl-cert", "attributes": {"ensure": "installed"}}]}, {"type": "resource", "resource_type": "package", "title": "nginx", "attributes": {"ensure": "installed"}}, {"type": "resource", "resource_type": "service", "title": "nginx", "attributes": {"ensure": "running", "enable": true}}], "fact_references": ["$facts['os']['family']"], "type_references": ["myDeploy1 { 'myapp': version => '2.1.0', install_dir => '/opt/myapp' }"], "function_references": ["$result = myFunction1('http://example.com')"]}

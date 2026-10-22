@@ -51,6 +51,11 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
    - Note `secrets` or `credentials` related attribute namespaces
    - For EACH detected credential, record: variable name, source file, and how it is used (encrypted data bag, vault, hardcoded, environment variable)
 
+7. **Detect and describe custom resources and libraries:**
+   - Detect custom Chef resources and libraries in the cookbook
+   - For EACH one detected, add any available documentation and knowledge about it to the output
+   - Do not drop anything from the input files
+
 **USING STRUCTURED ANALYSIS DATA:**
 
 You will receive detailed structured analysis showing:
