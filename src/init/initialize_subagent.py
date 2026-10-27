@@ -12,7 +12,7 @@ from langchain_core.tools import BaseTool
 
 from prompts.get_prompt import get_prompt
 from src.base_agent import BaseAgent
-from src.const import MIGRATION_PLAN_FILE
+from src.const import MIGRATION_PLAN_FILE, MODULE_INVENTORY_HEADING
 from src.init.init_state import InitState
 from src.types.telemetry import AgentMetrics
 from tools.file_search import FileSearchTool
@@ -47,7 +47,7 @@ class InitializeSubAgent(BaseAgent[InitState]):
     GOAL = (
         f"Verify that the file '{MIGRATION_PLAN_FILE}' exists and contains valid migration plan content. "
         f"CRITICAL: Every module that has a manifests/init.pp (Puppet), recipes/default.rb (Chef), "
-        f"or .psd1 manifest (PowerShell) must appear as a separate entry in the MODULE INVENTORY. "
+        f"or .psd1 manifest (PowerShell) must appear as a separate entry in the {MODULE_INVENTORY_HEADING}. "
         f"All module paths must point to directories that actually exist in the repository. "
         f"Trust the conversation context first; only fall back to file_search or list_directory "
         f"if it does not already confirm this."

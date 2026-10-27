@@ -1,6 +1,4 @@
-Analyze the following migration plan and extract metadata for all modules/cookbooks identified.
-
-Look for sections like "MODULE INVENTORY" or similar that list the distinct modules in the repository.
+Analyze the following migration plan and extract metadata for the modules/cookbooks listed as entries of its MODULE INVENTORY section. Exclude any module that is mentioned elsewhere in the plan but is not a MODULE INVENTORY entry. If the plan has no MODULE INVENTORY section, extract the distinct modules it describes.
 
 ## Example Input (abbreviated):
 

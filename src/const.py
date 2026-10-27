@@ -6,6 +6,11 @@ MIGRATION_PLAN_FILE = "migration-plan.md"
 # Module migration plan filename template
 MODULE_MIGRATION_PLAN_TEMPLATE = "migration-plan-{module}.md"
 
+# Heading of the module list in the migration plan. The plan generation prompt
+# (init_migration_instructions.md) and the metadata extraction prompts
+# (init_metadata_extraction_{system,task}.md) depend on it.
+MODULE_INVENTORY_HEADING = "MODULE INVENTORY"
+
 # Metadata filename
 METADATA_FILENAME = "generated-project-metadata.json"
 

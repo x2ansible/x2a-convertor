@@ -62,6 +62,13 @@ class MetadataExtractionAgent(BaseAgent[InitState]):
 
         self._log.debug(f"LLM metadata extraction response: {response}")
 
+        if not response.modules:
+            # Writing an empty list would make Backstage drop every module.
+            self._log.error("No modules extracted from the migration plan")
+            return state.mark_failed(
+                "Metadata extraction failed: no modules found in the migration plan"
+            )
+
         metadata_list = [module.model_dump(mode="json") for module in response.modules]
         self._record_metrics(metrics, response, metadata_list)
         self._write_metadata_file(metadata_list)
@@ -98,17 +105,15 @@ class MetadataExtractionAgent(BaseAgent[InitState]):
         metrics.record_metric("metadata_modules", len(metadata_list))
 
     def _detect_dominant_technology(self, response: MetadataCollection) -> Technology:
-        """Determine the most common technology across all extracted modules.
+        """Determine the most common technology across the extracted modules.
 
         Args:
             response: Extracted metadata collection with module technologies
 
         Returns:
-            Dominant Technology enum value. Defaults to Technology.CHEF.
+            The most common Technology across the modules. The caller guarantees
+            at least one module; execute() fails on an empty result earlier.
         """
-        if not response.modules:
-            return Technology.CHEF
-
         counts = Counter(module.technology for module in response.modules)
         return counts.most_common(1)[0][0]
 
