@@ -27,9 +27,14 @@ ANSIBLE EQUIVALENTS:
 - Custom facts -> ansible_facts gathered via setup module or custom fact scripts
 - Custom functions -> Jinja2 filters/macros or custom Ansible filter plugins
 
+CONVERSION DECISION (record for EVERY component as conversion_outcome):
+- "existing_modules": existing Ansible modules reproduce the behavior — a single module, a combination of modules, or command tasks wrapping an existing CLI. This is the default and the most common outcome.
+- "custom_module": the component is used in manifests and NO combination of existing Ansible modules or commands can reproduce its behavior. This is the exception, not the default — choose it only when existing_modules is not possible. When chosen, describe the full behavior of the module to generate (behavior_description): what it must do, idempotency, error handling, side effects.
+- "not_convertible": the behavior depends on things not visible in the source — for example an internal library with no source code, or a proprietary CLI with undocumented semantics. When chosen, explain what is missing (flag_reason) for the automation developer. Do not suggest a mapping.
+
 CRITICAL REQUIREMENTS:
 - Identify the component type correctly
 - Extract all parameters/properties
 - Suggest an Ansible equivalent if one exists
-- Flag if a custom Ansible module would be needed
+- Record the conversion decision for every component, with behavior_description or flag_reason when the outcome requires them
 - Return ONLY valid JSON

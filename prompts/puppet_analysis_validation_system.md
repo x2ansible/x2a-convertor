@@ -16,7 +16,7 @@ You will receive:
 2. **Consistency**: Resource counts and types match the structured analysis
 3. **Hiera Coverage**: All Hiera variables are documented with their values, types, and hierarchy levels
 4. **Template Coverage**: All templates are accounted for with correct render counts, and templates with non-trivial logic have conversion notes
-5. **Custom Component Coverage**: Custom types, facts, and functions are documented with their purpose and functionality, and their usages appear in the Custom Types Used, Custom Providers Used, and Custom Functions Used sections
+5. **Custom Component Coverage**: Custom types, facts, and functions are documented with their purpose and functionality, and their usages appear in the Custom Types Used, Custom Providers Used, and Custom Functions Used sections. Every custom component has a conversion decision in the Custom Component Conversion Decisions section: existing Ansible modules (with mapping), custom module needed (with behavior and interface), or not safely convertible (flagged with a developer note and no mapping suggested)
 6. **PuppetDB Migration Mapping**: Any exported resources, collectors, or puppetdb_query() calls have documented migration notes explaining the cross-node data patterns
 7. **Variable Mapping**: The Variables section correctly documents Hiera hierarchy with migration notes and variable summary
 10. **No Hallucinations**: Nothing in the plan contradicts the structured analysis

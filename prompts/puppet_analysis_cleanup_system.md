@@ -133,6 +133,11 @@ Variables defined at multiple Hiera levels:
 [List all custom function calls, where each is called, and what it returns]
 [If none, state: "No custom functions referenced in this module."]
 
+## Custom Component Conversion Decisions
+
+[For every custom type, provider, fact, and function: record its conversion decision — existing Ansible modules (with the suggested mapping), custom Ansible module needed (with full behavior and interface), or not safely convertible (flagged with a note to the automation developer, no mapping suggested)]
+[If there are no custom components, state: "No custom components in this module."]
+
 ## Template Conversion Notes
 
 [If applicable — for each template with non-trivial logic, document: variables used, Ruby logic blocks, conditional rendering, iterations, complex expressions]
@@ -189,6 +194,7 @@ Respond with ONLY the cleaned, final migration plan. No explanations, no preambl
 - Variables include merge strategy notes where applicable
 - Puppet Facts Used section
 - Custom Types Used, Custom Providers Used, and Custom Functions Used sections
+- Custom Component Conversion Decisions section — every custom component has a recorded decision, and flagged components keep their flag and developer note
 - Template Conversion Notes for templates with non-trivial logic (if applicable)
 - PuppetDB section (if applicable) includes migration notes for each dependency pattern
 - Source provider information retained

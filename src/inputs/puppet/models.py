@@ -437,10 +437,51 @@ class CustomTypeAnalysis(BaseModel):
         default_factory=list,
         description="Parameter definitions with keys 'name', 'type', and optionally 'default' and 'description'",
     )
+    conversion_outcome: Literal[
+        "existing_modules", "custom_module", "not_convertible"
+    ] = Field(
+        default="existing_modules",
+        description=(
+            "Conversion decision for this component: "
+            "'existing_modules' when existing Ansible modules (single, combined, or command-wrapping a CLI) reproduce the behavior; "
+            "'custom_module' when the component is used and no combination of existing modules or commands can reproduce it; "
+            "'not_convertible' when the behavior depends on things not visible in the source"
+        ),
+    )
+    behavior_description: str | None = Field(
+        default=None,
+        description=(
+            "Required when conversion_outcome is 'custom_module': full behavior of the Ansible module to generate — "
+            "what it must do, idempotency, error handling, side effects"
+        ),
+    )
+    flag_reason: str | None = Field(
+        default=None,
+        description=(
+            "Required when conversion_outcome is 'not_convertible': what the conversion depends on that is not "
+            "visible in the source, for the automation developer"
+        ),
+    )
     note: str | None = Field(
         default=None,
         description="Additional migration context or caveats for this component",
     )
+
+    def format_conversion_decision(self) -> str:
+        """Render the conversion decision for inclusion in the migration plan."""
+        if self.conversion_outcome == "custom_module":
+            lines = ["  Conversion: CUSTOM ANSIBLE MODULE NEEDED"]
+            if self.behavior_description:
+                lines.append(f"  Module behavior: {self.behavior_description}")
+            return "\n".join(lines)
+        if self.conversion_outcome == "not_convertible":
+            lines = [
+                "  Conversion: NOT SAFELY CONVERTIBLE — flagged for developer review"
+            ]
+            if self.flag_reason:
+                lines.append(f"  Reason: {self.flag_reason}")
+            return "\n".join(lines)
+        return "  Conversion: existing Ansible modules"
 
 
 # ============================================================================
