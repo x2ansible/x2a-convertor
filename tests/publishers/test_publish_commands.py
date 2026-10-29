@@ -1,35 +1,64 @@
 """Tests for the publish-aap function and CLI contract."""
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from click.testing import CliRunner
 
+from src.publishers.models import AAPConfigGenerationResult, PublishResult
 from src.publishers.publish import publish_aap
 from src.publishers.tools import AAPSyncResult
 
 
 class TestPublishAAP:
+    @staticmethod
+    def prepare_project(tmp_path, monkeypatch):
+        (tmp_path / "ansible").mkdir()
+        (tmp_path / "ansible" / "run_module.yml").write_text("---\n")
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            "src.publishers.publish.get_settings",
+            lambda: Mock(aap=Mock(org_name="Default")),
+        )
+
     @patch("src.publishers.publish.sync_to_aap")
-    def test_aap_not_configured_raises(self, mock_sync):
+    def test_aap_not_configured_raises(self, mock_sync, tmp_path, monkeypatch):
+        self.prepare_project(tmp_path, monkeypatch)
         mock_sync.return_value = AAPSyncResult.disabled()
         with pytest.raises(RuntimeError, match="not configured"):
-            publish_aap("https://github.com/org/repo.git", "main", "proj-1")
+            publish_aap(
+                target_repo="https://github.com/org/repo.git",
+                target_branch="main",
+                project_id="proj-1",
+                module_name="module",
+            )
 
     @patch("src.publishers.publish.sync_to_aap")
-    def test_aap_error_raises(self, mock_sync):
+    def test_aap_error_raises(self, mock_sync, tmp_path, monkeypatch):
+        self.prepare_project(tmp_path, monkeypatch)
         mock_sync.return_value = AAPSyncResult.from_error("Connection refused")
         with pytest.raises(RuntimeError, match="Connection refused"):
-            publish_aap("https://github.com/org/repo.git", "main", "proj-1")
+            publish_aap(
+                target_repo="https://github.com/org/repo.git",
+                target_branch="main",
+                project_id="proj-1",
+                module_name="module",
+            )
 
     @patch("src.publishers.publish.sync_to_aap")
-    def test_aap_success(self, mock_sync):
+    def test_aap_success(self, mock_sync, tmp_path, monkeypatch):
+        self.prepare_project(tmp_path, monkeypatch)
         mock_sync.return_value = AAPSyncResult.from_update(
             "test-project", 42, {"id": 100, "status": "pending"}
         )
-        result = publish_aap("https://github.com/org/repo.git", "main", "proj-1")
-        assert result.project_name == "test-project"
-        assert result.project_id == 42
+        result = publish_aap(
+            target_repo="https://github.com/org/repo.git",
+            target_branch="main",
+            project_id="proj-1",
+            module_name="module",
+        )
+        assert result.sync.project_name == "test-project"
+        assert result.sync.project_id == 42
         mock_sync.assert_called_once_with(
             repository_url="https://github.com/org/repo.git",
             branch="main",
@@ -46,6 +75,8 @@ class TestPublishCLI:
         "main",
         "--project-id",
         "proj-1",
+        "--module-name",
+        "module",
     )
 
     @pytest.fixture
@@ -72,8 +103,18 @@ class TestPublishCLI:
         self, publish, tmp_path, monkeypatch, command
     ):
         monkeypatch.chdir(tmp_path)
-        publish.return_value = AAPSyncResult.from_update(
-            "proj-1", 42, {"id": 100, "status": "pending"}
+        publish.return_value = PublishResult(
+            generation=AAPConfigGenerationResult(
+                changed=False,
+                module_name="module",
+                module_directory=tmp_path / "ansible" / "aap-config" / "module",
+                project_name="proj-1",
+                job_template_name="proj-1_module",
+                files=[],
+            ),
+            sync=AAPSyncResult.from_update(
+                "proj-1", 42, {"id": 100, "status": "pending"}
+            ),
         )
         result = CliRunner().invoke(command, self.ARGS)
         assert result.exit_code == 0, result.output
@@ -83,6 +124,11 @@ class TestPublishCLI:
             target_repo="https://github.com/org/repo.git",
             target_branch="main",
             project_id="proj-1",
+            module_name="module",
+            inventory=None,
+            scm_credential_name=None,
+            job_credential_names=[],
+            execution_environment_name=None,
         )
 
     @patch("app.publish_aap", side_effect=RuntimeError("AAP sync failed: denied"))

@@ -12,7 +12,86 @@ from src.publishers.aap_client import (
     infer_aap_project_description,
     infer_aap_project_name,
 )
+from src.publishers.aap_config_as_code import AAPConfigAsCodeGenerator
+from src.publishers.models import REQUIRED_INVENTORY_MARKER, AAPConfigRequest
 from src.publishers.tools import AAPSyncResult, sync_to_aap
+
+
+class TestAAPConfigGeneration:
+    def test_validates_playbook_relative_to_ansible_directory(self, tmp_path):
+        ansible_dir = tmp_path / "ansible"
+        ansible_dir.mkdir()
+        (ansible_dir / "run_web_server.yml").write_text("---\n", encoding="utf-8")
+
+        request = AAPConfigRequest.from_project(
+            tmp_path,
+            project_id="project-1",
+            module_name="web_server",
+            organization="Default",
+            target_repository_url="https://github.com/acme/repo.git",
+            target_branch="main",
+            inventory="localhost",
+        )
+
+        assert request.local_playbook == "run_web_server.yml"
+        assert request.playbook == "project-1/ansible/run_web_server.yml"
+        assert request.project_name == "project-1"
+        assert request.job_template_name == "project-1_web_server"
+        result = AAPConfigAsCodeGenerator(request).generate()
+        assert result.module_directory == ansible_dir / "aap-config" / "web_server"
+        projects = (result.module_directory / "controller_projects.yml").read_text(
+            encoding="utf-8"
+        )
+        templates = (
+            result.module_directory / "controller_job_templates.yml"
+        ).read_text(encoding="utf-8")
+        assert "controller_projects_x2a:" in projects
+        assert "update_project: true" in projects
+        assert "inventory: localhost" in templates
+        assert "credentials:" not in templates
+
+    def test_draft_can_be_generated_without_aap_config_inputs(self, tmp_path):
+        ansible_dir = tmp_path / "ansible"
+        ansible_dir.mkdir()
+        (ansible_dir / "run_web_server.yml").write_text("---\n", encoding="utf-8")
+
+        request = AAPConfigRequest.from_project(
+            tmp_path,
+            project_id="project-1",
+            module_name="web_server",
+            organization="Default",
+            target_repository_url="https://github.com/acme/repo.git",
+            target_branch="main",
+        )
+
+        assert request.inventory == REQUIRED_INVENTORY_MARKER
+        result = AAPConfigAsCodeGenerator(request).generate()
+        templates = (
+            result.module_directory / "controller_job_templates.yml"
+        ).read_text(encoding="utf-8")
+        assert "inventory: __X2A_REQUIRED_INVENTORY__" in templates
+
+    def test_selects_requested_module_when_project_has_multiple_playbooks(
+        self, tmp_path
+    ):
+        ansible_dir = tmp_path / "ansible"
+        ansible_dir.mkdir()
+        (ansible_dir / "run_nginx.yml").write_text("---\n", encoding="utf-8")
+        (ansible_dir / "run_postgres.yml").write_text("---\n", encoding="utf-8")
+
+        request = AAPConfigRequest.from_project(
+            tmp_path,
+            project_id="project-1",
+            module_name="postgres",
+            organization="Default",
+            target_repository_url="https://github.com/acme/repo.git",
+            target_branch="main",
+        )
+
+        result = AAPConfigAsCodeGenerator(request).generate()
+
+        assert result.module_name == "postgres"
+        assert result.job_template_name == "project-1_postgres"
 
 
 class TestSyncToAAP:

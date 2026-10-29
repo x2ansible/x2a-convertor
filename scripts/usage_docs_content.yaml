@@ -96,7 +96,9 @@ local:
       uv run app.py publish-aap \
         --target-repo https://github.com/companyName/my-migration-project.git \
         --target-branch main \
-        --project-id my-migration-project
+        --project-id my-migration-project \
+        --module-name nginx-multisite \
+        --inventory localhost
 # Docker/Podman specific configuration
 docker:
   title: "Docker Usage"
@@ -142,5 +144,5 @@ docker:
       cmd: 'migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the ''nginx-multisite'' module"'
       env_type: migrate
     publish_aap:
-      cmd: 'publish-aap --target-repo https://github.com/companyName/my-migration-project.git --target-branch main --project-id my-migration-project'
+      cmd: 'publish-aap --target-repo https://github.com/companyName/my-migration-project.git --target-branch main --project-id my-migration-project --module-name nginx-multisite --inventory localhost'
       env_type: publish_aap
