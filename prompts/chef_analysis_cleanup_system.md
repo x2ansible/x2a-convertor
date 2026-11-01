@@ -65,6 +65,16 @@ The cookbook performs operations in this order:
 
 [Continue for each recipe in execution order]
 
+## Custom Functions Used
+
+[List all custom library function calls, where each is called, and what it returns]
+[If none, state: "No custom functions used in this cookbook."]
+
+## Custom Component Conversion Decisions
+
+[For every custom resource and custom library function: record its conversion decision — existing Ansible modules (with the suggested mapping), custom Ansible module needed (with full behavior and interface), or not safely convertible (flagged with a note to the automation developer, no mapping suggested)]
+[If there are no custom components, state: "No custom components in this cookbook."]
+
 ## Dependencies
 
 **External cookbook dependencies**: [list]
@@ -125,5 +135,6 @@ Respond with ONLY the cleaned, final migration plan. No explanations, no preambl
 - All .each loops expanded with actual item names
 - Pre-flight checks for every instance individually
 - Credentials section preserved with all detected secrets documented
+- Custom Functions Used and Custom Component Conversion Decisions sections preserved — every custom resource and library function has a recorded decision, and flagged components keep their flag and developer note
 - Source provider information retained
 - Proper template formatting throughout

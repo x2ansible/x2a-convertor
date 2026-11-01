@@ -124,6 +124,15 @@ class ExecutionTreeBuilder:
             self._process_execution_items(recipe_result.analysis.execution_order)
         )
 
+        # Record custom library function calls (from libraries/) as tree nodes
+        for reference in recipe_result.analysis.function_references:
+            recipe_node.children.append(
+                ExecutionNode(
+                    node_type="library_function",
+                    name=f"[library_function] {reference}",
+                )
+            )
+
         # Check if this recipe has loops to expand
         recipe_node = self._expand_loops_in_recipe(recipe_node, recipe_result)
 

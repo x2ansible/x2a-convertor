@@ -328,6 +328,19 @@ The cookbook performs operations in this order:
 
 [Continue for each recipe in execution order]
 
+## Custom Functions Used
+
+[List all custom library function calls (helper methods from the cookbook's `libraries/` directory), where each is called, and what it returns. The execution tree marks them as `[library_function]` entries.]
+[If none, state: "No custom functions used in this cookbook."]
+
+## Custom Component Conversion Decisions
+
+[For EVERY custom resource and every custom library function, record its conversion decision:]
+[- **Existing Ansible modules**: state the suggested mapping (single module, combination, or command wrapping a CLI).]
+[- **Custom Ansible module needed**: state that a custom module is required and include its full behavior and interface — what it must do, parameters with types and defaults, idempotency, error handling, side effects.]
+[- **Not safely convertible**: flag it clearly with a note to the automation developer explaining what is missing. Do NOT suggest a mapping for it.]
+[If there are no custom components, state: "No custom components in this cookbook."]
+
 ## Dependencies:
 
 **External cookbook dependencies**: [from metadata.rb]

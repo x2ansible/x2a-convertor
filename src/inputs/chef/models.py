@@ -150,6 +150,10 @@ class RecipeExecutionAnalysis(BaseModel):
     execution_order: list[ExecutionItemUnion] = Field(
         default_factory=list, description="List of execution items in sequence order"
     )
+    function_references: list[str] = Field(
+        default_factory=list,
+        description="Custom library function calls in the recipe, from files in libraries/ (e.g., \"token = fetch_value('service_api_key')\")",
+    )
 
 
 class ProviderAnalysisOutput(BaseModel):

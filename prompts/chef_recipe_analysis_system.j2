@@ -16,6 +16,8 @@ OPERATION TYPES:
 5. conditional: if/unless/case blocks with nested execution_order
 6. data_bag: data_bag, data_bag_item, or Chef::EncryptedDataBagItem.load lookup
 
+NOTE: Calls to custom library functions (helper methods defined in the cookbook's `libraries/` directory) are NOT an operation type. Collect every such call in the top-level `function_references` field instead, as the full call expression.
+
 FEW-SHOT EXAMPLES:
 
 Example 1 - Simple recipe:
@@ -213,6 +215,30 @@ Expected JSON:
 }
 ```
 
+Example 5 - Custom library function call:
+```ruby
+token = fetch_value('service_api_key')
+file '/etc/app/token' do
+  content token
+end
+```
+
+Expected JSON:
+```json
+{
+  "execution_order": [
+    {
+      "seq": 1,
+      "type": "resource",
+      "resource_type": "file",
+      "name": "/etc/app/token",
+      "attributes": {}
+    }
+  ],
+  "function_references": ["token = fetch_value('service_api_key')"]
+}
+```
+
 CRITICAL REQUIREMENTS:
 - Sequence numbers start at 1 and increment
 - Preserve Ruby interpolations like "#{var}" as-is
@@ -227,4 +253,5 @@ CRITICAL REQUIREMENTS:
   - If attributes are unknown or dynamically computed, use empty object: "attributes": {}
   - If you see Ruby code like "attributes.each do |a, v|...", use empty object: "attributes": {}
   - Only include literal attribute values that you can extract from the code
+- **Custom library function calls** (helper methods defined in the cookbook's `libraries/` directory) must be collected in the top-level `function_references` list as full call expressions, never as execution items
 - Return ONLY valid JSON, no explanations{% endraw %}
