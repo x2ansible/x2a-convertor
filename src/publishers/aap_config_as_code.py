@@ -79,8 +79,11 @@ class AAPConfigAsCodeGenerator:
                 self.request.execution_environment_name
             )
 
-        project = {"controller_projects_x2a": [project_entry]}
-        job_template = {"controller_templates_x2a": [job_template_entry]}
+        module_name = self.request.normalized_module_name
+        project = {f"controller_projects_x2a_{module_name}": [project_entry]}
+        job_template = {
+            f"controller_templates_x2a_{module_name}": [job_template_entry]
+        }
         return [
             (self.module_directory / "controller_projects.yml", project),
             (self.module_directory / "controller_job_templates.yml", job_template),

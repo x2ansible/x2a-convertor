@@ -1,6 +1,7 @@
 """Generate AAP configuration and publish an Ansible project to AAP."""
 
 from src.config import get_settings
+from src.publishers.aap_client import infer_aap_project_name
 from src.publishers.aap_config_as_code import AAPConfigAsCodeGenerator
 from src.publishers.models import AAPConfigRequest, PublishResult
 from src.publishers.tools import sync_to_aap
@@ -32,12 +33,19 @@ def publish_aap(
         ValueError: If local generation inputs are invalid.
         RuntimeError: If AAP is not configured or synchronization fails.
     """
-    organization = get_settings().aap.org_name
+    settings = get_settings()
+    organization = settings.aap.org_name
     if not organization:
         raise RuntimeError("AAP_ORG_NAME is required for Config-as-Code generation")
+    project_name = (
+        settings.aap.project_name
+        or project_id
+        or infer_aap_project_name(target_repo)
+    )
     request = AAPConfigRequest.from_project(
         ".",
         project_id=project_id,
+        project_name=project_name,
         module_name=module_name,
         organization=organization,
         target_repository_url=target_repo,
@@ -55,6 +63,7 @@ def publish_aap(
         repository_url=target_repo,
         branch=target_branch,
         project_id=project_id,
+        project_name=project_name,
     )
     if not result.enabled:
         raise RuntimeError(

@@ -52,12 +52,12 @@ shared:
     init: "This will create a **migration-plan.md** with a lot of details."
     analyze: "This will make a blueprint of what the model understands about the migration of that cookbook. In this case, it will create a **migration-plan-nginx-multisite.md**"
     migrate: "This generates a complete Ansible project under `ansible/` using ansible-creator, with roles in `ansible/collections/ansible_collections/x2a/project/roles/`. Publish this project directly; no separate assembly step is needed. When AAP env vars are set, migrate also searches Private Automation Hub for reusable collections."
-    publish_aap: "Commit and push the complete generated `ansible/` project to your Git repository first, preserving its layout. This command creates or updates an AAP Project pointing to that repository and branch, then requests a project sync without waiting for completion. It does not copy local files, push Git commits, or configure Molecule, execution environments, inventories, or job templates."
+    publish_aap: "Run this command from the migrated project directory containing `ansible/`. It generates module-owned AAP Config-as-Code files under `ansible/aap-config/<module>/`, creates or updates the AAP Project, and requests a project sync without waiting for completion. The generated inventory marker is intentionally left for the Backstage publication flow to replace. This command does not push Git commits or apply the generated job template directly to AAP."
 
   notes_section: |
     ## Notes
 
-    The migrate step already creates the Ansible project. Commit and push that project, then optionally run **`publish-aap`** to register it with AAP and request a sync. Check the sync job's final status in AAP.
+    The migrate step creates the Ansible project. Run **`publish-aap`** from that migrated project directory, inside the target Git checkout. The command derives the playbook path relative to the Git root, generates the AAP configuration draft, registers the repository with AAP, and requests a sync. Check the sync job's final status in AAP.
 
     `--project-id` identifies the migration for AAP naming; it is not a local path or a repository subdirectory selector. `AAP_PROJECT_NAME`, when set, overrides the AAP project name.
 
@@ -97,8 +97,7 @@ local:
         --target-repo https://github.com/companyName/my-migration-project.git \
         --target-branch main \
         --project-id my-migration-project \
-        --module-name nginx-multisite \
-        --inventory localhost
+        --module-name nginx-multisite
 # Docker/Podman specific configuration
 docker:
   title: "Docker Usage"
@@ -144,5 +143,5 @@ docker:
       cmd: 'migrate --source-dir /app/source/ --source-technology Chef --high-level-migration-plan migration-plan.md --module-migration-plan migration-plan-nginx-multisite.md "Convert the ''nginx-multisite'' module"'
       env_type: migrate
     publish_aap:
-      cmd: 'publish-aap --target-repo https://github.com/companyName/my-migration-project.git --target-branch main --project-id my-migration-project --module-name nginx-multisite --inventory localhost'
+      cmd: 'publish-aap --target-repo https://github.com/companyName/my-migration-project.git --target-branch main --project-id my-migration-project --module-name nginx-multisite'
       env_type: publish_aap

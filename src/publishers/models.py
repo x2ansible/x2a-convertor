@@ -1,10 +1,13 @@
 """Validated inputs and results for AAP Config-as-Code generation."""
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.exporters.services.ansible_project_layout import AnsibleProjectLayout
+from src.publishers.tools import AAPSyncResult
 from src.types import AnsibleModule
 
 AAP_CONFIG_DIRECTORY = "aap-config"
@@ -21,7 +24,9 @@ class AAPConfigRequest(AAPRequestModel):
     """Generation settings and the target repository details."""
 
     project_dir: Path
+    repository_root: Path
     project_id: str = Field(min_length=1)
+    project_name: str = Field(min_length=1)
     module_name: str = Field(min_length=1)
     organization: str = Field(min_length=1)
     inventory: str = Field(default=REQUIRED_INVENTORY_MARKER, min_length=1)
@@ -37,6 +42,7 @@ class AAPConfigRequest(AAPRequestModel):
         project_root: str | Path,
         *,
         project_id: str,
+        project_name: str,
         module_name: str,
         organization: str,
         target_repository_url: str,
@@ -47,7 +53,8 @@ class AAPConfigRequest(AAPRequestModel):
         execution_environment_name: str | None = None,
     ) -> "AAPConfigRequest":
         """Build generation settings by inspecting one migrated project."""
-        project_dir = Path(project_root) / "ansible"
+        project_root = Path(project_root).resolve()
+        project_dir = project_root / "ansible"
         if not project_dir.is_dir():
             raise ValueError(f"Ansible project directory does not exist: {project_dir}")
         if inventory == REQUIRED_INVENTORY_MARKER:
@@ -56,7 +63,9 @@ class AAPConfigRequest(AAPRequestModel):
             )
         return cls(
             project_dir=project_dir,
+            repository_root=cls._find_repository_root(project_root),
             project_id=project_id,
+            project_name=project_name,
             module_name=module_name,
             organization=organization,
             inventory=inventory or REQUIRED_INVENTORY_MARKER,
@@ -66,6 +75,13 @@ class AAPConfigRequest(AAPRequestModel):
             job_credential_names=job_credential_names or [],
             execution_environment_name=execution_environment_name,
         )
+
+    @staticmethod
+    def _find_repository_root(project_root: Path) -> Path:
+        for path in (project_root, *project_root.parents):
+            if (path / ".git").exists():
+                return path
+        return project_root
 
     @field_validator("module_name")
     @classmethod
@@ -97,6 +113,14 @@ class AAPConfigRequest(AAPRequestModel):
             raise ValueError("job credentials must not contain duplicate names")
         return values
 
+    @field_validator("target_repository_url")
+    @classmethod
+    def validate_repository_url(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("repository URL must not contain credentials")
+        return value
+
     @property
     def normalized_module_name(self) -> str:
         return str(AnsibleModule(self.module_name))
@@ -106,22 +130,26 @@ class AAPConfigRequest(AAPRequestModel):
         return self.project_dir / AAP_CONFIG_DIRECTORY / self.normalized_module_name
 
     @property
-    def project_name(self) -> str:
-        return self.project_id
-
-    @property
     def job_template_name(self) -> str:
         return f"{self.project_id}_{self.normalized_module_name}"
 
     @property
     def playbook(self) -> str:
         """Return the playbook path relative to the target repository root."""
-        return f"{self.project_id}/ansible/run_{self.normalized_module_name}.yml"
+        return self.layout.run_playbook_path.resolve().relative_to(
+            self.repository_root.resolve()
+        ).as_posix()
 
     @property
     def local_playbook(self) -> str:
         """Return the playbook path relative to the local Ansible directory."""
-        return f"run_{self.normalized_module_name}.yml"
+        return self.layout.run_playbook_path.relative_to(self.project_dir).as_posix()
+
+    @property
+    def layout(self) -> AnsibleProjectLayout:
+        return AnsibleProjectLayout.from_module(
+            AnsibleModule(self.module_name), project_path=self.project_dir
+        )
 
 
 class AAPConfigFileResult(BaseModel):
@@ -146,4 +174,4 @@ class PublishResult(BaseModel):
     """Structured result containing both generation and AAP synchronization."""
 
     generation: AAPConfigGenerationResult
-    sync: Any
+    sync: AAPSyncResult

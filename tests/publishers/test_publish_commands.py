@@ -18,7 +18,7 @@ class TestPublishAAP:
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(
             "src.publishers.publish.get_settings",
-            lambda: Mock(aap=Mock(org_name="Default")),
+            lambda: Mock(aap=Mock(org_name="Default", project_name=None)),
         )
 
     @patch("src.publishers.publish.sync_to_aap")
@@ -46,6 +46,25 @@ class TestPublishAAP:
             )
 
     @patch("src.publishers.publish.sync_to_aap")
+    def test_generation_failure_does_not_sync(self, mock_sync, tmp_path, monkeypatch):
+        (tmp_path / "ansible").mkdir()
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            "src.publishers.publish.get_settings",
+            lambda: Mock(aap=Mock(org_name="Default", project_name=None)),
+        )
+
+        with pytest.raises(ValueError, match="playbook does not exist"):
+            publish_aap(
+                target_repo="https://github.com/org/repo.git",
+                target_branch="main",
+                project_id="proj-1",
+                module_name="module",
+            )
+
+        mock_sync.assert_not_called()
+
+    @patch("src.publishers.publish.sync_to_aap")
     def test_aap_success(self, mock_sync, tmp_path, monkeypatch):
         self.prepare_project(tmp_path, monkeypatch)
         mock_sync.return_value = AAPSyncResult.from_update(
@@ -63,6 +82,7 @@ class TestPublishAAP:
             repository_url="https://github.com/org/repo.git",
             branch="main",
             project_id="proj-1",
+            project_name="proj-1",
         )
 
 

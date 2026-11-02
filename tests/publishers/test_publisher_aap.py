@@ -5,6 +5,7 @@ from unittest.mock import call
 
 import pytest
 import requests
+import yaml
 
 from src.publishers.aap_client import (
     AAPClient,
@@ -19,13 +20,16 @@ from src.publishers.tools import AAPSyncResult, sync_to_aap
 
 class TestAAPConfigGeneration:
     def test_validates_playbook_relative_to_ansible_directory(self, tmp_path):
-        ansible_dir = tmp_path / "ansible"
-        ansible_dir.mkdir()
+        (tmp_path / ".git").mkdir()
+        project_root = tmp_path / "project-1"
+        ansible_dir = project_root / "ansible"
+        ansible_dir.mkdir(parents=True)
         (ansible_dir / "run_web_server.yml").write_text("---\n", encoding="utf-8")
 
         request = AAPConfigRequest.from_project(
-            tmp_path,
+            project_root,
             project_id="project-1",
+            project_name="project-1",
             module_name="web_server",
             organization="Default",
             target_repository_url="https://github.com/acme/repo.git",
@@ -39,16 +43,23 @@ class TestAAPConfigGeneration:
         assert request.job_template_name == "project-1_web_server"
         result = AAPConfigAsCodeGenerator(request).generate()
         assert result.module_directory == ansible_dir / "aap-config" / "web_server"
-        projects = (result.module_directory / "controller_projects.yml").read_text(
-            encoding="utf-8"
+        projects = yaml.safe_load(
+            (result.module_directory / "controller_projects.yml").read_text(
+                encoding="utf-8"
+            )
         )
-        templates = (
-            result.module_directory / "controller_job_templates.yml"
-        ).read_text(encoding="utf-8")
-        assert "controller_projects_x2a:" in projects
-        assert "update_project: true" in projects
-        assert "inventory: localhost" in templates
-        assert "credentials:" not in templates
+        templates = yaml.safe_load(
+            (result.module_directory / "controller_job_templates.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        project = projects["controller_projects_x2a_web_server"][0]
+        template = templates["controller_templates_x2a_web_server"][0]
+        assert project["scm_url"] == "https://github.com/acme/repo.git"
+        assert project["scm_branch"] == "main"
+        assert template["playbook"] == "project-1/ansible/run_web_server.yml"
+        assert template["inventory"] == "localhost"
+        assert "credentials" not in template
 
     def test_draft_can_be_generated_without_aap_config_inputs(self, tmp_path):
         ansible_dir = tmp_path / "ansible"
@@ -58,6 +69,7 @@ class TestAAPConfigGeneration:
         request = AAPConfigRequest.from_project(
             tmp_path,
             project_id="project-1",
+            project_name="project-1",
             module_name="web_server",
             organization="Default",
             target_repository_url="https://github.com/acme/repo.git",
@@ -66,10 +78,17 @@ class TestAAPConfigGeneration:
 
         assert request.inventory == REQUIRED_INVENTORY_MARKER
         result = AAPConfigAsCodeGenerator(request).generate()
-        templates = (
-            result.module_directory / "controller_job_templates.yml"
-        ).read_text(encoding="utf-8")
-        assert "inventory: __X2A_REQUIRED_INVENTORY__" in templates
+        templates = yaml.safe_load(
+            (result.module_directory / "controller_job_templates.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        template = templates["controller_templates_x2a_web_server"][0]
+        assert template["inventory"] == REQUIRED_INVENTORY_MARKER
+
+        second_result = AAPConfigAsCodeGenerator(request).generate()
+        assert second_result.changed is False
+        assert {item.status for item in second_result.files} == {"unchanged"}
 
     def test_selects_requested_module_when_project_has_multiple_playbooks(
         self, tmp_path
@@ -82,6 +101,7 @@ class TestAAPConfigGeneration:
         request = AAPConfigRequest.from_project(
             tmp_path,
             project_id="project-1",
+            project_name="project-1",
             module_name="postgres",
             organization="Default",
             target_repository_url="https://github.com/acme/repo.git",
@@ -92,6 +112,72 @@ class TestAAPConfigGeneration:
 
         assert result.module_name == "postgres"
         assert result.job_template_name == "project-1_postgres"
+
+    def test_missing_playbook_fails_generation(self, tmp_path):
+        (tmp_path / "ansible").mkdir()
+        request = AAPConfigRequest.from_project(
+            tmp_path,
+            project_id="project-1",
+            project_name="project-1",
+            module_name="web_server",
+            organization="Default",
+            target_repository_url="https://github.com/acme/repo.git",
+            target_branch="main",
+        )
+
+        with pytest.raises(ValueError, match="playbook does not exist"):
+            AAPConfigAsCodeGenerator(request).generate()
+
+    def test_rejects_module_name_with_parent_traversal(self, tmp_path):
+        (tmp_path / "ansible").mkdir()
+
+        with pytest.raises(ValueError, match="module name must not contain"):
+            AAPConfigRequest.from_project(
+                tmp_path,
+                project_id="project-1",
+                project_name="project-1",
+                module_name="../web_server",
+                organization="Default",
+                target_repository_url="https://github.com/acme/repo.git",
+                target_branch="main",
+            )
+
+    def test_rejects_duplicate_job_credentials(self, tmp_path):
+        (tmp_path / "ansible").mkdir()
+
+        with pytest.raises(ValueError, match="duplicate names"):
+            AAPConfigRequest.from_project(
+                tmp_path,
+                project_id="project-1",
+                project_name="project-1",
+                module_name="web_server",
+                organization="Default",
+                target_repository_url="https://github.com/acme/repo.git",
+                target_branch="main",
+                job_credential_names=["Machine", "Machine"],
+            )
+
+    @pytest.mark.parametrize(
+        "repository_url",
+        [
+            "https://user@github.com/acme/repo.git",
+            "https://user:secret@github.com/acme/repo.git",
+        ],
+    )
+    def test_rejects_repository_url_credentials(self, tmp_path, repository_url):
+        ansible_dir = tmp_path / "ansible"
+        ansible_dir.mkdir()
+
+        with pytest.raises(ValueError, match="must not contain credentials"):
+            AAPConfigRequest.from_project(
+                tmp_path,
+                project_id="project-1",
+                project_name="project-1",
+                module_name="web_server",
+                organization="Default",
+                target_repository_url=repository_url,
+                target_branch="main",
+            )
 
 
 class TestSyncToAAP:
