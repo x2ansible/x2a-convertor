@@ -38,9 +38,7 @@ def publish_aap(
     if not organization:
         raise RuntimeError("AAP_ORG_NAME is required for Config-as-Code generation")
     project_name = (
-        settings.aap.project_name
-        or project_id
-        or infer_aap_project_name(target_repo)
+        settings.aap.project_name or project_id or infer_aap_project_name(target_repo)
     )
     request = AAPConfigRequest.from_project(
         ".",

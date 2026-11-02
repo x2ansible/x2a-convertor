@@ -136,9 +136,11 @@ class AAPConfigRequest(AAPRequestModel):
     @property
     def playbook(self) -> str:
         """Return the playbook path relative to the target repository root."""
-        return self.layout.run_playbook_path.resolve().relative_to(
-            self.repository_root.resolve()
-        ).as_posix()
+        return (
+            self.layout.run_playbook_path.resolve()
+            .relative_to(self.repository_root.resolve())
+            .as_posix()
+        )
 
     @property
     def local_playbook(self) -> str:

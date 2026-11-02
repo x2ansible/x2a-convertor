@@ -108,8 +108,6 @@ def sync_to_aap(
             return AAPSyncResult.from_error("AAP API did not return a project id")
 
         update = client.start_project_update(project_id=aap_project_id)
-        return AAPSyncResult.from_update(
-            resolved_project_name, aap_project_id, update
-        )
+        return AAPSyncResult.from_update(resolved_project_name, aap_project_id, update)
     except (requests.exceptions.RequestException, RuntimeError, ValueError) as e:
         return AAPSyncResult.from_error(str(e))

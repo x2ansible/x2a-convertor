@@ -81,9 +81,7 @@ class AAPConfigAsCodeGenerator:
 
         module_name = self.request.normalized_module_name
         project = {f"controller_projects_x2a_{module_name}": [project_entry]}
-        job_template = {
-            f"controller_templates_x2a_{module_name}": [job_template_entry]
-        }
+        job_template = {f"controller_templates_x2a_{module_name}": [job_template_entry]}
         return [
             (self.module_directory / "controller_projects.yml", project),
             (self.module_directory / "controller_job_templates.yml", job_template),
