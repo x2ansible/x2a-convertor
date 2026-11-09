@@ -8,6 +8,7 @@ Look for credentials from these providers:
 - **HashiCorp Vault**: `vault` lookups, Vault tokens, AppRole credentials
 - **Chef Vault**: `chef_vault_item`, encrypted data bags with secrets
 - **Encrypted Data Bags**: Chef encrypted data bag items containing secrets
+- Plain Chef data bags that contain only non-sensitive configuration are NOT credentials
 - **AWS Secrets Manager**: AWS secret references
 - **Azure Key Vault**: Azure key vault references
 - **Custom secret stores**: Any other third-party secret management

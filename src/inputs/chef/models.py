@@ -105,6 +105,27 @@ class IncludeRecipeExecution(ExecutionItem):
         return f"include_recipe {self.recipe_name}"
 
 
+class DataBagExecution(ExecutionItem):
+    """Chef data bag lookup.
+
+    Represents both listing a bag with data_bag(...) and loading an item with
+    data_bag_item(...) or Chef::EncryptedDataBagItem.load(...).
+    """
+
+    type: Literal["data_bag"] = "data_bag"
+    data_bag: str
+    item_id: str | None = None
+    encrypted: bool = False
+
+    def format_label(self) -> str:
+        label = f"[data_bag] {self.data_bag}"
+        if self.item_id:
+            label = f"{label}/{self.item_id}"
+        if self.encrypted:
+            return f"{label} (encrypted)"
+        return label
+
+
 # Discriminated union of all execution item types
 # Uses the 'type' field to determine which model to instantiate
 ExecutionItemUnion = Annotated[
@@ -112,7 +133,8 @@ ExecutionItemUnion = Annotated[
     | Annotated[ResourceExecution, Tag("resource")]
     | Annotated[ConditionalExecution, Tag("conditional")]
     | Annotated[CustomResourceExecution, Tag("custom_resource")]
-    | Annotated[IncludeRecipeExecution, Tag("include_recipe")],
+    | Annotated[IncludeRecipeExecution, Tag("include_recipe")]
+    | Annotated[DataBagExecution, Tag("data_bag")],
     Discriminator("type"),
 ]
 
@@ -235,6 +257,17 @@ class AttributesAnalysisResult(AnalyzedFile):
         return []
 
 
+class DataBagItemAnalysis(BaseModel):
+    """A Chef data bag item loaded from a JSON file."""
+
+    data_bag: str
+    item_id: str
+    file_path: str
+    encrypted: bool = False
+    keys: list[str] = Field(default_factory=list)
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
 class StructuredAnalysis(BaseModel):
     """Aggregate of all structured analysis results from Chef cookbook.
 
@@ -245,6 +278,7 @@ class StructuredAnalysis(BaseModel):
     recipes: list[RecipeAnalysisResult] = Field(default_factory=list)
     providers: list[ProviderAnalysisResult] = Field(default_factory=list)
     attributes: list[AttributesAnalysisResult] = Field(default_factory=list)
+    data_bags: list[DataBagItemAnalysis] = Field(default_factory=list)
     attribute_collections: dict[str, list[str]] = Field(
         default_factory=dict,
         description="Map of collection attribute names to their item keys (for iteration expansion)",
@@ -252,7 +286,12 @@ class StructuredAnalysis(BaseModel):
 
     def get_total_files_analyzed(self) -> int:
         """Get total number of files analyzed."""
-        return len(self.recipes) + len(self.providers) + len(self.attributes)
+        return (
+            len(self.recipes)
+            + len(self.providers)
+            + len(self.attributes)
+            + len(self.data_bags)
+        )
 
     @property
     def analyzed_file_paths(self) -> list[str]:
@@ -266,6 +305,7 @@ class StructuredAnalysis(BaseModel):
         files.extend(r.file_path for r in self.recipes)
         files.extend(p.file_path for p in self.providers)
         files.extend(a.file_path for a in self.attributes)
+        files.extend(d.file_path for d in self.data_bags)
 
         # Add referenced files from each analysis result
         files.extend(f for r in self.recipes for f in r.referenced_files())

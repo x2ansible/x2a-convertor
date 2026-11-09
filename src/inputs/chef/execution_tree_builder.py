@@ -4,6 +4,7 @@ This module builds a visual tree showing the complete recipe execution flow
 with loops expanded and attribute values inline.
 """
 
+import re
 from pathlib import Path
 
 from src.utils.logging import get_logger
@@ -11,6 +12,7 @@ from src.utils.logging import get_logger
 from .models import (
     ConditionalExecution,
     CustomResourceExecution,
+    DataBagExecution,
     ExecutionItemUnion,
     ExecutionNode,
     IncludeRecipeExecution,
@@ -174,6 +176,15 @@ class ExecutionTreeBuilder:
                     )
                 )
 
+            elif isinstance(item, DataBagExecution):
+                nodes.append(
+                    ExecutionNode(
+                        node_type="data_bag",
+                        name=item.format_label(),
+                        execution_item=item,
+                    )
+                )
+
             elif isinstance(item, ConditionalExecution):
                 # Conditional block - pass execution_item for typed formatting
                 conditional_node = ExecutionNode(
@@ -196,9 +207,9 @@ class ExecutionTreeBuilder:
         self, recipe_node: ExecutionNode, recipe_result: RecipeAnalysisResult
     ) -> ExecutionNode:
         """Detect and expand loops in the recipe using attribute collections."""
-        # If no attribute collections, no loops to expand
-        if not self.analysis.attribute_collections:
-            logger.debug(f"No attribute collections to expand in {recipe_node.name}")
+        # If no collections are available, there is nothing to expand
+        if not self.analysis.attribute_collections and not self.analysis.data_bags:
+            logger.debug(f"No collections to expand in {recipe_node.name}")
             return recipe_node
 
         logger.debug(
@@ -216,7 +227,9 @@ class ExecutionTreeBuilder:
             ):
                 logger.info(f"Found .each loop in {recipe_node.name}: {child.name}")
                 # This looks like a loop - try to expand it
-                expanded = self._try_expand_loop(child)
+                expanded = self._try_expand_data_bag_loop(child)
+                if expanded is None:
+                    expanded = self._try_expand_loop(child)
                 new_children.append(expanded)
             else:
                 new_children.append(child)
@@ -275,6 +288,44 @@ class ExecutionTreeBuilder:
         # No matching collection found, return as-is
         logger.warning(f"No matching collection found for condition: {condition}")
         return conditional_node
+
+    def _try_expand_data_bag_loop(
+        self, conditional_node: ExecutionNode
+    ) -> ExecutionNode | None:
+        """Expand a .each loop over data_bag(...) into explicit bag items."""
+        condition = conditional_node.name or ""
+        match = re.search(r"data_bag\(\s*['\"]([^'\"]+)['\"]\s*\)", condition)
+        if not match:
+            return None
+
+        data_bag_name = match.group(1)
+        items = [
+            item for item in self.analysis.data_bags if item.data_bag == data_bag_name
+        ]
+        if not items:
+            logger.warning(f"No items found for data bag '{data_bag_name}'")
+            return None
+
+        loop_node = ExecutionNode(
+            node_type="loop",
+            name=f"data_bag('{data_bag_name}')",
+            details=f"{len(items)} items",
+        )
+
+        for item in items:
+            loop_node.children.append(
+                ExecutionNode(
+                    node_type="loop_item",
+                    name=item.item_id,
+                    attributes=item.data,
+                    children=conditional_node.children,
+                )
+            )
+
+        logger.info(
+            f"Expanded data bag '{data_bag_name}' into {len(loop_node.children)} items"
+        )
+        return loop_node
 
     def _get_collection_attributes(self, collection_path: str) -> dict:
         """Get attribute values for a collection path like 'nginx.sites'."""

@@ -14,6 +14,7 @@ OPERATION TYPES:
 3. resource: Standard Chef resource (directory, package, service, etc.)
 4. custom_resource: LWRP/custom resource invocation
 5. conditional: if/unless/case blocks with nested execution_order
+6. data_bag: data_bag, data_bag_item, or Chef::EncryptedDataBagItem.load lookup
 
 FEW-SHOT EXAMPLES:
 
@@ -132,6 +133,52 @@ node['nginx']['sites'].each do |site_name, config|
 end
 ```
 
+Example 5 - Data bag lookup and iteration:
+```ruby
+data_bag('applications').each do |item_name|
+  item = data_bag_item('applications', item_name)
+  template "/etc/applications/#{item['id']}" do
+    source 'site.conf.erb'
+  end
+end
+```
+
+Expected JSON:
+```json
+{
+  "execution_order": [
+    {
+      "seq": 1,
+      "type": "conditional",
+      "condition": "data_bag('applications').each do |item_name|",
+      "execution_order": [
+        {
+          "seq": 1,
+          "type": "data_bag",
+          "data_bag": "applications",
+          "item_id": null,
+          "encrypted": false
+        },
+        {
+          "seq": 2,
+          "type": "data_bag",
+          "data_bag": "applications",
+          "item_id": "item_name",
+          "encrypted": false
+        },
+        {
+          "seq": 3,
+          "type": "resource",
+          "resource_type": "template",
+          "name": "/etc/applications/#{item['id']}",
+          "attributes": {"source": "site.conf.erb"}
+        }
+      ]
+    }
+  ]
+}
+```
+
 Expected JSON:
 ```json
 {
@@ -171,6 +218,10 @@ CRITICAL REQUIREMENTS:
 - Preserve Ruby interpolations like "#{var}" as-is
 - Conditionals have their own nested execution_order (if/unless/case blocks)
 - **.each loops MUST be treated as "conditional" type** with the full loop declaration as the condition
+- **Data bag calls MUST use the "data_bag" type**
+  - Set `encrypted=true` for `Chef::EncryptedDataBagItem.load(...)` or another explicitly encrypted data bag lookup
+  - `data_bag_item(...)` can load either plain or encrypted items; do not treat that call alone as proof that the item is plain
+  - If encryption is not explicit in the recipe, set `encrypted=false`; collected data bag metadata remains the authoritative encryption check
 - Each operation must have a "type" field
 - **IMPORTANT**: The "attributes" field MUST be a JSON object (dict), never a string
   - If attributes are unknown or dynamically computed, use empty object: "attributes": {}

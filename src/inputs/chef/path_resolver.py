@@ -10,11 +10,29 @@ from .value_objects import CookbookName, RecipeName, ResourceTypeName
 
 
 class ChefPathResolver:
-    """Resolves Chef recipe, provider, and attributes file paths.
+    """Resolves Chef recipe, provider, attributes, and data bag paths.
 
     Stateless service that searches through dependency directories to find
     Chef files based on domain names.
     """
+
+    @staticmethod
+    def resolve_data_bag_root(source_path: str) -> Path | None:
+        """Resolve the Chef repository root containing data bags."""
+        path = Path(source_path)
+        if (path / "data_bags").is_dir():
+            return path
+        has_metadata = any(
+            (path / metadata_file).is_file()
+            for metadata_file in ("metadata.rb", "metadata.json")
+        )
+        if not has_metadata:
+            return None
+
+        return next(
+            (parent for parent in path.parents if (parent / "data_bags").is_dir()),
+            None,
+        )
 
     @staticmethod
     def resolve_recipe_path(

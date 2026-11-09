@@ -5,6 +5,7 @@ It composes BaseAgent subclasses as graph nodes following the pattern from
 src/exporters/chef_to_ansible.py.
 """
 
+import json
 from pathlib import Path
 from typing import Literal
 
@@ -23,6 +24,7 @@ from .dependency_fetcher import ChefDependencyManager
 from .execution_tree_builder import ExecutionTreeBuilder
 from .models import (
     AttributesAnalysisResult,
+    DataBagItemAnalysis,
     ProviderAnalysisResult,
     RecipeAnalysisResult,
     StructuredAnalysis,
@@ -275,6 +277,10 @@ class ChefSubagent:
             telemetry=state.telemetry,
         )
         attribute_collections = self._build_attribute_collections(attributes, slog)
+        data_bag_root = self._path_resolver.resolve_data_bag_root(state.path)
+        data_bags = self._collect_data_bags(
+            [data_bag_root] if data_bag_root else [], slog
+        )
         slog.info(f"Built iteration map with {len(attribute_collections)} collections")
 
         # STEP 2: Analyze recipes and providers
@@ -303,15 +309,15 @@ class ChefSubagent:
             providers=providers,
             attributes=attributes,
             attribute_collections=attribute_collections,
+            data_bags=data_bags,
         )
 
         slog.info(
             f"Analyzed {len(recipes)} recipes, {len(providers)} providers, "
-            f"{len(attributes)} attributes files with "
+            f"{len(attributes)} attributes files, {len(data_bags)} data bag items with "
             f"{len(attribute_collections)} iterable collections"
         )
 
-        # Precompute execution tree summary for downstream agents
         execution_tree_summary = self._build_execution_tree_summary(
             structured_analysis, state.path, state.dependency_paths
         )
@@ -319,6 +325,54 @@ class ChefSubagent:
         return state.update(
             structured_analysis=structured_analysis,
             execution_tree_summary=execution_tree_summary,
+        )
+
+    @staticmethod
+    def _collect_data_bags(paths: list[Path], slog) -> list[DataBagItemAnalysis]:
+        """Load Chef data bag items from JSON files.
+
+        Encrypted item contents are intentionally reduced to their key names;
+        decrypted values must not enter the migration specification.
+        """
+        data_bags: list[DataBagItemAnalysis] = []
+        seen_paths: set[Path] = set()
+
+        for root in paths:
+            if not root.is_dir():
+                continue
+
+            for file_path in root.glob("**/data_bags/**/*.json"):
+                resolved_path = file_path.resolve()
+                if resolved_path in seen_paths:
+                    continue
+                seen_paths.add(resolved_path)
+
+                try:
+                    parsed = json.loads(file_path.read_text())
+                    if not isinstance(parsed, dict):
+                        raise TypeError("data bag item must be a JSON object")
+                except (OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+                    slog.warning(f"Failed to load data bag item {file_path}: {error}")
+                    continue
+
+                encrypted = any(
+                    isinstance(value, dict) and "encrypted_data" in value
+                    for value in parsed.values()
+                )
+                data_bags.append(
+                    DataBagItemAnalysis(
+                        data_bag=file_path.parent.name,
+                        item_id=str(parsed.get("id") or file_path.stem),
+                        file_path=str(file_path),
+                        encrypted=encrypted,
+                        keys=list(parsed),
+                        data={} if encrypted else parsed,
+                    )
+                )
+
+        return sorted(
+            data_bags,
+            key=lambda item: (item.data_bag, item.item_id, item.file_path),
         )
 
     def _build_execution_tree_summary(
@@ -362,6 +416,20 @@ class ChefSubagent:
             for collection_name, items in analysis.attribute_collections.items():
                 lines.append(f"  {collection_name}: {len(items)} items")
                 lines.append(f"    → {', '.join(items)}")
+            lines.extend(["", "=" * 80, ""])
+
+        if analysis.data_bags:
+            lines.extend(["DATA BAGS DETECTED:", ""])
+            for data_bag in analysis.data_bags:
+                encryption = " (encrypted)" if data_bag.encrypted else ""
+                details = (
+                    ", ".join(data_bag.keys)
+                    if data_bag.encrypted
+                    else json.dumps(data_bag.data, sort_keys=True)
+                )
+                lines.append(
+                    f"  {data_bag.data_bag}/{data_bag.item_id}{encryption}: {details}"
+                )
             lines.extend(["", "=" * 80, ""])
 
         return "\n".join(lines)
