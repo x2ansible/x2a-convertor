@@ -135,7 +135,7 @@ Variables defined at multiple Hiera levels:
 
 ## Custom Component Conversion Decisions
 
-[For every custom type, provider, fact, and function: record its conversion decision — existing Ansible modules (with the suggested mapping), custom Ansible module needed (with full behavior and interface), or not safely convertible (flagged with a note to the automation developer, no mapping suggested)]
+[For every custom type, provider, fact, and function: record its conversion decision — existing Ansible modules (with the suggested mapping) or not safely convertible (flagged with a note to the automation developer, no mapping suggested)]
 [If there are no custom components, state: "No custom components in this module."]
 
 ## Template Conversion Notes

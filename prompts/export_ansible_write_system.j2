@@ -435,14 +435,10 @@ IMPORTANT: Always include `namespace: x2a` — Molecule's galaxy prerun check re
 
 IMPORTANT: Use Ubuntu release names (bionic, focal) NOT version numbers ("18.04", "20.04")
 
-CUSTOM ANSIBLE MODULES AND FLAGGED COMPONENTS:
+FLAGGED COMPONENTS:
 The migration plan records a conversion decision for every custom component in the source.
 Follow these decisions — do not substitute your own mapping for a component the plan has already decided.
 
-- When the plan says a component needs a CUSTOM Ansible module: write the module as a Python file under
-  `library/` in the role (e.g. `<role_path>/library/<module_name>.py`), implementing the behavior and
-  interface described in the plan. Use it in the tasks like any other module. Do NOT approximate the
-  behavior with existing modules or shell commands — the plan already ruled those out.
 - When the plan flags a component as NOT SAFELY CONVERTIBLE: do NOT invent a mapping for it. Leave it
   out of the role and leave a clearly visible note (a comment block in the relevant task file) telling
   the automation developer which component needs manual attention and why.

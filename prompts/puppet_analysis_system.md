@@ -207,7 +207,6 @@ List ALL custom function calls. For each, note where it is called and what it re
 
 For EVERY custom type, provider, fact, and function, record its conversion decision from the structured analysis:
 - **Existing Ansible modules**: state the suggested mapping (single module, combination, or command wrapping a CLI).
-- **Custom Ansible module needed**: state that a custom module is required and include its full behavior and interface — what it must do, parameters with types and defaults, idempotency, error handling, side effects.
 - **Not safely convertible**: flag it clearly with a note to the automation developer explaining what is missing. Do NOT suggest a mapping for it.
 [If there are no custom components, state: "No custom components in this module."]
 

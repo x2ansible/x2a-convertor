@@ -54,11 +54,9 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
 7. **Detect, describe, and decide the conversion for custom resources and libraries:**
    - Detect custom Chef resources and libraries in the cookbook, including where each one is used in the recipes
    - For EACH one detected, add any available documentation and knowledge about it to the output
-   - For EACH one detected, decide and record ONE of three conversion outcomes:
+   - For EACH one detected, decide and record ONE of two conversion outcomes:
      a. **Existing Ansible modules** — a single module, a combination of modules, or command tasks wrapping an existing CLI reproduces the behavior. Record the suggested mapping.
-     b. **Custom Ansible module needed** — the custom code is used and no combination of existing Ansible modules or commands can reproduce its behavior. Record the module's full behavior and interface: what it must do, its parameters with types and defaults, idempotency, error handling, and side effects.
-     c. **Not safely convertible** — its behavior depends on things not visible in the source (for example an internal library without source code, or a proprietary CLI with undocumented semantics). Flag it with a note to the automation developer explaining what is missing. Do not suggest a mapping for it.
-   - Choose outcome (b) only when outcome (a) is not possible — a custom module is the exception, not the default
+     b. **Not safely convertible** — its behavior depends on things not visible in the source (for example an internal library without source code, or a proprietary CLI with undocumented semantics). Flag it with a note to the automation developer explaining what is missing. Do not suggest a mapping for it.
    - Do not drop anything from the input files
 
 **USING STRUCTURED ANALYSIS DATA:**
@@ -337,7 +335,6 @@ The cookbook performs operations in this order:
 
 [For EVERY custom resource and every custom library function, record its conversion decision:]
 [- **Existing Ansible modules**: state the suggested mapping (single module, combination, or command wrapping a CLI).]
-[- **Custom Ansible module needed**: state that a custom module is required and include its full behavior and interface — what it must do, parameters with types and defaults, idempotency, error handling, side effects.]
 [- **Not safely convertible**: flag it clearly with a note to the automation developer explaining what is missing. Do NOT suggest a mapping for it.]
 [If there are no custom components, state: "No custom components in this cookbook."]
 

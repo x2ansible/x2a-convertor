@@ -423,8 +423,8 @@ class PuppetTemplateAnalysis(BaseModel):
 class CustomTypeAnalysis(BaseModel):
     """Analysis of a Puppet custom type, provider, fact, or function.
 
-    Captures the component's interface and suggests the corresponding
-    Ansible mechanism (built-in module, custom module, or plugin).
+    Captures the component's interface and the decision on how to convert
+    it (existing Ansible modules or flagged as not convertible).
     """
 
     component_type: str = Field(
@@ -438,21 +438,13 @@ class CustomTypeAnalysis(BaseModel):
         description="Parameter definitions with keys 'name', 'type', and optionally 'default' and 'description'",
     )
     conversion_outcome: Literal[
-        "existing_modules", "custom_module", "not_convertible"
+        "existing_modules", "not_convertible"
     ] = Field(
         default="existing_modules",
         description=(
             "Conversion decision for this component: "
             "'existing_modules' when existing Ansible modules (single, combined, or command-wrapping a CLI) reproduce the behavior; "
-            "'custom_module' when the component is used and no combination of existing modules or commands can reproduce it; "
             "'not_convertible' when the behavior depends on things not visible in the source"
-        ),
-    )
-    behavior_description: str | None = Field(
-        default=None,
-        description=(
-            "Required when conversion_outcome is 'custom_module': full behavior of the Ansible module to generate — "
-            "what it must do, idempotency, error handling, side effects"
         ),
     )
     flag_reason: str | None = Field(
@@ -469,11 +461,6 @@ class CustomTypeAnalysis(BaseModel):
 
     def format_conversion_decision(self) -> str:
         """Render the conversion decision for inclusion in the migration plan."""
-        if self.conversion_outcome == "custom_module":
-            lines = ["  Conversion: CUSTOM ANSIBLE MODULE NEEDED"]
-            if self.behavior_description:
-                lines.append(f"  Module behavior: {self.behavior_description}")
-            return "\n".join(lines)
         if self.conversion_outcome == "not_convertible":
             lines = [
                 "  Conversion: NOT SAFELY CONVERTIBLE — flagged for developer review"
