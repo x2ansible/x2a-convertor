@@ -37,6 +37,8 @@ Templates:
 Attributes → Variables:
 - List all Chef attributes files that need conversion to Ansible variables
 - Format: attributes/default.rb → defaults/main.yml
+- List plain Chef data bag items that need conversion to role variables
+- Format: data_bags/<bag>/<item>.json → vars/main.yml
 
 Static Files:
 - List all static files that need to be copied from files/ directory

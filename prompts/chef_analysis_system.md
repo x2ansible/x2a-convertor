@@ -39,7 +39,8 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
    - Check for static files being deployed
 
 6. **Detect credentials and secrets:**
-   - Look for `data_bag_item` and `encrypted_data_bag_item` calls in recipes
+   - Look for data bag lookups, including `data_bag_item(...)` and `Chef::EncryptedDataBagItem.load(...)`
+   - Treat the collected data bag metadata, not call syntax alone, as the authority for whether an item is encrypted
    - Check for Chef Vault usage: `chef_vault_item`, `ChefVault::Item`
    - Check for CyberArk integration: `conjur_variable`, `cyberark` data bags, Conjur cookbook usage
    - Identify vault attribute patterns: `node['vault']`, `node['secrets']`
@@ -48,7 +49,7 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
    - Check for SSL/TLS certificate references: paths to .pem, .key, .crt files
    - Identify database connection strings with embedded credentials
    - Note `secrets` or `credentials` related attribute namespaces
-   - For EACH detected credential, record: variable name, source file, and how it is used (data bag, vault, hardcoded, environment variable)
+   - For EACH detected credential, record: variable name, source file, and how it is used (encrypted data bag, vault, hardcoded, environment variable)
 
 **USING STRUCTURED ANALYSIS DATA:**
 
@@ -56,6 +57,7 @@ You will receive detailed structured analysis showing:
 - **Recipe execution items**: Resources, custom_resources, templates, include_recipe calls
 - **Provider analysis**: Templates rendered (unconditional and conditional branches)
 - **Attribute values**: Actual default attribute values and platform-specific notes
+- **Data bags**: Item IDs and values for plain data bags; key names only for encrypted data bags
 
 **File Structure Requirements (USE STRUCTURED ANALYSIS):**
 - List ONLY files that are actually used/executed/referenced
@@ -70,7 +72,7 @@ You will receive detailed structured analysis showing:
   - Development files: .editorconfig, .gitignore, .rubocop.yml
   - Test files: test/, spec/, kitchen.yml
   - Metadata: chefignore, Dangerfile, renovate.json
-- Structure: Group by type (recipes, providers, templates, attributes)
+- Structure: Group by type (recipes, providers, templates, attributes, data_bags)
 
 **Module Explanation Requirements (USE STRUCTURED ANALYSIS):**
 - For each recipe, include resources from execution order:
@@ -78,6 +80,7 @@ You will receive detailed structured analysis showing:
   - Custom resources: Show provider path and templates
   - Templates: Show source → destination path
   - Include_recipe: List included recipes
+  - Data bags: List the data bag and item ID; preserve plain values as configuration data
 - For custom resources, reference provider details:
   - Example: "Uses custom_resource_name['instance_name'] (custom resource)"
   - Example: "  → Provider: migration-dependencies/.../providers/resource_provider.rb"
