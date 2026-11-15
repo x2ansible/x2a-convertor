@@ -437,9 +437,7 @@ class CustomTypeAnalysis(BaseModel):
         default_factory=list,
         description="Parameter definitions with keys 'name', 'type', and optionally 'default' and 'description'",
     )
-    conversion_outcome: Literal[
-        "existing_modules", "not_convertible"
-    ] = Field(
+    conversion_outcome: Literal["existing_modules", "not_convertible"] = Field(
         default="existing_modules",
         description=(
             "Conversion decision for this component: "
