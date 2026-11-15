@@ -152,7 +152,7 @@ class RecipeExecutionAnalysis(BaseModel):
     )
     function_references: list[str] = Field(
         default_factory=list,
-        description="Custom library function calls in the recipe, from files in libraries/ (e.g., \"token = fetch_value('service_api_key')\")",
+        description="Custom library function calls in the recipe, from files in libraries/ (e.g., \"parsed_token = fetch_and_parse_token('https://api.example.com/token_endpoint')\")",
     )
 
 

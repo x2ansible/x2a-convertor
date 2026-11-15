@@ -217,7 +217,7 @@ Expected JSON:
 
 Example 5 - Custom library function call:
 ```ruby
-token = fetch_value('service_api_key')
+parsed_token = fetch_and_parse_token('https://api.example.com/token_endpoint')
 file '/etc/app/token' do
   content token
 end
@@ -235,7 +235,7 @@ Expected JSON:
       "attributes": {}
     }
   ],
-  "function_references": ["token = fetch_value('service_api_key')"]
+  "function_references": ["parsed_token = fetch_and_parse_token('https://api.example.com/token_endpoint')"]
 }
 ```
 

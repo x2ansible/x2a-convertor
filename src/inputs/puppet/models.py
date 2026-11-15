@@ -273,11 +273,11 @@ class ManifestExecutionAnalysis(BaseModel):
     )
     type_references: list[str] = Field(
         default_factory=list,
-        description="Custom type resource declarations in the manifest (e.g., \"myDeploy1 { 'myapp': version => '2.1.0', install_dir => '/opt/myapp' }\")",
+        description="Custom type resource declarations in the manifest (e.g., \"mydeploy1 { 'myapp': ensure => present, url => 'http://example.com', file => '/opt/myapp/result.json' }\")",
     )
     function_references: list[str] = Field(
         default_factory=list,
-        description="Custom function calls in the manifest (e.g., \"$result = myFunction1('http://example.com')\")",
+        description="Custom function calls in the manifest (e.g., \"$health_check = profile_haproxy::myfunction1('http://example.com')\")",
     )
 
 
