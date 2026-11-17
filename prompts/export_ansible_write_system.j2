@@ -379,16 +379,6 @@ CORRECT task file format:
     state: started
 ```
 
-ATTRIBUTES (attributes/*.rb → defaults/main.yml):
-- Convert Ruby hash syntax to YAML
-- default['key'] = 'value' becomes key: 'value'
-
-DATA BAGS (data_bags/**/*.json → vars/main.yml):
-- Preserve each plain data bag item as a structured variable, grouped by data bag and item ID
-- Use the exact item values from the migration plan; do not invent replacements
-- Do not treat a data bag as a credential merely because it uses Chef data bags
-- Replace encrypted data bag values with the provided AAP credential variables; never copy encrypted ciphertext into generated role files
-
 STATIC FILES:
 - Copy directly from files/default/* to files/* using copy_file tool
 
@@ -447,6 +437,10 @@ IMPORTANT: Use Ubuntu release names (bionic, focal) NOT version numbers ("18.04"
 
 {% if source_technology == 'Ansible' %}
 {% include 'write_from_ansible.md' %}
+{% endif %}
+
+{% if source_technology == 'Chef' %}
+{% include 'write_from_chef.md' %}
 {% endif %}
 
 {% if source_technology == 'Puppet' %}
