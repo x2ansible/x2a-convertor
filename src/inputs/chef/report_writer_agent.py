@@ -85,6 +85,7 @@ class ReportWriterAgent(InputAgent[ChefState]):
         tree_sitter_report: str,
     ) -> list[dict[str, str]]:
         """Build LLM messages for report generation."""
+        custom_code_summary = self._build_custom_code_summary(state)
         system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
             path=state.path,
@@ -92,8 +93,15 @@ class ReportWriterAgent(InputAgent[ChefState]):
             directory_listing=data_list,
             tree_sitter_report=tree_sitter_report,
             execution_tree=state.execution_tree_summary,
+            custom_code_summary=custom_code_summary,
         )
         return [
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_prompt},
         ]
+
+    def _build_custom_code_summary(self, state: ChefState) -> str:
+        """Build the custom code analysis summary for the prompt."""
+        if not state.structured_analysis:
+            return "No custom resources or libraries detected."
+        return state.structured_analysis.format_custom_code_summary()

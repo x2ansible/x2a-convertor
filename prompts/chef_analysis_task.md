@@ -38,6 +38,14 @@ The tree already shows you the exact items - just copy them!
 
 ---
 
+**CUSTOM CODE ANALYSIS (SOURCE OF TRUTH FOR CUSTOM COMPONENT DECISIONS):**
+
+The following structured analysis covers every custom resource (resources/) and library file (libraries/) in the cookbook. Use these conversion decisions in the Custom Component Conversion Decisions section — do not invent different ones.
+
+{custom_code_summary}
+
+---
+
 **Directory listing for {path}:**
 ```
 {directory_listing}

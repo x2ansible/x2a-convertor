@@ -24,6 +24,7 @@ from .dependency_fetcher import ChefDependencyManager
 from .execution_tree_builder import ExecutionTreeBuilder
 from .models import (
     AttributesAnalysisResult,
+    CustomCodeAnalysisResult,
     DataBagItemAnalysis,
     ProviderAnalysisResult,
     RecipeAnalysisResult,
@@ -32,6 +33,7 @@ from .models import (
 from .path_resolver import ChefPathResolver
 from .services import (
     AttributeAnalysisService,
+    CustomCodeAnalysisService,
     ProviderAnalysisService,
     RecipeAnalysisService,
 )
@@ -61,6 +63,7 @@ class ChefSubagent:
         self._recipe_service = RecipeAnalysisService(self.model)
         self._provider_service = ProviderAnalysisService(self.model)
         self._attribute_service = AttributeAnalysisService(self.model)
+        self._custom_code_service = CustomCodeAnalysisService(self.model)
 
         # Compose agents
         self._report_writer = ReportWriterAgent(model=self.model)
@@ -304,17 +307,38 @@ class ChefSubagent:
             telemetry=state.telemetry,
         )
 
+        # STEP 3: Analyze custom code (resources/ and libraries/)
+        slog.info("Step 3: Analyzing custom resources and libraries")
+        custom_code = []
+        for pattern, file_type in [
+            ("**/resources/*.rb", "custom resource"),
+            ("**/libraries/*.rb", "library"),
+        ]:
+            custom_code.extend(
+                self._analyze_files_by_pattern(
+                    paths=state.all_paths,
+                    pattern=pattern,
+                    file_type=file_type,
+                    analysis_service=self._custom_code_service,
+                    result_class=CustomCodeAnalysisResult,
+                    slog=slog,
+                    telemetry=state.telemetry,
+                )
+            )
+
         structured_analysis = StructuredAnalysis(
             recipes=recipes,
             providers=providers,
             attributes=attributes,
+            custom_code=custom_code,
             attribute_collections=attribute_collections,
             data_bags=data_bags,
         )
 
         slog.info(
             f"Analyzed {len(recipes)} recipes, {len(providers)} providers, "
-            f"{len(attributes)} attributes files, {len(data_bags)} data bag items with "
+            f"{len(attributes)} attributes files, {len(data_bags)} data bag items, "
+            f"{len(custom_code)} custom code files with "
             f"{len(attribute_collections)} iterable collections"
         )
 
