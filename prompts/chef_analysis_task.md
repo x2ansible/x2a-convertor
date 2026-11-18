@@ -6,12 +6,14 @@
 The following execution tree shows the COMPLETE recipe execution flow.
 You MUST use this data. Do NOT hallucinate or invent files that aren't listed here.
 
+DATA BAG SCOPE: The detected list is a repository catalog, not usage evidence. Include only bags/items referenced by the selected cookbook's reachable execution flow; use matching metadata to classify encryption.
+
 ```
 {execution_tree}
 ```
 
 **VALIDATION RULES:**
-- **File Structure**: List ONLY analyzed files shown in the execution tree and data bag inventory. Use paths relative to the source root (one per line), NOT tree structure format.
+- **File Structure**: List ONLY files used by the selected cookbook's reachable execution flow. Use paths relative to the source root (one per line), NOT tree structure format.
 - **Module Explanation**: Follow the execution tree order exactly - it shows the complete flow
 - **Iterations**: The execution tree shows "LOOP over X" with all items listed - copy those exact names
 - **Resources**: Use the [resource] entries shown in the tree
