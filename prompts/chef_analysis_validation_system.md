@@ -17,7 +17,7 @@ You will receive:
 3. **Provider Coverage**: Custom resources reference analyzed providers
 4. **Attribute Accuracy**: Attributes mentioned in plan exist in attributes analysis
 5. **No Hallucinations**: Nothing in the plan contradicts the structured analysis
-6. **Credential Coverage**: If recipes contain `Chef::EncryptedDataBagItem.load`, an item marked encrypted in the collected data bag metadata, `chef_vault_item`, environment variable secrets in templates, or hardcoded passwords in attributes, verify these are documented in the Credentials section. For `data_bag_item(...)` calls, use the collected data bag metadata to decide whether the item is encrypted; do not classify it as plain solely from the call syntax. Each credential must include: variable name, source file, current storage method, and usage context. The Source provider block must be present
+6. **Credential Coverage**: Verify credentials from data bags only when the reachable execution flow references the matching bag/item; use its metadata to determine encryption. Also verify Chef Vault lookups, environment variable secrets in templates, and hardcoded passwords in attributes. Each credential must include its variable, source, storage method, and usage context. The Source provider block must be present
 
 ## Response Format
 
@@ -55,4 +55,5 @@ The following issues were found:
 - Reference specific file paths from the analysis
 - Use the structured analysis as the source of truth
 - Flag both missing items and contradictions
+- Flag unreferenced data bags included in the plan
 - Maintain professional, objective tone
