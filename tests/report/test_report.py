@@ -28,11 +28,12 @@ class TestArtifactType:
         assert ArtifactType.MIGRATED_SOURCES.value == "migrated_sources"
         assert ArtifactType.PROJECT_METADATA.value == "project_metadata"
         assert ArtifactType.ANSIBLE_PROJECT.value == "ansible_project"
+        assert ArtifactType.AAP_CONFIG.value == "aap_config"
         assert ArtifactType.ADVERSARIAL_REPORT.value == "adversarial_report"
         assert ArtifactType.ADVERSARIAL_REPORT_JSON.value == "adversarial_report_json"
 
     def test_enum_count(self):
-        assert len(ArtifactType) == 7
+        assert len(ArtifactType) == 8
 
     def test_adversarial_report_json_is_valid_artifact_type(self):
         client = ReportClient(
@@ -45,6 +46,17 @@ class TestArtifactType:
 
         assert len(artifacts) == 1
         assert artifacts[0]["type"] == "adversarial_report_json"
+
+    def test_aap_config_is_valid_artifact_type(self):
+        client = ReportClient(
+            url=COLLECT_URL,
+            job_id="job-1",
+            artifact_pairs=[f"aap_config:{PLAN_URL}"],
+            callback_token=CALLBACK_TOKEN,
+        )
+        artifacts = client._build_artifacts()
+
+        assert artifacts[0]["type"] == "aap_config"
         assert artifacts[0]["value"] == PLAN_URL
 
 

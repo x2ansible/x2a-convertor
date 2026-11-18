@@ -184,14 +184,47 @@ def migrate(
     required=True,
     help="Migration project ID, used for AAP project naming.",
 )
+@click.option(
+    "--module-name",
+    required=True,
+    help="Normalized module name used to select ansible/run_<module>.yml.",
+)
+@click.option(
+    "--inventory",
+    default=None,
+    help="Optional AAP inventory name; omitted values remain draft markers.",
+)
+@click.option(
+    "--scm-credential-name",
+    default=None,
+    help="Optional AAP source-control credential name.",
+)
+@click.option(
+    "--job-credential-name",
+    "job_credential_names",
+    multiple=True,
+    help="AAP job credential name; may be supplied more than once.",
+)
+@click.option(
+    "--execution-environment-name",
+    default=None,
+    help="Optional AAP execution environment name.",
+)
 @handle_exceptions
-def publish_aap_cmd(target_repo, target_branch, project_id) -> None:
-    """Sync a git repository to Ansible Automation Platform.
+def publish_aap_cmd(
+    target_repo,
+    target_branch,
+    project_id,
+    module_name,
+    inventory,
+    scm_credential_name,
+    job_credential_names,
+    execution_environment_name,
+) -> None:
+    """Generate AAP configuration and synchronize the target repository.
 
     Creates or updates an AAP Project pointing to the given repository URL
     and branch, then triggers a project sync without waiting for completion.
-    Push the generated Ansible project to the repository before running this command.
-
     Requires AAP environment variables to be configured
     (AAP_CONTROLLER_URL, AAP_ORG_NAME, and authentication credentials).
     """
@@ -199,10 +232,17 @@ def publish_aap_cmd(target_repo, target_branch, project_id) -> None:
         target_repo=target_repo,
         target_branch=target_branch,
         project_id=project_id,
+        module_name=module_name,
+        inventory=inventory,
+        scm_credential_name=scm_credential_name,
+        job_credential_names=list(job_credential_names),
+        execution_environment_name=execution_environment_name,
     )
     click.echo(
-        f"\nAAP project sync requested: {result.project_name} (ID: {result.project_id})"
+        f"\nAAP project sync requested: {result.sync.project_name} "
+        f"(ID: {result.sync.project_id})"
     )
+    click.echo(f"AAP configuration generated: {result.generation.module_directory}")
 
 
 @cli.command()

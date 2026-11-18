@@ -70,6 +70,7 @@ def sync_to_aap(
     repository_url: str,
     branch: str,
     project_id: str = "",
+    project_name: str | None = None,
 ) -> AAPSyncResult:
     """Upsert an AAP Project and trigger a sync, without waiting for completion.
 
@@ -83,8 +84,9 @@ def sync_to_aap(
             return AAPSyncResult.disabled()
 
         settings = get_settings()
-        project_name = (
-            settings.aap.project_name
+        resolved_project_name = (
+            project_name
+            or settings.aap.project_name
             or project_id
             or infer_aap_project_name(repository_url)
         )
@@ -93,7 +95,7 @@ def sync_to_aap(
         org_id = client.find_organization_id(name=cfg.organization_name)
         project = client.upsert_project(
             org_id=org_id,
-            name=project_name,
+            name=resolved_project_name,
             scm_url=repository_url,
             scm_branch=branch,
             description=infer_aap_project_description(
@@ -106,6 +108,6 @@ def sync_to_aap(
             return AAPSyncResult.from_error("AAP API did not return a project id")
 
         update = client.start_project_update(project_id=aap_project_id)
-        return AAPSyncResult.from_update(project_name, aap_project_id, update)
+        return AAPSyncResult.from_update(resolved_project_name, aap_project_id, update)
     except (requests.exceptions.RequestException, RuntimeError, ValueError) as e:
         return AAPSyncResult.from_error(str(e))

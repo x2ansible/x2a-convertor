@@ -24,6 +24,7 @@ class ArtifactType(StrEnum):
     MIGRATED_SOURCES = "migrated_sources"
     PROJECT_METADATA = "project_metadata"
     ANSIBLE_PROJECT = "ansible_project"
+    AAP_CONFIG = "aap_config"
     ADVERSARIAL_REPORT = "adversarial_report"
     ADVERSARIAL_REPORT_JSON = "adversarial_report_json"
 
