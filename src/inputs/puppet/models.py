@@ -271,6 +271,14 @@ class ManifestExecutionAnalysis(BaseModel):
         default_factory=list,
         description="Facter fact variables referenced in the manifest (e.g., '$::osfamily', '$facts[os][family]')",
     )
+    type_references: list[str] = Field(
+        default_factory=list,
+        description="Custom type resource declarations in the manifest (e.g., \"mydeploy1 { 'myapp': ensure => present, url => 'http://example.com', file => '/opt/myapp/result.json' }\")",
+    )
+    function_references: list[str] = Field(
+        default_factory=list,
+        description="Custom function calls in the manifest (e.g., \"$health_check = profile_haproxy::myfunction1('http://example.com')\")",
+    )
 
 
 # ============================================================================
@@ -415,8 +423,8 @@ class PuppetTemplateAnalysis(BaseModel):
 class CustomTypeAnalysis(BaseModel):
     """Analysis of a Puppet custom type, provider, fact, or function.
 
-    Captures the component's interface and suggests the corresponding
-    Ansible mechanism (built-in module, custom module, or plugin).
+    Captures the component's interface and the decision on how to convert
+    it (existing Ansible modules or flagged as not convertible).
     """
 
     component_type: str = Field(
@@ -429,10 +437,36 @@ class CustomTypeAnalysis(BaseModel):
         default_factory=list,
         description="Parameter definitions with keys 'name', 'type', and optionally 'default' and 'description'",
     )
+    conversion_outcome: Literal["existing_modules", "not_convertible"] = Field(
+        default="existing_modules",
+        description=(
+            "Conversion decision for this component: "
+            "'existing_modules' when existing Ansible modules (single, combined, or command-wrapping a CLI) reproduce the behavior; "
+            "'not_convertible' when the behavior depends on things not visible in the source"
+        ),
+    )
+    flag_reason: str | None = Field(
+        default=None,
+        description=(
+            "Required when conversion_outcome is 'not_convertible': what the conversion depends on that is not "
+            "visible in the source, for the automation developer"
+        ),
+    )
     note: str | None = Field(
         default=None,
         description="Additional migration context or caveats for this component",
     )
+
+    def format_conversion_decision(self) -> str:
+        """Render the conversion decision for inclusion in the migration plan."""
+        if self.conversion_outcome == "not_convertible":
+            lines = [
+                "  Conversion: NOT SAFELY CONVERTIBLE — flagged for developer review"
+            ]
+            if self.flag_reason:
+                lines.append(f"  Reason: {self.flag_reason}")
+            return "\n".join(lines)
+        return "  Conversion: existing Ansible modules"
 
 
 # ============================================================================

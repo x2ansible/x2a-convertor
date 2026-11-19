@@ -8,11 +8,13 @@ from pathlib import Path
 
 from prompts.get_prompt import get_prompt
 from src.inputs.input_agent import InputAgent
+from src.types.document import DocumentFile
 from src.types.file_analysis_state import FileAnalysisState
 from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
 
 from .models import (
+    CustomCodeAnalysis,
     DefaultAttributesOutput,
     ProviderAnalysisOutput,
     RecipeExecutionAnalysis,
@@ -134,3 +136,41 @@ class AttributeAnalysisService(InputAgent[FileAnalysisState]):
         except Exception as e:
             logger.error(f"Failed to analyze attributes {file_path}: {e}")
             return state.update(result=DefaultAttributesOutput())
+
+
+class CustomCodeAnalysisService(InputAgent[FileAnalysisState]):
+    """Service for analyzing Chef custom code files using LLM.
+
+    Responsibility: Extract the interface, behavior, and conversion decision
+    from custom resource files (resources/) and library files (libraries/).
+    """
+
+    def execute(
+        self, state: FileAnalysisState, metrics: AgentMetrics | None
+    ) -> FileAnalysisState:
+        file_path = Path(state.path)
+        if not file_path.exists():
+            logger.warning(f"Custom code file not found: {file_path}")
+            return state.update(result=CustomCodeAnalysis.unanalyzed(str(file_path)))
+
+        document = DocumentFile.from_path(file_path)
+        system_prompt = get_prompt("chef_custom_code_analysis_system").format()
+        task_prompt = get_prompt("chef_custom_code_analysis_task").format(
+            document=document.to_document()
+        )
+
+        try:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": task_prompt},
+            ]
+            result = self.invoke_structured(CustomCodeAnalysis, messages, metrics)
+            logger.info(
+                f"Analyzed custom code {file_path.name}: "
+                f"{result.component_type} '{result.name}', "
+                f"conversion: {result.conversion_outcome}"
+            )
+            return state.update(result=result)
+        except Exception as e:
+            logger.error(f"Failed to analyze custom code {file_path}: {e}")
+            return state.update(result=CustomCodeAnalysis.unanalyzed(str(file_path)))

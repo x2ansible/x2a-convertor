@@ -312,7 +312,7 @@ class PuppetSubagent:
             "lib/puppet/type/*.rb": "type",
             "lib/puppet/provider/**/*.rb": "provider",
             "lib/facter/*.rb": "fact",
-            "lib/puppet/functions/*.rb": "function",
+            "lib/puppet/functions/**/*.rb": "function",
             "functions/*.pp": "puppet_function",
             "types/*.pp": "type_alias",
             "plans/*.pp": "bolt_plan",

@@ -150,6 +150,10 @@ class RecipeExecutionAnalysis(BaseModel):
     execution_order: list[ExecutionItemUnion] = Field(
         default_factory=list, description="List of execution items in sequence order"
     )
+    function_references: list[str] = Field(
+        default_factory=list,
+        description="Custom library function calls in the recipe, from files in libraries/ (e.g., \"parsed_token = fetch_and_parse_token('https://api.example.com/token_endpoint')\")",
+    )
 
 
 class ProviderAnalysisOutput(BaseModel):
@@ -161,6 +165,69 @@ class ProviderAnalysisOutput(BaseModel):
     conditionals: list[dict[str, Any]] = Field(
         default_factory=list, description="Conditional branches with templates"
     )
+
+
+class CustomCodeAnalysis(BaseModel):
+    """Analysis of a Chef custom resource (resources/) or library file (libraries/).
+
+    Captures the component's interface and the decision on how to convert
+    it (existing Ansible modules or flagged as not convertible).
+    """
+
+    component_type: Literal["custom_resource", "library"] = Field(
+        description='Kind of Chef component: "custom_resource" for files in resources/, "library" for files in libraries/'
+    )
+    name: str = Field(
+        description="Component name as declared in the source (e.g., 'fetch_token', 'FetchAndParseToken')"
+    )
+    description: str = Field(
+        default="",
+        description="What the component does: files, commands, HTTP calls, or external systems it touches",
+    )
+    properties: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Property definitions for custom resources, with keys 'name', 'type', and optionally 'default', 'required', and 'description'",
+    )
+    functions: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Method definitions provided by a library, with keys 'name', 'parameters', and 'description'",
+    )
+    conversion_outcome: Literal["existing_modules", "not_convertible"] = Field(
+        default="existing_modules",
+        description=(
+            "Conversion decision for this component: "
+            "'existing_modules' when existing Ansible modules (single, combined, or command-wrapping a CLI) reproduce the behavior; "
+            "'not_convertible' when the behavior depends on things not visible in the source"
+        ),
+    )
+    flag_reason: str | None = Field(
+        default=None,
+        description=(
+            "Required when conversion_outcome is 'not_convertible': what the conversion depends on that is not "
+            "visible in the source, for the automation developer"
+        ),
+    )
+
+    def format_conversion_decision(self) -> str:
+        """Render the conversion decision for inclusion in the migration plan."""
+        if self.conversion_outcome == "not_convertible":
+            lines = [
+                "  Conversion: NOT SAFELY CONVERTIBLE — flagged for developer review"
+            ]
+            if self.flag_reason:
+                lines.append(f"  Reason: {self.flag_reason}")
+            return "\n".join(lines)
+        return "  Conversion: existing Ansible modules"
+
+    @classmethod
+    def unanalyzed(cls, file_path: str) -> "CustomCodeAnalysis":
+        """Build a placeholder for a file whose analysis failed."""
+        component_type = "custom_resource" if "/resources/" in file_path else "library"
+        return cls(
+            component_type=component_type,
+            name=Path(file_path).stem,
+            description="Analysis failed - file content not available",
+        )
 
 
 class DefaultAttributesOutput(BaseModel):
@@ -184,7 +251,7 @@ class AnalyzedFile(BaseModel):
     """Base model for individual file analysis result."""
 
     file_path: str
-    file_type: str  # "recipe" | "provider" | "attributes"
+    file_type: str  # "recipe" | "provider" | "attributes" | "custom_code"
 
 
 class RecipeAnalysisResult(AnalyzedFile):
@@ -268,6 +335,28 @@ class DataBagItemAnalysis(BaseModel):
     data: dict[str, Any] = Field(default_factory=dict)
 
 
+class CustomCodeAnalysisResult(AnalyzedFile):
+    """Custom resource (resources/) or library (libraries/) file analysis."""
+
+    file_type: str = "custom_code"
+    analysis: CustomCodeAnalysis
+
+    def format_summary(self) -> str:
+        """Render this component's summary block for the migration plan prompt."""
+        analysis = self.analysis
+        lines = [f"### {analysis.component_type}: {analysis.name}"]
+        lines.append(f"  File: {self.file_path}")
+        if analysis.description:
+            lines.append(f"  Description: {analysis.description}")
+        for prop in analysis.properties:
+            lines.append(f"  Property: {prop}")
+        for function in analysis.functions:
+            lines.append(f"  Function: {function}")
+        lines.append(analysis.format_conversion_decision())
+        lines.append("")
+        return "\n".join(lines)
+
+
 class StructuredAnalysis(BaseModel):
     """Aggregate of all structured analysis results from Chef cookbook.
 
@@ -279,6 +368,7 @@ class StructuredAnalysis(BaseModel):
     providers: list[ProviderAnalysisResult] = Field(default_factory=list)
     attributes: list[AttributesAnalysisResult] = Field(default_factory=list)
     data_bags: list[DataBagItemAnalysis] = Field(default_factory=list)
+    custom_code: list[CustomCodeAnalysisResult] = Field(default_factory=list)
     attribute_collections: dict[str, list[str]] = Field(
         default_factory=dict,
         description="Map of collection attribute names to their item keys (for iteration expansion)",
@@ -291,7 +381,14 @@ class StructuredAnalysis(BaseModel):
             + len(self.providers)
             + len(self.attributes)
             + len(self.data_bags)
+            + len(self.custom_code)
         )
+
+    def format_custom_code_summary(self) -> str:
+        """Render the custom code analysis for the migration plan prompt."""
+        if not self.custom_code:
+            return "No custom resources or libraries detected."
+        return "\n".join(result.format_summary() for result in self.custom_code)
 
     @property
     def analyzed_file_paths(self) -> list[str]:
@@ -306,6 +403,7 @@ class StructuredAnalysis(BaseModel):
         files.extend(p.file_path for p in self.providers)
         files.extend(a.file_path for a in self.attributes)
         files.extend(d.file_path for d in self.data_bags)
+        files.extend(c.file_path for c in self.custom_code)
 
         # Add referenced files from each analysis result
         files.extend(f for r in self.recipes for f in r.referenced_files())

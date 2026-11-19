@@ -191,6 +191,25 @@ If the module defines custom types/providers/facts/functions in `lib/`, document
 
 List ALL fact references. For each, note what system information it provides.
 
+## Custom Types Used
+
+List ALL custom type declarations. For each, note where it is declared and with which parameters.
+
+## Custom Providers Used
+
+List ALL custom providers. For each, note the type it implements and where that type is used.
+
+## Custom Functions Used
+
+List ALL custom function calls. For each, note where it is called and what it returns.
+
+## Custom Component Conversion Decisions
+
+For EVERY custom type, provider, fact, and function, record its conversion decision from the structured analysis:
+- **Existing Ansible modules**: state the suggested mapping (single module, combination, or command wrapping a CLI).
+- **Not safely convertible**: flag it clearly with a note to the automation developer explaining what is missing. Do NOT suggest a mapping for it.
+[If there are no custom components, state: "No custom components in this module."]
+
 ## Template Conversion Notes
 
 For each template: variables used, Ruby logic blocks, conditional rendering, iterations, complex expressions. Omit if straightforward.

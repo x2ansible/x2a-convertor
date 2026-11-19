@@ -37,6 +37,13 @@ Fact references — extract ALL of these:
 - Legacy: $::osfamily, $::operatingsystem, $::kernel
 - Conditional usage: case $facts['os']['name'] { ... }
 
+Custom type references — extract ALL of these:
+- Resource declarations using custom types (e.g. mydeploy1 { 'myapp': ensure => present, url => 'http://example.com', ... }) — include type name, title, and all parameters
+
+Custom function references — extract ALL of these:
+- Calls to custom functions (e.g. $health_check = profile_haproxy::myfunction1('http://...')) — include function name, arguments, and the variable receiving the result
+- A call namespaced with the module being analyzed (e.g. profile_haproxy::myfunction1(...)) is a custom function defined in that module's lib/ directory — do NOT confuse it with Forge module functions like stdlib::to_json
+
 Case statements:
 - Model as ONE conditional with condition_type="case" and case_branches (NOT execution_order)
 - Each CaseBranch: pattern (literal, regex, or "default") + items (nested resources)
@@ -83,4 +90,4 @@ ANALYSIS APPROACH:
 CRITICAL: Scan the ENTIRE class body to the end. Many manifests have resources AFTER conditionals and variable assignments. These must ALL be in execution_order.
 
 EXAMPLE:
-{"class_name": "profile::webserver", "class_parameters": {"port": "Integer, default: 8080"}, "execution_order": [{"type": "class_include", "class_name": "profile::base", "relationship": "include"}, {"type": "conditional", "condition_type": "if", "condition": "$enable_ssl", "execution_order": [{"type": "resource", "resource_type": "package", "title": "ssl-cert", "attributes": {"ensure": "installed"}}]}, {"type": "resource", "resource_type": "package", "title": "nginx", "attributes": {"ensure": "installed"}}, {"type": "resource", "resource_type": "service", "title": "nginx", "attributes": {"ensure": "running", "enable": true}}], "fact_references": ["$facts['os']['family']"]}
+{"class_name": "profile::webserver", "class_parameters": {"port": "Integer, default: 8080"}, "execution_order": [{"type": "class_include", "class_name": "profile::base", "relationship": "include"}, {"type": "conditional", "condition_type": "if", "condition": "$enable_ssl", "execution_order": [{"type": "resource", "resource_type": "package", "title": "ssl-cert", "attributes": {"ensure": "installed"}}]}, {"type": "resource", "resource_type": "package", "title": "nginx", "attributes": {"ensure": "installed"}}, {"type": "resource", "resource_type": "service", "title": "nginx", "attributes": {"ensure": "running", "enable": true}}], "fact_references": ["$facts['os']['family']"], "type_references": ["mydeploy1 { 'myapp': ensure => present, url => 'http://example.com', file => '/opt/myapp/result.json' }"], "function_references": ["$health_check = profile_haproxy::myfunction1('http://example.com')"]}

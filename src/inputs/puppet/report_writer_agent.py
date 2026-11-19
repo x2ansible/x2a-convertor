@@ -188,6 +188,7 @@ class ReportWriterAgent(InputAgent[PuppetState]):
                 lines.append("  Parameters:")
                 for param in analysis.parameters:
                     lines.append(f"    - {param}")
+            lines.append(analysis.format_conversion_decision())
             lines.append("")
 
         return "\n".join(lines) if lines else "No custom types detected."

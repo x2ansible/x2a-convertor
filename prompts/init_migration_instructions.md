@@ -181,6 +181,7 @@ Analyze the source repository to determine target environment specifications:
 - **Identify Risks**: Call out potential blockers, deprecated dependencies, or complex configurations, based on what the relevant files reveal
 - **Security First**: Pay special attention to secrets, certificates, and security configurations when they appear in the files you review
 - **Documentation**: Ensure the plan serves as a reference document for the migration
+- **Line-Editing Semantics**: When the source uses a custom resource or a command (e.g., `sed`) that edits config lines, determine its exact behavior before suggesting an Ansible module: does it replace every matching line or only one? Does it append the line when nothing matches? Map accordingly — `ansible.builtin.lineinfile` replaces only one (the last) matching line and appends when no match exists; `ansible.builtin.replace` replaces all matches and never appends. Never suggest a module by property-name similarity alone
 
 ## Response Format
 

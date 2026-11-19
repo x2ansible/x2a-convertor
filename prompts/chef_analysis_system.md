@@ -51,6 +51,15 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
    - Note `secrets` or `credentials` related attribute namespaces
    - For EACH detected credential, record: variable name, source file, and how it is used (encrypted data bag, vault, hardcoded, environment variable)
 
+7. **Detect, describe, and decide the conversion for custom resources and libraries:**
+   - Detect custom Chef resources and libraries in the cookbook, including where each one is used in the recipes
+   - The task prompt provides a structured analysis of every custom resource (resources/) and library file (libraries/) with a recorded conversion decision — use those decisions, do not substitute your own
+   - For EACH one detected, add any available documentation and knowledge about it to the output
+   - For EACH one detected, record ONE of two conversion outcomes:
+     a. **Existing Ansible modules** — a single module, a combination of modules, or command tasks wrapping an existing CLI reproduces the behavior. Record the suggested mapping.
+     b. **Not safely convertible** — its behavior depends on things not visible in the source (for example an internal library without source code, or a proprietary CLI with undocumented semantics). Flag it with a note to the automation developer explaining what is missing. Do not suggest a mapping for it.
+   - Do not drop anything from the input files
+
 **USING STRUCTURED ANALYSIS DATA:**
 
 You will receive detailed structured analysis showing:
@@ -317,6 +326,18 @@ The cookbook performs operations in this order:
 - Specify ports, memory limits, thread counts - actual numbers matter
 
 [Continue for each recipe in execution order]
+
+## Custom Functions Used
+
+[List all custom library function calls (helper methods from the cookbook's `libraries/` directory), where each is called, and what it returns. The execution tree marks them as `[library_function]` entries.]
+[If none, state: "No custom functions used in this cookbook."]
+
+## Custom Component Conversion Decisions
+
+[For EVERY custom resource and every custom library function, record its conversion decision:]
+[- **Existing Ansible modules**: state the suggested mapping (single module, combination, or command wrapping a CLI).]
+[- **Not safely convertible**: flag it clearly with a note to the automation developer explaining what is missing. Do NOT suggest a mapping for it.]
+[If there are no custom components, state: "No custom components in this cookbook."]
 
 ## Dependencies:
 

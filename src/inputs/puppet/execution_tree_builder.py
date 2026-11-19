@@ -190,6 +190,30 @@ class FactNode(ExecutionTreeNode):
 
 
 @dataclass
+class CustomTypeReferenceNode(ExecutionTreeNode):
+    """A custom type resource declaration."""
+
+    @property
+    def node_type(self) -> str:
+        return "custom_type"
+
+    def format_label(self) -> str:
+        return f"[custom_type] {self.name}"
+
+
+@dataclass
+class CustomFunctionReferenceNode(ExecutionTreeNode):
+    """A custom function call."""
+
+    @property
+    def node_type(self) -> str:
+        return "custom_function"
+
+    def format_label(self) -> str:
+        return f"[custom_function] {self.name}"
+
+
+@dataclass
 class TemplateNode(ExecutionTreeNode):
     """A template reference within a resource."""
 
@@ -315,6 +339,12 @@ class PuppetExecutionTreeBuilder:
 
         for fact in analysis.fact_references:
             node.children.append(FactNode(name=fact))
+
+        for reference in analysis.type_references:
+            node.children.append(CustomTypeReferenceNode(name=reference))
+
+        for reference in analysis.function_references:
+            node.children.append(CustomFunctionReferenceNode(name=reference))
 
         return node
 
