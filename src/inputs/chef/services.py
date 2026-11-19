@@ -13,7 +13,7 @@ from src.types.telemetry import AgentMetrics
 from src.utils.logging import get_logger
 
 from .models import (
-    DefaultAttributesOutput,
+    ChefAttributesOutput,
     ProviderAnalysisOutput,
     RecipeExecutionAnalysis,
 )
@@ -97,7 +97,7 @@ class ProviderAnalysisService(InputAgent[FileAnalysisState]):
 class AttributeAnalysisService(InputAgent[FileAnalysisState]):
     """Service for analyzing Chef attributes files using LLM.
 
-    Responsibility: Extract default attribute values from attributes/default.rb.
+    Responsibility: Extract Chef attribute values by precedence from attributes files.
     """
 
     def execute(
@@ -106,7 +106,7 @@ class AttributeAnalysisService(InputAgent[FileAnalysisState]):
         file_path = Path(state.path)
         if not file_path.exists():
             logger.warning(f"Attributes file not found: {file_path}")
-            return state.update(result=DefaultAttributesOutput())
+            return state.update(result=ChefAttributesOutput())
 
         file_content = file_path.read_text()
         system_prompt = get_prompt("chef_attributes_extraction_system").format()
@@ -119,18 +119,13 @@ class AttributeAnalysisService(InputAgent[FileAnalysisState]):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": task_prompt},
             ]
-            result = self.invoke_structured(DefaultAttributesOutput, messages, metrics)
-
-            if result.platform_specific_notes:
-                logger.info("Platform-specific attributes found:")
-                for note in result.platform_specific_notes:
-                    logger.info(f"  - {note}")
+            result = self.invoke_structured(ChefAttributesOutput, messages, metrics)
 
             logger.info(
-                f"Extracted {len(result.attributes)} top-level default attributes "
+                f"Extracted {len(result.assignments)} Chef attribute writes "
                 f"from {file_path.name}"
             )
             return state.update(result=result)
         except Exception as e:
             logger.error(f"Failed to analyze attributes {file_path}: {e}")
-            return state.update(result=DefaultAttributesOutput())
+            return state.update(result=ChefAttributesOutput())

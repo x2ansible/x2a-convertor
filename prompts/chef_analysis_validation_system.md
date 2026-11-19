@@ -15,7 +15,7 @@ You will receive:
 1. **Completeness**: All analyzed recipes are mentioned in the migration plan
 2. **Consistency**: Resource counts and types match the structured analysis
 3. **Provider Coverage**: Custom resources reference analyzed providers
-4. **Attribute Accuracy**: Attributes mentioned in plan exist in attributes analysis
+4. **Attribute Accuracy and Coverage**: Check that the Attributes section covers all effective cookbook values with matching source files and precedence levels, grouped by the computed Ansible targets in the summary. Keep recipe-time writes separate, with their order and conditions. Do not restore overwritten values or infer precedence from filenames.
 5. **No Hallucinations**: Nothing in the plan contradicts the structured analysis
 6. **Credential Coverage**: Verify credentials from data bags only when the reachable execution flow references the matching bag/item; use its metadata to determine encryption. Also verify Chef Vault lookups, environment variable secrets in templates, and hardcoded passwords in attributes. Each credential must include its variable, source, storage method, and usage context. The Source provider block must be present
 

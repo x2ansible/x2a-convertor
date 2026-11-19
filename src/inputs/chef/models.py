@@ -4,10 +4,31 @@ This module defines Pydantic models for representing Chef recipe execution flow.
 These are pure data structures (no business logic) used for LLM structured outputs.
 """
 
+import json
+from copy import deepcopy
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Discriminator, Field, Tag
+from pydantic import BaseModel, Discriminator, Field, Tag, field_validator
+
+
+class ChefAttributePrecedence(StrEnum):
+    """Actual Chef attribute precedence levels, in increasing order."""
+
+    DEFAULT = "default"
+    FORCE_DEFAULT = "force_default"
+    NORMAL = "normal"
+    OVERRIDE = "override"
+    FORCE_OVERRIDE = "force_override"
+    AUTOMATIC = "automatic"
+
+
+CHEF_COOKBOOK_ATTRIBUTE_PRECEDENCE_ORDER: tuple[ChefAttributePrecedence, ...] = tuple(
+    precedence
+    for precedence in ChefAttributePrecedence
+    if precedence is not ChefAttributePrecedence.AUTOMATIC
+)
 
 # ============================================================================
 # Execution Item Models
@@ -19,15 +40,22 @@ class ExecutionItem(BaseModel):
 
 
 class AttributeAssignment(ExecutionItem):
-    """Attribute assignment (node.default['key'] = value)."""
+    """Attribute assignment with its Chef precedence level."""
 
     type: Literal["attribute_assignment"] = "attribute_assignment"
     attribute_path: str
+    precedence: ChefAttributePrecedence | None = None
     value: Any
+    clears_precedence: bool = Field(
+        default=False,
+        description="True when the Chef assignment uses ! to clear a precedence level",
+    )
 
     def format_label(self) -> str:
         """Format attribute assignment as tree label."""
-        return f"[attribute] {self.attribute_path} = {self.value}"
+        precedence = f": {self.precedence.value}" if self.precedence else ""
+        reset = " (clears precedence)" if self.clears_precedence else ""
+        return f"[attribute{precedence}] {self.attribute_path} = {self.value}{reset}"
 
 
 class ResourceExecution(ExecutionItem):
@@ -163,16 +191,168 @@ class ProviderAnalysisOutput(BaseModel):
     )
 
 
-class DefaultAttributesOutput(BaseModel):
-    """LLM output for default attributes extraction."""
+class ChefAttributeWrite(BaseModel):
+    """One ordered assignment from a Chef cookbook attribute file."""
 
-    attributes: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Extracted default attribute values as nested dict",
+    precedence: ChefAttributePrecedence
+    attribute_path: list[str] = Field(min_length=1)
+    value: Any
+    clears_precedence: bool = False
+
+    @field_validator("precedence")
+    @classmethod
+    def validate_cookbook_precedence(
+        cls, precedence: ChefAttributePrecedence
+    ) -> ChefAttributePrecedence:
+        """Reject runtime-only precedence in cookbook attribute files."""
+        if precedence not in CHEF_COOKBOOK_ATTRIBUTE_PRECEDENCE_ORDER:
+            raise ValueError("Cookbook attribute writes require a writable Chef level")
+        return precedence
+
+
+class ChefAttributesOutput(BaseModel):
+    """Ordered Chef cookbook attribute writes extracted from one file."""
+
+    assignments: list[ChefAttributeWrite] = Field(default_factory=list)
+
+    @staticmethod
+    def _path_parent(attributes: dict[str, Any], path: list[str]) -> dict[str, Any]:
+        """Return the parent dictionary, creating missing path components."""
+        current = attributes
+        for component in path[:-1]:
+            child = current.get(component)
+            if not isinstance(child, dict):
+                child = {}
+                current[component] = child
+            current = child
+        return current
+
+    @classmethod
+    def write_path(
+        cls, attributes: dict[str, Any], path: list[str], value: Any
+    ) -> None:
+        """Execute an ordinary Ruby assignment, replacing the value at its path."""
+        parent = cls._path_parent(attributes, path)
+        parent[path[-1]] = deepcopy(value)
+
+    @staticmethod
+    def remove_path(attributes: dict[str, Any], path: list[str]) -> None:
+        """Remove a path and prune empty parent dictionaries."""
+        parents = []
+        current = attributes
+        for component in path[:-1]:
+            child = current.get(component)
+            if not isinstance(child, dict):
+                return
+            parents.append((current, component, child))
+            current = child
+        if path[-1] not in current:
+            return
+        current.pop(path[-1])
+        for parent, component, child in reversed(parents):
+            if child:
+                return
+            parent.pop(component, None)
+
+    @classmethod
+    def merge_nested(
+        cls, base: dict[str, Any], overriding: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Merge precedence components recursively, replacing arrays and scalars."""
+        merged = deepcopy(base)
+        for key, value in overriding.items():
+            current = merged.get(key)
+            if isinstance(current, dict) and isinstance(value, dict):
+                merged[key] = cls.merge_nested(current, value)
+                continue
+            merged[key] = deepcopy(value)
+        return merged
+
+
+class ChefAttributeResolution(BaseModel):
+    """Resolved cookbook writes, retaining their surviving precedence components."""
+
+    levels: dict[ChefAttributePrecedence, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            level: {} for level in CHEF_COOKBOOK_ATTRIBUTE_PRECEDENCE_ORDER
+        }
     )
-    platform_specific_notes: list[str] = Field(
-        default_factory=list, description="Notes about platform-specific attributes"
-    )
+
+    def apply(self, assignment: ChefAttributeWrite) -> None:
+        """Apply Chef's component-specific bang resets, then assign the value."""
+        if assignment.clears_precedence:
+            for level in self._reset_levels(assignment.precedence):
+                ChefAttributesOutput.remove_path(
+                    self.levels[level], assignment.attribute_path
+                )
+        ChefAttributesOutput.write_path(
+            self.levels[assignment.precedence],
+            assignment.attribute_path,
+            assignment.value,
+        )
+
+    @staticmethod
+    def _reset_levels(
+        level: ChefAttributePrecedence,
+    ) -> tuple[ChefAttributePrecedence, ...]:
+        """Only force bangs clear another cookbook precedence component."""
+        if level is ChefAttributePrecedence.FORCE_DEFAULT:
+            return (ChefAttributePrecedence.DEFAULT, level)
+        if level is ChefAttributePrecedence.FORCE_OVERRIDE:
+            return (ChefAttributePrecedence.OVERRIDE, level)
+        return (level,)
+
+    def merged_values(self) -> dict[str, Any]:
+        """Return effective cookbook values in Chef precedence order."""
+        merged: dict[str, Any] = {}
+        for level in CHEF_COOKBOOK_ATTRIBUTE_PRECEDENCE_ORDER:
+            merged = ChefAttributesOutput.merge_nested(merged, self.levels[level])
+        return merged
+
+    def values_by_target(self) -> dict[str, dict[str, Any]]:
+        """Group namespace attributes by destination, keeping dictionaries intact."""
+        higher_values: dict[str, Any] = {}
+        for level in CHEF_COOKBOOK_ATTRIBUTE_PRECEDENCE_ORDER:
+            if level in (
+                ChefAttributePrecedence.DEFAULT,
+                ChefAttributePrecedence.FORCE_DEFAULT,
+            ):
+                continue
+            higher_values = ChefAttributesOutput.merge_nested(
+                higher_values, self.levels[level]
+            )
+        groups: dict[str, dict[str, Any]] = {
+            "defaults/main.yml": {},
+            "vars/main.yml": {},
+        }
+        for namespace, value in self.merged_values().items():
+            attributes = (
+                value.items() if isinstance(value, dict) and value else [(None, value)]
+            )
+            for attribute, effective_value in attributes:
+                path = [namespace] if attribute is None else [namespace, attribute]
+                target = (
+                    "vars/main.yml"
+                    if self._has_path(higher_values, path)
+                    else "defaults/main.yml"
+                )
+                ChefAttributesOutput.write_path(groups[target], path, effective_value)
+        return groups
+
+    @staticmethod
+    def _has_path(values: dict[str, Any], path: list[str]) -> bool:
+        current = values
+        for key in path:
+            if not isinstance(current, dict) or key not in current:
+                return False
+            current = current[key]
+        return True
+
+    def format_summary(self) -> str:
+        """Expose effective values and their computed Ansible destinations."""
+        return "COOKBOOK ATTRIBUTE VALUES BY ANSIBLE TARGET:\n" + json.dumps(
+            self.values_by_target(), indent=2, sort_keys=True
+        )
 
 
 # ============================================================================
@@ -247,10 +427,26 @@ class ProviderAnalysisResult(AnalyzedFile):
 
 
 class AttributesAnalysisResult(AnalyzedFile):
-    """Attributes file analysis with default values."""
+    """Precedence-aware analysis result for one Chef attribute file."""
 
     file_type: str = "attributes"
-    analysis: DefaultAttributesOutput
+    analysis: ChefAttributesOutput
+
+    def format_summary(self) -> str:
+        """Format ordered writes with their source file and Chef level."""
+        return "\n".join(
+            self._format_assignment(assignment)
+            for assignment in self.analysis.assignments
+        )
+
+    def _format_assignment(self, assignment: ChefAttributeWrite) -> str:
+        """Format one write without hiding its path or source order."""
+        precedence = assignment.precedence.value
+        if assignment.clears_precedence:
+            precedence = f"{precedence}!"
+        path = ".".join(assignment.attribute_path)
+        value = json.dumps(assignment.value, sort_keys=True)
+        return f"{self.file_path} [{precedence}] {path} = {value}"
 
     def referenced_files(self) -> list[str]:
         """Attributes don't reference other files."""
@@ -283,6 +479,34 @@ class StructuredAnalysis(BaseModel):
         default_factory=dict,
         description="Map of collection attribute names to their item keys (for iteration expansion)",
     )
+
+    def resolve_attributes(self) -> ChefAttributeResolution:
+        """Resolve ordered cookbook writes without mutating extracted values."""
+        resolution = ChefAttributeResolution()
+        for attribute_file in self.attributes:
+            for assignment in attribute_file.analysis.assignments:
+                resolution.apply(assignment)
+        return resolution
+
+    def merged_attribute_values(self) -> dict[str, Any]:
+        """Return effective values after cookbook assignments and precedence."""
+        return self.resolve_attributes().merged_values()
+
+    def format_attribute_summary(self) -> str:
+        """Format ordered source writes and their authoritative resolved values."""
+        summaries = [
+            summary
+            for attribute_file in self.attributes
+            if (summary := attribute_file.format_summary())
+        ]
+        if not summaries:
+            return ""
+        return (
+            "COOKBOOK ATTRIBUTE ASSIGNMENTS BY SOURCE AND PRECEDENCE:\n\n"
+            + "\n\n".join(summaries)
+            + "\n\n"
+            + self.resolve_attributes().format_summary()
+        )
 
     def get_total_files_analyzed(self) -> int:
         """Get total number of files analyzed."""

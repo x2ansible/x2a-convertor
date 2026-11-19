@@ -45,22 +45,21 @@ THEN: USE add_checklist_task TOOL to add ONLY missing migration tasks:
 TOOL: add_checklist_task(category, source_path, target_path, description)
 
 Categories:
-- "templates": ERB templates → Jinja2 templates
-- "recipes": Chef recipes → Ansible tasks
-- "attributes": Chef attributes → Ansible variables
-- "data bags": Chef data bag items → Ansible role variables
+- "templates": Source templates → Jinja2 templates
+- "recipes": Source automation → Ansible tasks
+- "attributes": Source attributes → Ansible variables
 - "files": Static files (configs, scripts, etc.)
 - "structure": Generated Ansible role structure files (meta/main.yml, handlers/main.yml, etc.)
 - "dependencies": Collection dependencies for requirements.yml
 
-For each file in the migration plan:
-1. Check if it already exists in the checklist (use list_checklist_tasks)
-2. If it exists, SKIP IT - do not add again
+For each required conversion in the migration plan:
+1. Check existing checklist tasks (use list_checklist_tasks)
+2. If the conversion is already covered, skip it. Follow source-specific rules when matching grouped outputs
 3. If it's missing:
    a. Identify the category
    b. Specify source_path (source path, or "N/A" for generated files)
    c. Specify target_path (Ansible file path)
-   d. Add optional description if helpful
+   d. Describe the conversion and list contributing source files and assignments for any grouped output
    e. Call add_checklist_task to add it
 
 **IMPORTANT**:
@@ -87,6 +86,6 @@ Sample calls:
 - add_checklist_task(category="structure", source_path="N/A", target_path="{{ layout.role_path }}/meta/argument_specs.yml", description="Role argument specs for fail-fast parameter validation (generate after defaults/main.yml)")
 - add_checklist_task(category="dependencies", source_path="collection:namespace.collection_name", target_path="{{ layout.role_path }}/requirements.yml", description="External collection dependency")
 
-Your goal: Ensure the checklist contains EVERY file mentioned in the migration plan.
-- If checklist already has items: only add what's missing
-- If checklist is empty: add all items from the migration plan
+Your goal: Cover every required conversion using the source-specific grouping rules.
+- If checklist already has items: only add missing conversions
+- If checklist is empty: create tasks covering all required conversions

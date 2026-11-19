@@ -103,6 +103,8 @@ class ChefAttribute:
     name: str
     value: str
     line: int
+    precedence: str | None = None
+    clears_precedence: bool = False
     display_value: str = ""
 
     def __post_init__(self) -> None:
@@ -213,7 +215,11 @@ class ChefReporting:
                 report_lines.append("Variables assigned:")
                 for attr in chef_attributes:
                     if isinstance(attr, ChefAttribute):
-                        report_lines.append(f"  • {attr.name} = {attr.display_value}")
+                        reset = " (clears precedence)" if attr.clears_precedence else ""
+                        report_lines.append(
+                            f"  • [{attr.precedence or 'unclassified'}] "
+                            f"{attr.name} = {attr.display_value}{reset}"
+                        )
                     else:
                         # Fallback for old dict format
                         name = attr.get("name", "unknown")
@@ -664,12 +670,18 @@ class RubyParser(BaseTreeSitterParser):
         var_name = self.get_node_text(left, content)
         var_value = self.get_node_text(right, content)
 
+        precedence_match = re.match(
+            r"^(?:node\.)?"
+            r"(force_default|force_override|default|normal|override|automatic)(!)?\s*\[",
+            var_name,
+        )
+        is_chef_attribute = bool(precedence_match) or var_name.startswith("node[")
         return {
             "name": var_name,
             "value": var_value,
-            "type": "chef_attribute"
-            if var_name.startswith(("default[", "node["))
-            else "variable",
+            "type": "chef_attribute" if is_chef_attribute else "variable",
+            "precedence": precedence_match.group(1) if precedence_match else None,
+            "clears_precedence": bool(precedence_match and precedence_match.group(2)),
             "line": node.start_point[0] + 1,
         }
 
@@ -691,6 +703,8 @@ class RubyParser(BaseTreeSitterParser):
                         name=const.get("name", ""),
                         value=const.get("value", ""),
                         line=const.get("line", 0),
+                        precedence=const.get("precedence"),
+                        clears_precedence=const.get("clears_precedence", False),
                     )
                 )
             else:

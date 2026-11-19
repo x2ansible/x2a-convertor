@@ -1,44 +1,24 @@
-You are extracting DEFAULT attribute values from a Chef attributes file.
+You extract ordered Chef attribute assignments from one cookbook attributes file.
 
-TASK:
-Extract all `default['...']['...']` assignments and return them as a nested dictionary.
+- Return one `assignments` item per write, in source order. Do not merge or resolve writes.
+- Supported `precedence` values: default, force_default, normal, override, force_override.
+- Record literal key segments in `attribute_path` and the assigned value in `value`, preserving JSON types.
+- Set `clears_precedence` true when the source method uses `!`; otherwise false. The resolver handles its scope.
+- Classify by the assignment method, never the filename. Ignore attribute reads and runtime-only automatic attributes.
+- Skip helper variables unless assigned to a Chef attribute.
+- For platform conditionals, assume systemd is available; select Debian for a Debian branch and RHEL for rhel/fedora branches.
 
-RULES:
-1. For simple assignments like `default['redis']['port'] = 6379`, extract as {% raw %}{"redis": {"port": 6379}}{% endraw %}
-2. For platform-specific conditionals (case/when), extract the MOST COMMON default value:
-   - If `systemd?` is used, assume systemd is available (true)
-   - If `platform_family?('debian')`, use the debian value as default
-   - If rhel/fedora, use rhel value
-3. Skip helper variables (like `shell = '/bin/sh'`) unless they're assigned to default[]
-4. For complex values (arrays, hashes), preserve the structure
-5. Add notes about platform-specific logic in platform_specific_notes
-
-EXAMPLE:
-
-Input:
+Example input:
 ```ruby
-default['redis']['port'] = 6379
-default['redis']['host'] = 'localhost'
-
-default['redis']['job_control'] = if systemd?
-                                    'systemd'
-                                  else
-                                    'initd'
-                                  end
+normal['telemetry']['outputs'] = ['console', 'journal']
+force_override!['telemetry']['outputs'] = ['collector']
 ```
 
-Output:
+Example output:
 ```json
-{% raw %}{
-  "attributes": {
-    "redis": {
-      "port": 6379,
-      "host": "localhost",
-      "job_control": "systemd"
-    }
-  },
-  "platform_specific_notes": [
-    "job_control defaults to 'systemd' if systemd? is true, otherwise 'initd'"
-  ]
-}{% endraw %}
+{"assignments": [
+  {"precedence": "normal", "attribute_path": ["telemetry", "outputs"], "value": ["console", "journal"], "clears_precedence": false},
+  {"precedence": "force_override", "attribute_path": ["telemetry", "outputs"], "value": ["collector"], "clears_precedence": true}
+]}
 ```
+Return an empty assignments list when there are no supported writes.

@@ -8,6 +8,7 @@ from src.exporters.state import ExportState
 from src.exporters.types import MigrationCategory
 from src.exporters.write_agent import WriteAgent
 from src.types import AnsibleModule, Checklist, ChecklistStatus, DocumentFile
+from src.types.technology import Technology
 
 
 class TestWriteCompletion:
@@ -88,3 +89,52 @@ class TestWriteCompletion:
             str(state.export_state.role_path / "tasks" / "main.yml")
             in result.export_state.failure_reason
         )
+
+    def test_writer_receives_descriptions_for_all_shared_target_entries(
+        self, agent, state
+    ):
+        checklist = state.export_state.checklist
+        target = str(state.export_state.role_path / "defaults" / "main.yml")
+        checklist.add_task(
+            "attributes",
+            "attributes/base.rb",
+            target,
+            description="Keep the resolved package list from both attribute files.",
+        )
+        checklist.add_task(
+            "attributes",
+            "attributes/site.rb",
+            target,
+            description="Place force-default port 8443 in defaults.",
+        )
+        agent._current_metrics = None
+        agent.invoke_react = MagicMock(return_value={"messages": []})
+
+        agent._write_files_node(state)
+
+        messages = agent.invoke_react.call_args.args[1]
+        user_prompt = messages[-1]["content"]
+        assert (
+            "Keep the resolved package list from both attribute files." in user_prompt
+        )
+        assert "Place force-default port 8443 in defaults." in user_prompt
+        assert "attributes/base.rb" in user_prompt
+        assert "attributes/site.rb" in user_prompt
+
+    @pytest.mark.parametrize("technology", list(Technology))
+    def test_writer_includes_chef_grouping_only_for_chef(
+        self, agent, state, technology
+    ):
+        state.export_state = state.export_state.update(source_technology=technology)
+        agent._current_metrics = None
+        agent.invoke_react = MagicMock(return_value={"messages": []})
+
+        agent._write_files_node(state)
+
+        messages = agent.invoke_react.call_args.args[1]
+        system_prompt = messages[0]["content"]
+        assert ("WRITING VARIABLE TARGETS" in system_prompt) == (
+            technology is Technology.CHEF
+        )
+        assert ("force_default" in system_prompt) == (technology is Technology.CHEF)
+        assert "grouped Chef" not in messages[-1]["content"]

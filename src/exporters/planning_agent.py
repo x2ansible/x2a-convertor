@@ -1,4 +1,4 @@
-"""Planning agent for Chef to Ansible migration.
+"""Planning agent for infrastructure-to-Ansible migration.
 
 Analyzes migration plans and creates detailed checklists.
 """
@@ -22,7 +22,7 @@ class PlanningAgent(ExportAgent[ExportState]):
 
     This agent:
     - Reads the high-level and module-specific migration plans
-    - Analyzes the source Chef repository structure
+    - Analyzes the source repository structure
     - Creates a detailed checklist of files to migrate
     - Categorizes items (templates, recipes, attributes, files, structure)
     """
@@ -44,7 +44,9 @@ class PlanningAgent(ExportAgent[ExportState]):
             "Planning migration: analyzing migration plan and creating checklist"
         )
 
-        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format()
+        system_message = get_prompt(self.SYSTEM_PROMPT_NAME).format(
+            source_technology=state.source_technology.value,
+        )
         user_prompt = get_prompt(self.USER_PROMPT_NAME).format(
             module=state.module,
             layout=state.layout,
