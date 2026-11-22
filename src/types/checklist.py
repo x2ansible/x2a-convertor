@@ -320,6 +320,7 @@ class Checklist:
                 lines.append(
                     f"{checkbox} {item.source_path} → {item.target_path} ({item.status.value}){notes_text}"
                 )
+                lines.extend(f"  {line}" for line in item.description.splitlines())
 
             lines.append("")
 
@@ -490,9 +491,10 @@ class Checklist:
         ) -> str:
             """Add a new task to the migration checklist.
 
-            Each entry must reference ONE specific file. Never use glob patterns
-            (*, ?, []) in paths. If a directory contains multiple files, add a
-            separate task for each file.
+            Each entry must reference one concrete output file, never a glob
+            pattern (*, ?, []). When the migration rules group multiple source
+            files into one output, use one representative source_path and list
+            all contributing sources and their assignments in description.
 
             Args:
                 category: Category of the task (e.g., 'templates', 'recipes', 'attributes')

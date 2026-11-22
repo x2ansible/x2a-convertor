@@ -13,7 +13,7 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
    - Identify if this is: web server, database, cache, message queue, or other service type
 
 2. **Extract iterable attributes (FROM STRUCTURED ANALYSIS):**
-   - The structured analysis "Attributes Analyzed" section shows all default attributes
+   - The structured analysis shows ordered cookbook attribute assignments by source and precedence. It also provides effective cookbook values after precedence is applied.
    - IDENTIFY attributes that are collections (dicts/hashes with keys)
    - When recipes iterate (`.each` loops, resource iterations), cross-reference with these collections
    - Extract ALL keys from the collection attribute
@@ -56,8 +56,8 @@ Your task is to write detailed specification guide of the Chef cookbook with ste
 You will receive detailed structured analysis showing:
 - **Recipe execution items**: Resources, custom_resources, templates, include_recipe calls
 - **Provider analysis**: Templates rendered (unconditional and conditional branches)
-- **Attribute values**: Actual default attribute values and platform-specific notes
-- **Data bag catalog**: Item IDs and values for plain items; key names only for encrypted items. This repository-level catalog may include items unrelated to the selected cookbook
+- **Attribute values**: Cookbook attribute values grouped by Chef precedence and source file
+- **Data bag catalog**: Item IDs and values for plain items; key names only for encrypted items. This repository-level catalog may include unrelated items, so report only items referenced by the selected cookbook
 
 **File Structure Requirements (USE STRUCTURED ANALYSIS):**
 - List ONLY files that are actually used/executed/referenced
@@ -65,7 +65,7 @@ You will receive detailed structured analysis showing:
   - Recipe files (.rb) that are executed
   - Provider files (.rb) that are used by custom resources
   - Template files (.erb) that are rendered by recipes or providers
-  - Attribute files (.rb) that define default values
+  - All analyzed attribute files (.rb), with values grouped by precedence
   - Static files (files/default/* or files/*) that are deployed by cookbook_file or remote_file resources
 - Exclude irrelevant files:
   - Documentation: README, LICENSE, CHANGELOG
@@ -113,7 +113,7 @@ You will receive detailed structured analysis showing:
 
 **Configured Instances**:
 
-**CRITICAL**: Examine the "Attributes Analyzed" section in structured analysis.
+**CRITICAL**: Use the grouped effective cookbook values in structured analysis; ordered assignments provide source and precedence.
 - Identify collection attributes (dicts with multiple keys)
 - If recipes iterate over these collections, list EVERY key explicitly
 - DO NOT write "for each X" - list all items by name
@@ -170,20 +170,26 @@ migration-dependencies/cookbook_artifacts/dependency-name-1.0.0/recipes/default.
 
 **Attributes:**
 ```
-[List .rb attribute files with defaults, with relative paths from structured analysis]
+[List all analyzed .rb attribute files, with relative paths from structured analysis]
 ```
 
 **Files:**
 ```
 [List static files deployed by cookbook_file or remote_file resources (files/default/* or files/*), with relative paths from structured analysis. Omit if none.]
 ```
-migration-dependencies/cookbook_artifacts/[dependency-name]-*/templates/default/config.erb
-migration-dependencies/cookbook_artifacts/[dependency-name]-*/templates/default/init.erb
 
 ## Attributes
-cookbooks/[cookbook-name]/attributes/default.rb
-migration-dependencies/cookbook_artifacts/[dependency-name]-*/attributes/default.rb
-```
+
+List all effective cookbook attributes with their resolved values, Chef precedence (`default`,
+`force_default`, `normal`, `override`, or `force_override`), and source file. Do not infer precedence from a filename
+or describe a cookbook-only value as the final node value.
+
+Use `COOKBOOK ATTRIBUTE VALUES BY ANSIBLE TARGET` as authoritative for effective values
+and destinations. Group the Attributes rows under `defaults/main.yml` and `vars/main.yml`,
+keeping dictionaries intact. Ordered assignments provide source files and precedence;
+do not regroup by source filename. Report source attribute paths, values, and provenance only;
+do not add recommended Ansible YAML representations or choose Ansible variable names.
+````
 
 Do NOT include: README, LICENSE, test files, .editorconfig, chefignore, or other non-executable files.
 

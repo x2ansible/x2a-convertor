@@ -6,8 +6,9 @@ src/exporters/chef_to_ansible.py.
 """
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from langgraph.graph import END, StateGraph
 
@@ -173,6 +174,7 @@ class ChefSubagent:
         result_class,
         slog,
         telemetry: Telemetry | None = None,
+        sort_key: Callable[[Path], Any] | None = None,
     ) -> list:
         """Generic method to analyze Chef files matching a pattern."""
         results = []
@@ -182,7 +184,11 @@ class ChefSubagent:
                 slog.warning(f"Path does not exist: {path}")
                 continue
 
-            for file_path in path.glob(pattern):
+            file_paths = path.glob(pattern)
+            if sort_key is not None:
+                file_paths = sorted(file_paths, key=sort_key)
+
+            for file_path in file_paths:
                 try:
                     slog.debug(f"Analyzing {file_type}: {file_path}")
                     file_state = FileAnalysisState(
@@ -202,8 +208,17 @@ class ChefSubagent:
 
         return results
 
+    @staticmethod
+    def _attribute_file_sort_key(file_path: Path) -> tuple[str, bool, str]:
+        """Load default.rb first, then other files by name within each cookbook."""
+        return (
+            str(file_path.parent),
+            file_path.name != "default.rb",
+            file_path.name,
+        )
+
     def _build_attribute_collections(
-        self, attributes: list[AttributesAnalysisResult], slog
+        self, attributes: dict[str, Any], slog
     ) -> dict[str, list[str]]:
         """Build map of collection names to their item keys."""
         attribute_collections: dict[str, list[str]] = {}
@@ -246,13 +261,10 @@ class ChefSubagent:
                         f"{len(value)} items: {list(value.keys())}"
                     )
 
-        for attr_result in attributes:
-            try:
-                find_collections(attr_result.analysis.attributes)
-            except Exception as e:
-                slog.warning(
-                    f"Failed to build collections from {attr_result.file_path}: {e}"
-                )
+        try:
+            find_collections(attributes)
+        except Exception as e:
+            slog.warning(f"Failed to build attribute collections: {e}")
 
         return attribute_collections
 
@@ -269,14 +281,20 @@ class ChefSubagent:
         slog.info("Step 1: Analyzing attributes to build iteration map")
         attributes = self._analyze_files_by_pattern(
             paths=state.all_paths,
-            pattern="**/attributes/default.rb",
+            pattern="**/attributes/*.rb",
             file_type="attributes",
             analysis_service=self._attribute_service,
             result_class=AttributesAnalysisResult,
             slog=slog,
             telemetry=state.telemetry,
+            sort_key=self._attribute_file_sort_key,
         )
-        attribute_collections = self._build_attribute_collections(attributes, slog)
+        attribute_values = StructuredAnalysis(
+            attributes=attributes
+        ).merged_attribute_values()
+        attribute_collections = self._build_attribute_collections(
+            attribute_values, slog
+        )
         data_bag_root = self._path_resolver.resolve_data_bag_root(state.path)
         data_bags = self._collect_data_bags(
             [data_bag_root] if data_bag_root else [], slog
@@ -390,6 +408,10 @@ class ChefSubagent:
             f"Total files analyzed: {analysis.get_total_files_analyzed()}",
             "",
         ]
+
+        attribute_summary = analysis.format_attribute_summary()
+        if attribute_summary:
+            lines.extend([attribute_summary, "", "=" * 80, ""])
 
         entry_recipe = self._find_entry_recipe(analysis, cookbook_path)
 

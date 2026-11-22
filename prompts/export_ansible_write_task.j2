@@ -68,7 +68,7 @@ and `list_checklist_tasks` results supersede these statuses.
 
 CRITICAL INSTRUCTIONS:
 - Process ALL items marked "pending" or "missing" in the checklist
-- NEVER write or overwrite files marked "complete"
+- Leave completed files untouched, except when source-specific rules require combining pending contributions to a shared target
 - SKIP all items in the "molecule" category. A separate agent handles molecule tests
 - Work autonomously without asking for user input
 - Do NOT stop after listing items - immediately begin processing them
@@ -81,8 +81,8 @@ Read related sources when necessary to understand the selected conversion.
 
 ## Step 2: Finish That Item Before Selecting Another
 
-Repeat the following sequence for each unfinished item. Do not batch all source
-reads, then all file writes, then all checklist updates.
+Repeat the following sequence for each unfinished item or group defined by the source-specific rules.
+Finish that output and its checklist updates before selecting the next target.
 
 1. **Verify status**: If checklist shows "complete", skip to next item
 2. **Check existence and ownership**: If the item is already marked complete, leave it untouched. If it is pending or missing and its target exists, read it: creator-generated scaffold/default content is NOT migrated content and must be replaced with the planned conversion. Never assume existence means completion.
@@ -99,7 +99,7 @@ reads, then all file writes, then all checklist updates.
    b. Handle errors:
       - **ERROR** (file not written): Fix YAML and retry
       - **WARNING** (file written with issues): Try fixing up to 3 times, then mark complete and move on
-   c. Immediately call `update_checklist_task` with exact source_path and target_path from the checklist, status "complete", before reading or writing the next item.
+   c. Immediately call `update_checklist_task` with exact source_path and target_path from the checklist, status "complete", before processing the next target. For a grouped output, update every pending/missing entry in the group after the combined write.
    d. Check the tool result. Only a successful update means the checklist changed; if it reports "Task not found", retrieve the checklist and retry with the exact paths.
 
 **IMPORTANT**: Do NOT ask which item to process. Process ALL pending items automatically.

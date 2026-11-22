@@ -10,6 +10,7 @@ from pathlib import Path
 from src.utils.logging import get_logger
 
 from .models import (
+    AttributeAssignment,
     ConditionalExecution,
     CustomResourceExecution,
     DataBagExecution,
@@ -139,7 +140,15 @@ class ExecutionTreeBuilder:
         nodes = []
 
         for item in execution_order:
-            if isinstance(item, IncludeRecipeExecution):
+            if isinstance(item, AttributeAssignment):
+                nodes.append(
+                    ExecutionNode(
+                        node_type="attribute_assignment",
+                        name=item.format_label(),
+                        execution_item=item,
+                    )
+                )
+            elif isinstance(item, IncludeRecipeExecution):
                 # Recursively expand included recipe
                 included_recipe_path = self._resolve_recipe_path(item.recipe_name)
 
@@ -329,30 +338,15 @@ class ExecutionTreeBuilder:
 
     def _get_collection_attributes(self, collection_path: str) -> dict:
         """Get attribute values for a collection path like 'nginx.sites'."""
-        result = {}
-
-        # Navigate through attribute files to find the collection values
-        for attr_result in self.analysis.attributes:
-            attrs = attr_result.analysis.attributes
-
-            # Split path like "nginx.sites" into ["nginx", "sites"]
-            parts = collection_path.split(".")
-            current = attrs
-
-            # Navigate nested dict
-            for part in parts:
-                if isinstance(current, dict) and part in current:
-                    current = current[part]
-                else:
-                    current = None
-                    break
-
-            # If we found the collection, return it
-            if isinstance(current, dict):
-                result = current
-                break
-
-        return result
+        parts = collection_path.split(".")
+        current = self.analysis.merged_attribute_values()
+        for part in parts:
+            if not isinstance(current, dict) or part not in current:
+                return {}
+            current = current[part]
+        if isinstance(current, dict):
+            return current
+        return {}
 
     def _resolve_recipe_path(self, recipe_name: str) -> str | None:
         """Resolve recipe name to file path.

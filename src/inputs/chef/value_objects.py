@@ -159,12 +159,14 @@ class AttributePath:
     @staticmethod
     def _parse_path(path_string: str) -> list[str]:
         """Parse attribute path into list of keys."""
-        # Remove node.default, node.override, etc
+        # Remove the precedence prefix while retaining only attribute keys.
         cleaned = re.sub(
-            r"^node\.(default|override|normal|automatic)\s*", "", path_string
+            r"^node\.(force_default|force_override|default|override|normal|automatic)!?\s*",
+            "",
+            path_string,
         )
         # Extract keys from ['key1']['key2'] format
-        keys = re.findall(r"\['([^']+)'\]", cleaned)
+        keys = [match[1] for match in re.findall(r"\[\s*(['\"])(.*?)\1\s*\]", cleaned)]
         return keys
 
     @property

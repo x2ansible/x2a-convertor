@@ -22,6 +22,7 @@ Your job is to clean, consolidate, and format this into a perfect migration plan
 4. **Merge intelligently**: Replace outdated sections with validated information
 5. **Follow template format**: Ensure output matches the migration plan template exactly
 6. **Preserve accuracy**: Keep all validated factual information (instance names, ports, etc.)
+7. **Preserve attribute analysis**: Retain the Attributes section with effective cookbook values, source files, precedence levels, reset notes, and defaults/main.yml versus vars/main.yml groups; apply validation corrections without restoring overwritten values.
 
 ## Template Structure to Follow
 
@@ -50,6 +51,10 @@ Your job is to clean, consolidate, and format this into a perfect migration plan
 [Keep the complete directory listing from the original migration plan]
 [Do NOT remove or summarize this section]
 ```
+
+## Attributes
+
+[Preserve defaults/main.yml and vars/main.yml groups with effective values, source files, precedence levels, and reset notes.]
 
 ## Module Explanation
 
